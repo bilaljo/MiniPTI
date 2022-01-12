@@ -6,7 +6,6 @@ class ACSignal:
         self.phase = phase
         self.lissajous = self.LissajousFigure()
         self.intensity = intensity_ac
-        self.scaled_intensity = np.array()
 
     def get_lissajous_figure(self, scaled_signals: np.array):
         """
@@ -33,4 +32,4 @@ class ACSignal:
             self.y = 0
 
     def scale_intensity(self, intensity_dc):
-        self.scaled_intensity = 2 / (max(intensity_dc) - min(intensity_dc)) * self.intensity
+        return 2 / (max(intensity_dc) - min(intensity_dc)) * self.intensity
