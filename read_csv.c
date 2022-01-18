@@ -23,3 +23,19 @@ size_t get_names(char *file_name, char names[NUMBER_OF_ROWS][NAME_SIZE]) {
   return number_of_columns;
 }
 
+void get_data(char *file_name, double data[NUMBER_OF_COLUMNS][NUMBER_OF_ROWS], size_t number_of_columns) {
+  FILE *file = fopen(file_name, "r");
+  if (file == NULL) {
+    printf("Error: Could not read the file.\n");
+    exit(1);
+  }
+  char line[BUFFER_SIZE];
+  for (int i = 0; i < NUMBER_OF_COLUMNS; i++) {
+    fgets(line, BUFFER_SIZE, file);
+    char *name = strtok(line, ",");
+    for (size_t j = 0; j < number_of_columns && name; j++) {
+      sscanf(name, "%lf", &data[i][j]);
+      name = strtok(NULL, ",");
+    }
+  }
+}
