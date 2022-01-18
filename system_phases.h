@@ -1,8 +1,13 @@
-//
-// Created by jonas on 1/17/22.
-//
+#ifndef SYSTEM_PHASES_H
+#define SYSTEM_PHASES_H
 
-#ifndef SIGNAL_ANALYSIS_SYSTEM_PHASES_H
-#define SIGNAL_ANALYSIS_SYSTEM_PHASES_H
+#include <stddef.h>
 
-#endif //SIGNAL_ANALYSIS_SYSTEM_PHASES_H
+#define DATA_SIZE 2000
+
+struct coordinate {
+  double x;
+  double y;
+};
+
+#endif /* SYSTEM_PHASES_H */
