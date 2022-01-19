@@ -1,3 +1,6 @@
 passepartout
 .idea
 *.o
+cmake-build-debug/
+cmake-build-run/
+
