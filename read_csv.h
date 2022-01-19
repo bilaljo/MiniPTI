@@ -3,10 +3,16 @@
 
 #include <stddef.h>
 
-#define BUFFER_SIZE 10000
-#define NUMBER_OF_ROWS 500
+#define BUFFER_SIZE 1000
+#define NUMBER_OF_ROWS 23
 #define NAME_SIZE 500
-#define NUMBER_OF_COLUMNS 2000
+#define NUMBER_OF_COLUMNS 2824
+
+enum csv_file_names {
+  DC_1 = 7,
+  DC_2,
+  DC_3,
+};
 
 struct csv_file {
   char names[NUMBER_OF_ROWS][NAME_SIZE];

@@ -3,20 +3,38 @@
 #include <math.h>
 
 #define DEBUG
-#define STEP_SIZE 0.01
+#define STEP_SIZE 0.001
 #define TOLERANCE 1e-4
 #define MAX_STEPS 100
+
 #define CIRCLE(x, y) pow(x, 2) + pow(y, 2)
 
-struct intensity {
-  double detector_1;
-  double detector_2;
-  double detector_3;
-};
+static void scale_signal(double (*intensity)[DATA_SIZE]) {
+  double min = (*intensity)[0];
+  double max = (*intensity)[0];
+  for (int i = 0; i < DATA_SIZE; i++) {
+    if ((*intensity)[i] < min) {
+      min = (*intensity)[i];
+    }
+    if ((*intensity)[i] > max) {
+      max = (*intensity)[i];
+    }
+  }
+  for (int i = 0; i < DATA_SIZE; i++) {
+    (*intensity)[i] = 2 * ((*intensity)[i] - min) / (max - min) - 1;
+  }
+}
 
-
-void get_intensities(struct intensity *intensities) {
-  
+void set_intensities(double (*intensity_1)[DATA_SIZE], double (*intensity_2)[DATA_SIZE],
+                     double (*intensity_3)[DATA_SIZE], struct intensity (*intensties)[DATA_SIZE]) {
+  scale_signal(intensity_1);
+  scale_signal(intensity_2);
+  scale_signal(intensity_3);
+  for (int i = 0; i < DATA_SIZE; i++) {
+    (*intensties)[i].detector_1 = (*intensity_1)[i];
+    (*intensties)[i].detector_2 = (*intensity_2)[i];
+    (*intensties)[i].detector_3 = (*intensity_3)[i];
+  }
 }
 
 static double get_mean(const double *data) {
@@ -42,8 +60,7 @@ static double standard_deviation_circle(const gsl_vector *v, void *params) {
   struct intensity intensities_dc[DATA_SIZE];
   double circle_result[DATA_SIZE] = {0};
   for (size_t i = 0; i < DATA_SIZE; i++) {
-    /* FIXME: Does this work? */
-    intensities_dc[i] = *(struct intensity*)params;
+    intensities_dc[i] = ((struct intensity *)params)[i];
   }
   for (size_t i = 0; i < DATA_SIZE; i++) {
     circle_result[i] = CIRCLE(intensities_dc[i].detector_1 + intensities_dc[i].detector_2 * cos(x) +
@@ -56,8 +73,7 @@ static double standard_deviation_circle(const gsl_vector *v, void *params) {
 static void gradient(const gsl_vector *v, void *params, gsl_vector *df) {
   struct intensity intensities_dc[DATA_SIZE];
   for (size_t i = 0; i < DATA_SIZE; i++) {
-    /* FIXME: Does this work? */
-    intensities_dc[i] = *(struct intensity*)params;
+    intensities_dc[i] = ((struct intensity *)params)[i];
   }
   double mean = 0;
   double x = gsl_vector_get(v, 0);
@@ -84,9 +100,7 @@ void function_gradient_value(const gsl_vector *x, void *params, double *f, gsl_v
   gradient(x, params, df);
 }
 
-void get_phases(double *system_phase_1, double *system_phase_2) {
-  struct intensity intensities[DATA_SIZE];
-  get_intensities(intensities);
+void get_phases(double (*system_phases)[2], struct intensity (*intensities)[DATA_SIZE]) {
   int iterations = 0;
   int status;
   const gsl_multimin_fdfminimizer_type *T;
@@ -96,9 +110,9 @@ void get_phases(double *system_phase_1, double *system_phase_2) {
   minimizer.f = &standard_deviation_circle;
   minimizer.df = &gradient;
   minimizer.fdf = &function_gradient_value;
-  minimizer.params = (void *)intensities;
+  minimizer.params = (void *)(*intensities);
   /* Inertial gues. */
-  gsl_vector *x = gsl_vector_alloc (2);
+  gsl_vector *x = gsl_vector_alloc(2);
   gsl_vector_set(x, 0, 2 * M_PI / 3);
   gsl_vector_set(x, 1, 4 * M_PI / 3);
   T = gsl_multimin_fdfminimizer_conjugate_fr;
@@ -111,17 +125,17 @@ void get_phases(double *system_phase_1, double *system_phase_2) {
     if (status) {
       break;
     }
-    status = gsl_multimin_test_gradient(s->gradient, 1e-3);
-    #ifdef DEBUG
+    status = gsl_multimin_test_gradient(s->gradient, 1e-4);
+#ifdef DEBUG
     if (status == GSL_SUCCESS) {
       printf("The system phases are %1.10f and %1.10f.\n", gsl_vector_get(s->x, 0), gsl_vector_get(s->x, 1));
       printf("%d iteration steps were needed.\n", iterations);
     }
-    #endif
-  /* We have to limit the maximum steps for case that we do not reach the needed percision in time. */
+#endif
+    /* We have to limit the maximum steps for case that we do not reach the needed percision in time. */
   } while (status == GSL_CONTINUE && iterations < MAX_STEPS);
-  *system_phase_1 = gsl_vector_get(s->x, 0);
-  *system_phase_2 = gsl_vector_get(s->x, 1);
+  (*system_phases)[0] = gsl_vector_get(s->x, 0);
+  (*system_phases)[1] = gsl_vector_get(s->x, 1);
   gsl_multimin_fdfminimizer_free(s);
   gsl_vector_free(x);
 }

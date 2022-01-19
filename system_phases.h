@@ -3,8 +3,17 @@
 
 #include <stddef.h>
 
-#define DATA_SIZE 2000
+#define DATA_SIZE 2824
 
-void get_phases(double *system_phase_1, double *system_phase_2);
+struct intensity {
+  double detector_1;
+  double detector_2;
+  double detector_3;
+};
+
+void set_intensities(double (*intensity_1)[DATA_SIZE], double (*intensity_2)[DATA_SIZE],
+                    double (*intensity_3)[DATA_SIZE], struct intensity (*intensties)[DATA_SIZE]);
+
+void get_phases(double (*system_phases)[2], struct intensity (*intensities)[DATA_SIZE]);
 
 #endif /* SYSTEM_PHASES_H */
