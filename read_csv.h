@@ -5,8 +5,8 @@
 
 #define BUFFER_SIZE 1000
 #define NUMBER_OF_ROWS 23
-#define NAME_SIZE 500
-#define NUMBER_OF_COLUMNS 2824
+#define NAME_SIZE 100
+#define NUMBER_OF_COLUMNS 2823
 
 enum csv_file_names {
   DC_1 = 7,

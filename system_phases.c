@@ -3,9 +3,9 @@
 #include <math.h>
 
 #define DEBUG
-#define STEP_SIZE 0.001
+#define STEP_SIZE 1e-4
 #define TOLERANCE 1e-4
-#define MAX_STEPS 100
+#define MAX_STEPS 1000
 
 #define CIRCLE(x, y) pow(x, 2) + pow(y, 2)
 
@@ -37,19 +37,19 @@ void set_intensities(double (*intensity_1)[DATA_SIZE], double (*intensity_2)[DAT
   }
 }
 
-static double get_mean(const double *data) {
+static double get_mean(const double (*data)[DATA_SIZE]) {
   double mean = 0;
   for (int i = 0; i < DATA_SIZE; i++) {
-    mean += data[i];
+    mean += (*data)[i];
   }
   return mean / DATA_SIZE;
 }
 
-static double get_variance(const double *data) {
+static double get_variance(const double (*data)[DATA_SIZE]) {
   double mean = get_mean(data);
   double variance = 0;
   for (int i = 0; i < DATA_SIZE; i++) {
-    variance += pow(mean - data[i], 2);
+    variance += pow(mean - (*data)[i], 2);
   }
   return variance;
 }
@@ -67,29 +67,52 @@ static double standard_deviation_circle(const gsl_vector *v, void *params) {
                               intensities_dc[i].detector_3 * cos(y), intensities_dc[i].detector_2 * sin(x) +
                               intensities_dc[i].detector_3 * sin(y));
   }
-  return get_variance(circle_result);
+  return get_variance(&circle_result);
 }
 
 static void gradient(const gsl_vector *v, void *params, gsl_vector *df) {
   struct intensity intensities_dc[DATA_SIZE];
+
+  #define PHI(i, x, y) CIRCLE((intensities_dc[i].detector_1 + intensities_dc[i].detector_2 * cos(x) + \
+                        intensities_dc[i].detector_3 * cos(y)), intensities_dc[i].detector_2 * sin(x) + \
+                        intensities_dc[i].detector_3 * sin(y))
+
+  #define PSI_X(i, x, y) (2 * intensities_dc[i].detector_2 * (intensities_dc[i].detector_2  * sin(x) \
+                         + intensities_dc[i].detector_3 * sin(y)) * cos(x) - 2 * intensities_dc[i].detector_2 \
+                         * (intensities_dc[i].detector_1 + intensities_dc[i].detector_2 * cos(x) \
+                         + intensities_dc[i].detector_3 * cos(y)) * sin(x))
+
+  #define PSI_Y(i, x, y) (2 * intensities_dc[i].detector_3 * (intensities_dc[i].detector_2 * sin(x) \
+                         + intensities_dc[i].detector_3 * sin(y)) * cos(y) - 2 * intensities_dc[i].detector_3 \
+                         * (intensities_dc[i].detector_1 + intensities_dc[i].detector_2 * cos(x) \
+                         + intensities_dc[i].detector_3 * cos(y)) * sin(y))
+
   for (size_t i = 0; i < DATA_SIZE; i++) {
     intensities_dc[i] = ((struct intensity *)params)[i];
   }
-  double mean = 0;
   double x = gsl_vector_get(v, 0);
   double y = gsl_vector_get(v, 1);
+  double mean = 0;
+  double mean_psi_x = 0;
+  double mean_psi_y = 0;
   for (size_t i = 0; i < DATA_SIZE; i++) {
-    mean += CIRCLE(intensities_dc[i].detector_1 + intensities_dc->detector_2 * cos(x) +
-                   intensities_dc[i].detector_3 * cos(y), intensities_dc[i].detector_2 * sin(x) +
-                   intensities_dc[i].detector_3 * sin(y));
+    mean += PHI(i, x, y);
+    mean_psi_x += PSI_X(i, x, y);
+    mean_psi_y += PSI_Y(i, x, y);
   }
   mean /= DATA_SIZE;
+  mean_psi_x /= DATA_SIZE;
+  mean_psi_y /= DATA_SIZE;
   for (size_t i = 0; i < DATA_SIZE; i++) {
-    double circle_result = CIRCLE(intensities_dc[i].detector_1 + intensities_dc->detector_2 * cos(x) +
-                                  intensities_dc[i].detector_3 * cos(y), intensities_dc[i].detector_2 * sin(x) +
-                                  intensities_dc[i].detector_3 * sin(y));
-    x += 2 * (intensities_dc[i].detector_2 - mean) * (circle_result - mean);
-    y += 2 * (intensities_dc[i].detector_3 - mean) * (circle_result - mean);
+    double phi = PHI(i, x, y);
+    double phi_x = (phi - mean);
+    double phi_y = (phi - mean);
+    double psi_x = PSI_X(i, x, y) - mean_psi_x;
+    double psi_y = PSI_Y(i, x, y) - mean_psi_y;
+    phi_x *= psi_x;
+    phi_y *= psi_y;
+    x += phi_x;
+    y += phi_y;
   }
   gsl_vector_set(df, 0, x);
   gsl_vector_set(df, 1, y);

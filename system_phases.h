@@ -3,7 +3,7 @@
 
 #include <stddef.h>
 
-#define DATA_SIZE 2824
+#define DATA_SIZE 2823
 
 struct intensity {
   double detector_1;

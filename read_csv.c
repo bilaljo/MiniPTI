@@ -30,6 +30,7 @@ void get_data(char *file_name, double data[NUMBER_OF_COLUMNS][NUMBER_OF_ROWS], s
     exit(1);
   }
   char line[BUFFER_SIZE];
+  fgets(line, BUFFER_SIZE, file);  // Skip the first line because it holds only the names.
   for (int i = 0; i < NUMBER_OF_COLUMNS; i++) {
     fgets(line, BUFFER_SIZE, file);
     char *name = strtok(line, ",");
