@@ -8,6 +8,8 @@
 #define NAME_SIZE 100
 #define NUMBER_OF_COLUMNS 2823
 
+#include "system_phases.h"
+
 enum csv_file_names {
   DC_1 = 7,
   DC_2,
@@ -26,5 +28,7 @@ struct csv_file {
 size_t get_names(char *file_name, char names[NUMBER_OF_ROWS][NAME_SIZE]);
 
 void get_data(char *file_name, double data[NUMBER_OF_COLUMNS][NUMBER_OF_ROWS], size_t number_of_columns);
+
+void save_data(const char *file_name, double (*data)[DATA_SIZE]);
 
 #endif /* READ_CSV_H */

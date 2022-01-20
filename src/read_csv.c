@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include "system_phases.h"
 
 size_t get_names(char *file_name, char names[NUMBER_OF_ROWS][NAME_SIZE]) {
   FILE *file = fopen(file_name, "r");
@@ -38,5 +39,17 @@ void get_data(char *file_name, double data[NUMBER_OF_COLUMNS][NUMBER_OF_ROWS], s
       sscanf(name, "%lf", &data[i][j]);
       name = strtok(NULL, ",");
     }
+  }
+}
+
+void save_data(const char *file_name, double (*data)[DATA_SIZE]) {
+  FILE *file = fopen(file_name, "w");
+  if (file == NULL) {
+    printf("Error: Could not write file.\n");
+    return;
+  }
+  fprintf(file, "Iteration,Phase\n");
+  for (int i = 0; i < DATA_SIZE; i++) {
+    fprintf(file, "%d,%1.10f\n", i, (*data)[i]);
   }
 }

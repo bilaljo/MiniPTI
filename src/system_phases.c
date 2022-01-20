@@ -133,7 +133,7 @@ void get_phases(double (*system_phases)[2], struct intensity (*intensities)[DATA
   minimizer.f = &standard_deviation_circle;
   minimizer.df = &gradient;
   minimizer.fdf = &function_gradient_value;
-  minimizer.params = (void *)(*intensities);
+  minimizer.params = intensities;
   /* Inertial gues. */
   gsl_vector *x = gsl_vector_alloc(2);
   gsl_vector_set(x, 0, 2 * M_PI / 3);
