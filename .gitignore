@@ -3,4 +3,5 @@ passepartout
 *.o
 cmake-build-debug/
 cmake-build-run/
+src/cmake-build-release
 phases.csv
