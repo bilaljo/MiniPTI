@@ -3,6 +3,8 @@ project(signal_analysis)
 
 set(CMAKE_C_STANDARD 11)
 
+set(CMAKE_C_FLAGS_RELEASE "-Ofast")
+
 add_executable(signal_analysis
         passepartout_main.c
         read_csv.c

@@ -3,15 +3,15 @@
 
 #include <stddef.h>
 
-#define BUFFER_SIZE 1000
-#define NUMBER_OF_ROWS 23
+#define BUFFER_SIZE 100
+#define NUMBER_OF_ROWS 4
 #define NAME_SIZE 100
-#define NUMBER_OF_COLUMNS 2823
+#define NUMBER_OF_COLUMNS 667 //2823
 
 #include "system_phases.h"
 
 enum csv_file_names {
-  DC_1 = 7,
+  DC_1 = 1,
   DC_2,
   DC_3,
 };

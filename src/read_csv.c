@@ -48,8 +48,8 @@ void save_data(const char *file_name, double (*data)[DATA_SIZE]) {
     printf("Error: Could not write file.\n");
     return;
   }
-  fprintf(file, "Iteration,Phase\n");
+  fprintf(file, "Phase\n");
   for (int i = 0; i < DATA_SIZE; i++) {
-    fprintf(file, "%d,%1.10f\n", i, (*data)[i]);
+    fprintf(file, "%1.10f\n", (*data)[i]);
   }
 }
