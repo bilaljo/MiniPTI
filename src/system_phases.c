@@ -2,70 +2,58 @@
 #include <gsl/gsl_multimin.h>
 #include <gsl/gsl_vector.h>
 #include <math.h>
+#include <stdio.h>
 
 #define DEBUG
-#define USE_GRADIENT
 #define STEP_SIZE 8e-2
 #define TOLERANCE 1e-4
 #define MAX_STEPS 1000
 
 #define CIRCLE(x, y) (pow(x, 2) + pow(y, 2))
 
-#define PHI(i, x, y) CIRCLE((intensities_dc[i].detector_1 + intensities_dc[i].detector_2 * cos(x) + \
-                        intensities_dc[i].detector_3 * cos(y)), intensities_dc[i].detector_2 * sin(x) + \
-                        intensities_dc[i].detector_3 * sin(y))
+#define PHI(i, x, y) CIRCLE((intensities->detector_1[i] + intensities->detector_2[i] * cos(x) + \
+                        intensities->detector_3[i] * cos(y)), intensities->detector_2[i] * sin(x) + \
+                        intensities->detector_3[i] * sin(y))
 
-#define PSI_X(i, x, y) (2 * intensities_dc[i].detector_2 * (intensities_dc[i].detector_2  * sin(x) \
-                         + intensities_dc[i].detector_3 * sin(y)) * cos(x) - 2 * intensities_dc[i].detector_2 \
-                         * (intensities_dc[i].detector_1 + intensities_dc[i].detector_2 * cos(x) \
-                         + intensities_dc[i].detector_3 * cos(y)) * sin(x))
+#define PSI_X(i, x, y) (2 * intensities->detector_2[i] * (intensities->detector_2[i]  * sin(x) \
+                         + intensities->detector_3[i] * sin(y)) * cos(x) - 2 * intensities->detector_2[i] \
+                         * (intensities->detector_1[i] + intensities->detector_2[i] * cos(x) \
+                         + intensities->detector_3[i] * cos(y)) * sin(x))
 
-#define PSI_Y(i, x, y) (2 * intensities_dc[i].detector_3 * (intensities_dc[i].detector_2 * sin(x) \
-                         + intensities_dc[i].detector_3 * sin(y)) * cos(y) - 2 * intensities_dc[i].detector_3 \
-                         * (intensities_dc[i].detector_1 + intensities_dc[i].detector_2 * cos(x) \
-                         + intensities_dc[i].detector_3 * cos(y)) * sin(y))
+#define PSI_Y(i, x, y) (2 * intensities->detector_3[i] * (intensities->detector_2[i] * sin(x) \
+                         + intensities->detector_3[i] * sin(y)) * cos(y) - 2 * intensities->detector_3[i] \
+                         * (intensities->detector_1[i] + intensities->detector_2[i] * cos(x) \
+                         + intensities->detector_3[i] * cos(y)) * sin(y))
 
-void scale_signal(double (*intensity)[DATA_SIZE]) {
-  double min = (*intensity)[0];
-  double max = (*intensity)[0];
+void scale_signal(double *intensity) {
+  double min = intensity[0];
+  double max = intensity[0];
   for (int i = 0; i < DATA_SIZE; i++) {
-    if ((*intensity)[i] < min) {
-      min = (*intensity)[i];
+    if (intensity[i] < min) {
+      min = intensity[i];
     }
-    if ((*intensity)[i] > max) {
-      max = (*intensity)[i];
+    if (intensity[i] > max) {
+      max = intensity[i];
     }
   }
   for (int i = 0; i < DATA_SIZE; i++) {
-    (*intensity)[i] = 2 * ((*intensity)[i] - min) / (max - min) - 1;
+    intensity[i] = 2 * (intensity[i] - min) / (max - min) - 1;
   }
 }
 
-void set_intensities(double (*intensity_1)[DATA_SIZE], double (*intensity_2)[DATA_SIZE],
-                     double (*intensity_3)[DATA_SIZE], struct intensity (*intensties)[DATA_SIZE]) {
-  scale_signal(intensity_1);
-  scale_signal(intensity_2);
-  scale_signal(intensity_3);
-  for (int i = 0; i < DATA_SIZE; i++) {
-    (*intensties)[i].detector_1 = (*intensity_1)[i];
-    (*intensties)[i].detector_2 = (*intensity_2)[i];
-    (*intensties)[i].detector_3 = (*intensity_3)[i];
-  }
-}
-
-static double get_mean(const double (*data)[DATA_SIZE]) {
+static double get_mean(const double *data) {
   double mean = 0;
   for (int i = 0; i < DATA_SIZE; i++) {
-    mean += (*data)[i];
+    mean += data[i];
   }
   return mean / DATA_SIZE;
 }
 
-static double get_variance(const double (*data)[DATA_SIZE]) {
+static double get_variance(const double *data) {
   double mean = get_mean(data);
   double variance = 0;
   for (int i = 0; i < DATA_SIZE; i++) {
-    variance += pow(mean - (*data)[i], 2);
+    variance += pow(mean - data[i], 2);
   }
   return variance;
 }
@@ -73,22 +61,19 @@ static double get_variance(const double (*data)[DATA_SIZE]) {
 static double standard_deviation_circle(const gsl_vector *v, void *params) {
   double x = gsl_vector_get(v, 0);
   double y = gsl_vector_get(v, 1);
-  struct intensity intensities_dc[DATA_SIZE];
+  struct intensities *intensities;
   double circle_result[DATA_SIZE] = {0};
   for (size_t i = 0; i < DATA_SIZE; i++) {
-    intensities_dc[i] = ((struct intensity*)params)[i];
-    circle_result[i] = CIRCLE(intensities_dc[i].detector_1 + intensities_dc[i].detector_2 * cos(x) +
-                              intensities_dc[i].detector_3 * cos(y), intensities_dc[i].detector_2 * sin(x) +
-                              intensities_dc[i].detector_3 * sin(y));
+    intensities = (struct intensities*)params;
+    circle_result[i] = CIRCLE(intensities->detector_1[i] + intensities->detector_2[i] * cos(x) +
+                              intensities->detector_3[i] * cos(y), intensities->detector_2[i] * sin(x) +
+                              intensities->detector_3[i] * sin(y));
   }
-  return get_variance(&circle_result);
+  return get_variance(circle_result);
 }
 
 static void gradient(const gsl_vector *v, void *params, gsl_vector *df) {
-  struct intensity intensities_dc[DATA_SIZE];
-  for (size_t i = 0; i < DATA_SIZE; i++) {
-    intensities_dc[i] = ((struct intensity *)params)[i];
-  }
+  struct intensities *intensities = (struct intensities *)params;
   double x = gsl_vector_get(v, 0);
   double y = gsl_vector_get(v, 1);
   double mean = 0;
@@ -126,10 +111,9 @@ void function_gradient_value(const gsl_vector *x, void *params, double *f, gsl_v
   gradient(x, params, df);
 }
 
-void get_phases(double (*system_phases)[2], struct intensity (*intensities)[DATA_SIZE]) {
+void get_phases(double *system_phases, struct intensities *intensities) {
   int iterations = 0;
   int status;
-#ifdef USE_GRADIENT
   const gsl_multimin_fdfminimizer_type *T;
   gsl_multimin_fdfminimizer *s;
   gsl_multimin_function_fdf minimizer;
@@ -137,7 +121,7 @@ void get_phases(double (*system_phases)[2], struct intensity (*intensities)[DATA
   minimizer.f = &standard_deviation_circle;
   minimizer.df = &gradient;
   minimizer.fdf = &function_gradient_value;
-  minimizer.params = (void *)intensities;
+  minimizer.params = (void *)(intensities);
   /* Inertial gues. */
   gsl_vector *x = gsl_vector_alloc(2);
   gsl_vector_set(x, 0, 2 * M_PI / 3);
@@ -155,69 +139,14 @@ void get_phases(double (*system_phases)[2], struct intensity (*intensities)[DATA
     status = gsl_multimin_test_gradient(s->gradient, 1e-4);
 #ifdef DEBUG
     if (status == GSL_SUCCESS) {
-      printf("The system phases are %1.10f and %1.10f.\n", gsl_vector_get(s->x, 0), gsl_vector_get(s->x, 1));
+      printf("The system phases are %1.10f and %1.10f.\n",
+             gsl_vector_get(s->x, 0) / M_PI * 180, gsl_vector_get(s->x, 1) / M_PI * 180);
       printf("%d iteration steps were needed.\n", iterations);
     }
 #endif
   } while (status == GSL_CONTINUE && iterations < MAX_STEPS);
-#else
-  const gsl_multimin_fminimizer_type *T =
-    gsl_multimin_fminimizer_nmsimplex2;
-  gsl_multimin_fminimizer *s = NULL;
-  gsl_vector *ss, *x;
-  gsl_multimin_function minex_func;
-
-  double size;
-
-  /* Starting point */
-  x = gsl_vector_alloc (2);
-  gsl_vector_set (x, 0, 2 * M_PI / 3);
-  gsl_vector_set (x, 1, 4 * M_PI / 3);
-
-  /* Set initial step sizes to 1 */
-  ss = gsl_vector_alloc (2);
-  gsl_vector_set_all (ss, 1.0);
-
-  /* Initialize method and iterate */
-  minex_func.n = 2;
-  minex_func.f = &standard_deviation_circle;
-  minex_func.params = intensities;
-
-  s = gsl_multimin_fminimizer_alloc (T, 2);
-  gsl_multimin_fminimizer_set (s, &minex_func, x, ss);
-
-  do
-    {
-      iterations++;
-      status = gsl_multimin_fminimizer_iterate(s);
-
-      if (status)
-        break;
-
-      size = gsl_multimin_fminimizer_size (s);
-      status = gsl_multimin_test_size (size, 1e-4);
-
-      if (status == GSL_SUCCESS)
-        {
-          printf ("converged to minimum at\n");
-        }
-
-      printf ("%5d %10.3e %10.3e f() = %7.3f size = %.3f\n",
-              iterations,
-              gsl_vector_get (s->x, 0),
-              gsl_vector_get (s->x, 1),
-              s->fval, size);
-    }
-  while (status == GSL_CONTINUE && iterations < 100);
-
-  gsl_vector_free(ss);
-#endif
   gsl_vector_free(x);
-  (*system_phases)[0] = gsl_vector_get(s->x, 0);
-  (*system_phases)[1] = gsl_vector_get(s->x, 1);
-#ifdef USE_GRADIENT
+  system_phases[0] = gsl_vector_get(s->x, 0);
+  system_phases[1] = gsl_vector_get(s->x, 1);
   gsl_multimin_fdfminimizer_free(s);
-#else
-  gsl_multimin_fminimizer_free(s);
-#endif
 }

@@ -4,52 +4,66 @@
 #include <stdio.h>
 #include "system_phases.h"
 
-size_t get_names(char *file_name, char names[NUMBER_OF_ROWS][NAME_SIZE]) {
-  FILE *file = fopen(file_name, "r");
-  if (file == NULL) {
-    printf("Error: Could not read the file.\n");
-    exit(1);
-  }
+void static get_names(FILE *file, struct csv *csv_file) {
   char line[BUFFER_SIZE];
   fgets(line, BUFFER_SIZE, file);
-  if (feof(file)) {
-    return -1;
+  if (line[strlen(line) - 1] == '\n') {
+    line[strlen(line) - 1] = '\0';
   }
-  char *name = strtok(line, ",");
-  size_t number_of_columns = 0;
-  for (; number_of_columns < NUMBER_OF_ROWS && name; number_of_columns++) {
-    strcpy(names[number_of_columns], name);
-    name = strtok(NULL, ",");
+  char *sub_string = strtok(line, ",");
+  for (int i = 0; i < COLUMNS && sub_string; i++) {
+    strcpy(csv_file->names[i], sub_string);
+    sub_string = strtok(NULL, ",");
+    csv_file->numer_of_columns++;
   }
-  return number_of_columns;
 }
 
-void get_data(char *file_name, double data[NUMBER_OF_COLUMNS][NUMBER_OF_ROWS], size_t number_of_columns) {
-  FILE *file = fopen(file_name, "r");
-  if (file == NULL) {
-    printf("Error: Could not read the file.\n");
-    exit(1);
-  }
+static void get_data(FILE *file, struct csv *csv_file) {
   char line[BUFFER_SIZE];
-  fgets(line, BUFFER_SIZE, file);  // Skip the first line because it holds only the names.
-  for (int i = 0; i < NUMBER_OF_COLUMNS; i++) {
+  char *error_string;
+  for (int i = 0; i < DATA_SIZE && ! feof(file); i++) {
     fgets(line, BUFFER_SIZE, file);
-    char *name = strtok(line, ",");
-    for (size_t j = 0; j < number_of_columns && name; j++) {
-      sscanf(name, "%lf", &data[i][j]);
-      name = strtok(NULL, ",");
+    if (line[strlen(line) - 1] == '\n') {
+      line[strlen(line) - 1] = '\0';
+    }
+    char *sub_string = strtok(line, ",");
+    for (int j = 0; j < csv_file->numer_of_columns && sub_string; j++) {
+      csv_file->data[j][i] = strtod(sub_string, &error_string);
+      sub_string = strtok(NULL, ",");
+      if (*error_string != '\0') {
+        fprintf(stderr, "Error: Given string is no number.\n");
+      }
+    }
+    csv_file->number_of_rows++;
+  }
+}
+
+double *get_column(struct csv *csv_file, char *column) {
+  for (size_t i = 0; i < csv_file->numer_of_columns; i++) {
+    if (! strcmp(csv_file->names[i], column)) {
+      return csv_file->data[i];
     }
   }
+  return NULL;
 }
 
-void save_data(const char *file_name, double (*data)[DATA_SIZE]) {
+FILE *read_csv(char *file_name, struct csv *csv_file) {
+  FILE *file = fopen(file_name, "r");
+  if (file == NULL) {
+    perror("Error");
+    return NULL;
+  }
+  get_names(file, csv_file);
+  get_data(file, csv_file);
+  return file;
+}
+
+FILE *save_data(const char *file_name, double (*data)[2]) {
   FILE *file = fopen(file_name, "w");
   if (file == NULL) {
-    printf("Error: Could not write file.\n");
-    return;
+    fprintf(stderr, "Error: Could not write file.\n");
+    return NULL;
   }
-  fprintf(file, "Phase\n");
-  for (int i = 0; i < DATA_SIZE; i++) {
-    fprintf(file, "%1.10f\n", (*data)[i]);
-  }
+  fprintf(file, "Phase 1,Phase 2\n");
+  fprintf(file, "%1.10f,%1.10f\n", (*data)[0], (*data)[1]);
 }
