@@ -1,7 +1,3 @@
-passepartout
 .idea
-*.o
-cmake-build-debug/
-cmake-build-run/
-src/cmake-build-release
-phases.csv
+src/phase_scan/cmake-build-debug/
+src/phase_scan/cmake-build-release
