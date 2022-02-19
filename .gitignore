@@ -1,3 +1,4 @@
 .idea
-src/phase_scan/cmake-build-debug/
-src/phase_scan/cmake-build-release
+src/phase_scan/build
+src/phase_scan/build_test
+
