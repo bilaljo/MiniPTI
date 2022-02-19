@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include "system_phases.h"
 
-void static get_names(FILE *file, struct csv *csv_file) {
+static void get_names(FILE *file, struct csv *csv_file) {
   char line[BUFFER_SIZE];
   fgets(line, BUFFER_SIZE, file);
   if (line[strlen(line) - 1] == '\n') {
@@ -27,7 +27,7 @@ static void get_data(FILE *file, struct csv *csv_file) {
       line[strlen(line) - 1] = '\0';
     }
     char *sub_string = strtok(line, ",");
-    for (int j = 0; j < csv_file->numer_of_columns && sub_string; j++) {
+    for (size_t j = 0; j < csv_file->numer_of_columns && sub_string; j++) {
       csv_file->data[j][i] = strtod(sub_string, &error_string);
       sub_string = strtok(NULL, ",");
       if (*error_string != '\0') {
@@ -66,4 +66,5 @@ FILE *save_data(const char *file_name, double (*data)[2]) {
   }
   fprintf(file, "Phase 1,Phase 2\n");
   fprintf(file, "%1.10f,%1.10f\n", (*data)[0], (*data)[1]);
+  return file;
 }
