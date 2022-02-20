@@ -5,7 +5,7 @@
 
 int main(int argc, char **argv) {
   struct csv csv_file;
-  char file_path[BUFFER_SIZE] = "../build_test/dc_1.csv";
+  char file_path[BUFFER_SIZE] = "../dc.csv";
   if (argc > 1) {
     strcpy(file_path, argv[1]);
   }

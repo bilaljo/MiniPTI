@@ -1,6 +1,12 @@
 #ifndef READ_CSV_H
 #define READ_CSV_H
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
+
 #include <stddef.h>
 #include <stdio.h>
 
@@ -21,5 +27,9 @@ FILE *read_csv(char *file_name, struct csv *csv_file);
 double *get_column(struct csv *csv_file, char *column);
 
 FILE *save_data(const char *file_name, double (*data)[2]);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* READ_CSV_H */

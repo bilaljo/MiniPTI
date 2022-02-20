@@ -4,9 +4,9 @@
 #include <math.h>
 #include <stdio.h>
 
-#define DEBUG
+// #define DEBUG
 #define STEP_SIZE 8e-2
-#define TOLERANCE 1e-4
+#define TOLERANCE 1e-9
 #define MAX_STEPS 1000
 
 #define CIRCLE(x, y) (pow(x, 2) + pow(y, 2))

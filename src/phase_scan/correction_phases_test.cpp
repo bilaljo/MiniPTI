@@ -1,12 +1,9 @@
-#include "../../unity/unity.h"
-#include <stdlib.h>
-#include <stdio.h>
+#include <gtest/gtest.h>
+#include <math.h>
 #include "read_csv.h"
 #include "system_phases.h"
 
-void setUp(void) {}
-
-void tearDown(void) {}
+#define MAX_ERROR 1e-6
 
 void calculate_phases(char *file_path, double *phases) {
   struct csv csv_file;
@@ -22,15 +19,9 @@ void calculate_phases(char *file_path, double *phases) {
   get_phases(phases, &intensities);
 }
 
-void test_sample_data_1_python(void) {
+TEST(sample_data_1_python, Test) {
   double phases[2];
   double phases_python[2] = {1.9763368647187394, 4.066313398781279};
-  calculate_phases("./dc_1.csv", phases);
-  TEST_ASSERT_EQUAL_DOUBLE(phases[0], phases_python[0]);
-}
-
-int main(void) {
-  UNITY_BEGIN();
-  RUN_TEST(test_sample_data_1_python);
-  UNITY_END();
+  calculate_phases((char*)"sample_data/dc_1.csv", phases);
+  ASSERT_LE(fabs(phases_python[0] - phases[0]), MAX_ERROR);
 }
