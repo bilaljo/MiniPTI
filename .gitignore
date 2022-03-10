@@ -1,4 +1,5 @@
 .idea
 src/phase_scan/build
 src/phase_scan/build_test
-
+src/lock_in_amplifier/build
+src/lock_in_amplifier/build_test
