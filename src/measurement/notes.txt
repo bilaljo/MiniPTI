@@ -1,0 +1,5 @@
+- Die AC-Signale werden interrupt getrieben übertragen
+- MC setzt GPIO-Pin -> Interrupt wird ausgelöst
+- Daten werden gespeichert
+- Lock-In-Amplifier Programm wird jede Sekunde mit Datensatz ausgeführt
+
