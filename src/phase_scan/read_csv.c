@@ -47,7 +47,7 @@ double *get_column(struct csv *csv_file, char *column) {
   return NULL;
 }
 
-FILE *read_csv(char *file_name, struct csv *csv_file) {
+struct csv *read_csv(char *file_name, struct csv *csv_file) {
   FILE *file = fopen(file_name, "r");
   if (file == NULL) {
     perror("Error");
@@ -55,7 +55,8 @@ FILE *read_csv(char *file_name, struct csv *csv_file) {
   }
   get_names(file, csv_file);
   get_data(file, csv_file);
-  return file;
+  fclose(file);
+  return csv_file;
 }
 
 FILE *save_data(const char *file_name, double (*data)[2]) {

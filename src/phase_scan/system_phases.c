@@ -5,7 +5,7 @@
 #include <stdio.h>
 
 // #define DEBUG
-#define STEP_SIZE 8e-2
+#define STEP_SIZE 8e-4
 #define TOLERANCE 1e-9
 #define MAX_STEPS 1000
 
@@ -55,7 +55,7 @@ static double get_variance(const double *data) {
   for (int i = 0; i < DATA_SIZE; i++) {
     variance += pow(mean - data[i], 2);
   }
-  return variance;
+  return variance / DATA_SIZE;
 }
 
 static double standard_deviation_circle(const gsl_vector *v, void *params) {

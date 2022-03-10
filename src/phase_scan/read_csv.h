@@ -22,7 +22,7 @@ struct csv {
   double data[COLUMNS][DATA_SIZE];
 };
 
-FILE *read_csv(char *file_name, struct csv *csv_file);
+struct csv *read_csv(char *file_name, struct csv *csv_file);
 
 double *get_column(struct csv *csv_file, char *column);
 
