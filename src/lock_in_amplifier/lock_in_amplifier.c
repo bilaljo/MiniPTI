@@ -5,13 +5,13 @@ void generate_references(struct raw_data *raw_data, double *sine_reference, doub
   int signals = 0;
   double last_time = 0;
   /* Since the clock can slightly jitter we have to calculate the middle perioid of our signal. */
-  for (size_t i = 59; i < SAMPLES - 1; i++) {
+  for (size_t i = 0; i < SAMPLES - 1; i++) {
     /* If we arive a rising edge we have change from low (below 1 / 10) to high (over 9 / 10).
      * The period is know the difference between the last seen tranisition and the current time.
     */
-    if (raw_data->reference[i + 1] < 1.0 / 10 && raw_data->reference[i] > 9.0 / 10) {
-      period += (i - last_time);
-      last_time = i;
+    if (raw_data->reference[i] < 1.0 / 10 && raw_data->reference[i + 1] > 9.0 / 10) {
+      period += 2  * (i - last_time);
+      last_time = period;
       signals++;
     }
   }
@@ -21,8 +21,8 @@ void generate_references(struct raw_data *raw_data, double *sine_reference, doub
   }
   period /= (double)signals;
   for (size_t i = 0; i < SAMPLES; i++) {
-    sine_reference[i] = sin(2 * M_PI / period * i / SAMPLES);
-    cosine_reference[i] = cos(2 * M_PI / period * i / SAMPLES);
+    sine_reference[i] = sin(2 * M_PI / period  * i);
+    cosine_reference[i] = cos(2 * M_PI / period * i);
   }
 }
 

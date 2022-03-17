@@ -12,6 +12,7 @@ FILE *open_file(const char *file_name) {
   }
   /* We skip the header so the file pointer points directly to data. */
   char empty_string[HEADER_SIZE];
+  // FIXME: Header makes strange thins
   fread(empty_string, sizeof(char), HEADER_SIZE, data);
   return data;
 }
@@ -20,6 +21,8 @@ void get_measurement(struct raw_data *raw_data, FILE *file) {
   if (! file) {
     return;  /* End of file reached. */
   }
+  double empty;
+  fread(&empty, sizeof(double), 1, file);
   fread(raw_data->dc_1, sizeof(double), SAMPLES, file);
   fread(raw_data->dc_2, sizeof(double), SAMPLES, file);
   fread(raw_data->dc_3, sizeof(double), SAMPLES, file);

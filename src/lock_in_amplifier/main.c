@@ -15,30 +15,21 @@ int main(int argc, char **argv) {
   }
   gettimeofday(&start, NULL);
   FILE *binary_file = open_file(file_path);
-  struct raw_data raw_data;
-  struct raw_data refused_data;
-  struct filtered_data filtered_data[DATA_SIZE];
-  double sine_reference[SAMPLES];
-  double cosine_reference[SAMPLES];
-  get_measurement(&refused_data, binary_file);
-  for (size_t second; second < DATA_SIZE; second++) {
+  double sine_reference[SAMPLES] = {0};
+  double cosine_reference[SAMPLES] = {0};
+  FILE *results = fopen("data.csv", "w");
+  struct raw_data raw_data = {0};
     get_measurement(&raw_data, binary_file);
+  fprintf(results, "i, AC X1, AC Y1, AC X2, AC Y2, AC X3, AC Y3\n");
+  for (int second = 0; second < DATA_SIZE; second++) {
+    struct filtered_data filtered_data = {0};
     generate_references(&raw_data, sine_reference, cosine_reference);
-    filter_signals(&raw_data, &filtered_data[second], sine_reference, cosine_reference);
+    filter_signals(&raw_data, &filtered_data, sine_reference, cosine_reference);
+    fprintf(results, "%d,%1.10f,%1.10f,%1.10f,%1.10f,%1.10f,%1.10f\n", second, filtered_data.ac_1_X, filtered_data.ac_1_Y,
+            filtered_data.ac_2_X, filtered_data.ac_2_Y, filtered_data.ac_3_X, filtered_data.ac_3_Y);
   }
   gettimeofday(&end, NULL);
-  double time_taken = end.tv_sec + end.tv_usec / 1e6 -
-                      start.tv_sec - start.tv_usec / 1e6; // in seconds
-printf("time program took %f seconds to execute\n", time_taken);
-  FILE *sine = fopen("sine.txt", "w");
-  for (size_t second; second < SAMPLES; second++) {
-    fprintf(sine, "%1.10f, ", sine_reference[second]);
-  }
-  FILE *results = fopen("data.csv", "w");
-  fprintf(results, "AC X1, AC Y1, AC X2, AC Y2, AC X3, AC Y3\n");
-  for (size_t second; second < DATA_SIZE; second++) {
-    fprintf(results, "%1.10f,%1.10f,%1.10f,%1.10f,%1.10f,%1.10f\n", filtered_data[second].ac_1_X, filtered_data[second].ac_1_Y,
-            filtered_data[second].ac_2_X, filtered_data[second].ac_2_Y, filtered_data[second].ac_3_X, filtered_data[second].ac_3_Y);
-  }
+  double time_taken = end.tv_sec + end.tv_usec / 1e6 - start.tv_sec - start.tv_usec / 1e6; // in seconds
+ // printf("time program took %f seconds to execute\n", time_taken);
   return 0;
 }
