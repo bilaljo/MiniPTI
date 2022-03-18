@@ -14,10 +14,18 @@ struct filtered_data {
   double ac_3_Y;
 };
 
+struct dc_signal {
+  double DC_1;
+  double DC_2;
+  double DC_3;
+};
+
 void generate_references(struct raw_data *raw_data, double *sine_reference, double *cosine_reference);
 
 
 void filter_signals(struct raw_data *raw_data, struct filtered_data *filtered_data, const double *sine_reference,
                     const double *cos_reference);
+
+void calculate_dc(struct dc_signal *dc_signal, struct  raw_data *raw_data);
 
 #endif /* LOCK_IN_AMPLIFIER_H */
