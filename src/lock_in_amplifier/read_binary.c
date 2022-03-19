@@ -7,7 +7,7 @@
 
 FILE *open_file(const char *file_name) {
   FILE *data = fopen(file_name, "rb");
-  if (! data) {
+  if (data == NULL) {
     perror("Error");
     return NULL;
   }
@@ -18,7 +18,7 @@ FILE *open_file(const char *file_name) {
 }
 
 void get_measurement(struct raw_data *raw_data, FILE *file) {
-  if (! file) {
+  if (file == NULL) {
     return;  /* End of file reached. */
   }
 #ifdef LABVIEW
