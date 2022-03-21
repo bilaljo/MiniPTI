@@ -2,8 +2,20 @@
 #define READ_BINARY_H
 
 #include <stdio.h>
+#include <getopt.h>
 
 #define SAMPLES 50000
+
+enum mode {
+  NORMAL,
+  DEBUG,
+  VERBOSE,
+  ONLINE,
+};
+
+extern enum mode mode;
+
+void parse_command_line(int argc, char **argv, char *file_path);
 
 struct raw_data {
   double dc_1[SAMPLES];

@@ -5,13 +5,11 @@
 #include <stdlib.h>
 #include <math.h>
 
-struct filtered_data {
-  double ac_1_X;
-  double ac_1_Y;
-  double ac_2_X;
-  double ac_2_Y;
-  double ac_3_X;
-  double ac_3_Y;
+#define CHANNELS 3
+
+struct ac_data {
+  double X[CHANNELS];
+  double Y[CHANNELS];
 };
 
 struct dc_signal {
@@ -20,12 +18,15 @@ struct dc_signal {
   double DC_3;
 };
 
-void generate_references(struct raw_data *raw_data, double *sine_reference, double *cosine_reference);
+void generate_references(const struct raw_data *raw_data, double *in_phase, double *quadratur);
 
 
-void filter_signals(struct raw_data *raw_data, struct filtered_data *filtered_data, const double *sine_reference,
-                    const double *cos_reference);
+void filter_signals(const struct raw_data *raw_data, struct ac_data *ac, const double *in_phase,
+                    const double *quadratur);
 
 void calculate_dc(struct dc_signal *dc_signal, struct  raw_data *raw_data);
+
+void process_measurement(char *file_path, FILE *file);
+
 
 #endif /* LOCK_IN_AMPLIFIER_H */

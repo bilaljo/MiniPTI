@@ -1,9 +1,11 @@
 #include "lock_in_amplifier.h"
+#include "save_data.h"
 #include <stdbool.h>
 
 #define AMPLIFICATION 1000
+#define DATA_SIZE 1700
 
-void generate_references(struct raw_data *raw_data, double *sine_reference, double *cosine_reference) {
+void generate_references(const struct raw_data *raw_data, double *in_phase, double *quadratur) {
   double period = 0;
   int signals = 0;
   int last_time = 0;
@@ -27,32 +29,34 @@ void generate_references(struct raw_data *raw_data, double *sine_reference, doub
     }
   }
   if (! signals) {
-    fprintf(stderr, "Error: No modulation signal has occoured.\n");
+    if (mode == DEBUG || mode == VERBOSE) {
+      fprintf(stderr, "Error: No modulation signal has occoured.\n");
+    }
     exit(1);
   }
   period /= (double)signals;
   for (int i = 0; i < SAMPLES; i++) {
-    sine_reference[i] = sin(2 * M_PI / period  * (double)(i - phase_shift));
-    cosine_reference[i] = cos(2 * M_PI / period * (double)(i - phase_shift));
+    in_phase[i] = sin(2 * M_PI / period  * (double)(i - phase_shift));
+    quadratur[i] = cos(2 * M_PI / period * (double)(i - phase_shift));
   }
 }
 
-void filter_signals(struct raw_data *raw_data, struct filtered_data *filtered_data, const double *sine_reference,
-                    const double *cos_reference) {
+void filter_signals(const struct raw_data *raw_data, struct ac_data *ac, const double *in_phase,
+                    const double *quadratur) {
   for (size_t i = 0; i < SAMPLES; i++) {
-    filtered_data->ac_1_Y += raw_data->ac_1[i] * cos_reference[i];
-    filtered_data->ac_1_X += raw_data->ac_1[i] * sine_reference[i];
-    filtered_data->ac_2_Y += raw_data->ac_2[i] * cos_reference[i];
-    filtered_data->ac_2_X += raw_data->ac_2[i] * sine_reference[i];
-    filtered_data->ac_3_Y += raw_data->ac_3[i] * cos_reference[i];
-    filtered_data->ac_3_X += raw_data->ac_3[i] * sine_reference[i];
+    ac->X[0] += raw_data->ac_1[i] * in_phase[i];
+    ac->Y[0] += raw_data->ac_1[i] * quadratur[i];
+    ac->X[1] += raw_data->ac_2[i] * in_phase[i];
+    ac->Y[1] += raw_data->ac_2[i] * quadratur[i];
+    ac->X[2] += raw_data->ac_3[i] * in_phase[i];
+    ac->Y[2] += raw_data->ac_3[i] * quadratur[i];
   }
-  filtered_data->ac_1_X /= (SAMPLES * AMPLIFICATION) ;
-  filtered_data->ac_1_Y /= (SAMPLES * AMPLIFICATION);
-  filtered_data->ac_2_X /= (SAMPLES * AMPLIFICATION);
-  filtered_data->ac_2_Y /= (SAMPLES * AMPLIFICATION);
-  filtered_data->ac_3_X /= (SAMPLES * AMPLIFICATION);
-  filtered_data->ac_3_Y /= (SAMPLES * AMPLIFICATION);
+  ac->X[0] /= (SAMPLES * AMPLIFICATION) ;
+  ac->Y[0] /= (SAMPLES * AMPLIFICATION);
+  ac->X[1] /= (SAMPLES * AMPLIFICATION);
+  ac->Y[1] /= (SAMPLES * AMPLIFICATION);
+  ac->X[2] /= (SAMPLES * AMPLIFICATION);
+  ac->Y[2] /= (SAMPLES * AMPLIFICATION);
 }
 
 void calculate_dc(struct dc_signal *dc_signal, struct  raw_data *raw_data) {
@@ -64,4 +68,35 @@ void calculate_dc(struct dc_signal *dc_signal, struct  raw_data *raw_data) {
   dc_signal->DC_1 /= SAMPLES;
   dc_signal->DC_2 /= SAMPLES;
   dc_signal->DC_3 /= SAMPLES;
+}
+
+void process_measurement(char *file_path, FILE *file) {
+  FILE *binary_file = open_file(file_path);
+  double sine_reference[SAMPLES] = {0};
+  double cosine_reference[SAMPLES] = {0};
+  struct raw_data raw_data = {0};
+  struct ac_data ac = {0};
+  struct dc_signal dc = {0};
+  switch (mode) {
+    case DEBUG:
+    case NORMAL:
+    case VERBOSE:
+      for (int second = 0; second < DATA_SIZE; second++) {
+        get_measurement(&raw_data, binary_file);
+        generate_references(&raw_data, sine_reference, cosine_reference);
+        filter_signals(&raw_data, &ac, sine_reference, cosine_reference);
+        calculate_dc(&dc, &raw_data);
+        save_data(&ac, &dc, file);
+      }
+      break;
+    case ONLINE:
+      get_measurement(&raw_data, binary_file);
+      generate_references(&raw_data, sine_reference, cosine_reference);
+      filter_signals(&raw_data, &ac, sine_reference, cosine_reference);
+      calculate_dc(&dc, &raw_data);
+      save_data(&ac, &dc, file);
+      break;
+    default:
+      break;
+  }
 }
