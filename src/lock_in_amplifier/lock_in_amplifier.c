@@ -1,9 +1,10 @@
 #include "lock_in_amplifier.h"
+#include "read_binary.h"
 #include "save_data.h"
 #include <stdbool.h>
 
 #define AMPLIFICATION 1000
-#define DATA_SIZE 1700
+#define DATA_SIZE 1500
 
 void generate_references(const struct raw_data *raw_data, double *in_phase, double *quadratur) {
   double period = 0;
@@ -29,9 +30,7 @@ void generate_references(const struct raw_data *raw_data, double *in_phase, doub
     }
   }
   if (! signals) {
-    if (mode == DEBUG || mode == VERBOSE) {
-      fprintf(stderr, "Error: No modulation signal has occoured.\n");
-    }
+    fprintf(stderr, "Error: No modulation signal has occoured.\n");
     exit(1);
   }
   period /= (double)signals;
@@ -70,33 +69,20 @@ void calculate_dc(struct dc_signal *dc_signal, struct  raw_data *raw_data) {
   dc_signal->DC_3 /= SAMPLES;
 }
 
-void process_measurement(char *file_path, FILE *file) {
-  FILE *binary_file = open_file(file_path);
-  double sine_reference[SAMPLES] = {0};
-  double cosine_reference[SAMPLES] = {0};
-  struct raw_data raw_data = {0};
-  struct ac_data ac = {0};
-  struct dc_signal dc = {0};
-  switch (mode) {
-    case DEBUG:
-    case NORMAL:
-    case VERBOSE:
-      for (int second = 0; second < DATA_SIZE; second++) {
-        get_measurement(&raw_data, binary_file);
-        generate_references(&raw_data, sine_reference, cosine_reference);
-        filter_signals(&raw_data, &ac, sine_reference, cosine_reference);
-        calculate_dc(&dc, &raw_data);
-        save_data(&ac, &dc, file);
-      }
-      break;
-    case ONLINE:
-      get_measurement(&raw_data, binary_file);
-      generate_references(&raw_data, sine_reference, cosine_reference);
-      filter_signals(&raw_data, &ac, sine_reference, cosine_reference);
-      calculate_dc(&dc, &raw_data);
-      save_data(&ac, &dc, file);
-      break;
-    default:
-      break;
-  }
+void process_measurement(FILE *binary_file, enum mode_t mode, FILE *output) {
+  int second = 0;
+  do {
+    double sine_reference[SAMPLES] = {0};
+    double cosine_reference[SAMPLES] = {0};
+    struct raw_data raw_data = {0};
+    struct ac_data ac = {0};
+    struct dc_signal dc = {0};
+    get_measurement(&raw_data, binary_file);
+    generate_references(&raw_data, sine_reference, cosine_reference);
+    filter_signals(&raw_data, &ac, sine_reference, cosine_reference);
+    calculate_dc(&dc, &raw_data);
+    save_data(&ac, &dc, mode, output);
+    second++;
+    // FIXME: How often is this loop called?
+  } while (mode != BINARY && second < DATA_SIZE);
 }

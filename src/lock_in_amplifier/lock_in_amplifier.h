@@ -18,15 +18,6 @@ struct dc_signal {
   double DC_3;
 };
 
-void generate_references(const struct raw_data *raw_data, double *in_phase, double *quadratur);
-
-
-void filter_signals(const struct raw_data *raw_data, struct ac_data *ac, const double *in_phase,
-                    const double *quadratur);
-
-void calculate_dc(struct dc_signal *dc_signal, struct  raw_data *raw_data);
-
-void process_measurement(char *file_path, FILE *file);
-
+void process_measurement(FILE *binary_file, enum mode_t mode, FILE *output);
 
 #endif /* LOCK_IN_AMPLIFIER_H */

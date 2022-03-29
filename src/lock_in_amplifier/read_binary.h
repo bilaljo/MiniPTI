@@ -2,20 +2,15 @@
 #define READ_BINARY_H
 
 #include <stdio.h>
-#include <getopt.h>
 
 #define SAMPLES 50000
 
-enum mode {
+enum mode_t {
   NORMAL,
-  DEBUG,
-  VERBOSE,
-  ONLINE,
+  BINARY,
 };
 
-extern enum mode mode;
-
-void parse_command_line(int argc, char **argv, char *file_path);
+void parse_command_line(int argc, char **argv, char *file_path, enum mode_t *mode);
 
 struct raw_data {
   double dc_1[SAMPLES];
@@ -27,7 +22,7 @@ struct raw_data {
   double ac_3[SAMPLES];
 };
 
-FILE *open_file(const char *file_name);
+FILE *open_file(const char *file_path);
 
 void get_measurement(struct raw_data *raw_data, FILE *file);
 

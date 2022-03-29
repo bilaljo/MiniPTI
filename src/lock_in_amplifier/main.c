@@ -1,35 +1,23 @@
 #include <stdio.h>
-#include <string.h>
-#include <sys/time.h>
 #include "read_binary.h"
 #include "lock_in_amplifier.h"
 
 #define BUFFER_SIZE 64
 
 int main(int argc, char **argv) {
-  char file_path[BUFFER_SIZE];
-  struct timeval start, end;
-  parse_command_line(argc, argv, file_path);
-  FILE *file = NULL;
-  switch (mode) {
-    case DEBUG:
-    case VERBOSE:
-      gettimeofday(&start, NULL);
-      file = fopen("signals.csv", "w");
-      break;
-    case ONLINE:
-    case NORMAL:
-      file = fopen("signals.bin", "wb");
-      break;
-    default:
-      break;
+  char file_path[BUFFER_SIZE] = "220224_NO2.bin";
+  enum mode_t mode = NORMAL;
+  parse_command_line(argc, argv, file_path, &mode);
+  FILE *binary_file = open_file(file_path);
+  FILE *output = NULL;
+  if (mode == BINARY) {
+    output = fopen("output.bin", "wb");
+  } else {
+    output = fopen("output.csv", "w");
+    fprintf(output, "X1,Y1,X2,Y2,X3,Y3,DC1,DC2,DC3\n");
   }
-  process_measurement(file_path, file);
-  if (mode == DEBUG || mode == VERBOSE) {
-    gettimeofday(&end, NULL);
-    double time_taken = (double) end.tv_sec + (double) end.tv_usec / 1e6
-                        - (double) start.tv_sec - (double) start.tv_usec / 1e6;
-    printf("Program took %f seconds to execute\n", time_taken);
-  }
+  process_measurement(binary_file, mode, output);
+  fclose(binary_file);
+  fclose(output);
   return 0;
 }

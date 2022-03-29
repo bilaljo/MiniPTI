@@ -1,21 +1,18 @@
 #include "save_data.h"
-#define MEMBERS 7
 
-void save_data(struct ac_data *ac, struct dc_signal *dc, FILE *file) {
-  switch (mode) {
-    case NORMAL:
-    case ONLINE:
-      fwrite(&ac, sizeof(ac), MEMBERS * sizeof(double), file);
-      fwrite(&dc, sizeof(dc), MEMBERS * sizeof(double), file);
-      break;
-    case DEBUG:
-    case VERBOSE:
-      for (int i = 0; i < CHANNELS; i++) {
-        fprintf(file, "%1.10f,", ac->X[i]);
-        fprintf(file, "%1.10f,", ac->Y[i]);
-      }
-      fprintf(file, "\n");
-      break;
+void save_data(struct ac_data *ac, struct dc_signal *dc, enum mode_t mode, FILE *file) {
+  if (mode == BINARY) {
+    fwrite(ac->X, sizeof(double), CHANNELS, file);
+    fwrite(ac->Y, sizeof(double), CHANNELS, file);
+    fwrite(dc, sizeof(double), CHANNELS, file);
+  } else {
+    for (int i = 0; i < CHANNELS; i++) {
+      fprintf(file, "%1.10f,", ac->X[i]);
+      fprintf(file, "%1.10f,", ac->Y[i]);
+    }
+    fprintf(file, "%1.10f,", dc->DC_1);
+    fprintf(file, "%1.10f,", dc->DC_2);
+    fprintf(file, "%1.10f,", dc->DC_3);
+    fprintf(file, "\n");
   }
-  fclose(file);
 }
