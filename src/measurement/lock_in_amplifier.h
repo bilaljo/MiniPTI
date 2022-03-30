@@ -1,4 +1,0 @@
-#ifdef LOCK_IN_AMPLIFIER_H
-#define LOCK_IN_AMPLIFIER_H
-
-#endif  /* LOCK_IN_AMPLIFIER_H */
