@@ -10,23 +10,25 @@ extern "C"
 #include <stddef.h>
 #include <stdio.h>
 
-#define DATA_SIZE 333
-#define BUFFER_SIZE 50
 #define NAME_SIZE 50
 #define COLUMNS 10
+#define DIGITS 12
+#define BUFFER_SIZE (DIGITS * COLUMNS)
 
-struct csv {
+struct csv_t {
   char names[COLUMNS][NAME_SIZE];
   size_t numer_of_columns;
-  size_t number_of_rows;
-  double data[COLUMNS][DATA_SIZE];
+  double data[COLUMNS];
+  FILE *csv;
 };
 
-struct csv *read_csv(char *file_name, struct csv *csv_file);
+struct csv_t *read_csv(char *file_name, struct csv_t *csv_file);
 
-double *get_column(struct csv *csv_file, char *column);
+double get_column(struct csv_t *csv_file, char *column);
 
 FILE *save_data(const char *file_name, double (*data)[2]);
+
+void close_csv(struct csv_t *csv_file);
 
 #ifdef __cplusplus
 }

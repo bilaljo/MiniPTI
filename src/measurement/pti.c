@@ -1,6 +1,7 @@
 #include "pti.h"
 #include <math.h>
 #include <stddef.h>
+#include "read_csv.h"
 
 #define COMBINATIONS 6
 
@@ -9,17 +10,26 @@ struct indices_t {
   int y[3];
 };
 
-void min_max(const double *dc_signal, double *min, double *max) {
-  for (int i = 0; i < sizeof (dc_signal) / (dc_signal[0]); i++) {
-    *min = dc_signal[i] < *min ? dc_signal[i] : *min;
-    *max = dc_signal[i] < *max ? dc_signal[i] : *max;
-  }
+void read_config(double *min, double *max, double *system_phase, double *outputphase) {
+  struct csv_t config;
+  read_csv("pti.conf", &config);
+  min[0] = get_column(&config, "Min PD1");
+  min[1] = get_column(&config, "Min PD2");
+  min[2] = get_column(&config, "Min PD3");
+  max[0] = get_column(&config, "Max PD1");
+  max[1] = get_column(&config, "Max PD2");
+  max[2] = get_column(&config, "Max PD3");
+  outputphase[0] = get_column(&config, "Output Phase PD1");
+  outputphase[1] = get_column(&config, "Output Phase PD2");
+  outputphase[2] = get_column(&config, "Output Phase PD3");
+  system_phase[0] = get_column(&config, "System Phase PD1");
+  system_phase[1] = get_column(&config, "System Phase PD2");
+  system_phase[2] = get_column(&config, "System Phase PD3");
+  close_csv(&config);
 }
 
-void scale_signal(double *dc_signal, double min, double max) {
-  for (int i = 0; i < sizeof (dc_signal) / (dc_signal[0]); i++) {
-    dc_signal[i] = 2 * (dc_signal[i] - min) / (max - min) - 1;
-  }
+double scale_signal(double dc_signal, double min, double max) {
+  return 2 * (dc_signal - min) / (max - min) - 1;
 }
 
 double mean(const double *data, size_t size) {
@@ -77,17 +87,15 @@ double calculate_interferomtic_phase(const double *outputphase, const double *dc
   return atan2(y_value, x_value);
 }
 
-double theta_star = 0;
-
 double calculate_pti_signal(const double interferometric_phase, const double *output_phase, struct ac_t *ac,
-                          const double *I_max, const double *I_min) {
+                          const double *I_max, const double *I_min, double *system_phase) {
   double pti_signal = 0;
   double weight = 0;
   for (int i = 0; i < CHANNELS; i++) {
     int sign = sin(interferometric_phase - output_phase[i]) >= 0 ? 1 : -1;
     double R = sqrt(ac->X[i] + ac->Y[i]);
-    double system_phase = atan2(ac->Y[i], ac->Y[i]);
-    double dms = R * cos(system_phase - theta_star);
+    double ac_phase = atan2(ac->Y[i], ac->Y[i]);
+    double dms = R * cos(ac_phase - system_phase[i]);
     pti_signal += dms * sign;
     weight += (I_max[i] - I_min[i]) / 2 * fabs(sin(interferometric_phase - output_phase[i]));
   }
