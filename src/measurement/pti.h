@@ -8,8 +8,6 @@ struct ac_t {
   double Y[CHANNELS];
 };
 
-void read_config(double *min, double *max, double *system_phase, double *outputphase);
-
 double scale_signal(double dc_signal, double min, double max);
 
 double calculate_interferomtic_phase(const double *outputphase, const double *dc_scaled);

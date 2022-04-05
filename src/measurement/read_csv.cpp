@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <string>
 
 static void get_names(FILE *file, struct csv_t *csv_file) {
   char line[BUFFER_SIZE];
@@ -35,8 +36,8 @@ double get_column(struct csv_t *csv_file, char *column) {
   }
 }
 
-struct csv_t *read_csv(char *file_name, struct csv_t *csv_file) {
-  csv_file->csv = fopen(file_name, "r");
+struct csv_t *read_csv(std::string file_name, struct csv_t *csv_file) {
+  csv_file->csv = fopen(file_name.c_str(), "r");
   if (csv_file->csv == NULL) {
     perror("Error");
     return NULL;

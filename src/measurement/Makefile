@@ -6,11 +6,11 @@ HEADERS = $(wildcard *.h)
 
 BUILD_DIRECTORY = build
 TEST_BUILD_DIRECTORY = build_test
-CC = gcc -Wall -g3 -ggdb #-O3
+CC = g++ -Wall -g3 #-O3
 CXX = g++ -O3 -lgtest -lgtest_main -lpthread
 LIBARIES = -lm -lgsl -lgslcblas
 TEST_BINARIES = $(basename $(wildcard *_test.cpp))
-OBJECTS = $(addprefix $(BUILD_DIRECTORY)/, $(addsuffix .o, $(basename $(filter-out main.c %_test.c, $(wildcard *.c)))))
+OBJECTS = $(addprefix $(BUILD_DIRECTORY)/, $(addsuffix .o, $(basename $(filter-out main.cpp %_test.cpp, $(wildcard *.cpp)))))
 TEST_OBJECTS = $(addprefix $(TEST_BUILD_DIRECTORY)/, $(addsuffix .o, $(basename $(filter-out main.c, $(wildcard *.cpp)))))
 PROJECT = $(notdir $(CURDIR))
 
@@ -36,7 +36,7 @@ clean:
 $(TEST_BUILD_DIRECTORY)/%_test: $(TEST_BUILD_DIRECTORY)/%_test.o $(TEST_OBJECTS) $(OBJECTS)
 	$(CXX) -o $@ $^ $(LIBARIES)
 
-$(BUILD_DIRECTORY)/%.o: %.c $(HEADERS)
+$(BUILD_DIRECTORY)/%.o: %.cpp $(HEADERS)
 	$(CC) -c $< -o $@ $(LIBRARIES)
 
 $(TEST_BUILD_DIRECTORY)/%.o: %.cpp $(HEADERS)

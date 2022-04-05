@@ -1,14 +1,9 @@
 #ifndef READ_CSV_H
 #define READ_CSV_H
 
-#ifdef __cplusplus
-extern "C"
-{
-#endif
-
-
 #include <stddef.h>
 #include <stdio.h>
+#include <string>
 
 #define NAME_SIZE 50
 #define COLUMNS 10
@@ -22,16 +17,12 @@ struct csv_t {
   FILE *csv;
 };
 
-struct csv_t *read_csv(char *file_name, struct csv_t *csv_file);
+struct csv_t *read_csv(std::string file_name, struct csv_t *csv_file);
 
 double get_column(struct csv_t *csv_file, char *column);
 
 FILE *save_data(const char *file_name, double (*data)[2]);
 
 void close_csv(struct csv_t *csv_file);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif /* READ_CSV_H */

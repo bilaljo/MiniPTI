@@ -1,7 +1,6 @@
 #include "pti.h"
 #include <math.h>
 #include <stddef.h>
-#include "read_csv.h"
 
 #define COMBINATIONS 6
 
@@ -10,31 +9,13 @@ struct indices_t {
   int y[3];
 };
 
-void read_config(double *min, double *max, double *system_phase, double *outputphase) {
-  struct csv_t config;
-  read_csv("pti.conf", &config);
-  min[0] = get_column(&config, "Min PD1");
-  min[1] = get_column(&config, "Min PD2");
-  min[2] = get_column(&config, "Min PD3");
-  max[0] = get_column(&config, "Max PD1");
-  max[1] = get_column(&config, "Max PD2");
-  max[2] = get_column(&config, "Max PD3");
-  outputphase[0] = get_column(&config, "Output Phase PD1");
-  outputphase[1] = get_column(&config, "Output Phase PD2");
-  outputphase[2] = get_column(&config, "Output Phase PD3");
-  system_phase[0] = get_column(&config, "System Phase PD1");
-  system_phase[1] = get_column(&config, "System Phase PD2");
-  system_phase[2] = get_column(&config, "System Phase PD3");
-  close_csv(&config);
-}
-
 double scale_signal(double dc_signal, double min, double max) {
   return 2 * (dc_signal - min) / (max - min) - 1;
 }
 
 double mean(const double *data, size_t size) {
   double current_mean = 0;
-  for (int i = 0; i < size; i++) {
+  for (size_t i = 0; i < size; i++) {
     current_mean += data[i];
   }
   return current_mean / (double)size;
