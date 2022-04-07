@@ -4,19 +4,19 @@
 #include <variant>
 #include <algorithm>
 
-Config::Config(const std::string &configFileName) {
+parser::Config::Config(const std::string &configFileName) {
   _configFileName = configFileName;
 }
 
-Config::~Config() = default;
+parser::Config::~Config() = default;
 
-void Config::openConfigFile() {
+void parser::Config::openConfigFile() {
   std::ifstream config(_configFileName);
   std::string sectionName;
   std::string keyWord;
   std::string key;
   char currentSymbol;
-  std::unordered_map<std::string, std::variant<std::string, double>> section;
+  std::unordered_map<std::string, option_t> section;
   while (! config.eof()) {
     while (config >> currentSymbol, currentSymbol == '\n');
     sectionName = "";
@@ -48,11 +48,11 @@ void Config::openConfigFile() {
   }
 }
 
-void Config::addOption(const std::string &section, const std::string &optionName, const std::variant<std::string, double> &option) {
+void parser::Config::addOption(const std::string &section, const std::string &optionName, const option_t &option) {
   _options[section][optionName] = option;
 }
 
-void Config::writeConfig() {
+void parser::Config::writeConfig() {
   std::fstream config(_configFileName, std::ios_base::out);
   for (const auto&[sectionName, section]: _options) {
     config << "[" << sectionName << "]" << "\n";
@@ -67,6 +67,7 @@ void Config::writeConfig() {
   }
 }
 
-std::unordered_map<std::string, std::variant<std::string, double>> &Config::operator[](const std::string &section) {
+std::unordered_map<std::string, parser::option_t> &parser::Config::operator[](const std::string &section) {
   return _options.at(section);
 }
+

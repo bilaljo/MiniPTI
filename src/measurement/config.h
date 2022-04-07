@@ -1,18 +1,23 @@
 #pragma once
 
-#include <map>
+#include <unordered_map>
 #include <string>
-#include <any>
 #include <variant>
 
 class Config {
  public:
-  explicit Config(const std::string &configFile);
+  Config(const std::string &configFile = "pti.conf");
   ~Config();
 
-  std::map<std::string, std::variant<std::string, double>> &operator[](const std::string &section);
+  void openConfigFile();
+
+  std::unordered_map<std::string, std::variant<std::string, double>> &operator[](const std::string &section);
+
+  void writeConfig();
+
+  void addOption(const std::string &section, const std::string &optionName, const std::variant<std::string, double> &option);
 
  private:
-  void openConfigFile(const std::string &configFile);
-  std::map<std::string, std::map<std::string, std::variant<std::string, double>>> _options;
+  std::unordered_map<std::string, std::unordered_map<std::string, std::variant<std::string, double>>> _options;
+  std::string _configFileName;
 };

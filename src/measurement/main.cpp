@@ -1,12 +1,12 @@
-#include <variant>
-#include <string>
 #include "read_csv.h"
 #include "pti.h"
 #include "config.h"
 
 int main() {
-  struct csv_t csv_file = {0};
+  struct csv_t csv_file = {};
   Config pti_config("pti.conf");
+  pti_config.writeConfig();
+  pti_config.openConfigFile();
   read_csv(std::get<std::string>(pti_config["Filepath"]["PTI_Inversion"]), &csv_file);
   FILE *output = fopen("pti.csv", "aw");
   if (! output) return 1;
