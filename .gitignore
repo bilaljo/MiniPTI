@@ -5,3 +5,5 @@ src/decimation/build
 src/decimation/build_test
 src/measurement/build
 src/measurement/build_test
+notebooks/*.csv
+notebooks/*.pdf
