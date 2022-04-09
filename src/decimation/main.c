@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include "read_binary.h"
 #include "lock_in_amplifier.h"
-
 #define BUFFER_SIZE 64
 
 int main(int argc, char **argv) {
