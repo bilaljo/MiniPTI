@@ -13,12 +13,12 @@ parser::CSVFile::~CSVFile() = default;
 void parser::CSVFile::readFile() {
   std::ifstream file(_fileName);
   std::string line;
-  if (file.is_open()) {
+  /*if (file.is_open()) {
     std::cout << "Opened file " << _fileName << std::endl;
   } else {
     std::cerr << "Could not open the file." << std::endl;
     exit(1);
-  }
+  }*/
   getline(file, line);
   std::string name;
   for (const auto& character : line) {

@@ -21,7 +21,7 @@ class OutputPhase {
 
   void scaleSignals();
 
-  void calculateBands();
+  void calculateBands(detector_t detector);
 
   double calculateOutputPhases(detector_t detector);
 

@@ -7,11 +7,12 @@ int main() {
   OutputPhase outputPhases;
   parser::Config ptiConfig("pti.conf");
   ptiConfig.openConfigFile();
-  parser::CSVFile csvFile(std::get<std::string>(ptiConfig["File"]["PTI_Inversion_Path"]), std::get<std::string>(ptiConfig["File"]["Delimiter"])[0]);
+  parser::CSVFile csvFile(std::get<std::string>(ptiConfig["File"]["PTI_Inversion_Path"]), std::get<char>(ptiConfig["File"]["Delimiter"]));
   csvFile.readFile();
   outputPhases.setSignal({csvFile["DC1"], csvFile["DC2"], csvFile["DC3"]});
   outputPhases.scaleSignals();
-  outputPhases.calculateBands();
+  outputPhases.calculateBands(Detector_2);
+  outputPhases.calculateBands(Detector_3);
   double outputPhase_1 = outputPhases.calculateOutputPhases(Detector_2);
   double outputPhase_2 = outputPhases.calculateOutputPhases(Detector_3);
   ptiConfig.addOption("Output_Phases", "Detector_1", 0.0);
@@ -20,5 +21,9 @@ int main() {
   ptiConfig.addOption("Min_Intensities", "Detector_1", outputPhases.minIntensities[Detector_1]);
   ptiConfig.addOption("Min_Intensities", "Detector_2", outputPhases.minIntensities[Detector_2]);
   ptiConfig.addOption("Min_Intensities", "Detector_3", outputPhases.minIntensities[Detector_3]);
+  ptiConfig.addOption("Max_Intensities", "Detector_1", outputPhases.maxIntensities[Detector_1]);
+  ptiConfig.addOption("Max_Intensities", "Detector_2", outputPhases.maxIntensities[Detector_2]);
+  ptiConfig.addOption("Max_Intensities", "Detector_3", outputPhases.maxIntensities[Detector_3]);
+  ptiConfig.writeConfig();
   return 0;
 }

@@ -9,10 +9,12 @@ OutputPhase::OutputPhase() = default;
 OutputPhase::~OutputPhase() = default;
 
 void OutputPhase::setSignal(const std::array<std::vector<double>, 3> &signals) {
-  for (int i = 0; i < signals[0].size(); i++) {
-    _signal[i][Detector_1] = signals[Detector_1][i];
-    _signal[i][Detector_2] = signals[Detector_2][i];
-    _signal[i][Detector_3] = signals[Detector_3][i];
+  for (size_t i = 0; i < signals[0].size(); i++) {
+    _signal.push_back({signals[Detector_1][i], signals[Detector_2][i], signals[Detector_3][i]});
+  }
+  for (int i = 0; i < 3; i++) {
+    minIntensities[i] = *std::min_element(signals[i].begin(), signals[i].end());
+    maxIntensities[i] = *std::max_element(signals[i].begin(), signals[i].end());
   }
 }
 
@@ -24,12 +26,11 @@ void OutputPhase::scaleSignals() {
   }
 }
 
-void OutputPhase::calculateBands() {
-  for (const auto& dc : _signal) {
+void OutputPhase::calculateBands(detector_t detector) {
+  for (const auto &dc: _signal) {
     for (int i = 0; i < 2; i++) {
       for (int j = 0; j < 2; j++) {
-        _bands[Detector_2 - 1].push_back(pow(-1, i) * acos(dc[Detector_1]) + pow(-1, j) * acos(dc[Detector_2]));
-        _bands[Detector_3 - 1].push_back(pow(-1, i) * acos(dc[Detector_1]) + pow(-1, j) * acos(dc[Detector_3]));
+        _bands[detector].push_back(pow(-1, i) * acos(dc[Detector_1]) + pow(-1, j) * acos(dc[detector]));
       }
     }
   }
@@ -40,11 +41,24 @@ static std::unordered_map<double, size_t> calculateHistogram(const std::vector<d
   auto numberOfBins = static_cast<size_t>(sqrt(static_cast<double>(data.size())));
   double min = *std::min_element(data.begin(), data.end());
   double max = *std::max_element(data.begin(), data.end());
-  // The histogram can be divied into n buckets: buckets = (max - min) / n * bin + min. Reordering results in
-  // bin = n * (bucket - min) / (max - min). If it is no integer, we round it up.
+  std::vector<double> ranges;
+  for (size_t i = 0; i < numberOfBins; i++) {
+    double bin = min + (max - min) / static_cast<double>(numberOfBins) * static_cast<double>(i);
+    if (bin < 0) {
+      ranges.push_back(bin + 2 * M_PI);
+    } else {
+      ranges.push_back(bin);
+    }
+  }
+  double bucket;
   for (const auto& element : data) {
-    double bucket = static_cast<int>(static_cast<double>(numberOfBins) * (element - min) / (max - min) - min);
-    bins[bucket]++;
+    for (size_t i = 0; i < numberOfBins - 1; i++) {
+      if (element >= ranges[i] && element < ranges[i + 1]) {
+        bucket = ranges[i];
+        bins[bucket]++;
+        break;
+      }
+    }
   }
   return bins;
 }
@@ -56,6 +70,7 @@ double OutputPhase::calculateOutputPhases(detector_t detector) {
   for (const auto& [bucket, bin] : bins) {
     if (bin > currentMax) {
       maxBucket = bucket;
+      currentMax = bin;
     }
   }
   return maxBucket;
