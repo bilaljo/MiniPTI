@@ -11,7 +11,7 @@ namespace parser {
 
     ~CSVFile();
 
-    std::vector <std::string> getNames() const;
+    std::vector<std::string> getNames() const;
 
     std::vector<double> &operator[](const std::string &key);
 

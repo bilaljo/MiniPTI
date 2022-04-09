@@ -3,6 +3,7 @@
 #include <string>
 #include <array>
 #include <vector>
+#include <ranges>
 
 const int channels = 3;
 
@@ -23,13 +24,16 @@ class OutputPhase {
 
   void calculateBands(detector_t detector);
 
+  void setBandRange();
+
   double calculateOutputPhases(detector_t detector);
 
   std::array<double, channels> minIntensities = {};
   std::array<double, channels> maxIntensities = {};
 
+  bool swappedPhases;
+
  private:
-  double _outputPhase = 0;
 
   std::vector<std::array<double, 3>> _signal;
 

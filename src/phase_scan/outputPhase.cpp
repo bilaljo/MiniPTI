@@ -3,8 +3,11 @@
 #include <cmath>
 #include <tuple>
 #include <unordered_map>
+#include <ranges>
 
-OutputPhase::OutputPhase() = default;
+OutputPhase::OutputPhase() {
+  swappedPhases = false;
+}
 
 OutputPhase::~OutputPhase() = default;
 
@@ -21,7 +24,7 @@ void OutputPhase::setSignal(const std::array<std::vector<double>, 3> &signals) {
 void OutputPhase::scaleSignals() {
   for (auto& dc : _signal) {
     for (int i = 0; i < 3; i++) {
-      dc[i] = (dc[i] - minIntensities[i]) / (maxIntensities[i] - minIntensities[i]);
+      dc[i] = 2 * (dc[i] - minIntensities[i]) / (maxIntensities[i] - minIntensities[i]) - 1;
     }
   }
 }
@@ -30,11 +33,51 @@ void OutputPhase::calculateBands(detector_t detector) {
   for (const auto &dc: _signal) {
     for (int i = 0; i < 2; i++) {
       for (int j = 0; j < 2; j++) {
-        _bands[detector].push_back(pow(-1, i) * acos(dc[Detector_1]) + pow(-1, j) * acos(dc[detector]));
+        double phase = pow(-1, i) * acos(dc[Detector_1]) + pow(-1, j) * acos(dc[detector]);
+        if (phase < 0) {
+          _bands[detector - 1].push_back(phase + 2 * M_PI);
+        } else {
+          _bands[detector - 1].push_back(phase);
+        }
       }
     }
   }
 }
+
+void OutputPhase::setBandRange() {
+  int indexDetector2 = 0, indexDetector3 = 0;
+  for (int i = 0; i < _signal.size(); i++) {
+    if (_signal[i][Detector_2] > 0 && _signal[i + 1][Detector_2] < 0) {
+      indexDetector2 = i;
+      break;
+    }
+  }
+  for (int i = 0; i < _signal.size(); i++) {
+    if (_signal[i][Detector_3] > 0 && _signal[i + 1][Detector_3] < 0) {
+      indexDetector3 = i;
+      break;
+    }
+  }
+  if (indexDetector2 > indexDetector3) {
+    std::remove_if(_bands[Detector_2 - 1].begin(), _bands[Detector_2 - 1].end(),
+                   [&](const auto &phase) { return phase <= M_PI; });
+    std::remove_if(_bands[Detector_3 - 1].begin(), _bands[Detector_3 - 1].end(),
+                   [&](const auto &phase) { return phase > M_PI; });
+    swappedPhases = true;
+  } else {
+    std::remove_if(_bands[Detector_3 - 1].begin(), _bands[Detector_3 - 1].end(),
+                   [&](const auto &phase) { return phase <= M_PI; });
+    std::remove_if(_bands[Detector_2 - 1].begin(), _bands[Detector_2 - 1].end(),
+                   [&](const auto &phase) { return phase > M_PI; });
+  }
+    /*
+  = _bands[Detector_2] | std::views::filter([](double phase) {return phase > M_PI;});
+  _bands[Detector_3 - 1] = _bands[Detector_3] | std::views::filter([](double phase) {return phase <= M_PI;});
+} else {
+  _bands[Detector_3 - 1] = _bands[Detector_3] | std::views::filter([](double phase) {return phase > M_PI;});
+  _bands[Detector_2 - 1] = _bands[Detector_2] | std::views::filter([](double phase) {return phase <= M_PI;});*/
+}
+
 
 static std::unordered_map<double, size_t> calculateHistogram(const std::vector<double> &data) {
   std::unordered_map<double, size_t> bins;
@@ -44,12 +87,9 @@ static std::unordered_map<double, size_t> calculateHistogram(const std::vector<d
   std::vector<double> ranges;
   for (size_t i = 0; i < numberOfBins; i++) {
     double bin = min + (max - min) / static_cast<double>(numberOfBins) * static_cast<double>(i);
-    if (bin < 0) {
-      ranges.push_back(bin + 2 * M_PI);
-    } else {
-      ranges.push_back(bin);
-    }
+    ranges.push_back(bin);
   }
+  std::sort(ranges.begin(), ranges.end());
   double bucket;
   for (const auto& element : data) {
     for (size_t i = 0; i < numberOfBins - 1; i++) {
