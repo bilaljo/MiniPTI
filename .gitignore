@@ -7,3 +7,5 @@ src/measurement/build
 src/measurement/build_test
 notebooks/*.csv
 notebooks/*.pdf
+notebooks/*.txt
+notebooks/.ipynb_checkpoints
