@@ -19,11 +19,12 @@ namespace parser {
 
     size_t getSize() const;
 
+    int saveData(const std::unordered_map<std::string, std::vector<double>> &data, const std::string& fileName) const;
+
    private:
     std::vector<std::string> _names;
     std::vector<std::vector<double>> _rows;
     std::unordered_map<std::string, std::vector<double>> _columns;
-  public:
     std::string _fileName;
     char _delimiter;
   };

@@ -3,6 +3,7 @@
 #include <array>
 #include <vector>
 #include "config.h"
+#include "readCSV.h"
 
 class PTI {
  public:
@@ -11,21 +12,25 @@ class PTI {
     double qudraturComponent;
   };
 
-  PTI(const parser::Config &config);
+  PTI(parser::Config& config, parser::CSVFile& data);
 
   ~PTI();
   void scaleSignals();
 
   void calculateInterferomticPhase();
 
-  double calculatePTISignal();
+  void calculatePTISignal();
 
   static const int channels = 3;
 
-  bool _swappPhases;
+  std::vector<double> _ptiSignal;
 
  private:
-  double _interferometricPhase;
+  std::unordered_map<std::string, bool> _modes;
+
+  std::vector<double> _interferometricPhase = {};
+
+  bool _swappPhases = false;
   std::array<double, channels> _minIntensities = {};
   std::array<double, channels> _maxIntensities = {};
   std::array<double, channels> _outputPhases = {};
@@ -37,6 +42,10 @@ class PTI {
     detector3,
   };
 
-  std::vector<std::array<double, 3>> _dcSignals;
-  std::vector<std::array<AC, 3>> _acSignals;
+  std::vector<std::array<double, 3>> _dcSignals = {};
+  std::vector<std::array<AC, 3>> _acSignals = {};
+
+  std::vector<std::array<double, 3>> _acPhases = {};
+  std::vector<std::array<double, 3>> _acRValues = {};
+  std::vector<std::array<AC, 3>> _demoudlatedSignals = {};
 };

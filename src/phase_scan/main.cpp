@@ -2,9 +2,8 @@
 #include "outputPhase.h"
 #include "config.h"
 #include "readCSV.h"
-#include <iostream>
-#include <fstream>
 #include <cmath>
+
 int main() {
   OutputPhase outputPhases;
   parser::Config ptiConfig("pti.conf");
@@ -26,7 +25,7 @@ int main() {
     ptiConfig.addOption("Output_Phases", "Detector_2", outputPhase_1);
     ptiConfig.addOption("Output_Phases", "Detector_3", outputPhase_2);
   }
-  ptiConfig.addOption("Output_Phases", "Phases_Swapped", outputPhases.swappedPhases ? '1' : '0');
+  ptiConfig.addOption("Output_Phases", "Phases_Swapped", outputPhases.swappedPhases ? "true" : "false");
   ptiConfig.addOption("Min_Intensities", "Detector_1", outputPhases.minIntensities[Detector_1]);
   ptiConfig.addOption("Min_Intensities", "Detector_2", outputPhases.minIntensities[Detector_2]);
   ptiConfig.addOption("Min_Intensities", "Detector_3", outputPhases.minIntensities[Detector_3]);
