@@ -4,69 +4,66 @@
 #include <variant>
 #include <algorithm>
 
-Config::Config(const std::string &configFileName) {
+#include <iostream>
+parser::Config::Config(const std::string &configFileName) {
   _configFileName = configFileName;
 }
 
-Config::~Config() = default;
+parser::Config::~Config() = default;
 
-void Config::openConfigFile() {
+void parser::Config::openConfigFile() {
   std::ifstream config(_configFileName);
-  std::string sectionName;
-  std::string keyWord;
-  std::string key;
-  char currentSymbol;
-  std::unordered_map<std::string, std::variant<std::string, double>> section;
-  while (! config.eof()) {
-    while (config >> currentSymbol, currentSymbol == '\n');
-    sectionName = "";
-    std::getline(config, sectionName, ']');
-    config >> currentSymbol;
-    while (config >> currentSymbol, ! config.eof() && currentSymbol != '[' && currentSymbol != '\n') {
-      while (! config.eof() && currentSymbol != '=' && currentSymbol) {
-        keyWord.append(1, currentSymbol);
-        config >> currentSymbol;
-      }
-      keyWord.erase(std::remove(keyWord.begin(), keyWord.end(), ' '), keyWord.end());
-      keyWord.erase(std::remove(keyWord.begin(), keyWord.end(), '\n'), keyWord.end());
-      keyWord.erase(std::remove(keyWord.begin(), keyWord.end(), ';'), keyWord.end());
-      while (! config.eof() && currentSymbol != '\n' && currentSymbol != ';') {
-        config >> std::noskipws >> currentSymbol;
-        key.append(1, currentSymbol);
-      }
-      key.erase(std::remove(key.begin(), key.end(), ' '), key.end());
-      key.erase(std::remove(key.begin(), key.end(), '\n'), key.end());
-      key.erase(std::remove(key.begin(), key.end(), ';'), key.end());
+  std::string line;
+  std::string currentSection;
+  while (!config.eof()) {
+    std::getline(config, line, '\n');
+    if (line[0] == '[') {
+      currentSection = line.substr(1, line.find(']') - 1);
+      continue;
+    } else if (line.empty()) {
+      continue;
+    } else {
+      line.erase(std::remove(line.begin(), line.end(), ' '), line.end());
+      std::string key = line.substr(0, line.find('='));
+      std::string value = line.substr(line.find('=') + 1, line.length() - 1);
       try {
-        this->_options[sectionName][keyWord] = std::stod(key);
+        this->_options[currentSection][key] = std::stod(value);
       } catch (const std::invalid_argument&) {
-        this->_options[sectionName][keyWord] = key;
+        if (value.length() == 1) {
+          this->_options[currentSection][key] = value[0];
+        } else {
+          this->_options[currentSection][key] = value;
+        }
       }
-      key = "";
-      keyWord = "";
     }
   }
 }
 
-void Config::addOption(const std::string &section, const std::string &optionName, const std::variant<std::string, double> &option) {
+void parser::Config::addOption(const std::string &section, const std::string &optionName, const option_t &option) {
   _options[section][optionName] = option;
 }
 
-void Config::writeConfig() {
-  std::fstream config(_configFileName, std::ios_base::out);
+void parser::Config::writeConfig() {
+  std::ofstream config(_configFileName); //, std::ios_base::out);
   for (const auto&[sectionName, section]: _options) {
     config << "[" << sectionName << "]" << "\n";
     for (const auto&[optionName, option]: section) {
+      config << optionName << " = ";
       try {
-        config << optionName << " = " << std::get<double>(option) << "\n";
+        config << std::get<double>(option);
       } catch (const std::bad_variant_access &) {
-        config << optionName << " = " << std::get<std::string>(option) << "\n";
+        try {
+        config << std::get<std::string>(option);
+        } catch (const std::bad_variant_access &) {
+          config << std::get<char>(option);
+        }
       }
+      config << std::endl;
     }
     config << "\n";
   }
 }
 
-std::unordered_map<std::string, std::variant<std::string, double>> &Config::operator[](const std::string &section) {
-  return _options.at(section);
+std::unordered_map<std::string, parser::option_t> &parser::Config::operator[](const std::string &section) {
+  return _options[section];
 }
