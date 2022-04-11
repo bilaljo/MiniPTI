@@ -2,6 +2,7 @@
 
 #include <string>
 #include <unordered_map>
+#include <map>
 #include <vector>
 
 namespace parser {
@@ -19,7 +20,7 @@ namespace parser {
 
     size_t getSize() const;
 
-    int saveData(const std::unordered_map<std::string, std::vector<double>> &data, const std::string& fileName) const;
+    int saveData(const std::map<std::string, std::vector<double>> &data) const;
 
    private:
     std::vector<std::string> _names;

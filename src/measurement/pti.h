@@ -2,6 +2,9 @@
 
 #include <array>
 #include <vector>
+#include <unordered_map>
+#include <map>
+#include <string>
 #include "config.h"
 #include "readCSV.h"
 
@@ -21,7 +24,11 @@ class PTI {
 
   void calculatePTISignal();
 
+  std::map<std::string, std::vector<double>> getPTIData();
+
   static const int channels = 3;
+
+  static const int phasesCombinations = 6;
 
   std::vector<double> _ptiSignal;
 
@@ -42,10 +49,10 @@ class PTI {
     detector3,
   };
 
-  std::vector<std::array<double, 3>> _dcSignals = {};
-  std::vector<std::array<AC, 3>> _acSignals = {};
+  std::vector<std::array<double, channels>> _dcSignals = {};
+  std::vector<std::array<AC, channels>> _acSignals = {};
 
-  std::vector<std::array<double, 3>> _acPhases = {};
-  std::vector<std::array<double, 3>> _acRValues = {};
-  std::vector<std::array<AC, 3>> _demoudlatedSignals = {};
+  std::array<std::vector<double>, channels> _acPhases = {};
+  std::array<std::vector<double>, channels> _acRValues = {};
+  std::array<std::vector<double>, channels> _demoudlatedSignals = {};
 };
