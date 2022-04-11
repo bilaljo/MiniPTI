@@ -19,7 +19,7 @@ PTI::PTI(parser::Config& ptiConfig, parser::CSVFile& data) {
   _modes["Offline"] = std::get<std::string>(ptiConfig["Mode"]["Offline"]) == "true" ? true : false;
   _modes["Verbose"] = std::get<std::string>(ptiConfig["Mode"]["Verbose"]) == "true" ? true : false;
   //std::istringstream()) >> std::boolalpha >> _swappPhases;
-  _swappPhases = std::get<std::string>(ptiConfig["Output_Phases"]["Swapped_Phases"]) == "true" ? true : false;
+  _swappPhases = std::get<std::string>(ptiConfig["Output_Phases"]["Phases_Swapped"]) == "true" ? true : false;
   for (size_t i = 0; i < data.getSize(); i++) {
     std::array<double, channels> dc = {};
     std::array<AC, channels> ac = {};
