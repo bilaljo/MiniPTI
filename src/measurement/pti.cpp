@@ -48,12 +48,13 @@ PTI::PTI(parser::Config& ptiConfig, parser::CSVFile& data) {
 PTI::~PTI() = default;
 
 void PTI::scaleSignals() {
-  for (auto& dc : _dcSignals) {
+  for (double& dc : _dcSignals) {
     for (int i = 0; i < 3; i++) {
       dc[i] = 2 * (dc[i] - _minIntensities[i]) / (_maxIntensities[i] - _minIntensities[i]) - 1;
     }
   }
 }
+
 struct indices_t {
   int x[3];
   int y[3];
@@ -65,20 +66,20 @@ static double mean (std::array<double, size> data) {
   for (const double& element : data) {
     currentMean += element;
   }
-  return currentMean / static_cast<double>(data.size());
+  return currentMean / static_cast<double>(size);
 }
 
-void PTI::calculateInterferomticPhase() {
-  double x[COMBINATIONS] = {0};
-  double y[COMBINATIONS] = {0};
-  for (const auto &dc: _dcSignals) {
-    for (int i = 0; i < 3; i++) {
-      x[i] = dc[i] * cos(_outputPhases[i]) + sqrt(1 - pow(dc[i], 2)) * sin(_outputPhases[i]);
-      y[i] = dc[i] * sin(_outputPhases[i]) + sqrt(1 - pow(dc[i], 2)) * cos(_outputPhases[i]);
-    }
-    for (int i = 3; i < COMBINATIONS; i++) {
-      x[i] = dc[i] * cos(_outputPhases[i - 3]) - sqrt(1 - pow(dc[i], 2)) * sin(_outputPhases[i - 3]);
-      y[i] = dc[i] * sin(_outputPhases[i - 3]) - sqrt(1 - pow(dc[i], 2)) * cos(_outputPhases[i - 3]);
+const int phasesCombinations = 6;
+
+void PTI::calculateInterferomticPhase() {;
+  std::array<double, phasesCombinations> x = {};
+  std::array<double, phasesCombinations> y = {};
+  for (const double& dc: _dcSignals) {
+    for (int channel = 0; channel < channels; channel++) {
+      x[channel] = dc[channel] * cos(_outputPhases[channel]) + sqrt(1 - pow(dc[channel], 2)) * sin(_outputPhases[channel]);
+      y[channel] = dc[channel] * sin(_outputPhases[channel]) + sqrt(1 - pow(dc[channel], 2)) * cos(_outputPhases[channel]);
+      x[channel + channels] = dc[channel] * cos(_outputPhases[i]) - sqrt(1 - pow(dc[channel], 2)) * sin(_outputPhases[channel]);
+      y[channel + channels] = dc[channel] * sin(_outputPhases[i]) - sqrt(1 - pow(dc[channel], 2)) * cos(_outputPhases[channel]);
     }
     double error_x = 6;
     double error_y = 6;
@@ -138,4 +139,15 @@ void PTI::calculatePTISignal() {
     }
     _ptiSignal.push_back(-ptiSignal / weight);
   }
+}
+
+std::unordered_map<std::string, std::vector<double>> PTI::getPTIData() {
+  std::unordered_map<std::string, std::vector<double>> outputData;
+  outputData["PTI"] = _ptiSignal;
+  if (_modes["Verbose"]) {
+    outputData["Interferometric Phase"] = _interferometricPhase;
+    outputData["R"] = _acRValues[channel];
+    outputData["System Phase"] = _acPhases[channel];
+  }
+  return outputData;
 }

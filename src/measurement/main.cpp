@@ -4,6 +4,8 @@
 #include <variant>
 #include <string>
 #include <fstream>
+#include <vector>
+#include <unordered_map>
 
 int main() {
   parser::Config ptiConfig("pti.conf");
@@ -14,6 +16,9 @@ int main() {
   pti.scaleSignals();
   pti.calculateInterferomticPhase();
   pti.calculatePTISignal();
-  //data.saveData();
+  std::unordered_map<std::string, std::vector<double>> ptiData = pti.getData()
+  // TODO: Use properly file extension.
+  parser::CSVFile outputData("output.csv", std::get<char>(ptiConfig["File"]["Delimiter"]));
+  outputData.saveData();
   return 0;
 }
