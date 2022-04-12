@@ -45,14 +45,14 @@ void OutputPhase::calculateBands(detector_t detector) {
 }
 
 void OutputPhase::setBandRange() {
-  int indexDetector2 = 0, indexDetector3 = 0;
-  for (int i = 0; i < _signal.size(); i++) {
+  size_t indexDetector2 = 0, indexDetector3 = 0;
+  for (size_t i = 0; i < _signal.size(); i++) {
     if (_signal[i][Detector_2] > 0 && _signal[i + 1][Detector_2] < 0) {
       indexDetector2 = i;
       break;
     }
   }
-  for (int i = 0; i < _signal.size(); i++) {
+  for (size_t i = 0; i < _signal.size(); i++) {
     if (_signal[i][Detector_3] > 0 && _signal[i + 1][Detector_3] < 0) {
       indexDetector3 = i;
       break;

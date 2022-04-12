@@ -6,7 +6,7 @@ HEADERS = $(wildcard *.h)
 
 BUILD_DIRECTORY = build
 TEST_BUILD_DIRECTORY = build_test
-CC = g++ -Wall -g3 #-O3
+CC = g++ -Wall -O3 -pedantic -g -ggdb
 CXX = g++ -O3 -lgtest -lgtest_main -lpthread
 LIBARIES = # -lm -lgsl -lgslcblas
 TEST_BINARIES = $(basename $(wildcard *_test.cpp))

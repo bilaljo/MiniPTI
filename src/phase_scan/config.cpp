@@ -13,29 +13,37 @@ parser::Config::~Config() = default;
 
 void parser::Config::openConfigFile() {
   std::ifstream config(_configFileName);
-  std::string line;
-  std::string currentSection;
-  while (!config.eof()) {
-    std::getline(config, line, '\n');
-    if (line[0] == '[') {
-      currentSection = line.substr(1, line.find(']') - 1);
-      continue;
-    } else if (line.empty()) {
-      continue;
-    } else {
-      line.erase(std::remove(line.begin(), line.end(), ' '), line.end());
-      std::string key = line.substr(0, line.find('='));
-      std::string value = line.substr(line.find('=') + 1, line.length() - 1);
-      try {
-        this->_options[currentSection][key] = std::stod(value);
-      } catch (const std::invalid_argument&) {
-        if (value.length() == 1) {
-          this->_options[currentSection][key] = value[0];
-        } else {
-          this->_options[currentSection][key] = value;
+  if (config.is_open()) {
+    std::string line;
+    std::string currentSection;
+    while (!config.eof()) {
+#ifndef MAC_OS
+      std::getline(config, line, '\n');
+#else
+      std::getline(config, line, '\r');
+#endif
+      if (line[0] == '[') {
+        currentSection = line.substr(1, line.find(']') - 1);
+        continue;
+      } else if (line.empty()) {
+        continue;
+      } else {
+        line.erase(std::remove(line.begin(), line.end(), ' '), line.end());
+        std::string key = line.substr(0, line.find('='));
+        std::string value = line.substr(line.find('=') + 1, line.length() - 1);
+        try {
+          this->_options[currentSection][key] = std::stod(value);
+        } catch (const std::invalid_argument &) {
+          if (value.length() == 1) {
+            this->_options[currentSection][key] = value[0];
+          } else {
+            this->_options[currentSection][key] = value;
+          }
         }
       }
     }
+  } else {
+    std::cerr << "Could open config file." << std::endl;
   }
 }
 

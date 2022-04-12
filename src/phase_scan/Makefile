@@ -7,8 +7,8 @@ HEADERS = $(wildcard *.h)
 
 BUILD_DIRECTORY = build
 TEST_BUILD_DIRECTORY = build_test
-CC = g++ -Wall -pedantic -g3 -ggdb -std=gnu++20
-CXX = g++ -O3 -lgtest -lgtest_main -lpthread
+CC = g++ -Wall -pedantic -O3 -std=gnu++20
+CXX = g++ -O3 -Wall -pedantic -lgtest -lgtest_main -lpthread
 LIBARIES = -lm -lgsl -lgslcblas
 TEST_BINARIES = $(basename $(wildcard *_test.cpp))
 OBJECTS = $(addprefix $(BUILD_DIRECTORY)/, $(addsuffix .o, $(basename $(filter-out main.cpp %_test.cpp, $(wildcard *.cpp)))))

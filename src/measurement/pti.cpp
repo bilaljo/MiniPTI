@@ -10,16 +10,16 @@
 
 PTI::PTI(parser::Config& ptiConfig, parser::CSVFile& data) {
   for (int channel = 0; channel < channels; channel++) {
-    _minIntensities[channel] = std::get<double>(ptiConfig["Min_Intensities"]["Detector_" + std::to_string(channel + 1)]);
-    _maxIntensities[channel] = std::get<double>(ptiConfig["Max_Intensities"]["Detector_" + std::to_string(channel + 1)]);
-    _outputPhases[channel] = std::get<double>(ptiConfig["Output_Phases"]["Detector_" + std::to_string(channel + 1)]);
-    _systemPhases[channel] = std::get<double>(ptiConfig["System_Phases"]["Detector_" + std::to_string(channel + 1)]);
+    _minIntensities[channel] = std::get<double>(ptiConfig["min_intensities"]["detector_" + std::to_string(channel + 1)]);
+    _maxIntensities[channel] = std::get<double>(ptiConfig["max_intensities"]["detector_" + std::to_string(channel + 1)]);
+    _outputPhases[channel] = std::get<double>(ptiConfig["output_phases"]["detector_" + std::to_string(channel + 1)]);
+    _systemPhases[channel] = std::get<double>(ptiConfig["system_phases"]["detector_" + std::to_string(channel + 1)]);
   }
-  _modes["Online"] = std::get<std::string>(ptiConfig["Mode"]["Online"]) == "true" ? true : false;
-  _modes["Offline"] = std::get<std::string>(ptiConfig["Mode"]["Offline"]) == "true" ? true : false;
-  _modes["Verbose"] = std::get<std::string>(ptiConfig["Mode"]["Verbose"]) == "true" ? true : false;
+  _modes["online"] = std::get<std::string>(ptiConfig["mode"]["online"]) == "true" ? true : false;
+  _modes["offline"] = std::get<std::string>(ptiConfig["mode"]["offline"]) == "true" ? true : false;
+  _modes["verbose"] = std::get<std::string>(ptiConfig["mode"]["verbose"]) == "true" ? true : false;
   //std::istringstream()) >> std::boolalpha >> _swappPhases;
-  _swappPhases = std::get<std::string>(ptiConfig["Output_Phases"]["Phases_Swapped"]) == "true" ? true : false;
+  _swappPhases = std::get<std::string>(ptiConfig["output_phases"]["phases_swapped"]) == "true" ? true : false;
   for (size_t i = 0; i < data.getSize(); i++) {
     std::array<double, channels> dc = {};
     std::array<AC, channels> ac = {};
@@ -125,7 +125,7 @@ void PTI::calculatePTISignal() {
       double demodulatedSignal = R * cos(acPhase - _systemPhases[channel]);
       ptiSignal += demodulatedSignal * sign;
       weight += (_maxIntensities[channel] - _minIntensities[channel]) / 2 * fabs(sin(_interferometricPhase[i] - _outputPhases[channel]));
-      if (_modes["Verbose"]) {
+      if (_modes["verbose"]) {
         _acRValues[channel].push_back(R);
         _acPhases[channel].push_back(acPhase);
       }
@@ -137,7 +137,7 @@ void PTI::calculatePTISignal() {
 std::map<std::string, std::vector<double>> PTI::getPTIData() {
   std::map<std::string, std::vector<double>> outputData;
   outputData["PTI"] = _ptiSignal;
-  if (_modes["Verbose"]) {
+  if (_modes["verbose"]) {
     outputData["Interferometric Phase"] = _interferometricPhase;
     for (int channel = 0; channel < channels; channel++) {
       outputData["R" + std::to_string(channel + 1)] = _acRValues[channel];
