@@ -2,6 +2,7 @@
 
 #include <string>
 #include <unordered_map>
+#include <map>
 #include <vector>
 
 namespace parser {
@@ -11,13 +12,15 @@ namespace parser {
 
     ~CSVFile();
 
-    std::vector <std::string> getNames() const;
+    std::vector<std::string> getNames() const;
 
     std::vector<double> &operator[](const std::string &key);
 
     void readFile();
 
     size_t getSize() const;
+
+    int saveData(const std::map<std::string, std::vector<double>> &data) const;
 
    private:
     std::vector<std::string> _names;

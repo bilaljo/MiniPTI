@@ -4,6 +4,7 @@
 #include <variant>
 #include <algorithm>
 
+#include <iostream>
 parser::Config::Config(const std::string &configFileName) {
   _configFileName = configFileName;
 }
@@ -12,39 +13,37 @@ parser::Config::~Config() = default;
 
 void parser::Config::openConfigFile() {
   std::ifstream config(_configFileName);
-  std::string sectionName;
-  std::string keyWord;
-  std::string key;
-  char currentSymbol;
-  std::unordered_map<std::string, option_t> section;
-  while (! config.eof()) {
-    while (config >> currentSymbol, currentSymbol == '\n');
-    sectionName = "";
-    std::getline(config, sectionName, ']');
-    config >> currentSymbol;
-    while (config >> currentSymbol, ! config.eof() && currentSymbol != '[' && currentSymbol != '\n') {
-      while (! config.eof() && currentSymbol != '=' && currentSymbol) {
-        keyWord.append(1, currentSymbol);
-        config >> currentSymbol;
+  if (config.is_open()) {
+    std::string line;
+    std::string currentSection;
+    while (!config.eof()) {
+#ifndef MAC_OS
+      std::getline(config, line, '\n');
+#else
+      std::getline(config, line, '\r');
+#endif
+      if (line[0] == '[') {
+        currentSection = line.substr(1, line.find(']') - 1);
+        continue;
+      } else if (line.empty()) {
+        continue;
+      } else {
+        line.erase(std::remove(line.begin(), line.end(), ' '), line.end());
+        std::string key = line.substr(0, line.find('='));
+        std::string value = line.substr(line.find('=') + 1, line.length() - 1);
+        try {
+          this->_options[currentSection][key] = std::stod(value);
+        } catch (const std::invalid_argument &) {
+          if (value.length() == 1) {
+            this->_options[currentSection][key] = value[0];
+          } else {
+            this->_options[currentSection][key] = value;
+          }
+        }
       }
-      keyWord.erase(std::remove(keyWord.begin(), keyWord.end(), ' '), keyWord.end());
-      keyWord.erase(std::remove(keyWord.begin(), keyWord.end(), '\n'), keyWord.end());
-      keyWord.erase(std::remove(keyWord.begin(), keyWord.end(), ';'), keyWord.end());
-      while (! config.eof() && currentSymbol != '\n' && currentSymbol != ';') {
-        config >> std::noskipws >> currentSymbol;
-        key.append(1, currentSymbol);
-      }
-      key.erase(std::remove(key.begin(), key.end(), ' '), key.end());
-      key.erase(std::remove(key.begin(), key.end(), '\n'), key.end());
-      key.erase(std::remove(key.begin(), key.end(), ';'), key.end());
-      try {
-        this->_options[sectionName][keyWord] = std::stod(key);
-      } catch (const std::invalid_argument&) {
-        this->_options[sectionName][keyWord] = key;
-      }
-      key = "";
-      keyWord = "";
     }
+  } else {
+    std::cerr << "Could open config file." << std::endl;
   }
 }
 
@@ -53,21 +52,26 @@ void parser::Config::addOption(const std::string &section, const std::string &op
 }
 
 void parser::Config::writeConfig() {
-  std::fstream config(_configFileName, std::ios_base::out);
+  std::ofstream config(_configFileName); //, std::ios_base::out);
   for (const auto&[sectionName, section]: _options) {
     config << "[" << sectionName << "]" << "\n";
     for (const auto&[optionName, option]: section) {
+      config << optionName << " = ";
       try {
-        config << optionName << " = " << std::get<double>(option) << "\n";
+        config << std::get<double>(option);
       } catch (const std::bad_variant_access &) {
-        config << optionName << " = " << std::get<std::string>(option) << "\n";
+        try {
+        config << std::get<std::string>(option);
+        } catch (const std::bad_variant_access &) {
+          config << std::get<char>(option);
+        }
       }
+      config << std::endl;
     }
     config << "\n";
   }
 }
 
 std::unordered_map<std::string, parser::option_t> &parser::Config::operator[](const std::string &section) {
-  return _options.at(section);
+  return _options[section];
 }
-
