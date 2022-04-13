@@ -1,14 +1,14 @@
-#include "pti.h"
+#include "Inversion.h"
 #include <cmath>
 #include <sstream>
 #include <algorithm>
 #include <tuple>
-#include "config.h"
-#include "readCSV.h"
+#include "../parser/config.h"
+#include "../parser/readCSV.h"
 
 #define COMBINATIONS 6
 
-PTI::PTI(parser::Config& ptiConfig, parser::CSVFile& data) {
+PTI::Inversion::Inversion(parser::Config& ptiConfig, parser::CSVFile &data) {
   for (int channel = 0; channel < channels; channel++) {
     _minIntensities[channel] = std::get<double>(ptiConfig["min_intensities"]["detector_" + std::to_string(channel + 1)]);
     _maxIntensities[channel] = std::get<double>(ptiConfig["max_intensities"]["detector_" + std::to_string(channel + 1)]);
@@ -46,9 +46,9 @@ PTI::PTI(parser::Config& ptiConfig, parser::CSVFile& data) {
   }
 }
 
-PTI::~PTI() = default;
+PTI::Inversion::~Inversion() = default;
 
-void PTI::scaleSignals() {
+void PTI::Inversion::scaleSignals() {
   for (auto& dc : _dcSignals) {
     for (int channel = 0; channel < channels; channel++) {
       dc[channel] = 2 * (dc[channel] - _minIntensities[channel]) / (_maxIntensities[channel] - _minIntensities[channel]) - 1;
@@ -66,7 +66,7 @@ static double mean (std::array<double, size> data) {
 }
 
 
-void PTI::calculateInterferomticPhase() {;
+void PTI::Inversion::calculateInterferomticPhase() {;
   std::array<double, phasesCombinations> x = {};
   std::array<double, phasesCombinations> y = {};
   for (const auto& dc: _dcSignals) {
@@ -114,7 +114,7 @@ void PTI::calculateInterferomticPhase() {;
   }
 }
 
-void PTI::calculatePTISignal() {
+void PTI::Inversion::calculatePTISignal() {
   for (size_t i = 0; i < _dcSignals.size(); i++) {
     double ptiSignal = 0;
     double weight = 0;
@@ -134,7 +134,7 @@ void PTI::calculatePTISignal() {
   }
 }
 
-std::map<std::string, std::vector<double>> PTI::getPTIData() {
+std::map<std::string, std::vector<double>> PTI::Inversion::getPTIData() {
   std::map<std::string, std::vector<double>> outputData;
   outputData["PTI"] = _ptiSignal;
   if (_modes["verbose"]) {
