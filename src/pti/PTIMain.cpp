@@ -1,10 +1,8 @@
-#include "../parser/readCSV.h"
-#include "Inversion.h"
-#include "../parser/config.h"
 #include <variant>
 #include <string>
 #include <vector>
 #include <map>
+#include "Inversion.h"
 
 int main() {
   parser::Config ptiConfig("pti.conf");

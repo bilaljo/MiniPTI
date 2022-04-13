@@ -1,4 +1,4 @@
-#include "outputPhase.h"
+#include "OutputPhase.h"
 #include <algorithm>
 #include <cmath>
 #include <tuple>

@@ -3,8 +3,8 @@
 #include <sstream>
 #include <algorithm>
 #include <tuple>
-#include "../parser/config.h"
-#include "../parser/readCSV.h"
+#include "../parser/Config.h"
+#include "../parser/CSV.h"
 
 #define COMBINATIONS 6
 

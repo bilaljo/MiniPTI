@@ -1,8 +1,13 @@
+#include "OutputPhase.h"
 #include <variant>
-#include "outputPhase.h"
-#include "config.h"
-#include "readCSV.h"
 #include <cmath>
+#ifdef _WIN32
+  #include "..\parser\Config.h"
+  #include "..\parser\CSV.h"
+#else
+  #include "../parser/Config.h"
+  #include "../parser/CSV.h"
+#endif
 
 int main() {
   OutputPhase outputPhases;

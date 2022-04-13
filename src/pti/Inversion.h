@@ -5,8 +5,8 @@
 #include <unordered_map>
 #include <map>
 #include <string>
-#include "../parser/config.h"
-#include "../parser/readCSV.h"
+#include "../parser/Config.h"
+#include "../parser/CSV.h"
 
 namespace PTI {
   class Inversion {
