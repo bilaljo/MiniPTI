@@ -14,4 +14,5 @@ opts = {
     }
 }
 
-setup(windows = [{'script': "__main__.py"}], options=opts, zipfile="main.zip")
+setup(windows = [{'script': "__main__.py",
+                "icon_resources": [(0, "fhnw.ico")]}], options=opts, zipfile="main.zip")
