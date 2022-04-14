@@ -1,10 +1,6 @@
 .idea
-src/phase_scan/build
-src/phase_scan/build_test
-src/decimation/build
-src/decimation/build_test
-src/measurement/build
-src/measurement/build_test
+src/*/cmake-build-release
+src/*/cmake-build-debug
 notebooks/*.csv
 notebooks/*.pdf
 notebooks/*.txt
