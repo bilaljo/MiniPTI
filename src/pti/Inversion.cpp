@@ -2,7 +2,6 @@
 #include <cmath>
 #include <sstream>
 #include <algorithm>
-#include <tuple>
 #include "../parser/Config.h"
 #include "../parser/CSV.h"
 
@@ -10,16 +9,24 @@
 
 PTI::Inversion::Inversion(parser::Config& ptiConfig, parser::CSVFile &data) {
   for (int channel = 0; channel < channels; channel++) {
+    try {
     _minIntensities[channel] = std::get<double>(ptiConfig["min_intensities"]["detector_" + std::to_string(channel + 1)]);
     _maxIntensities[channel] = std::get<double>(ptiConfig["max_intensities"]["detector_" + std::to_string(channel + 1)]);
     _outputPhases[channel] = std::get<double>(ptiConfig["output_phases"]["detector_" + std::to_string(channel + 1)]);
     _systemPhases[channel] = std::get<double>(ptiConfig["system_phases"]["detector_" + std::to_string(channel + 1)]);
+    } catch (const std::bad_variant_access&) {
+      throw std::invalid_argument("Section or key-value pair does not exist.");
+    }
   }
+  try {
   _modes["online"] = std::get<std::string>(ptiConfig["mode"]["online"]) == "true" ? true : false;
   _modes["offline"] = std::get<std::string>(ptiConfig["mode"]["offline"]) == "true" ? true : false;
   _modes["verbose"] = std::get<std::string>(ptiConfig["mode"]["verbose"]) == "true" ? true : false;
   //std::istringstream()) >> std::boolalpha >> _swappPhases;
   _swappPhases = std::get<std::string>(ptiConfig["output_phases"]["phases_swapped"]) == "true" ? true : false;
+  } catch (const std::bad_variant_access&) {
+    throw std::invalid_argument("Section or key-value pair does not exist.");
+  }
   for (size_t i = 0; i < data.getSize(); i++) {
     std::array<double, channels> dc = {};
     std::array<AC, channels> ac = {};
