@@ -1,7 +1,14 @@
 .idea
 src/*/cmake-build-release
-src/*/cmake-build-debug
+src/*/cmake-build-release
+src/phase_scan/pti.conf
 notebooks/*.csv
 notebooks/*.pdf
 notebooks/*.txt
 notebooks/.ipynb_checkpoints
+gui/Phase_Scan
+gui/PTI_Inversion
+gui/Decimation
+gui/__pycache__
+gui/*.csv
+gui/pti.conf

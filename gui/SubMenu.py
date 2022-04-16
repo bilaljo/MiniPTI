@@ -4,7 +4,6 @@ import os
 import configparser
 import platform
 import csv
-
 from tkinter import simpledialog
 
 
@@ -12,7 +11,7 @@ class SubMenu:
     def __init__(self, window, menu_name, program, parameters=""):
         self.window = window
         self.menu_name = menu_name
-        self.file = None
+        self.file = ""
         self.program = program
         self.parameters = parameters
         self.config = configparser.ConfigParser()
@@ -34,16 +33,18 @@ class SubMenu:
             self.config["file"][os.path.splitext(self.program)[0] + "_Path"] = self.file
         else:
             self.config["file"][self.program + "_Path"] = self.file
-        self.config["file"]["delimiter"] = self.get_delimiter(self.file)
+        _, file_extension = os.path.splitext(self.file)
+        if file_extension != ".bin":
+            self.config["file"]["delimiter"] = self.get_delimiter(self.file)
         with open("pti.conf", "w") as configFile:
             self.config.write(configFile)
 
     def file_dialog(self):
         filetypes = (('csv files', '*.csv'), ('binary files', '*.bin'), ('text files (tab separated)', '*.txt'),
                      ('All files', '*.*'))
-        self.file = filedialog.askopenfilenames(filetypes=filetypes)
-        if self.file:
-            self.file = self.file[0]
+        file_name = filedialog.askopenfilenames(filetypes=filetypes)
+        if file_name:
+            self.file = file_name[0]
             self.update_config()
 
     def set_response_phases1(self):
@@ -79,4 +80,8 @@ class SubMenu:
         else:
             os.system("./" + self.program)
         plotting = Plotting(main_window=self.window.root)
-        plotting.draw_plots(self.program)
+        if platform.system() == "Windows":
+            file_name, _ = os.path.splitext(self.program)
+            plotting.draw_plots(program=self.program, file=f"{file_name}.csv")
+        else:
+            plotting.draw_plots(program=self.program, file=f"{self.program}.csv")

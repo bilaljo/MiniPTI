@@ -84,15 +84,15 @@ class Plotting:
         toolbar.update()
         self.canvas.get_tk_widget().pack(side=tkinter.TOP, fill=tkinter.BOTH, expand=1)
 
-    def draw_plots(self, program):
-        if program == "PTI_Inversion" or program == "PTI_Inversion.exe":
-            fig = self.plot_dc("data.csv")
+    def draw_plots(self, program, file):
+        if program == "Decimation" or program == "Decimation.exe":
+            fig = self.plot_dc(file)
             self.create_plot(self.tab_dc, fig)
-            fig = self.plot_in_phase_component("data.csv")
+            fig = self.plot_in_phase_component(file)
             self.create_plot(self.tab_in_phase, fig)
-            fig = self.plot_quadratur_component("data.csv")
+            fig = self.plot_quadratur_component(file)
             self.create_plot(self.tab_qudratur, fig)
-            self.tab_control.pack(expand=True)
-            fig = self.plot_pti_signal("output.csv")
+        if program == "PTI_Inversion" or program == "PTI_Inversion.exe":
+            fig = self.plot_pti_signal(file)
             self.create_plot(self.tab_pti, fig)
-            self.tab_control.pack(expand=True)
+        self.tab_control.pack(expand=True)
