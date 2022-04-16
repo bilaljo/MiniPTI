@@ -14,15 +14,7 @@ namespace decimation {
     double in_phase[channels];
   };
 
-  struct dcSignal {
-    double dc1;
-    double dc2;
-    double dc3;
-  };
-
-  acData lockInFilter(const decimation::rawData& rawData);
-
   lockIn generateReferences(const decimation::rawData& data);
 
-  dcSignal calculate_dc(decimation::rawData &rawData);
+  acData lockInFilter(const decimation::rawData& rawData);
 }

@@ -60,14 +60,3 @@ decimation::acData decimation::lockInFilter(const decimation::rawData& rawData) 
   return ac;
 }
 
-decimation::rawData calculate_dc(decimation::rawData &rawData) {
-  decimation::dcSignal dcSignal = {};
-  for (int sample = 0; sample < decimation::samples; sample++) {
-    dcSignal.dc1 += rawData.dc1[sample];
-    dcSignal.dc2 += rawData.dc2[sample];
-    dcSignal.dc3 += rawData.dc3[sample];
-  }
-  dcSignal.dc1 /= decimation::samples;
-  dcSignal.dc2 /= decimation::samples;
-  dcSignal.dc3 /= decimation::samples;
-}

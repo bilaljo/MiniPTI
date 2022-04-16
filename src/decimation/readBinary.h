@@ -7,6 +7,8 @@
 namespace decimation {
   const int samples = 50000;
 
+  const int signals = 6;
+
   struct rawData {
     std::array<double, samples> dc1;
     std::array<double, samples> dc2;
