@@ -3,8 +3,8 @@ import tkinter
 
 class MainWindow:
     def __init__(self, title):
-        self.default_height = 200
-        self.default_width = 200
+        self.default_height = 600
+        self.default_width = 600
         self.root = tkinter.Tk()
         self.root.title(title)
         self.menubar = tkinter.Menu(self.root)
@@ -12,9 +12,10 @@ class MainWindow:
         self.file = None
         self.name = None
         self.config = None
+        #self.root.configure(bg="white")
 
     def create_menu_element(self, menu_name):
-        self.root.config(menu=self.menubar)
+        self.root.config(menu=self.menubar, height=self.default_height, width=self.default_width)
         self.menus[menu_name] = tkinter.Menu(self.menubar, tearoff=False)
         self.menubar.add_cascade(label=menu_name, menu=self.menus[menu_name])
 
