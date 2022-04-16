@@ -11,5 +11,5 @@ else()
     set(PARSER ../parser/)
 endif(WIN64)
 
-add_executable(PTI_Inversion PTIMain.cpp Expections.cpp Expections.h Inversion.cpp Inversion.h ${PARSER}CSV.cpp ${PARSER}CSV.h
-               ${PARSER}Config.cpp ${PARSER}Config.h)
+add_executable(decimation DecimationMain.cpp readBinary.cpp lockInAmplifier.cpp ${PARSER}CSV.cpp ${PARSER}CSV.h
+               ${PARSER}Config.cpp ${PARSER}Config.h CommonNoiseRecjection.cpp CommonNoiseRecjection.h)
