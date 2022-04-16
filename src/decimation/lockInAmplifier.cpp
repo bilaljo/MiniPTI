@@ -59,4 +59,3 @@ decimation::acData decimation::lockInFilter(const decimation::rawData& rawData) 
   ac.qudratur[2] /= (decimation::samples * decimation::amplification);
   return ac;
 }
-
