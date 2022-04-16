@@ -19,8 +19,9 @@ namespace parser {
     void readFile();
 
     size_t getSize() const;
-
-    int saveData(const std::map<std::string, std::vector<double>> &data) const;
+    
+    template<class T>
+    int saveData(const std::map<std::string, T> &data) const;
 
    private:
     std::vector<std::string> _names;
@@ -29,4 +30,4 @@ namespace parser {
     std::string _fileName;
     char _delimiter;
   };
-};
+}

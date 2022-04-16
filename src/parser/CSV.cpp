@@ -70,8 +70,9 @@ size_t parser::CSVFile::getSize() const {
   return _rows[0].size();
 }
 
-int parser::CSVFile::saveData(const std::map<std::string, std::vector<double>>& data) const {
-  std::ofstream outputData(_fileName);
+template <class T>
+int parser::CSVFile::saveData(const std::map<std::string, T>& data) const {
+  std::ofstream outputData(_fileName, std::ios::app);
   if (!outputData.is_open()) {
     return openFailed;
   }

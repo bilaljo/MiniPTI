@@ -35,4 +35,4 @@ namespace parser {
 
     std::string _configFileName;
   };
-};
+}
