@@ -1,4 +1,5 @@
 import tkinter
+import platform
 
 
 class MainWindow:
@@ -13,6 +14,8 @@ class MainWindow:
         self.name = None
         self.config = None
         self.background = background
+        if platform.system() == "Windows":
+            self.root.configure(background=self.background)
 
     def create_menu_element(self, menu_name):
         self.root.config(menu=self.menubar, height=self.default_height, width=self.default_width)

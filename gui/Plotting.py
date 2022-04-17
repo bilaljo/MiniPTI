@@ -19,7 +19,6 @@ class Plotting:
         self.tab_interferometric_phase = ttk.Frame(self.tab_control)
         self.tab_demodulated_signal = ttk.Frame(self.tab_control)
         style = ttk.Style(main_window)
-        self.open_tabs = {"PTI Inversion": False, "Decimation": False}
         self.canvas = None
         self.plot = None
         style.configure('TNotebook.Tab', width=main_window.winfo_screenwidth(), height=main_window.winfo_height())
@@ -141,15 +140,14 @@ class Plotting:
         self.canvas.get_tk_widget().pack(side=tkinter.TOP, fill=tkinter.BOTH, expand=1)
 
     def draw_plots(self, program, config):
-        if program == "Decimation" or program == "Decimation.exe" or self.open_tabs["Decimation"]:
+        if program == "Decimation" or program == "Decimation.exe":
             fig = self.plot_dc("Decimation.csv")
             self.create_plot(self.tab_dc, fig)
             fig = self.plot_in_phase_component("Decimation.csv")
             self.create_plot(self.tab_in_phase, fig)
             fig = self.plot_quadratur_component("Decimation.csv")
             self.create_plot(self.tab_qudratur, fig)
-            self.open_tabs["Decimation"] = True
-        if program == "PTI_Inversion" or program == "PTI_Inversion.exe" or self.open_tabs["PTI Inversion"]:
+        if program == "PTI_Inversion" or program == "PTI_Inversion.exe":
             fig = self.plot_pti_signal("PTI_Inversion.csv")
             self.create_plot(self.tab_pti, fig)
             if config["mode"]["verbose"] == "true":
@@ -161,5 +159,4 @@ class Plotting:
                 self.create_plot(self.tab_interferometric_phase, fig)
                 fig = self.plot_demodulated_signal("PTI_Inversion.csv")
                 self.create_plot(self.tab_demodulated_signal, fig)
-            self.open_tabs["PTI Inversion"] = True
         self.tab_control.pack(expand=True)

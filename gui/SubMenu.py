@@ -103,6 +103,7 @@ class SubMenu:
     def execute(self):
         if platform.system() == "Windows":
             os.system(self.program)
+            print(self.program)
         else:
             os.system("./" + self.program)
         SubMenu.plotting.draw_plots(program=self.program, config=self.config)
