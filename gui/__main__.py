@@ -1,12 +1,11 @@
 import tkinter
-
 from MainWindow import MainWindow
 from SubMenu import SubMenu
 import platform
 
 
 def main():
-    main_window = MainWindow(title="Passepartout")
+    main_window = MainWindow(title="Passepartout", background="white")
     if platform.system() == "Windows":
         icon = tkinter.PhotoImage(file=r"icons\fhnw.png")
     else:
@@ -58,14 +57,14 @@ def main():
     play_button.config(image=play_picture, height=25, width=25, highlightthickness=0, bd=0)
     play_button.pack(in_=top, side=tkinter.LEFT)
 
-    pause_button = tkinter.Button(main_window.root, command="")
+    pause_button = tkinter.Button(main_window.root, command="",)
     pause_button.config(image=pause_picture, height=25, width=25, highlightthickness=0, bd=0)
     pause_button.pack(in_=top, side=tkinter.LEFT)
 
     stop_button = tkinter.Button(main_window.root, command="")
     stop_button.config(image=stop_picture, height=25, width=25, highlightthickness=0, bd=0)
     stop_button.pack(in_=top, side=tkinter.LEFT)
-
+    main_window.root.minsize(400, 200)
     main_window.root.mainloop()
 
 

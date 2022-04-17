@@ -2,7 +2,7 @@ import tkinter
 
 
 class MainWindow:
-    def __init__(self, title):
+    def __init__(self, title, background):
         self.default_height = 600
         self.default_width = 600
         self.root = tkinter.Tk()
@@ -12,7 +12,7 @@ class MainWindow:
         self.file = None
         self.name = None
         self.config = None
-        #self.root.configure(bg="white")
+        self.background = background
 
     def create_menu_element(self, menu_name):
         self.root.config(menu=self.menubar, height=self.default_height, width=self.default_width)

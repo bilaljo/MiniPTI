@@ -1,5 +1,5 @@
 from tkinter import filedialog
-from Phase_Scan import Plotting
+from Plotting import Plotting
 import os
 import configparser
 import platform
@@ -15,6 +15,7 @@ class SubMenu:
         self.program = program
         self.parameters = parameters
         self.config = configparser.ConfigParser()
+        SubMenu.plotting = Plotting(main_window=self.window.root)
 
     def add_menu_options(self, menu_name, label, command):
         self.window.menus[menu_name].add_command(label=label, command=command)
@@ -79,9 +80,8 @@ class SubMenu:
             os.system(self.program)
         else:
             os.system("./" + self.program)
-        plotting = Plotting(main_window=self.window.root)
         if platform.system() == "Windows":
             file_name, _ = os.path.splitext(self.program)
-            plotting.draw_plots(program=self.program, file=f"{file_name}.csv")
+            SubMenu.plotting.draw_plots(program=self.program, file=f"{file_name}.csv")
         else:
-            plotting.draw_plots(program=self.program, file=f"{self.program}.csv")
+            SubMenu.plotting.draw_plots(program=self.program, file=f"{self.program}.csv")
