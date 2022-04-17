@@ -45,7 +45,10 @@ def main():
     response_phases.add_menu_options(menu_name="Set Response Phases", label="Detector 3",
                                      command=response_phases.set_response_phases3)
 
+
     top = tkinter.Frame(main_window.root)
+    if platform.system() == "Windows":
+        top.configure(background=main_window.background)
     top.pack(side=tkinter.TOP)
     if platform.system() == "Windows":
         pause_picture = tkinter.PhotoImage(file=r"icons\pause.png")
@@ -67,6 +70,12 @@ def main():
     stop_button = tkinter.Button(main_window.root, command="")
     stop_button.config(image=stop_picture, height=25, width=25, highlightthickness=0, bd=0)
     stop_button.pack(in_=top, side=tkinter.LEFT)
+
+    if platform.system() == "Windows":
+        play_button.configure(background=main_window.background)
+        pause_button.configure(background=main_window.background)
+        stop_button.configure(background=main_window.background)
+
     main_window.root.minsize(500, 200)
     main_window.root.mainloop()
 
