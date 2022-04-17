@@ -5,6 +5,7 @@ import configparser
 import platform
 import csv
 from tkinter import simpledialog
+import tkinter
 
 
 class SubMenu:
@@ -15,6 +16,9 @@ class SubMenu:
         self.program = program
         self.parameters = parameters
         self.config = configparser.ConfigParser()
+        self.config.read("pti.conf")
+        self.verbose = tkinter.BooleanVar(window.root)
+        self.verbose.set(self.config["mode"]["verbose"] == "true")
         SubMenu.plotting = Plotting(main_window=self.window.root)
 
     def add_menu_options(self, menu_name, label, command):
@@ -28,6 +32,11 @@ class SubMenu:
 
     def update_config(self):
         self.config.read("pti.conf")
+        if "mode" not in self.config.sections():
+            self.config.add_section("mode")
+            self.config["mode"]["offline"] = "true"
+            self.config["mode"]["online"] = "false"
+            self.config["mode"]["verbose"] = "true"
         if "file" not in self.config.sections():
             self.config.add_section("file")
         if platform.system() == "Windows":
@@ -50,6 +59,8 @@ class SubMenu:
 
     def set_response_phases1(self):
         value = simpledialog.askfloat("Response Phases", "Detector 1", parent=self.window.root)
+        if not value:
+            return
         self.config.read("pti.conf")
         if "system_phases" not in self.config.sections():
             self.config.add_section("system_phases")
@@ -59,6 +70,8 @@ class SubMenu:
 
     def set_response_phases2(self):
         value = simpledialog.askfloat("Response Phases", "Detector 2", parent=self.window.root)
+        if not value:
+            return
         self.config.read("pti.conf")
         if "system_phases" not in self.config.sections():
             self.config.add_section("system_phases")
@@ -68,10 +81,22 @@ class SubMenu:
 
     def set_response_phases3(self):
         value = simpledialog.askfloat("Response Phases", "Detector 3", parent=self.window.root)
+        if not value:
+            return
         self.config.read("pti.conf")
         if "system_phases" not in self.config.sections():
             self.config.add_section("system_phases")
         self.config["system_phases"]["detector_3"] = str(value)
+        with open("pti.conf", "w") as configFile:
+            self.config.write(configFile)
+
+    def verbose_output(self):
+        self.config.read("pti.conf")
+        if "mode" not in self.config.sections():
+            self.config.add_section("mode")
+            self.config["mode"]["offline"] = "true"
+            self.config["mode"]["online"] = "true"
+        self.config["mode"]["verbose"] = "true" if self.verbose.get() else "false"
         with open("pti.conf", "w") as configFile:
             self.config.write(configFile)
 
@@ -80,8 +105,4 @@ class SubMenu:
             os.system(self.program)
         else:
             os.system("./" + self.program)
-        if platform.system() == "Windows":
-            file_name, _ = os.path.splitext(self.program)
-            SubMenu.plotting.draw_plots(program=self.program, file=f"{file_name}.csv")
-        else:
-            SubMenu.plotting.draw_plots(program=self.program, file=f"{self.program}.csv")
+        SubMenu.plotting.draw_plots(program=self.program, config=self.config)

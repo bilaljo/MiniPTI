@@ -31,6 +31,9 @@ def main():
     lock_in_menu.add_menu_options(menu_name="Decimation", label="Run", command=lock_in_menu.execute)
     pti_inversion_menu.add_menu_options(menu_name="PTI Inversion", label="Open file...",
                                         command=pti_inversion_menu.file_dialog)
+    main_window.menus["PTI Inversion"].add_checkbutton(label="Verbose output", variable=pti_inversion_menu.verbose,
+                                                       command=pti_inversion_menu.verbose_output)
+
     pti_inversion_menu.add_menu_options(menu_name="PTI Inversion", label="Run", command=pti_inversion_menu.execute)
     phase_scan_menu.add_menu_options(menu_name="Phase Scan", label="Open file...", command=phase_scan_menu.file_dialog)
     phase_scan_menu.add_menu_options(menu_name="Phase Scan", label="Run", command=phase_scan_menu.execute)
@@ -64,7 +67,7 @@ def main():
     stop_button = tkinter.Button(main_window.root, command="")
     stop_button.config(image=stop_picture, height=25, width=25, highlightthickness=0, bd=0)
     stop_button.pack(in_=top, side=tkinter.LEFT)
-    main_window.root.minsize(400, 200)
+    main_window.root.minsize(500, 200)
     main_window.root.mainloop()
 
 
