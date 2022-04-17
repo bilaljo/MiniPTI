@@ -7,6 +7,7 @@
 #endif
 #include "CommonNoiseRecjection.h"
 #include "lockInAmplifier.h"
+#include <iostream>
 
 int main() {
   parser::Config config("pti.conf");
@@ -18,11 +19,18 @@ int main() {
   } else {
     output.open("Decimation.csv");
   }
-  output << "DC1,DC2,DC3,X1,Y1,X2,Y2,X3,Y3\n";
+  output << "DC1,DC2,DC3,X1,Y1,X2,Y2,X3,Y3" << std::endl;
   std::ifstream binaryData(std::get<std::string>(config["file"]["decimation_path"]), std::ios::binary);
   char header[30];
   binaryData.read(header, 30);
-  decimation::rawData rawData = {};
+  decimation::rawData rawData;
+  rawData.dc1.resize(decimation::samples, 0);
+  rawData.dc2.resize(decimation::samples, 0);
+  rawData.dc3.resize(decimation::samples, 0);
+  rawData.ref.resize(decimation::samples, 0);
+  rawData.ac1.resize(decimation::samples, 0);
+  rawData.ac2.resize(decimation::samples, 0);
+  rawData.ac3.resize(decimation::samples, 0);
   while (true) {
     if (binaryData.peek() == EOF) {
       if (onlineMeasurement) {
@@ -31,7 +39,7 @@ int main() {
         break;
       }
     }
-    rawData = decimation::readBinary(binaryData);
+    decimation::readBinary(binaryData, rawData);
     decimation::dcSignal dc = decimation::calculate_dc(rawData);
     decimation::calculate_dc(rawData);
     decimation::acData ac = decimation::lockInFilter(rawData);

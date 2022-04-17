@@ -1,21 +1,21 @@
 #pragma once
 
-#include <array>
+#include <vector>
 #include <string>
 #include <fstream>
 
 namespace decimation {
-  const int samples = 50000;
+  const int samples = 50;
 
   struct rawData {
-    std::array<double, samples> dc1;
-    std::array<double, samples> dc2;
-    std::array<double, samples> dc3;
-    std::array<double, samples> ref;
-    std::array<double, samples> ac1;
-    std::array<double, samples> ac2;
-    std::array<double, samples> ac3;
+    std::vector<double> dc1;
+    std::vector<double> dc2;
+    std::vector<double> dc3;
+    std::vector<double> ref;
+    std::vector<double> ac1;
+    std::vector<double> ac2;
+    std::vector<double> ac3;
   };
 
-  rawData readBinary(std::ifstream &binaryData);
+  void readBinary(std::ifstream &binaryData, rawData& rawData);
 }
