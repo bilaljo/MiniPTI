@@ -8,7 +8,7 @@
 #include "../parser/Config.h"
 #include "../parser/CSV.h"
 
-namespace PTI {
+namespace pti_inversion {
   class Inversion {
    public:
     struct AC {
@@ -58,4 +58,4 @@ namespace PTI {
     std::array<std::vector<double>, channels> _acRValues = {};
     std::array<std::vector<double>, channels> _demoudlatedSignals = {};
   };
-};
+}

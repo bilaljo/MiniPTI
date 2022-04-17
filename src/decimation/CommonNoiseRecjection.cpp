@@ -1,4 +1,5 @@
 #include "CommonNoiseRecjection.h"
+#include <iostream>
 
 decimation::dcSignal decimation::calculate_dc(decimation::rawData &rawData) {
   decimation::dcSignal dcSignal = {};

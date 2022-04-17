@@ -7,7 +7,7 @@
 #endif
 #include "CommonNoiseRecjection.h"
 #include "lockInAmplifier.h"
-#include <iostream>
+
 int main() {
   parser::Config config("pti.conf");
   config.openConfigFile();
@@ -23,7 +23,6 @@ int main() {
   char header[30];
   binaryData.read(header, 30);
   decimation::rawData rawData = {};
-  int i = 0;
   while (true) {
     if (binaryData.peek() == EOF) {
       if (onlineMeasurement) {
@@ -32,9 +31,6 @@ int main() {
         break;
       }
     }
-    char size[8];
-    binaryData.read(size, 8);
-    i++;
     rawData = decimation::readBinary(binaryData);
     decimation::dcSignal dc = decimation::calculate_dc(rawData);
     decimation::calculate_dc(rawData);
@@ -44,9 +40,8 @@ int main() {
       output << ac.in_phase[channel] << ",";
       output << ac.qudratur[channel] << ",";
     }
-    output << ac.in_phase[decimation::channels - 1];
-    output << ac.qudratur[decimation::channels - 1];
-    output << "\n";
+    output << ac.in_phase[decimation::channels - 1] << ",";
+    output << ac.qudratur[decimation::channels - 1] << std::endl;
   }
   return 0;
 }

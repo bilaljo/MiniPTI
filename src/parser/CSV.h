@@ -20,8 +20,7 @@ namespace parser {
 
     size_t getSize() const;
     
-    template<class T>
-    int saveData(const std::map<std::string, T> &data) const;
+    int saveData(const std::map<std::string, std::vector<double>> &data) const;
 
    private:
     std::vector<std::string> _names;

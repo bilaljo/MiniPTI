@@ -7,7 +7,7 @@
 
 #define COMBINATIONS 6
 
-PTI::Inversion::Inversion(parser::Config& ptiConfig, parser::CSVFile &data) {
+pti_inversion::Inversion::Inversion(parser::Config& ptiConfig, parser::CSVFile &data) {
   for (int channel = 0; channel < channels; channel++) {
     try {
     _minIntensities[channel] = std::get<double>(ptiConfig["min_intensities"]["detector_" + std::to_string(channel + 1)]);
@@ -53,9 +53,9 @@ PTI::Inversion::Inversion(parser::Config& ptiConfig, parser::CSVFile &data) {
   }
 }
 
-PTI::Inversion::~Inversion() = default;
+pti_inversion::Inversion::~Inversion() = default;
 
-void PTI::Inversion::scaleSignals() {
+void pti_inversion::Inversion::scaleSignals() {
   for (auto& dc : _dcSignals) {
     for (int channel = 0; channel < channels; channel++) {
       dc[channel] = 2 * (dc[channel] - _minIntensities[channel]) / (_maxIntensities[channel] - _minIntensities[channel]) - 1;
@@ -73,7 +73,7 @@ static double mean (std::array<double, size> data) {
 }
 
 
-void PTI::Inversion::calculateInterferomticPhase() {;
+void pti_inversion::Inversion::calculateInterferomticPhase() {;
   std::array<double, phasesCombinations> x = {};
   std::array<double, phasesCombinations> y = {};
   for (const auto& dc: _dcSignals) {
@@ -121,7 +121,7 @@ void PTI::Inversion::calculateInterferomticPhase() {;
   }
 }
 
-void PTI::Inversion::calculatePTISignal() {
+void pti_inversion::Inversion::calculatePTISignal() {
   for (size_t i = 0; i < _dcSignals.size(); i++) {
     double ptiSignal = 0;
     double weight = 0;
@@ -135,20 +135,22 @@ void PTI::Inversion::calculatePTISignal() {
       if (_modes["verbose"]) {
         _acRValues[channel].push_back(R);
         _acPhases[channel].push_back(acPhase);
+        _demoudlatedSignals[channel].push_back(demodulatedSignal);
       }
     }
     _ptiSignal.push_back(-ptiSignal / weight);
   }
 }
 
-std::map<std::string, std::vector<double>> PTI::Inversion::getPTIData() {
+std::map<std::string, std::vector<double>> pti_inversion::Inversion::getPTIData() {
   std::map<std::string, std::vector<double>> outputData;
-  outputData["PTI"] = _ptiSignal;
+  outputData["PTI Signal"] = _ptiSignal;
   if (_modes["verbose"]) {
     outputData["Interferometric Phase"] = _interferometricPhase;
     for (int channel = 0; channel < channels; channel++) {
-      outputData["R" + std::to_string(channel + 1)] = _acRValues[channel];
-      outputData["System_Phase_" + std::to_string(channel + 1)] = _acPhases[channel];
+      outputData["Root Mean Square " + std::to_string(channel + 1)] = _acRValues[channel];
+      outputData["Response Phase " + std::to_string(channel + 1)] = _acPhases[channel];
+      outputData["Demodulated Signal " + std::to_string(channel + 1)] = _demoudlatedSignals[channel];
     }
   }
   return outputData;
