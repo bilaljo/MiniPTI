@@ -1,6 +1,8 @@
+from re import sub
 from tkinter import filedialog
 from Plotting import Plotting
 import os
+import subprocess
 import configparser
 import platform
 import csv
@@ -101,9 +103,5 @@ class SubMenu:
             self.config.write(configFile)
 
     def execute(self):
-        if platform.system() == "Windows":
-            os.system(self.program)
-            print(self.program)
-        else:
-            os.system("./" + self.program)
+        subprocess.Popen(self.program).wait()
         SubMenu.plotting.draw_plots(program=self.program, config=self.config)

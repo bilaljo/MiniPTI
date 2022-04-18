@@ -1,9 +1,11 @@
 import tkinter
 from tkinter import ttk
+from matplotlib import projections
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.figure import Figure
+import numpy as np
 
 
 class Plotting:
@@ -18,6 +20,7 @@ class Plotting:
         self.tab_response_phase = ttk.Frame(self.tab_control)
         self.tab_interferometric_phase = ttk.Frame(self.tab_control)
         self.tab_demodulated_signal = ttk.Frame(self.tab_control)
+        self.tab_poloar = ttk.Frame(self.tab_control)
         style = ttk.Style(main_window)
         self.canvas = None
         self.plot = None
@@ -130,6 +133,16 @@ class Plotting:
         self.tab_control.add(self.tab_interferometric_phase, text="Interferometric Phase")
         return fig
 
+    def plot_interferometric_phase_polar(self, file_name):
+        data = pd.read_csv(file_name)
+        fig = Figure((1, 6), dpi=100)
+        ax = fig.add_subplot(projection="polar")
+        ax.scatter(data["Interferometric Phase"], range(len(data["Interferometric Phase"])))
+        ax.grid(True)
+        ax.set_title("Interferometric Phase over Time", fontsize=15)
+        self.tab_control.add(self.tab_poloar, text="Interferometric Phase Polar")
+        return fig 
+
     def create_plot(self, tab, fig):
         self.canvas = FigureCanvasTkAgg(fig, master=tab)
         self.canvas.get_tk_widget().pack()
@@ -155,8 +168,10 @@ class Plotting:
                 self.create_plot(self.tab_root_mean_square, fig)
                 fig = self.plot_response_phases("PTI_Inversion.csv")
                 self.create_plot(self.tab_response_phase, fig)
-                fig = self.plot_interferometric_phase("PTI_Inversion.csv")
-                self.create_plot(self.tab_interferometric_phase, fig)
                 fig = self.plot_demodulated_signal("PTI_Inversion.csv")
                 self.create_plot(self.tab_demodulated_signal, fig)
+                fig = self.plot_interferometric_phase("PTI_Inversion.csv")
+                self.create_plot(self.tab_interferometric_phase, fig)
+                fig = self.plot_interferometric_phase_polar("PTI_Inversion.csv")
+                self.create_plot(self.tab_poloar, fig)
         self.tab_control.pack(expand=True)

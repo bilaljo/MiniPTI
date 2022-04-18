@@ -45,8 +45,8 @@ def main():
     response_phases.add_menu_options(menu_name="Set Response Phases", label="Detector 3",
                                      command=response_phases.set_response_phases3)
 
-
     top = tkinter.Frame(main_window.root)
+
     if platform.system() == "Windows":
         top.configure(background=main_window.background)
     top.pack(side=tkinter.TOP)
