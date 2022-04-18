@@ -3,7 +3,7 @@ project(PTI_Inversion)
 
 set(CMAKE_CXX_STANDARD 17)
 set(BUILD_TYPE_RELEASE TRUE)
-set(CMAKE_CXX_FLAGS "-g3 -ggdb -Wall -pedantic")
+set(CMAKE_CXX_FLAGS "-O3 -Wall -pedantic")
 
 if (WIN64)
     set(PARSER ..\\parser\\)

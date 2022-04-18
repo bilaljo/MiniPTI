@@ -5,7 +5,7 @@
 #include <fstream>
 
 namespace decimation {
-  const int samples = 50;
+  const int samples = 50000;
 
   struct rawData {
     std::vector<double> dc1;

@@ -31,6 +31,10 @@ int main() {
   rawData.ac1.resize(decimation::samples, 0);
   rawData.ac2.resize(decimation::samples, 0);
   rawData.ac3.resize(decimation::samples, 0);
+  std::vector<double> inPhase;
+  std::vector<double> quadratur;
+  inPhase.resize(decimation::samples, 0);
+  quadratur.resize(decimation::samples, 0);
   while (true) {
     if (binaryData.peek() == EOF) {
       if (onlineMeasurement) {
@@ -42,7 +46,7 @@ int main() {
     decimation::readBinary(binaryData, rawData);
     decimation::dcSignal dc = decimation::calculate_dc(rawData);
     decimation::calculate_dc(rawData);
-    decimation::acData ac = decimation::lockInFilter(rawData);
+    decimation::acData ac = decimation::lockInFilter(rawData, inPhase, quadratur);
     output << dc.dc1 << "," << dc.dc2 << "," << dc.dc3 << ",";
     for (int channel = 0; channel < decimation::channels - 1; channel++) {
       output << ac.in_phase[channel] << ",";

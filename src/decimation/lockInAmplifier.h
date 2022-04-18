@@ -1,20 +1,19 @@
 #pragma once
 #include "readBinary.h"
 #include <tuple>
+#include <array>
 
 namespace decimation {
-  typedef std::tuple<std::array<double, decimation::samples>, std::array<double, decimation::samples>> lockIn;
-
   const int channels = 3;
 
   const int amplification = 1000;
 
   struct acData {
-    double qudratur[channels];
-    double in_phase[channels];
+    std::array<double, channels> qudratur;
+    std::array<double, channels> in_phase;
   };
 
-  lockIn generateReferences(const decimation::rawData& data);
+  void generateReferences(const decimation::rawData& data, std::vector<double> &inPhase, std::vector<double> &quadratur);
 
-  acData lockInFilter(const decimation::rawData& rawData);
+  acData lockInFilter(const decimation::rawData& rawData, std::vector<double> &inPhase, std::vector<double> &quadratur);
 }
