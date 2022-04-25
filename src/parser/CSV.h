@@ -6,11 +6,17 @@
 #include <vector>
 
 namespace parser {
-  class CSVFile {
+  class CSV {
    public:
-    CSVFile(const std::string &fileName, char delimiter);
+    explicit CSV(const std::string &fileName);
 
-    ~CSVFile();
+    ~CSV();
+
+    void findDelimter();
+
+    void setDelimiter(char delimiter);
+
+    char getDelimiter() const;
 
     std::vector<std::string> getNames() const;
 
@@ -24,9 +30,13 @@ namespace parser {
 
    private:
     std::vector<std::string> _names;
+
     std::vector<std::vector<double>> _rows;
+
     std::unordered_map<std::string, std::vector<double>> _columns;
+
     std::string _fileName;
+
     char _delimiter;
   };
 }

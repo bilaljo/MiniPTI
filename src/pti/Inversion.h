@@ -16,7 +16,7 @@ namespace pti_inversion {
       double qudraturComponent;
     };
 
-    Inversion(parser::Config& config, parser::CSVFile &data);
+    Inversion(parser::Config& config, parser::CSV &data);
 
     ~Inversion();
 

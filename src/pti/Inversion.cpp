@@ -7,7 +7,7 @@
 
 #define COMBINATIONS 6
 
-pti_inversion::Inversion::Inversion(parser::Config& ptiConfig, parser::CSVFile &data) {
+pti_inversion::Inversion::Inversion(parser::Config& ptiConfig, parser::CSV &data) {
   for (int channel = 0; channel < channels; channel++) {
     try {
     _minIntensities[channel] = std::get<double>(ptiConfig["min_intensities"]["detector_" + std::to_string(channel + 1)]);

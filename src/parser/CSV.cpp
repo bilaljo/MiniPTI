@@ -6,14 +6,39 @@
 
 const int openFailed = 1;
 
-parser::CSVFile::CSVFile(const std::string &fileName, const char delimiter) {
+parser::CSV::CSV(const std::string &fileName) {
   _fileName = fileName;
-  _delimiter = delimiter;
+  _delimiter = ',';
 }
 
-parser::CSVFile::~CSVFile() = default;
+parser::CSV::~CSV() = default;
 
-void parser::CSVFile::readFile() {
+void parser::CSV::findDelimter() {
+  std::ifstream file(_fileName);
+  std::string line;
+  std::getline(file, line);
+  // The first line contains only the headers. To distinguish delimiter we need
+  // to take a look into a row with values.
+  std::getline(file, line);
+  for (const char& character : line) {
+    // FIXME: Why should this be alawys true?
+    if ((character != 'E' || character != 'e' || character != '+' ||
+        character != '-' || character != '.') && ! std::isalpha(character)) {
+      _delimiter = character;
+      break;
+    }
+  }
+}
+
+void parser::CSV::setDelimiter(char delimiter) {
+   _delimiter = delimiter;
+}
+
+char parser::CSV::getDelimiter() const {
+  return _delimiter;
+}
+
+void parser::CSV::readFile() {
   std::ifstream file(_fileName);
   std::string line;
   if (file.is_open()) {
@@ -22,7 +47,7 @@ void parser::CSVFile::readFile() {
     std::cerr << "Could not open the file." << std::endl;
     exit(1);
   }
-  getline(file, line);
+  std::getline(file, line);
   std::string name;
   // On windows systems every line has a carriage return charachter which we should remove.
   line.erase(std::remove(line.begin(), line.end(), '\r'), line.end());
@@ -58,19 +83,19 @@ void parser::CSVFile::readFile() {
   }
 }
 
-std::vector<std::string> parser::CSVFile::getNames() const {
+std::vector<std::string> parser::CSV::getNames() const {
   return _names;
 }
 
-std::vector<double>& parser::CSVFile::operator[](const std::string &key){
+std::vector<double>& parser::CSV::operator[](const std::string &key){
   return _columns.at(key);
 }
 
-size_t parser::CSVFile::getSize() const {
+size_t parser::CSV::getSize() const {
   return _rows[0].size();
 }
 
-int parser::CSVFile::saveData(const std::map<std::string, std::vector<double>>& data) const {
+int parser::CSV::saveData(const std::map<std::string, std::vector<double>>& data) const {
   std::ofstream outputData(_fileName);
   if (!outputData.is_open()) {
     return openFailed;

@@ -7,14 +7,15 @@
 int main() {
   parser::Config ptiConfig("pti.conf");
   ptiConfig.openConfigFile();
-  parser::CSVFile data(std::get<std::string>(ptiConfig["file"]["pti_inversion_path"]), std::get<char>(ptiConfig["file"]["delimiter"]));
+  parser::CSV data(std::get<std::string>(ptiConfig["file_path"]["pti_inversion"]));
   data.readFile();
   pti_inversion::Inversion pti(ptiConfig, data);
   pti.scaleSignals();
   pti.calculateInterferomticPhase();
   pti.calculatePTISignal();
   std::map<std::string, std::vector<double>> ptiData = pti.getPTIData();
-  parser::CSVFile outputData("PTI_Inversion.csv", std::get<char>(ptiConfig["file"]["delimiter"]));
+  parser::CSV outputData("PTI_Inversion.csv");
+  outputData.setDelimiter(data.getDelimiter());
   outputData.saveData(ptiData);
   return 0;
 }
