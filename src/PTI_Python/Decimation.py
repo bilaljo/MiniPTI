@@ -1,0 +1,59 @@
+from scipy import signal as sig
+import numpy as np
+
+
+class Decimation:
+    def __init__(self, file_name):
+        self.dc = []
+        self.ac = []
+        self.ref = None
+        self.file_name = file_name
+        self.first_read = True
+        self.samples = 50000
+        self.in_phase = np.sin(np.linspace(0, 2 * np.pi, self.samples) / 624)
+        self.quadratur = np.cos(np.linspace(0, 2 * np.pi, self.samples) / 624)
+        self.amplification = 1000
+
+    def read_data(self):
+        with open(self.file_name, "rb") as binary_data:
+            if self.first_read:
+                binary_data.read(30)
+                self.first_read = False
+            a = np.frombuffer(binary_data.read(4), dtype=np.intc)
+            a = np.frombuffer(binary_data.read(4), dtype=np.intc)
+            for channel in range(3):
+                self.dc.append(np.frombuffer(binary_data.read(self.samples * 8), dtype=np.float64))
+            self.ref = np.frombuffer(binary_data.read(self.samples * 8), dtype=np.float64)
+            for channel in range(3):
+                self.ac.append(np.frombuffer(binary_data.read(self.samples * 8), dtype=np.float64) / self.amplification)
+
+    @staticmethod
+    def low_pass(data, fs, order, fc):
+        nyq = 0.5 * fs  # Calculate the Nyquist frequency.
+        cut = fc / nyq  # Calculate the cutoff frequency (-3 dB).
+        lp_b, lp_a = sig.butter(order, cut, btype='lowpass')  # Design and apply the low-pass filter.
+        lp_data = list(sig.filtfilt(lp_b, lp_a, data))  # Apply forward-backward filter with linear phase.
+        return lp_data
+
+    def calucalte_dc(self, raw_photodiode_signal):
+        for channel in range(3):
+            dc_down_sampled = raw_photodiode_signal[channel]
+            for i in range(50000 // 10):
+                dc_down_sampled = sig.decimate(dc_down_sampled, 10)
+            self.dc.append(dc_down_sampled)
+
+    def common_mode_noise_reduction(self):
+        total_dc = sum(self.dc)
+        noise = sum(self.ac)
+        for channel in range(3):
+            self.ac[channel] = self.ac[channel] - self.dc[channel] / total_dc * noise
+
+    def lock_in_amplifier(self):
+        for channel in range(3):
+            self.in_phase[channel] = self.ac[channel] * np.sin()
+            self.quadratur[channel] = self.ac[channel] * np.sin()
+            in_phase_down_sampled = self.low_pass(data=self.in_phase[channel], fs=50e3, order=2, fc=1)
+            quadratur_down_sampled = self.low_pass(data=self.quadratur[channel], fs=50e3, order=2, fc=1)
+            for i in range(50000 // 10):
+                in_phase_down_sampled = sig.decimate(in_phase_down_sampled, 10)
+                quadratur_down_sampled = sig.decimate(quadratur_down_sampled, 10)
