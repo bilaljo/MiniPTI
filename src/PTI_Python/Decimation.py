@@ -10,22 +10,23 @@ class Decimation:
         self.file_name = file_name
         self.first_read = True
         self.samples = 50000
-        self.in_phase = np.sin(np.linspace(0, 2 * np.pi, self.samples) / 624)
-        self.quadratur = np.cos(np.linspace(0, 2 * np.pi, self.samples) / 624)
+        self.in_phase = np.sin(np.linspace(0, 2 * np.pi, self.samples) / 624 - 60)
+        self.quadratur = np.cos(np.linspace(0, 2 * np.pi, self.samples) / 624 - 60)
         self.amplification = 1000
+        self.file = None
 
     def read_data(self):
-        with open(self.file_name, "rb") as binary_data:
-            if self.first_read:
-                binary_data.read(30)
-                self.first_read = False
-            a = np.frombuffer(binary_data.read(4), dtype=np.intc)
-            a = np.frombuffer(binary_data.read(4), dtype=np.intc)
-            for channel in range(3):
-                self.dc.append(np.frombuffer(binary_data.read(self.samples * 8), dtype=np.float64))
-            self.ref = np.frombuffer(binary_data.read(self.samples * 8), dtype=np.float64)
-            for channel in range(3):
-                self.ac.append(np.frombuffer(binary_data.read(self.samples * 8), dtype=np.float64) / self.amplification)
+        if self.first_read:
+            self.file = binary_data = open(self.file_name, "rb")
+            binary_data.read(30)
+            self.first_read = False
+        np.frombuffer(self.file.read(4), dtype=np.intc)
+        np.frombuffer(self.file.read(4), dtype=np.intc)
+        for channel in range(3):
+            self.dc.append(np.frombuffer(self.file.read(self.samples * 8), dtype=np.float64))
+        self.ref = np.frombuffer(self.file.read(self.samples * 8), dtype=np.float64)
+        for channel in range(3):
+            self.ac.append(np.frombuffer(self.file.read(self.samples * 8), dtype=np.float64) / self.amplification)
 
     @staticmethod
     def low_pass(data, fs, order, fc):
