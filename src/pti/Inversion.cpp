@@ -145,8 +145,8 @@ void pti_inversion::Inversion::calculatePTISignal() {
 std::map<std::string, std::vector<double>> pti_inversion::Inversion::getPTIData() {
   std::map<std::string, std::vector<double>> outputData;
   outputData["PTI Signal"] = _ptiSignal;
+  outputData["Interferometric Phase"] = _interferometricPhase;
   if (_modes["verbose"]) {
-    outputData["Interferometric Phase"] = _interferometricPhase;
     for (int channel = 0; channel < channels; channel++) {
       outputData["Root Mean Square " + std::to_string(channel + 1)] = _acRValues[channel];
       outputData["Response Phase " + std::to_string(channel + 1)] = _acPhases[channel];

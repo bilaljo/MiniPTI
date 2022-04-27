@@ -8,6 +8,7 @@ int main() {
   parser::Config ptiConfig("pti.conf");
   ptiConfig.openConfigFile();
   parser::CSV data(std::get<std::string>(ptiConfig["file_path"]["pti_inversion"]));
+  data.findDelimter();
   data.readFile();
   pti_inversion::Inversion pti(ptiConfig, data);
   pti.scaleSignals();

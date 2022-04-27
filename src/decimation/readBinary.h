@@ -3,6 +3,11 @@
 #include <vector>
 #include <string>
 #include <fstream>
+#ifdef _WIN32
+#include "..\parser\Config.h"
+#else
+#include "../parser/Config.h"
+#endif
 
 namespace decimation {
   const int samples = 50000;
@@ -16,6 +21,8 @@ namespace decimation {
     std::vector<double> ac2;
     std::vector<double> ac3;
   };
+
+  std::ifstream openFile(std::string fileName, parser::Config& config);
 
   void readBinary(std::ifstream &binaryData, rawData& rawData);
 }

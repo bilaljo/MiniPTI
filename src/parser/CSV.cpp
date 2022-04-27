@@ -96,26 +96,24 @@ size_t parser::CSV::getSize() const {
 }
 
 int parser::CSV::saveData(const std::map<std::string, std::vector<double>>& data) const {
-  std::ofstream outputData(_fileName);
-  if (!outputData.is_open()) {
-    return openFailed;
-  }
+  std::ifstream fileExists(_fileName);
+  std::fstream outputData(_fileName);
   std::vector<std::string> headers;
   std::vector<std::vector<double>> rows;
   rows.resize((*data.begin()).second.size());
   int i = 0;
-  for (const auto& [header, column] : data) {
+  for (const auto &[header, column]: data) {
     headers.push_back(header);
-    for (const double& value : column) {
+    for (const double &value: column) {
       rows[i].push_back(value);
       i++;
     }
     i = 0;
-  }
-  for (auto header = headers.begin(); header != headers.end() - 1; header++) {
-    outputData << *header << _delimiter;
-  }
-  outputData << *(headers.end() - 1) << std::endl;
+    }
+    for (auto header = headers.begin(); header != headers.end() - 1; header++) {
+      outputData << *header << _delimiter;
+    }
+    outputData << *(headers.end() - 1) << std::endl;
   for (const auto& row : rows) {
     for (auto value = row.begin(); value != row.end() - 1; value++) {
       outputData << *value << _delimiter;
