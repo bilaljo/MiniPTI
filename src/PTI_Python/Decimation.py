@@ -1,11 +1,13 @@
 from scipy import signal as sig
 import numpy as np
+from sympy import lowergamma
 
 
 class Decimation:
     def __init__(self, file_name):
         self.dc = []
         self.ac = []
+        self.dc_down_sampled = []
         self.ref = None
         self.file_name = file_name
         self.first_read = True
@@ -13,12 +15,14 @@ class Decimation:
         self.in_phase = np.sin(np.linspace(0, 2 * np.pi, self.samples) / 624 - 60)
         self.quadratur = np.cos(np.linspace(0, 2 * np.pi, self.samples) / 624 - 60)
         self.amplification = 1000
+        self.ac_x = []
+        self.ac_y = []
         self.file = None
 
     def read_data(self):
         if self.first_read:
-            self.file = binary_data = open(self.file_name, "rb")
-            binary_data.read(30)
+            self.file = open(self.file_name, "rb")
+            self.file.read(30)
             self.first_read = False
         np.frombuffer(self.file.read(4), dtype=np.intc)
         np.frombuffer(self.file.read(4), dtype=np.intc)
@@ -36,12 +40,14 @@ class Decimation:
         lp_data = list(sig.filtfilt(lp_b, lp_a, data))  # Apply forward-backward filter with linear phase.
         return lp_data
 
-    def calucalte_dc(self, raw_photodiode_signal):
+    def calucalte_dc(self):
         for channel in range(3):
-            dc_down_sampled = raw_photodiode_signal[channel]
-            for i in range(50000 // 10):
+            dc_down_sampled = self.dc[channel]
+            dc_down_sampled = self.low_pass(dc_down_sampled, fs=50000, order=2, fc=0.01)
+            for i in range(4):
                 dc_down_sampled = sig.decimate(dc_down_sampled, 10)
-            self.dc.append(dc_down_sampled)
+            #dc_down_sampled = sig.decimate(dc_down_sampled, 5)
+            self.dc_down_sampled.append(dc_down_sampled)
 
     def common_mode_noise_reduction(self):
         total_dc = sum(self.dc)
@@ -55,6 +61,8 @@ class Decimation:
             self.quadratur[channel] = self.ac[channel] * np.sin()
             in_phase_down_sampled = self.low_pass(data=self.in_phase[channel], fs=50e3, order=2, fc=1)
             quadratur_down_sampled = self.low_pass(data=self.quadratur[channel], fs=50e3, order=2, fc=1)
-            for i in range(50000 // 10):
+            for i in range(4):
                 in_phase_down_sampled = sig.decimate(in_phase_down_sampled, 10)
                 quadratur_down_sampled = sig.decimate(quadratur_down_sampled, 10)
+            self.ac_x.append(np.mean(in_phase_down_sampled))
+            self.ac_y.append(np.mean(quadratur_down_sampled))
