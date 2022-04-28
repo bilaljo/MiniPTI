@@ -1,6 +1,6 @@
 from scipy import signal as sig
 import numpy as np
-from sympy import lowergamma
+
 
 
 class Decimation:
@@ -20,8 +20,11 @@ class Decimation:
         self.file = None
 
     def read_data(self):
+        self.ac = []
+        self.dc = []
         if self.first_read:
             self.file = open(self.file_name, "rb")
+            # TODO: Obsolet
             self.file.read(30)
             self.first_read = False
         np.frombuffer(self.file.read(4), dtype=np.intc)
@@ -41,13 +44,14 @@ class Decimation:
         return lp_data
 
     def calucalte_dc(self):
+        self.dc_down_sampled = []
         for channel in range(3):
             dc_down_sampled = self.dc[channel]
-            dc_down_sampled = self.low_pass(dc_down_sampled, fs=50000, order=2, fc=0.01)
+            dc_down_sampled = self.low_pass(dc_down_sampled, fs=50e3, order=2, fc=0.01)
             for i in range(4):
                 dc_down_sampled = sig.decimate(dc_down_sampled, 10)
             #dc_down_sampled = sig.decimate(dc_down_sampled, 5)
-            self.dc_down_sampled.append(dc_down_sampled)
+            self.dc_down_sampled.append(np.mean(dc_down_sampled))
 
     def common_mode_noise_reduction(self):
         total_dc = sum(self.dc)
@@ -56,11 +60,13 @@ class Decimation:
             self.ac[channel] = self.ac[channel] - self.dc[channel] / total_dc * noise
 
     def lock_in_amplifier(self):
+        self.ac_x = []
+        self.ac_y = []
         for channel in range(3):
-            self.in_phase[channel] = self.ac[channel] * np.sin()
-            self.quadratur[channel] = self.ac[channel] * np.sin()
-            in_phase_down_sampled = self.low_pass(data=self.in_phase[channel], fs=50e3, order=2, fc=1)
-            quadratur_down_sampled = self.low_pass(data=self.quadratur[channel], fs=50e3, order=2, fc=1)
+            in_phase = self.ac[channel] * self.in_phase
+            quadratur = self.ac[channel] * self.quadratur
+            in_phase_down_sampled = self.low_pass(data=in_phase, fs=50e3, order=2, fc=1)
+            quadratur_down_sampled = self.low_pass(data=quadratur, fs=50e3, order=2, fc=1)
             for i in range(4):
                 in_phase_down_sampled = sig.decimate(in_phase_down_sampled, 10)
                 quadratur_down_sampled = sig.decimate(quadratur_down_sampled, 10)

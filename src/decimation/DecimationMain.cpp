@@ -1,6 +1,6 @@
 #include <variant>
 #include "readBinary.h"
-#ifdef _WIN32
+#ifdef _WIN64
 #include "..\parser\Config.h"
 #else
 #include "../parser/Config.h"
@@ -23,8 +23,6 @@ int main() {
     output << "DC1,DC2,DC3,X1,Y1,X2,Y2,X3,Y3" << std::endl;
   }
   std::ifstream binaryData(std::get<std::string>(config["file"]["decimation_path"]), std::ios::binary);
-  char header[30];
-  binaryData.read(header, 30);
   decimation::rawData rawData;
   rawData.dc1.resize(decimation::samples, 0);
   rawData.dc2.resize(decimation::samples, 0);

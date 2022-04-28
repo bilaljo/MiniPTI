@@ -59,7 +59,7 @@ def main():
         play_picture = tkinter.PhotoImage(file="icons/play.png")
         stop_picture = tkinter.PhotoImage(file="icons/stop.png")
 
-    play_button = tkinter.Button(main_window.root, command=)
+    play_button = tkinter.Button(main_window.root, command="")
     play_button.config(image=play_picture, height=25, width=25, highlightthickness=0, bd=0)
     play_button.pack(in_=top, side=tkinter.LEFT)
 

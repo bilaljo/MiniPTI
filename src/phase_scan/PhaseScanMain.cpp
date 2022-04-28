@@ -13,7 +13,9 @@ int main() {
   OutputPhase outputPhases;
   parser::Config ptiConfig("pti.conf");
   ptiConfig.openConfigFile();
-  parser::CSVFile csvFile(std::get<std::string>(ptiConfig["file"]["phase_scan_path"]), std::get<char>(ptiConfig["file"]["delimiter"]));
+  parser::CSV csvFile(std::get<std::string>(ptiConfig["file"]["phase_scan_path"]));
+  //csvFile.findDelimter();
+  csvFile.setDelimiter(',');
   csvFile.readFile();
   outputPhases.setSignal({csvFile["DC1"], csvFile["DC2"], csvFile["DC3"]});
   outputPhases.scaleSignals();
