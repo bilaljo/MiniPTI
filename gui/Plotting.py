@@ -38,33 +38,6 @@ class Plotting:
         self.tab_control.add(self.tab_dc, text="DC Detector Voltages")
         return fig
 
-    def plot_in_phase_component(self, file_name):
-        data = pd.read_csv(file_name)
-        fig = Figure((2, 9), dpi=100)
-        ax = fig.add_subplot()
-        for i in range(1, 4):
-            ax.plot(range(len(data["X1"])), data[f"X{i}"], label=f"Detector {i}")
-        ax.legend(fontsize=12)
-        ax.grid(True)
-        ax.set_xlabel("Time in s", fontsize=12)
-        ax.set_ylabel("In-Phase Component in V", fontsize=12)
-        self.tab_control.add(self.tab_in_phase, text="AC In-Phase Component")
-        return fig
-
-    def plot_quadratur_component(self, file_name):
-        data = pd.read_csv(file_name)
-        fig = Figure((2, 9), dpi=100)
-        ax = fig.add_subplot()
-        for i in range(1, 4):
-            ax.plot(range(len(data["Y1"])), data[f"Y{i}"], label=f"Detector {i}")
-        ax.legend(fontsize=12)
-        ax.grid(True)
-        ax.set_xlabel("Time in s", fontsize=12)
-        ax.set_ylabel("Quadratur Component in V", fontsize=12)
-        ax.legend(fontsize=12)
-        self.tab_control.add(self.tab_qudratur, text="AC Quadratur Component")
-        return fig
-
     def plot_pti_signal(self, file_name):
         data = pd.read_csv(file_name)
         fig = Figure((2, 9), dpi=100)
@@ -138,24 +111,19 @@ class Plotting:
         toolbar.update()
         self.canvas.get_tk_widget().pack(side=tkinter.TOP, fill=tkinter.BOTH, expand=1)
 
-    def draw_plots(self, program, config):
-        if program == "Decimation" or program == "Decimation.exe":
+    def draw_plots(self, program):
+        if program == "Decimation":
             fig = self.plot_dc("Decimation.csv")
             self.create_plot(self.tab_dc, fig)
-            fig = self.plot_in_phase_component("Decimation.csv")
-            self.create_plot(self.tab_in_phase, fig)
-            fig = self.plot_quadratur_component("Decimation.csv")
-            self.create_plot(self.tab_qudratur, fig)
-        if program == "PTI_Inversion" or program == "PTI_Inversion.exe":
+        if program == "PTI_Inversion":
             fig = self.plot_pti_signal("PTI_Inversion.csv")
             self.create_plot(self.tab_pti, fig)
-            if config["mode"]["verbose"] == "true":
-                fig = self.plot_root_mean_square_cartesian("PTI_Inversion.csv")
-                self.create_plot(self.tab_root_mean_square, fig)
-                fig = self.plot_response_phases("PTI_Inversion.csv")
-                self.create_plot(self.tab_response_phase, fig)
-                fig = self.plot_demodulated_signal("PTI_Inversion.csv")
-                self.create_plot(self.tab_demodulated_signal, fig)
-                fig = self.plot_interferometric_phase("PTI_Inversion.csv")
-                self.create_plot(self.tab_interferometric_phase, fig)
+            fig = self.plot_root_mean_square_cartesian("PTI_Inversion.csv")
+            self.create_plot(self.tab_root_mean_square, fig)
+            fig = self.plot_response_phases("PTI_Inversion.csv")
+            self.create_plot(self.tab_response_phase, fig)
+            fig = self.plot_demodulated_signal("PTI_Inversion.csv")
+            self.create_plot(self.tab_demodulated_signal, fig)
+            fig = self.plot_interferometric_phase("PTI_Inversion.csv")
+            self.create_plot(self.tab_interferometric_phase, fig)
         self.tab_control.pack(expand=True)
