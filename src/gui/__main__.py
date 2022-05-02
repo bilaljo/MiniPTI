@@ -11,14 +11,9 @@ def main():
     else:
         icon = tkinter.PhotoImage(file="icons/fhnw.png")
     main_window.root.iconphoto(False, icon)
-    if platform.system() == "Windows":  # *.exe files
-        lock_in_menu = SubMenu(window=main_window, menu_name="Lock in Amplifier", program="Decimation.exe")
-        phase_scan_menu = SubMenu(window=main_window, menu_name="Phase Scan", program="Phase_Scan.exe")
-        pti_inversion_menu = SubMenu(window=main_window, menu_name="PTI Inversion", program="PTI_Inversion.exe")
-    else:
-        lock_in_menu = SubMenu(window=main_window, menu_name="Lock in Amplifier", program="Decimation")
-        phase_scan_menu = SubMenu(window=main_window, menu_name="Phase Scan", program="Phase_Scan")
-        pti_inversion_menu = SubMenu(window=main_window, menu_name="PTI Inversion", program="PTI_Inversion")
+    decimation_menu = SubMenu(window=main_window, menu_name="Decimation", program="Decimation")
+    phase_scan_menu = SubMenu(window=main_window, menu_name="Phase Scan", program="Phase_Scan")
+    pti_inversion_menu = SubMenu(window=main_window, menu_name="PTI Inversion", program="PTI_Inversion")
     response_phases = SubMenu(window=main_window, menu_name="Set Response Phases", program="")
 
     main_window.create_menu_element("Phase Scan")
@@ -27,23 +22,21 @@ def main():
     main_window.create_menu_element("Set Response Phases")
     main_window.create_menu_element("About")
 
-    lock_in_menu.add_menu_options(menu_name="Decimation", label="Open file...", command=lock_in_menu.file_dialog)
-    lock_in_menu.add_menu_options(menu_name="Decimation", label="Run", command=lock_in_menu.execute)
+    decimation_menu.add_menu_options(menu_name="Decimation", label="Open file...", command=decimation_menu.file_dialog)
+    decimation_menu.add_menu_options(menu_name="Decimation", label="Run", command=decimation_menu.execute)
     pti_inversion_menu.add_menu_options(menu_name="PTI Inversion", label="Open file...",
                                         command=pti_inversion_menu.file_dialog)
-    main_window.menus["PTI Inversion"].add_checkbutton(label="Verbose output", variable=pti_inversion_menu.verbose,
-                                                       command=pti_inversion_menu.verbose_output)
 
     pti_inversion_menu.add_menu_options(menu_name="PTI Inversion", label="Run", command=pti_inversion_menu.execute)
     phase_scan_menu.add_menu_options(menu_name="Phase Scan", label="Open file...", command=phase_scan_menu.file_dialog)
     phase_scan_menu.add_menu_options(menu_name="Phase Scan", label="Run", command=phase_scan_menu.execute)
 
     response_phases.add_menu_options(menu_name="Set Response Phases", label="Detector 1",
-                                     command=response_phases.set_response_phases1)
+                                     command=response_phases.set_response_phases)
     response_phases.add_menu_options(menu_name="Set Response Phases", label="Detector 2",
-                                     command=response_phases.set_response_phases2)
+                                     command=response_phases.set_response_phases)
     response_phases.add_menu_options(menu_name="Set Response Phases", label="Detector 3",
-                                     command=response_phases.set_response_phases3)
+                                     command=response_phases.set_response_phases)
 
     top = tkinter.Frame(main_window.root)
 

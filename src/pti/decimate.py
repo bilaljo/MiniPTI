@@ -2,7 +2,7 @@ import time
 import pandas as pd
 import os
 import logging
-from Decimation import Decimation
+from decimation import Decimation
 
 
 def decimate(file, outputfile):
@@ -18,7 +18,7 @@ def decimate(file, outputfile):
         The filename of the output file for the results.
     :return: None
     """
-    # start = time.process_time()
+    start = time.process_time()
     decimation = Decimation(file_name=file)
     if decimation.file is None:
         logging.error("The file does not exist.")
@@ -41,4 +41,4 @@ def decimate(file, outputfile):
                      index=[0]
                      ).to_csv(outputfile, mode="a", header=not os.path.exists(outputfile))
     decimation.file.close()
-    # print(time.process_time() - start)
+    print(time.process_time() - start)

@@ -1,8 +1,8 @@
 from tkinter import filedialog
 from Plotting import Plotting
 from tkinter import simpledialog
-from PTI.
 import tkinter
+import pti
 
 
 class SubMenu:
@@ -12,8 +12,7 @@ class SubMenu:
         self.file = ""
         self.program = program
         self.parameters = parameters
-        # self.verbose = tkinter.BooleanVar(window.root)
-        SubMenu.plotting = Plotting(main_window=self.window.root)
+        self.plotting = Plotting(main_window=self.window.root)
 
     def add_menu_options(self, menu_name, label, command):
         self.window.menus[menu_name].add_command(label=label, command=command)
@@ -28,7 +27,11 @@ class SubMenu:
     def set_response_phases(self, detector):
         return simpledialog.askfloat(f"Response Phases", f"Detector {detector}", parent=self.window.root)
 
-    def execute(self, program):
-        if program == "Decimation":
-
-        SubMenu.plotting.draw_plots(program=self.program, config=self.config)
+    def execute(self):
+        if self.program == "Decimation":
+            pti.decimate(self.file, "Decimation.csv")
+        elif self.program == "Inversion":
+            pti.inversion(self.file, "PTI_Inversion.csv")
+        elif self.program == "Phase_Scan":
+            pti.phase_scan(self.file)
+        self.plotting.draw_plots(program=self.program)

@@ -1,19 +1,19 @@
 import numpy as np
+import pandas as pd
 
 
-class PTI:
-    def __int__(self, response_phases, save_time):
+class Inversion:
+    def __init__(self, response_phases, save_time):
         self.response_phases = response_phases
-        self.scaled_signals = []
-        self.max_intensities = []
+        self.data =
+        self.scaled_signals = None
+        self.max_intensities =
         self.min_intensities = []
         self.pti = []
         self.interferometric_phases = []
 
-    def scale_signals(self, signals):
-        for channel in range(3):
-            self.scaled_signals.append(2 * (signals[channel] - self.min_intensities[channel])
-                                       / (self.min_intensities[channel] - self.min_intensities[channel]) - 1)
+    def scale_data(self):
+        self.scaled_signals = 2 * (self.dc_values - self.min) / (self.max - self.min) - 1
 
     def calculate_interferometric_phase(self):
         x_solutions = []
