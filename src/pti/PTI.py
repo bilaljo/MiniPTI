@@ -1,32 +1,43 @@
 import numpy as np
-import pandas as pd
 
 
 class Inversion:
-    def __init__(self, response_phases, save_time):
+    def __init__(self, response_phases, signals):
         self.response_phases = response_phases
-        self.data =
+        self.signals = signals
         self.scaled_signals = None
-        self.max_intensities =
-        self.min_intensities = []
-        self.pti = []
-        self.interferometric_phases = []
+        self.max_intensities = None
+        self.min_intensities = None
+        self.pti = None
+        self.interferometric_phases = None
+
+    def set_signals(self, data: np.ndarray):
+        self.signals = data
+
+    def set_min(self):
+        self.min_intensities = np.min(self.signals, axis=1)
+
+    def set_max(self):
+        self.max_intensities = np.max(self.signals, axis=1)
 
     def scale_data(self):
-        self.scaled_signals = 2 * (self.dc_values - self.min) / (self.max - self.min) - 1
+        self.scaled_signals = 2 * (self.signals - self.min_intensities)\
+            / (self.max_intensities - self.min_intensities) - 1
 
     def calculate_interferometric_phase(self):
-        x_solutions = []
-        y_solutions = []
-        for i in range(3):
-            x_solutions.append(self.scaled_signals[i] * np.cos(self.response_phases[i])
-                               + np.sqrt(1 - self.scaled_signals[i] ** 2) * np.sin(self.response_phases[i]))
-            x_solutions.append(self.scaled_signals[i] * np.cos(self.response_phases[i])
-                               - np.sqrt(1 - self.scaled_signals[i] ** 2) * np.sin(self.response_phases[i]))
-            y_solutions.append(self.scaled_signals[i] * np.sin(self.response_phases[i])
-                               - np.sqrt(1 - self.scaled_signals[i] ** 2) * np.cos(self.response_phases[i]))
-            y_solutions.append(self.scaled_signals[i] * np.sin(self.response_phases[i])
-                               + np.sqrt(1 - self.scaled_signals[i] ** 2) * np.cos(self.response_phases[i]))
+        if self.scaled_signals is None:
+            raise ValueError("Signals are not scaled.")
+        x_solutions = np.array((3, np.len(self.scaled_signals, axis=1)))
+        y_solutions = np.array((3, np.len(self.scaled_signals, axis=1)))
+        for channel in range(3):
+            x_solutions[channel] = self.scaled_signals[channel] * np.cos(self.response_phases[channel])
+            + np.sqrt(1 - self.scaled_signals[channel] ** 2) * np.sin(self.response_phases[channel])
+            x_solutions[channel + 3] = self.scaled_signals[channel] * np.cos(self.response_phases[channel])
+            - np.sqrt(1 - self.scaled_signals[channel] ** 2) * np.sin(self.response_phases[channel])
+            y_solutions[channel] = self.scaled_signals[channel] * np.sin(self.response_phases[channel])
+            - np.sqrt(1 - self.scaled_signals[channel] ** 2) * np.cos(self.response_phases[channel])
+            y_solutions[channel + 3] = self.scaled_signals[channel] * np.sin(self.response_phases[channel])
+            + np.sqrt(1 - self.scaled_signals[channel] ** 2) * np.cos(self.response_phases[channel])
         for i in range(len(x_solutions)):
             current_error_x = 6
             current_error_y = 6
@@ -55,12 +66,14 @@ class Inversion:
     def calculate_pti_signal(self, ac_in_phase, ac_quadratur, interferometric_phase):
         pti_signal = 0
         weight = 0
+        self.pti = np.array(np.len(self.scaled_signals, axis=1), 3)
         for channel in range(3):
             sign = 1 if np.sin(interferometric_phase - self.response_phases[channel]) >= 0 else -1
             root_mean_square = np.sqrt(ac_in_phase[channel] ** 2 + ac_quadratur[channel] ** 2)
-            sys = np.arctan2(ac_quadratur[channel], ac_in_phase[channel])
-            dms = root_mean_square * np.cos(sys - self.response_phases[channel])
-            pti_signal += dms * sign
-            weight += (self.min_intensities[channel] - self.min_intensities[channel]) / 2\
-                      * abs(np.sin(interferometric_phase - self.response_phases))
-            self.pti.append(-pti_signal / weight)
+            lock_in_phase = np.arctan2(ac_quadratur[channel], ac_in_phase[channel])
+            demoudalted_signal = root_mean_square * np.cos(lock_in_phase - self.response_phases[channel])
+            pti_signal += demoudalted_signal * sign
+            weight += (self.min_intensities[channel] - self.min_intensities[channel]) / 2 *\
+                abs(np.sin(interferometric_phase - self.response_phases))
+            self.pti[channel] = -pti_signal / weight
+        return np.sum(self.pti.T, axis=1)
