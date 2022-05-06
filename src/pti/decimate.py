@@ -1,11 +1,9 @@
-import time
 import pandas as pd
 import os
-import logging
-from decimation import Decimation
+from pti.decimation import Decimation
 
 
-def decimate(file, outputfile):
+def decimate(file, outputfile, live=False):
     """
     Applies the Noise-Reduction Algorithm, Decimation and Lock-In-Amplifier on binary data of given
     filename.
@@ -16,29 +14,29 @@ def decimate(file, outputfile):
         The file name of the binary raw data.
     :param outputfile: str
         The filename of the output file for the results.
+    :param live: bool
+        If true the function returns in every call the result.
     :return: None
     """
-    start = time.process_time()
     decimation = Decimation(file_name=file)
-    if decimation.file is None:
-        logging.error("The file does not exist.")
-        return
     if os.path.exists(outputfile):
         os.remove(outputfile)
-    elements = 1800
-    pd.DataFrame()
-    for i in range(elements):
-        decimation.read_data()
-        decimation.calucalte_dc()
-        decimation.common_mode_noise_reduction()
-        decimation.lock_in_amplifier()
-        dc = decimation.dc_down_sampled
-        x = decimation.ac_x
-        y = decimation.ac_y
-        pd.DataFrame({"X1": x[0], "X2": x[0], "X3": x[2],
-                      "Y1": y[0], "Y2": x[0], "Y3": y[2],
-                      "DC1": dc[0], "DC2": dc[1], "DC3": dc[2]},
-                     index=[0]
-                     ).to_csv(outputfile, mode="a", header=not os.path.exists(outputfile))
+    while True:
+        while not decimation.eof:
+            decimation.read_data()
+            decimation.calucalte_dc()
+            decimation.common_mode_noise_reduction()
+            decimation.lock_in_amplifier()
+            root_mean_square, response_phase = decimation.get_lock_in_values()
+            dc = decimation.dc_down_sampled
+            pd.DataFrame({"RMS CH1": root_mean_square[0], "Response Phase CH1": response_phase[0],
+                          "RMS CH2": root_mean_square[1], "Response Phase CH2": response_phase[1],
+                          "RMS CH3": root_mean_square[2], "Response Phase CH3": response_phase[2],
+                          "DC CH1": dc[0], "DC CH2": dc[1], "DC CH3": dc[2]},
+                         index=[0]
+                         ).to_csv(outputfile, mode="a", header=not os.path.exists(outputfile))
+            if live:
+                yield {"DC": decimation.dc_down_sampled, "RMS": root_mean_square, "Phase": response_phase}
+        if not live:
+            break
     decimation.file.close()
-    print(time.process_time() - start)

@@ -44,13 +44,16 @@ class Decimation:
         self.amplification = 1000  # The amplification is definied by the hardware setup.
         self.ac_x = np.empty(shape=3)
         self.ac_y = np.empty(shape=3)
+        self.eof = False
         self.file = open(file_name, "rb")
 
     def read_data(self):
         """
         Reads the binary data and save it into numpy arrays.
         """
-        np.frombuffer(self.file.read(4), dtype=np.intc)
+        if not np.frombuffer(self.file.read(4), dtype=np.intc):
+            self.eof = True
+            return
         np.frombuffer(self.file.read(4), dtype=np.intc)
         for channel in range(3):
             self.dc[channel] = np.frombuffer(self.file.read(self.samples * 8), dtype=np.float64)
@@ -73,3 +76,6 @@ class Decimation:
     def lock_in_amplifier(self):
         np.mean(self.ac * self.in_phase, axis=1, out=self.ac_x)
         np.mean(self.ac * self.quadratur, axis=1, out=self.ac_y)
+
+    def get_lock_in_values(self):
+        return np.sqrt(self.ac_x ** 2 + self.ac_y ** 2), np.arctan2(self.ac_y, self.ac_x)
