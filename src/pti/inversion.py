@@ -38,17 +38,15 @@ class Inversion(PhaseScan):
     def get_interferometric_phase(self):
         return np.vectorize(self.__calculate_interferometric_phase)(self.scaled_signals)
 
-    def calculate_pti_signal(self, ac_in_phase: np.array, ac_quadratur: np.array) -> np.array:
+    def calculate_pti_signal(self, root_mean_square: np.array, lock_in_phase: np.array) -> np.array:
         pti_signal = 0
         weight = 0
         self.pti = np.array(np.len(self.scaled_signals, axis=1), 3)
         for channel in range(3):
             sign = 1 if np.sin(self.interferometric_phases - self.response_phases[channel]) >= 0 else -1
-            root_mean_square = np.sqrt(ac_in_phase[channel] ** 2 + ac_quadratur[channel] ** 2)
-            lock_in_phase = np.arctan2(ac_quadratur[channel], ac_in_phase[channel])
             demoudalted_signal = root_mean_square * np.cos(lock_in_phase - self.response_phases[channel])
             pti_signal += demoudalted_signal * sign
             weight += (self.min_intensities[channel] - self.min_intensities[channel]) / 2 *\
-                abs(np.sin(self.interferometric_phases - self.response_phases))
+                np.abs(np.sin(self.interferometric_phases - self.response_phases))
             self.pti[channel] = -pti_signal / weight
         return np.sum(self.pti.T, axis=1)
