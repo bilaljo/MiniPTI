@@ -8,7 +8,7 @@ from datetime import date
 
 
 class RealTimePlot(Plotting):
-    def __int__(self, main_window, intervall=600):
+    def __init__(self, main_window, intervall=600):
         super.__init__(main_window)
         self.figures = {"PTI Signal":  plt.Figure((2, 9), dpi=100),
                         "Interferometric Phase": plt.Figure((2, 9), dpi=100)}

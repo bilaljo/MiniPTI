@@ -17,13 +17,13 @@ class Inversion(PhaseScan):
             raise ValueError("Signals are not scaled.")
         x_solutions = np.array((2, 3))
         y_solutions = np.array((2, 3))
-        x_solutions[0] = self.scaled_signals * np.cos(self.output_phases) + np.sqrt(1 - self.scaled_signals ** 2)\
+        x_solutions[0] = self.scaled_signals * np.cos(PhaseScan.output_phases[0]) + np.sqrt(1 - self.scaled_signals ** 2)\
             * np.sin(self.output_phases)
-        x_solutions[1] = self.scaled_signals * np.cos(self.output_phases) - np.sqrt(1 - self.scaled_signals ** 2)\
+        x_solutions[1] = self.scaled_signals * np.cos(PhaseScan.output_phases[0]) - np.sqrt(1 - self.scaled_signals ** 2)\
             * np.sin(self.output_phases)
-        y_solutions[0] = self.scaled_signals * np.sin(self.output_phases) + np.sqrt(1 - self.scaled_signals ** 2)\
+        y_solutions[0] = self.scaled_signals * np.sin(PhaseScan.output_phases[0]) + np.sqrt(1 - self.scaled_signals ** 2)\
             * np.cos(self.output_phases)
-        y_solutions[1] = self.scaled_signals * np.sin(self.output_phases) - np.sqrt(1 - self.scaled_signals ** 2)\
+        y_solutions[1] = self.scaled_signals * np.sin(PhaseScan.output_phases[0]) - np.sqrt(1 - self.scaled_signals ** 2)\
             * np.cos(self.output_phases)
         x_solutions = x_solutions.T
         y_solutions = y_solutions.T
@@ -46,7 +46,7 @@ class Inversion(PhaseScan):
             sign = 1 if np.sin(self.interferometric_phases - self.response_phases[channel]) >= 0 else -1
             demoudalted_signal = root_mean_square * np.cos(lock_in_phase - self.response_phases[channel])
             pti_signal += demoudalted_signal * sign
-            weight += (self.min_intensities[channel] - self.min_intensities[channel]) / 2 *\
-                np.abs(np.sin(self.interferometric_phases - self.response_phases))
+            weight += (PhaseScan.max_intensities[channel] - PhaseScan.min_intensities[channel]) / 2 *\
+                np.abs(np.sin(self.interferometric_phases - PhaseScan.output_phases[channel]))
             self.pti[channel] = -pti_signal / weight
         return np.sum(self.pti.T, axis=1)

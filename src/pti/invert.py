@@ -16,8 +16,7 @@ def invert(file, outputfile, output_phases, live=False):
             dc_signals = signals["DC"]
             root_mean_squares = signals["RMS"]
             response_phases = signals["Response Phases"]
-        inversion = Inversion(response_phases=np.array([-2.2, -2.2, -2.2]), output_phases=output_phases,
-                              signals=dc_signals)
+        inversion = Inversion(response_phases=np.array([-2.2, -2.2, -2.2]), signals=dc_signals)
         inversion.scale_data()
         interferometric_phase = inversion.get_interferometric_phase()
         inversion.set_max()
