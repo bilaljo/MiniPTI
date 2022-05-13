@@ -1,7 +1,6 @@
 from tkinter import filedialog
 from Plotting import Plotting
 from tkinter import simpledialog
-import tkinter
 import pti
 
 
@@ -31,7 +30,8 @@ class SubMenu:
         if self.program == "Decimation":
             pti.decimate(self.file, "Decimation.csv")
         elif self.program == "Inversion":
-            pti.inversion(self.file, "PTI_Inversion.csv")
+            pti.invert(file="Decimation.csv", outputfile="PTI_Inversion.csv", output_phases=[], live=False)
         elif self.program == "Phase_Scan":
-            pti.phase_scan(self.file)
+            phase_scan = pti.phase_scan()
+
         self.plotting.draw_plots(program=self.program)

@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 
 
-def inverte(file, outputfile, output_phases, live=False):
+def invert(file, outputfile, output_phases, live=False):
     signals = decimate(file, outputfile)
     while True:
         if not live:

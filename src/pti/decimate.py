@@ -7,7 +7,7 @@ def decimate(file, outputfile, live=False):
     """
     Applies the Noise-Reduction Algorithm, Decimation and Lock-In-Amplifier on binary data of given
     filename.
-
+    Test
     Every iteration writes the results
 
     :param file: str
@@ -16,7 +16,7 @@ def decimate(file, outputfile, live=False):
         The filename of the output file for the results.
     :param live: bool
         If true the function returns in every call the result.
-    :return: None
+    :return: dict if live is true else None
     """
     decimation = Decimation(file_name=file)
     if os.path.exists(outputfile):
