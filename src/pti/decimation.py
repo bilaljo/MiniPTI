@@ -71,7 +71,7 @@ class Decimation:
         total_dc = sum(self.dc_down_sampled)
         noise = np.sum(self.ac, axis=0)
         for channel in range(3):
-            self.ac[channel] = self.ac[channel] - self.dc_down_sampled[channel] * noise / total_dc
+            self.ac[channel] = self.ac[channel] - (total_dc + noise) / total_dc * self.dc_down_sampled[channel]
 
     def lock_in_amplifier(self):
         np.mean(self.ac * self.in_phase, axis=1, out=self.ac_x)

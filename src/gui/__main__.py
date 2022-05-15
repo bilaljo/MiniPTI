@@ -15,11 +15,13 @@ def main():
     phase_scan_menu = SubMenu(window=main_window, menu_name="Phase Scan", program="Phase_Scan")
     pti_inversion_menu = SubMenu(window=main_window, menu_name="PTI Inversion", program="PTI_Inversion")
     response_phases = SubMenu(window=main_window, menu_name="Set Response Phases", program="")
+    system_information = SubMenu(window=main_window, menu_name="System Information", program="")
 
     main_window.create_menu_element("Phase Scan")
     main_window.create_menu_element("Decimation")
     main_window.create_menu_element("PTI Inversion")
     main_window.create_menu_element("Set Response Phases")
+    main_window.create_menu_element("System Information")
     main_window.create_menu_element("About")
 
     decimation_menu.add_menu_options(menu_name="Decimation", label="Open file...", command=decimation_menu.file_dialog)
@@ -31,12 +33,17 @@ def main():
     phase_scan_menu.add_menu_options(menu_name="Phase Scan", label="Open file...", command=phase_scan_menu.file_dialog)
     phase_scan_menu.add_menu_options(menu_name="Phase Scan", label="Run", command=phase_scan_menu.execute)
 
+    system_information.add_menu_options(menu_name="System Information", label="Output Phases",
+                                        command=system_information.display_output_phases)
+    system_information.add_menu_options(menu_name="System Information", label="Contrasts",
+                                        command=system_information.display_contrasts)
+
     response_phases.add_menu_options(menu_name="Set Response Phases", label="Detector 1",
-                                     command=response_phases.set_response_phases)
+                                     command=response_phases.set_response_phases_1)
     response_phases.add_menu_options(menu_name="Set Response Phases", label="Detector 2",
-                                     command=response_phases.set_response_phases)
+                                     command=response_phases.set_response_phases_2)
     response_phases.add_menu_options(menu_name="Set Response Phases", label="Detector 3",
-                                     command=response_phases.set_response_phases)
+                                     command=response_phases.set_response_phases_3)
 
     top = tkinter.Frame(main_window.root)
 

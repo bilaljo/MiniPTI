@@ -4,7 +4,7 @@ from pti.phase_scan import PhaseScan
 
 
 class Inversion(PhaseScan):
-    def __init__(self, response_phases: np.array, signals: np.array):
+    def __init__(self, response_phases: dict, signals: np.array):
         super().__init__(signals)
         self.response_phases = response_phases
         self.pti = None
@@ -45,14 +45,20 @@ class Inversion(PhaseScan):
         return self.__calculate_interferometric_phase()
 
     def calculate_pti_signal(self, root_mean_square: np.array, lock_in_phase: np.array) -> np.array:
-        pti_signal = 0
-        weight = 0
+        pti_signal = np.zeros(shape=self.scaled_signals.shape).T
+        weight = np.zeros(shape=self.scaled_signals.shape).T
         for channel in range(3):
-            sign = np.sin(self.interferometric_phases - self.response_phases[channel]) /\
-                   np.abs(np.sin(self.interferometric_phases - self.response_phases[channel]))
-            demoudalted_signal = root_mean_square[channel] * np.cos(lock_in_phase - self.response_phases[channel])
+            if PhaseScan.swapp_channels:
+                if channel == 1:
+                    channel = 2
+                elif channel == 2:
+                    channel = 1
+            sign = np.sin(self.interferometric_phases - PhaseScan.output_phases[channel]) /\
+                   np.abs(np.sin(self.interferometric_phases - PhaseScan.output_phases[channel]))
+            reponse_phase = self.response_phases[f"Detector {1 + channel}"]
+            demoudalted_signal = root_mean_square[channel] * np.cos(lock_in_phase - reponse_phase)
             pti_signal += demoudalted_signal * sign
             weight += (PhaseScan.max_intensities[channel] - PhaseScan.min_intensities[channel]) / 2 *\
                 np.abs(np.sin(self.interferometric_phases - PhaseScan.output_phases[channel]))
-        self.pti = np.sum(-pti_signal / weight, axis=0)
+        self.pti = np.sum(-pti_signal, axis=0) / np.sum(weight, axis=0)
         return self.pti

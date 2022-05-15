@@ -3,7 +3,7 @@ import os
 from pti.decimation import Decimation
 
 
-def decimate(file, outputfile, live=False):
+def decimate(file="../pti/280422.bin", outputfile="Decimation.csv", live=False):
     """
     Applies the Noise-Reduction Algorithm, Decimation and Lock-In-Amplifier on binary data of given
     filename.
@@ -36,7 +36,7 @@ def decimate(file, outputfile, live=False):
                          index=[0]
                          ).to_csv(outputfile, mode="a", header=not os.path.exists(outputfile))
             if live:
-                yield {"DC": decimation.dc_down_sampled, "RMS": root_mean_square, "Phase": response_phase}
+                yield {"DC": decimation.dc_down_sampled, "RMS": root_mean_square, "Lock-In Phase": response_phase}
         if not live:
             break
     decimation.file.close()

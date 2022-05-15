@@ -32,7 +32,7 @@ class PhaseScan:
                 index_ch2.append(i)
             if self.scaled_signals[i + 1][2] < 0 < self.scaled_signals[i][2]:
                 index_ch3.append(i)
-        PhaseScan.swapp_channels = sum(index_ch2) / len(index_ch2) < sum(index_ch3) / len(index_ch3)
+        PhaseScan.swapp_channels = sum(index_ch2) / len(index_ch2) > sum(index_ch3) / len(index_ch3)
 
     def calulcate_output_phases(self):
         self.scaled_signals = self.scaled_signals.T
