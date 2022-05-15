@@ -2,6 +2,7 @@ from tkinter import filedialog
 from Plotting import Plotting
 from tkinter import simpledialog
 import pti
+import numpy as np
 import pandas as pd
 
 
@@ -29,12 +30,18 @@ class SubMenu:
 
     def execute(self):
         if self.program == "Decimation":
-            pti.decimate(self.file, "Decimation.csv")
-        elif self.program == "Inversion":
-            pti.invert(file="Decimation.csv", outputfile="PTI_Inversion.csv", output_phases=[], live=False)
+            try:
+                next(pti.decimate(file=self.file, outputfile="Decimation.csv"))
+            except StopIteration:
+                pass
+        elif self.program == "PTI_Inversion":
+            pti.invert(file="Decimation.csv", outputfile="PTI_Inversion.csv", live=False)
         elif self.program == "Phase_Scan":
             signals = pd.read_csv(self.file)
-            phase_scan = pti.PhaseScan(signals=[signals["DC CH1"], signals["DC CH2"], signals["DC CH3"]])
-            phase_scan.scaled_signals()
+            phase_scan = pti.PhaseScan(signals=np.array([signals["DC CH1"], signals["DC CH2"], signals["DC CH3"]]))
+            phase_scan.set_min()
+            phase_scan.set_max()
+            phase_scan.scale_data()
+            phase_scan.set_channel_order()
             phase_scan.calulcate_output_phases()
         self.plotting.draw_plots(program=self.program)

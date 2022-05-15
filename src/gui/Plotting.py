@@ -28,7 +28,7 @@ class Plotting:
         fig = Figure((2, 9), dpi=100)
         ax = fig.add_subplot()
         for i in range(1, 4):
-            ax.plot(range(len(data["DC1"])), data[f"DC{i}"], label=f"Detector {i}")
+            ax.plot(range(len(data["DC CH1"])), data[f"DC CH{i}"], label=f"Detector {i}")
         ax.legend()
         ax.grid(True)
         ax.set_xlabel("Time in s", fontsize=12)
@@ -54,7 +54,7 @@ class Plotting:
         fig = Figure((2, 9), dpi=100)
         ax = fig.add_subplot()
         for i in range(1, 4):
-            ax.plot(range(len(data["Root Mean Square 1"])), data[f"Root Mean Square {i}"], label=f"Detector {i}")
+            ax.plot(range(len(data["RMS CH1"])), data[f"RMS CH{i}"], label=f"Detector {i}")
         ax.legend(fontsize=12)
         ax.grid(True)
         ax.set_xlabel("Time in s", fontsize=12)
@@ -68,7 +68,7 @@ class Plotting:
         fig = Figure((2, 9), dpi=100)
         ax = fig.add_subplot()
         for i in range(1, 4):
-            ax.plot(range(len(data["Response Phase 1"])), data[f"Response Phase {i}"], label=f"Detector {i}")
+            ax.plot(range(len(data["Response Phase CH1"])), data[f"Response Phase CH{i}"], label=f"Detector {i}")
         ax.legend(fontsize=12)
         ax.grid(True)
         ax.set_xlabel("Time in s", fontsize=12)
@@ -115,15 +115,15 @@ class Plotting:
         if program == "Decimation":
             fig = self.plot_dc("Decimation.csv")
             self.create_plot(self.tab_dc, fig)
+            fig = self.plot_root_mean_square_cartesian("Decimation.csv")
+            self.create_plot(self.tab_root_mean_square, fig)
+            fig = self.plot_response_phases("Decimation.csv")
+            self.create_plot(self.tab_response_phase, fig)
         if program == "PTI_Inversion":
             fig = self.plot_pti_signal("PTI_Inversion.csv")
             self.create_plot(self.tab_pti, fig)
-            fig = self.plot_root_mean_square_cartesian("PTI_Inversion.csv")
-            self.create_plot(self.tab_root_mean_square, fig)
-            fig = self.plot_response_phases("PTI_Inversion.csv")
-            self.create_plot(self.tab_response_phase, fig)
-            fig = self.plot_demodulated_signal("PTI_Inversion.csv")
-            self.create_plot(self.tab_demodulated_signal, fig)
+            #fig = self.plot_demodulated_signal("PTI_Inversion.csv")
+            #self.create_plot(self.tab_demodulated_signal, fig)
             fig = self.plot_interferometric_phase("PTI_Inversion.csv")
             self.create_plot(self.tab_interferometric_phase, fig)
         self.tab_control.pack(expand=True)
