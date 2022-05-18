@@ -19,7 +19,7 @@ class Inversion(PhaseScan):
         phases = []
         for signal in self.scaled_signals:
             output_phases = PhaseScan.output_phases
-            if PhaseScan.swapp_channels:
+            if not PhaseScan.swapp_channels:
                 output_phases[2], output_phases[1] = PhaseScan.output_phases[1], PhaseScan.output_phases[2]
             x_solutions = np.array([signal * np.cos(output_phases) + np.sqrt(1 - signal ** 2)
                                     * np.sin(output_phases), signal * np.cos(output_phases)

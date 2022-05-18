@@ -70,8 +70,7 @@ class Decimation:
 
     def common_mode_noise_reduction(self):
         for channel in range(3):
-            self.ac[channel] = self.ac[channel] #- (1 + np.sum(self.ac, axis=0) / sum(self.dc_down_sampled))\
-                               #* self.dc_down_sampled[channel]
+            self.ac[channel] = self.ac[channel] - (1 + np.sum(self.ac, axis=0) / sum(self.dc_down_sampled)) * self.dc_down_sampled[channel]
 
     def lock_in_amplifier(self):
         np.mean(self.ac * self.in_phase, axis=1, out=self.ac_x)

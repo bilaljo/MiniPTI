@@ -22,7 +22,6 @@ def decimate(file="../pti/280422.bin", outputfile="Decimation.csv", live=False):
     if os.path.exists(outputfile):
         os.remove(outputfile)
     while True:
-        i = 0
         while not decimation.eof:
             decimation.read_data()
             decimation.calucalte_dc()

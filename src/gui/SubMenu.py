@@ -17,6 +17,8 @@ class SubMenu:
         self.response_phases = {"Detector 1": 0.0, "Detector 2": 0.0, "Detector 3": 0.0}
         self.plotting = Plotting(main_window=self.window.root)
 
+    response_phases = dict()
+
     def add_menu_options(self, menu_name, label, command):
         self.window.menus[menu_name].add_command(label=label, command=command)
 
@@ -28,24 +30,24 @@ class SubMenu:
             self.file = file_name[0]
 
     def set_response_phases_1(self):
-        self.response_phases["Detector 1"] = simpledialog.askfloat(f"Response Phases", "Detector 1",
+        SubMenu.response_phases["Detector 1"] = simpledialog.askfloat(f"Response Phases", "Detector 1",
                                                                    parent=self.window.root)
 
     def set_response_phases_2(self):
         if pti.PhaseScan.swapp_channels:
-            self.response_phases["Detector 2"] = simpledialog.askfloat("Response Phases", "Detector 3",
+            SubMenu.response_phases["Detector 2"] = simpledialog.askfloat("Response Phases", "Detector 3",
                                                                        parent=self.window.root)
         else:
-            self.response_phases["Detector 2"] = simpledialog.askfloat("Response Phases", "Detector 2",
+            SubMenu.response_phases["Detector 2"] = simpledialog.askfloat("Response Phases", "Detector 2",
                                                                        parent=self.window.root)
 
     def set_response_phases_3(self):
         if pti.PhaseScan.swapp_channels:
-            self.response_phases["Detector 3"] = simpledialog.askfloat("Response Phases", "Detector 2",
-                                                                       parent=self.window.root)
+            SubMenu.response_phases["Detector 3"] = simpledialog.askfloat("Response Phases", "Detector 2",
+                                                                          parent=self.window.root)
         else:
-            self.response_phases["Detector 3"] = simpledialog.askfloat("Response Phases", "Detector 3",
-                                                                       parent=self.window.root)
+            SubMenu.response_phases["Detector 3"] = simpledialog.askfloat("Response Phases", "Detector 3",
+                                                                          parent=self.window.root)
 
     @staticmethod
     def display_output_phases():
@@ -80,7 +82,7 @@ class SubMenu:
             except StopIteration:
                 pass
         elif self.program == "PTI_Inversion":
-            pti.invert(file="Decimation.csv", outputfile="PTI_Inversion.csv", response_phases=self.response_phases)
+            pti.invert(file="Decimation.csv", outputfile="PTI_Inversion.csv", response_phases=SubMenu.response_phases)
         elif self.program == "Phase_Scan":
             signals = pd.read_csv(self.file)
             phase_scan = pti.PhaseScan(signals=np.array([signals["DC CH1"], signals["DC CH2"], signals["DC CH3"]]))
