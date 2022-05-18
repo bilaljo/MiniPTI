@@ -22,6 +22,7 @@ def decimate(file="../pti/280422.bin", outputfile="Decimation.csv", live=False):
     if os.path.exists(outputfile):
         os.remove(outputfile)
     while True:
+        i = 0
         while not decimation.eof:
             decimation.read_data()
             decimation.calucalte_dc()
@@ -32,8 +33,7 @@ def decimate(file="../pti/280422.bin", outputfile="Decimation.csv", live=False):
             pd.DataFrame({"RMS CH1": root_mean_square[0], "Response Phase CH1": response_phase[0],
                           "RMS CH2": root_mean_square[1], "Response Phase CH2": response_phase[1],
                           "RMS CH3": root_mean_square[2], "Response Phase CH3": response_phase[2],
-                          "DC CH1": dc[0], "DC CH2": dc[1], "DC CH3": dc[2],
-                         "Ref": decimation.ref},
+                          "DC CH1": dc[0], "DC CH2": dc[1], "DC CH3": dc[2]},
                          index=[0]
                          ).to_csv(outputfile, mode="a", header=not os.path.exists(outputfile))
             if live:

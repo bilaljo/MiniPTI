@@ -38,9 +38,9 @@ class Decimation:
         self.dc = np.empty(shape=(3, self.samples))
         self.ac = np.empty(shape=(3, self.samples))
         self.dc_down_sampled = np.empty(shape=3)
-        time = np.linspace(0, 1, self.samples)
-        self.in_phase = np.sin(2 * np.pi * time * 80)#'+ 0.01116)
-        self.quadratur = np.cos(2 * np.pi * time * 80)# + 0.01116)
+        time = np.linspace(0, 1, self.samples) + 0.00133
+        self.in_phase = np.sin(2 * np.pi * time * 80)
+        self.quadratur = np.cos(2 * np.pi * time * 80)
         self.amplification = 1000  # The amplification is definied by the hardware setup.
         self.ac_x = np.empty(shape=3)
         self.ac_y = np.empty(shape=3)
@@ -58,7 +58,7 @@ class Decimation:
         np.frombuffer(self.file.read(4), dtype=np.intc)
         for channel in range(3):
             self.dc[channel] = np.frombuffer(self.file.read(self.samples * 8), dtype=np.float64)
-        self.ref = np.frombuffer(self.file.read(self.samples * 8), dtype=np.float64)
+        np.frombuffer(self.file.read(self.samples * 8), dtype=np.float64)
         for channel in range(3):
             self.ac[channel] = np.frombuffer(self.file.read(self.samples * 8), dtype=np.float64) / self.amplification
 
@@ -70,8 +70,8 @@ class Decimation:
 
     def common_mode_noise_reduction(self):
         for channel in range(3):
-            self.ac[channel] = self.ac[channel] - (1 + np.sum(self.ac, axis=0) / sum(self.dc_down_sampled))\
-                               * self.dc_down_sampled[channel]
+            self.ac[channel] = self.ac[channel] #- (1 + np.sum(self.ac, axis=0) / sum(self.dc_down_sampled))\
+                               #* self.dc_down_sampled[channel]
 
     def lock_in_amplifier(self):
         np.mean(self.ac * self.in_phase, axis=1, out=self.ac_x)

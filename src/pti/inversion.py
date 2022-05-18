@@ -18,12 +18,15 @@ class Inversion(PhaseScan):
             raise ValueError("Signals are not scaled.")
         phases = []
         for signal in self.scaled_signals:
-            x_solutions = np.array([signal * np.cos(PhaseScan.output_phases) + np.sqrt(1 - signal ** 2)
-                                    * np.sin(PhaseScan.output_phases), signal * np.cos(PhaseScan.output_phases)
-                                    - np.sqrt(1 - signal ** 2) * np.sin(PhaseScan.output_phases)]).T
-            y_solutions = np.array([signal * np.sin(PhaseScan.output_phases) + np.sqrt(1 - signal ** 2)
-                                    * np.cos(PhaseScan.output_phases), signal * np.sin(PhaseScan.output_phases)
-                                    - np.sqrt(1 - signal ** 2) * np.cos(PhaseScan.output_phases)]).T
+            output_phases = PhaseScan.output_phases
+            if PhaseScan.swapp_channels:
+                output_phases[2], output_phases[1] = PhaseScan.output_phases[1], PhaseScan.output_phases[2]
+            x_solutions = np.array([signal * np.cos(output_phases) + np.sqrt(1 - signal ** 2)
+                                    * np.sin(output_phases), signal * np.cos(output_phases)
+                                    - np.sqrt(1 - signal ** 2) * np.sin(output_phases)]).T
+            y_solutions = np.array([signal * np.sin(output_phases) + np.sqrt(1 - signal ** 2)
+                                    * np.cos(output_phases), signal * np.sin(output_phases)
+                                    - np.sqrt(1 - signal ** 2) * np.cos(output_phases)]).T
             x_triple = itertools.product(x_solutions[0], x_solutions[1], x_solutions[2])
             y_triple = itertools.product(y_solutions[0], y_solutions[1], y_solutions[2])
             current_error_x = float("Inf")

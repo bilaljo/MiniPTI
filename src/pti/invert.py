@@ -21,6 +21,7 @@ def invert(file, outputfile, response_phases, live=False):
         interferometric_phase = inversion.get_interferometric_phase()
         inversion.calculate_pti_signal(root_mean_squares, lock_in_phase)
         pd.DataFrame({"Interferometric Phase": interferometric_phase,
-                      "PTI Signal": inversion.pti}).to_csv("PTI_Inversion.csv")
+                      "PTI Signal": inversion.pti,
+                      }).to_csv("PTI_Inversion.csv")
         if not live:
             break
