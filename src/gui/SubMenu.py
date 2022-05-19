@@ -78,7 +78,7 @@ class SubMenu:
     def execute(self):
         if self.program == "Decimation":
             try:
-                next(pti.decimate())
+                next(pti.decimate(file=self.file, outputfile="Decimation.csv"))
             except StopIteration:
                 pass
         elif self.program == "PTI_Inversion":
