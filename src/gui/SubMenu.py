@@ -30,16 +30,16 @@ class SubMenu:
             self.file = file_name[0]
 
     def set_response_phases_1(self):
-        SubMenu.response_phases["Detector 1"] = simpledialog.askfloat(f"Response Phases", "Detector 1",
-                                                                   parent=self.window.root)
+        SubMenu.response_phases["Detector 1"] = simpledialog.askfloat("Response Phases", "Detector 1",
+                                                                      parent=self.window.root)
 
     def set_response_phases_2(self):
         if pti.PhaseScan.swapp_channels:
             SubMenu.response_phases["Detector 2"] = simpledialog.askfloat("Response Phases", "Detector 3",
-                                                                       parent=self.window.root)
+                                                                          parent=self.window.root)
         else:
             SubMenu.response_phases["Detector 2"] = simpledialog.askfloat("Response Phases", "Detector 2",
-                                                                       parent=self.window.root)
+                                                                          parent=self.window.root)
 
     def set_response_phases_3(self):
         if pti.PhaseScan.swapp_channels:
@@ -89,6 +89,9 @@ class SubMenu:
             phase_scan.set_min()
             phase_scan.set_max()
             phase_scan.scale_data()
+            pti_inversion = pti.Inversion(signals=phase_scan.scaled_signals)
+            phases = pti_inversion.get_interferometric_phase()
+            pti.PhaseScan.set_phases(phases)
             phase_scan.set_channel_order()
             phase_scan.calulcate_output_phases()
         self.plotting.draw_plots(program=self.program)

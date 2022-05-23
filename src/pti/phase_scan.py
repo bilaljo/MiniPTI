@@ -1,7 +1,12 @@
 import numpy as np
+from pti.multiset import Multiset
 
 
 class PhaseScan:
+    """
+    Implements a passive phase scan. A phase scan means calculating the output phases and can be done if there are
+    enough elements for the algorithm. Enoug means that every phase-bucket has at least one occoured.
+    """
     def __init__(self, signals: np.array):
         self.signals = signals
         self.scaled_signals = None
@@ -13,6 +18,16 @@ class PhaseScan:
     max_intensities = None
 
     swapp_channels = False
+
+    interferometric_phases = Multiset([(2 * np.pi * i / 100, 0) for i in range(100)])
+
+    @staticmethod
+    def set_phases(interferometric_phase):
+        if isinstance(interferometric_phase, np.ndarray):
+            for phase in interferometric_phase:
+                PhaseScan.interferometric_phases[np.floor(phase / (2 * np.pi) * 100) * 2 * np.pi / 100] += 1
+        else:
+            PhaseScan.interferometric_phases[np.floor(interferometric_phase / (2 * np.pi) * 100) * 2 * np.pi / 100] += 1
 
     def set_min(self):
         PhaseScan.min_intensities = np.min(self.signals, axis=1)
