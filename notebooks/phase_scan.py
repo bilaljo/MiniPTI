@@ -20,14 +20,13 @@ class PhaseScan:
     swapp_channels = False     
 
     def set_min(self):
-        PhaseScan.min_intensities = np.min(self.signals, axis=1)
+        PhaseScan.min_intensities = np.min(self.signals, axis=0)
 
     def set_max(self):
-        PhaseScan.max_intensities = np.max(self.signals, axis=1)
+        PhaseScan.max_intensities = np.max(self.signals, axis=0)
 
     def scale_data(self):
-        self.scaled_signals = 2 * (self.signals.T - PhaseScan.min_intensities) \
-                              / (PhaseScan.max_intensities - PhaseScan.min_intensities) - 1
+        self.scaled_signals = 2 * (self.signals - PhaseScan.min_intensities) / (PhaseScan.max_intensities - PhaseScan.min_intensities) - 1
 
     def set_channel_order(self):
         index_ch2 = []
@@ -41,6 +40,8 @@ class PhaseScan:
 
     def calulcate_output_phases(self):
         self.scaled_signals = self.scaled_signals.T
+        if PhaseScan.swapp_channels:
+            self.scaled_signals[1], self.scaled_signals[2] = self.scaled_signals[2], self.scaled_signals[1]
         output_phases_1 = np.concatenate([np.arccos(self.scaled_signals[0]) + np.arccos(self.scaled_signals[1]),
                           np.arccos(self.scaled_signals[0]) - np.arccos(self.scaled_signals[1]),
                           -np.arccos(self.scaled_signals[0]) + np.arccos(self.scaled_signals[1]),
@@ -49,17 +50,13 @@ class PhaseScan:
                           np.arccos(self.scaled_signals[0]) - np.arccos(self.scaled_signals[2]),
                           -np.arccos(self.scaled_signals[0]) + np.arccos(self.scaled_signals[2]),
                           -np.arccos(self.scaled_signals[0]) - np.arccos(self.scaled_signals[2])])
-        self.scaled_signals = self.scaled_signals.T
         output_phases_1[np.where(output_phases_1 < 0)] += 2 * np.pi
         output_phases_2[np.where(output_phases_2 < 0)] += 2 * np.pi
-        bins, phases = np.histogram(output_phases_1, bins=int(np.sqrt(output_phases_1.shape[0])), range=(0, np.pi))
+        bins, phases = np.histogram(output_phases_1, bins="auto", range=(0, np.pi))
         output_phase_1 = phases[np.where(bins == np.max(bins))][0]
-        bins, phases = np.histogram(output_phases_2, bins=int(np.sqrt(output_phases_2.shape[0])), range=(np.pi, 2 * np.pi))
+        bins, phases = np.histogram(output_phases_2, bins="auto", range=(np.pi, 2 * np.pi))
         output_phase_2 = phases[np.where(bins == np.max(bins))][0]
-        if PhaseScan.swapp_channels:
-            PhaseScan.output_phases = np.array([0, output_phase_2, output_phase_1])
-        else:
-            PhaseScan.output_phases = np.array([0, output_phase_2, output_phase_1])
+        PhaseScan.output_phases = np.array([0, output_phase_1, output_phase_2])
 
     @staticmethod
     def get_output_phases():
