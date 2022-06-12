@@ -17,31 +17,19 @@ class PhaseScan:
 
     max_intensities = None
 
-    swapp_channels = False     
-
     def set_min(self):
         PhaseScan.min_intensities = np.min(self.signals, axis=0)
 
     def set_max(self):
         PhaseScan.max_intensities = np.max(self.signals, axis=0)
 
+    def set_data(self, data):
+        self.signals = data
+
     def scale_data(self):
         self.scaled_signals = 2 * (self.signals - PhaseScan.min_intensities) / (PhaseScan.max_intensities - PhaseScan.min_intensities) - 1
 
-    def set_channel_order(self):
-        index_ch2 = []
-        index_ch3 = []
-        for i in range(len(self.scaled_signals.T[0]) - 1):
-            if self.scaled_signals[i + 1][1] < 0 < self.scaled_signals[i][1]:
-                index_ch2.append(i)
-            if self.scaled_signals[i + 1][2] < 0 < self.scaled_signals[i][2]:
-                index_ch3.append(i)
-        PhaseScan.swapp_channels = sum(index_ch2) / len(index_ch2) > sum(index_ch3) / len(index_ch3)
-
     def calulcate_output_phases(self):
-        self.scaled_signals = self.scaled_signals.T
-        if PhaseScan.swapp_channels:
-            self.scaled_signals[1], self.scaled_signals[2] = self.scaled_signals[2], self.scaled_signals[1]
         output_phases_1 = np.concatenate([np.arccos(self.scaled_signals[0]) + np.arccos(self.scaled_signals[1]),
                           np.arccos(self.scaled_signals[0]) - np.arccos(self.scaled_signals[1]),
                           -np.arccos(self.scaled_signals[0]) + np.arccos(self.scaled_signals[1]),
