@@ -8,3 +8,4 @@ notebooks/*.csv
 notebooks/*.pdf
 notebooks/*.txt
 notebooks/.ipynb_checkpoints
+notebooks/__pycache__
