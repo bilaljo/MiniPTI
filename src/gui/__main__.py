@@ -1,83 +1,34 @@
-import tkinter
-from MainWindow import MainWindow
-from SubMenu import SubMenu
-import platform
+import tkinter as tk
+from tkinter import ttk
+
+from mode import Mode
+
+
+class Theme:
+    theme = "dark"
+
+    root = None
+
+    @staticmethod
+    def set_theme(event=None):
+        Theme.theme = "dark" if Theme.theme == "light" else "light"
+        Theme.root.tk.call("set_theme", Theme.theme)
 
 
 def main():
-    main_window = MainWindow(title="Passepartout", background="white")
-    if platform.system() == "Windows":
-        icon = tkinter.PhotoImage(file=r"icons\fhnw.png")
-    else:
-        icon = tkinter.PhotoImage(file="icons/fhnw.png")
-    main_window.root.iconphoto(False, icon)
-    decimation_menu = SubMenu(window=main_window, menu_name="Decimation", program="Decimation")
-    phase_scan_menu = SubMenu(window=main_window, menu_name="Phase Scan", program="Phase_Scan")
-    pti_inversion_menu = SubMenu(window=main_window, menu_name="PTI Inversion", program="PTI_Inversion")
-    response_phases = SubMenu(window=main_window, menu_name="Set Response Phases", program="")
-    system_information = SubMenu(window=main_window, menu_name="System Information", program="")
+    root = tk.Tk()
+    #Theme.root = root
+    root.tk.call("source", "azure.tcl")
+    root.tk.call("set_theme", "light")
+    #root.bind("<F1>", Theme.set_theme)
 
-    main_window.create_menu_element("Phase Scan")
-    main_window.create_menu_element("Decimation")
-    main_window.create_menu_element("PTI Inversion")
-    main_window.create_menu_element("Set Response Phases")
-    main_window.create_menu_element("System Information")
-    main_window.create_menu_element("About")
-
-    decimation_menu.add_menu_options(menu_name="Decimation", label="Open file...", command=decimation_menu.file_dialog)
-    decimation_menu.add_menu_options(menu_name="Decimation", label="Run", command=decimation_menu.execute)
-    pti_inversion_menu.add_menu_options(menu_name="PTI Inversion", label="Open file...",
-                                        command=pti_inversion_menu.file_dialog)
-
-    pti_inversion_menu.add_menu_options(menu_name="PTI Inversion", label="Run", command=pti_inversion_menu.execute)
-    phase_scan_menu.add_menu_options(menu_name="Phase Scan", label="Open file...", command=phase_scan_menu.file_dialog)
-    phase_scan_menu.add_menu_options(menu_name="Phase Scan", label="Run", command=phase_scan_menu.execute)
-
-    system_information.add_menu_options(menu_name="System Information", label="Output Phases",
-                                        command=system_information.display_output_phases)
-    system_information.add_menu_options(menu_name="System Information", label="Contrasts",
-                                        command=system_information.display_contrasts)
-
-    response_phases.add_menu_options(menu_name="Set Response Phases", label="Detector 1",
-                                     command=response_phases.set_response_phases_1)
-    response_phases.add_menu_options(menu_name="Set Response Phases", label="Detector 2",
-                                     command=response_phases.set_response_phases_2)
-    response_phases.add_menu_options(menu_name="Set Response Phases", label="Detector 3",
-                                     command=response_phases.set_response_phases_3)
-
-    top = tkinter.Frame(main_window.root)
-
-    if platform.system() == "Windows":
-        top.configure(background=main_window.background)
-    top.pack(side=tkinter.TOP)
-    if platform.system() == "Windows":
-        pause_picture = tkinter.PhotoImage(file=r"icons\pause.png")
-        play_picture = tkinter.PhotoImage(file=r"icons\play.png")
-        stop_picture = tkinter.PhotoImage(file=r"icons\stop.png")
-    else:
-        pause_picture = tkinter.PhotoImage(file="icons/pause.png")
-        play_picture = tkinter.PhotoImage(file="icons/play.png")
-        stop_picture = tkinter.PhotoImage(file="icons/stop.png")
-
-    play_button = tkinter.Button(main_window.root, command="")
-    play_button.config(image=play_picture, height=25, width=25, highlightthickness=0, bd=0)
-    play_button.pack(in_=top, side=tkinter.LEFT)
-
-    pause_button = tkinter.Button(main_window.root, command="",)
-    pause_button.config(image=pause_picture, height=25, width=25, highlightthickness=0, bd=0)
-    pause_button.pack(in_=top, side=tkinter.LEFT)
-
-    stop_button = tkinter.Button(main_window.root, command="")
-    stop_button.config(image=stop_picture, height=25, width=25, highlightthickness=0, bd=0)
-    stop_button.pack(in_=top, side=tkinter.LEFT)
-
-    if platform.system() == "Windows":
-        play_button.configure(background=main_window.background)
-        pause_button.configure(background=main_window.background)
-        stop_button.configure(background=main_window.background)
-
-    main_window.root.minsize(500, 200)
-    main_window.root.mainloop()
+    mode_frame = ttk.LabelFrame(root, text="Mode", padding=(20, 10))
+    mode_frame.grid(row=2, column=0, padx=(20, 10), pady=10, sticky="nsew")
+    live_button = tk.Radiobutton(mode_frame, text="Live", command="", value=1)
+    offline_button = tk.Radiobutton(mode_frame, text="Offline", command="", value=2)
+    live_button.grid(row=2, column=0, sticky="nsew")
+    offline_button.grid(row=3, column=0)
+    root.mainloop()
 
 
 if __name__ == "__main__":
