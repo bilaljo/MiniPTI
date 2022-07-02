@@ -1,3 +1,0 @@
-/home/jonas/Cpp-Implementierung/pti/cmake-build-release/CMakeFiles/PTI_Inversion.dir
-/home/jonas/Cpp-Implementierung/pti/cmake-build-release/CMakeFiles/edit_cache.dir
-/home/jonas/Cpp-Implementierung/pti/cmake-build-release/CMakeFiles/rebuild_cache.dir

@@ -1,8 +1,0 @@
-# ninja log v5
-0	443	1653672087255962635	CMakeFiles/PTI_Inversion.dir/PTIMain.cpp.o	bef5f885696afed0
-0	663	1653672087475959814	CMakeFiles/PTI_Inversion.dir/home/jonas/Cpp-Implementierung/parser/Config.cpp.o	1b9636f093ef8039
-0	723	1653672087535959044	CMakeFiles/PTI_Inversion.dir/home/jonas/Cpp-Implementierung/parser/CSV.cpp.o	7658c2fc678f0e25
-0	1105	1653672087915954172	CMakeFiles/PTI_Inversion.dir/Inversion.cpp.o	27c38a1f1800b31a
-1105	1202	1653672088011952941	PTI_Inversion	64918e170c216c46
-0	732	1654153913401162546	CMakeFiles/PTI_Inversion.dir/home/jonas/Cpp-Implementierung/parser/CSV.cpp.o	7658c2fc678f0e25
-732	807	1654153913477166519	PTI_Inversion	64918e170c216c46
