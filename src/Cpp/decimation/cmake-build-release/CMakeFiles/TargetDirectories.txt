@@ -1,0 +1,3 @@
+/home/jonas/Cpp-Implementierung/decimation/cmake-build-release/CMakeFiles/decimation.dir
+/home/jonas/Cpp-Implementierung/decimation/cmake-build-release/CMakeFiles/edit_cache.dir
+/home/jonas/Cpp-Implementierung/decimation/cmake-build-release/CMakeFiles/rebuild_cache.dir

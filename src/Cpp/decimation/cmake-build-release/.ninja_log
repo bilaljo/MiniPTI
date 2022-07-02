@@ -1,0 +1,8 @@
+# ninja log v5
+1	612	1654512041044029041	CMakeFiles/decimation.dir/DecimationMain.cpp.o	a2d7d1f0eff5bcba
+2	504	1654512040936028346	CMakeFiles/decimation.dir/lockInAmplifier.cpp.o	3e1962c915f020a6
+3	444	1654512040876027963	CMakeFiles/decimation.dir/CommonNoiseRecjection.cpp.o	7520a33c1400423c
+1	814	1653665840437554911	CMakeFiles/decimation.dir/home/jonas/Cpp-Implementierung/parser/Config.cpp.o	bb6330da62ff6d9b
+2	444	1654512040876027963	CMakeFiles/decimation.dir/readBinary.cpp.o	5635b2a0b73b4f68
+612	701	1654512041132029605	decimation	169553a4a11ca85a
+1	745	1654154152638701162	CMakeFiles/decimation.dir/home/jonas/Cpp-Implementierung/parser/CSV.cpp.o	3f12a4fcb26eff73
