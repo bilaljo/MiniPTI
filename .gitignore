@@ -9,3 +9,6 @@ notebooks/*.pdf
 notebooks/*.txt
 notebooks/.ipynb_checkpoints
 notebooks/__pycache__
+src/decimation/cmake-build-release
+src/phase_scan/cmake-build-release
+src/inversion/cmake-build-release
