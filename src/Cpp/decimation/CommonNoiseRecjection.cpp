@@ -18,8 +18,8 @@ void decimation::commonNoiseRejection(decimation::rawData &rawData, const decima
   double noise;
   for (int sample = 0; sample < decimation::samples; sample++) {
     noise = rawData.ac1[sample] + rawData.ac2[sample] + rawData.ac3[sample];
-    rawData.ac1[sample] = rawData.ac1[sample] - (1 + noise) * dcSignal.dc1 / totalDC;
-    rawData.ac2[sample] = rawData.ac2[sample] - (1 + noise) * dcSignal.dc2 / totalDC;
-    rawData.ac3[sample] = rawData.ac3[sample] - (1 + noise) * dcSignal.dc3 / totalDC;
+    rawData.ac1[sample] = rawData.ac1[sample] - noise * dcSignal.dc1 / totalDC;
+    rawData.ac2[sample] = rawData.ac2[sample] - noise * dcSignal.dc2 / totalDC;
+    rawData.ac3[sample] = rawData.ac3[sample] - noise * dcSignal.dc3 / totalDC;
   }
 }
