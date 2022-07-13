@@ -1,34 +1,18 @@
 import tkinter as tk
 from tkinter import ttk
+
 from matplotlib import pyplot as plt
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
-from matplotlib.backend_bases import key_press_handler
-from matplotlib.figure import Figure
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 
 class MainWindow(ttk.Frame):
     def __init__(self, parent):
         super().__init__()
-        self.mode_frame = None
-        self.offline = None
-        self.live = tk.IntVar()
-        self.live_button = None
-        self.offline = self.live
-        self.offline_button = None
-        self.theme = "light"
         self.parent = parent
         self.tree = None
 
-    def setup_radio_buttons(self):
-        self.mode_frame = ttk.LabelFrame(self, text="Mode", padding=(20, 10))
-        self.mode_frame.grid(row=0, column=0, padx=(0, 10), pady=10, sticky="nsew")
-        self.offline_button = ttk.Radiobutton(self.mode_frame, text="Offline", variable=self.offline, value=1)
-        self.offline_button.grid(row=0, column=0, padx=5, pady=10, sticky="nsew")
-        self.live_button = ttk.Radiobutton(self.mode_frame, text="Live", variable=self.live, value=2)
-        self.live_button.grid(row=1, column=0, padx=5, pady=10, sticky="nsew")
-
     def setup_tree(self, settings_frame):
-        self.tree = ttk.Treeview(settings_frame, columns=("Configuration", "Value"), show="tree",)
+        self.tree = ttk.Treeview(settings_frame, columns=("Configuration", "Value"), show="tree", )
         self.tree.column("#0", width=150, stretch=False)
         self.tree.column("#1", width=80, stretch=False)
         self.tree.pack(side="top", padx=10, pady=10, fill=tk.Y)
@@ -48,12 +32,8 @@ class MainWindow(ttk.Frame):
         self.tree.insert(response_phases, "end", text='Detector 2', values=[f"{2.2} rad"], open=False)
         self.tree.insert(response_phases, "end", text='Detector 3', values=[f"{2.2} rad"], open=False)
 
-    def set_theme(self, event):
-        self.theme = "dark" if self.theme == "light" else "light"
-        self.parent.tk.call("set_theme", self.theme)
 
-
-def main():
+def draw():
     root = tk.Tk()
     root.title("Mini PTI")
     root.tk.call("source", "azure.tcl")
@@ -61,15 +41,14 @@ def main():
     main_window = MainWindow(root)
 
     settings_frame = tk.Frame()
-    settings_frame.pack(side="left")
+    settings_frame.pack(side="left", anchor="nw")
 
     main_window.setup_tree(settings_frame)
 
     phase_scan = ttk.LabelFrame(master=settings_frame, text="File Paths", padding=(20, 10))
     phase_scan.pack(side="top", anchor="nw", expand=True, padx=10, pady=10)
 
-    phase_scan_button = ttk.Button(phase_scan, text="Phase Scan")
-    phase_scan_button.pack(side="left", anchor="nw", padx=10, pady=10)
+    phase_scan_button.
 
     decimation_button = ttk.Button(phase_scan, text="Decimation")
     decimation_button.pack(side="left", anchor="nw", padx=10, pady=10)
@@ -90,7 +69,7 @@ def main():
     inversion_button.pack(side="left", padx=10, pady=10, anchor="nw", expand=True)
 
     programms_online = ttk.LabelFrame(master=settings_frame, text="Online", padding=(20, 10))
-    programms_online.pack(side="top", anchor="nw",  padx=10, pady=10, expand=True)
+    programms_online.pack(side="top", anchor="nw", padx=10, pady=10, expand=True)
 
     run_button = ttk.Button(programms_online, text="Run")
     run_button.pack(side="left", anchor="nw", padx=10, pady=10)
@@ -98,9 +77,8 @@ def main():
     stop_button = ttk.Button(programms_online, text="Stop")
     stop_button.pack(side="left", anchor="nw", padx=10, pady=10)
 
-
     plot_frame = tk.Frame()
-    plot_frame.pack(side=tk.LEFT)
+    plot_frame.pack(side=tk.LEFT, anchor="nw")
 
     fig = plt.figure()
 
@@ -108,20 +86,43 @@ def main():
     phase_plot = fig.add_subplot(323)
     pti_plot = fig.add_subplot(325)
 
+    dc_plot.get_xaxis().set_visible(False)
+    phase_plot.get_xaxis().set_visible(False)
+
     dc_plot.grid()
     phase_plot.grid()
     pti_plot.grid()
 
+    dc_plot.set_ylabel("$I_k$", fontsize=11)
+    phase_plot.set_ylabel(r"$\varphi$ [rad]", fontsize=11)
+    pti_plot.set_ylabel(r"$\Delta \varphi$ [rad]", fontsize=11)
+
+    pti_plot.set_xlabel("Time [s]", fontsize=11)
+
+    dc_plot.set_title("DC Signals", fontsize=11)
+    phase_plot.set_title("Interferometric Phase", fontsize=11)
+    pti_plot.set_title("PTI Signal", fontsize=11)
+
     output_phase_1 = fig.add_subplot(222)
     output_phase_2 = fig.add_subplot(224)
 
+    output_phase_1.grid()
+    output_phase_2.grid()
+
+    output_phase_1.set_xlabel(r"$\rho_2$ [rad]", fontsize=11)
+    output_phase_2.set_xlabel(r"$\rho_3$ [rad]", fontsize=11)
+
+    output_phase_1.set_ylabel(r"Count", fontsize=11)
+    output_phase_2.set_ylabel(r"Count", fontsize=11)
+
+    output_phase_1.set_title("Output Phases", fontsize=11)
+
     canvas = FigureCanvasTkAgg(fig, master=root)
     canvas.draw()
-    canvas.get_tk_widget().pack(side="top", fill=tk.BOTH, expand=True)
+    canvas.get_tk_widget().pack(side="top", fill=tk.BOTH, expand=True, anchor="nw")
 
-    root.bind("<F1>", main_window.set_theme)
     root.mainloop()
 
 
 if __name__ == "__main__":
-    main()
+    draw()
