@@ -27,11 +27,11 @@ class MainWindow(ttk.Frame):
         self.live_button = ttk.Radiobutton(self.mode_frame, text="Live", variable=self.live, value=2)
         self.live_button.grid(row=1, column=0, padx=5, pady=10, sticky="nsew")
 
-    def setup_tree(self, main_frame):
-        self.tree = ttk.Treeview(columns=("Configuration", "Value"), show="tree")
+    def setup_tree(self, settings_frame):
+        self.tree = ttk.Treeview(settings_frame, columns=("Configuration", "Value"), show="tree",)
         self.tree.column("#0", width=150, stretch=False)
         self.tree.column("#1", width=80, stretch=False)
-        self.tree.pack(side="left", padx=10, pady=10, anchor="nw")
+        self.tree.pack(side="top", padx=10, pady=10, fill=tk.Y)
 
         output_phases = self.tree.insert("", "end", text='Output Phases', values=[], open=False)
         self.tree.insert(output_phases, "end", text='Detector 1', values=["0.00 rad"], open=False)
@@ -55,71 +55,69 @@ class MainWindow(ttk.Frame):
 
 def main():
     root = tk.Tk()
+    root.title("Mini PTI")
     root.tk.call("source", "azure.tcl")
     root.tk.call("set_theme", "light")
     main_window = MainWindow(root)
-    main_window.setup_tree(root)
 
-    fig_dc = plt.figure(figsize=(7, 10), dpi=100)
-    ax1 = plt.subplot()
-    ax1.set_title("DC Signals", fontsize=12)
-    ax1.set_xticklabels([])
-    ax1.grid()
-    ax1.set_ylabel(r"$I_k$ [V]", fontsize=12)
-    ax1.legend(["CH1", "CH2", "CH3"])
+    settings_frame = tk.Frame()
+    settings_frame.pack(side="left")
 
-    fig_phi = plt.figure(figsize=(7, 10), dpi=100)
-    ax2 = plt.subplot()
-    ax2.set_title("Interferometric Phase", fontsize=12)
-    ax2.set_xticklabels([])
-    ax2.grid()
-    ax2.set_ylabel(r"$\varphi$ [rad]", fontsize=12)
-    """
-    ax3.set_title("PTI Signal", fontsize=12)
-    ax3.grid()
-    ax3.set_xlabel("Time [s]", fontsize=12)
-    ax3.set_ylabel(r"$\Delta \varphi$ [$10^{-6}$ rad]", fontsize=12)
+    main_window.setup_tree(settings_frame)
 
-    pti_plots = FigureCanvasTkAgg(fig, master=root)
-    pti_plots.draw()
-    pti_plots.get_tk_widget().pack(side="left")
+    phase_scan = ttk.LabelFrame(master=settings_frame, text="File Paths", padding=(20, 10))
+    phase_scan.pack(side="top", anchor="nw", expand=True, padx=10, pady=10)
 
-    fig_phases = plt.figure(figsize=(7, 10), dpi=100)
-    ax1 = plt.subplot(211)
-    ax2 = plt.subplot(212)
-
-    ax1.set_xticklabels([])
-    ax1.set_title("Output Phase 2", fontsize=12)
-    ax1.grid()
-    ax1.set_xlabel(r"$\rho_2$ [rad]", fontsize=12)
-    ax1.set_ylabel("Count", fontsize=12)
-
-    ax2.set_title("Output Phase 3", fontsize=12)
-    ax2.grid()
-    ax2.set_xlabel(r"$\rho_3$ [rad]", fontsize=12)
-    ax2.set_ylabel("Count", fontsize=12)
-    """
-
-    phase_scan = ttk.LabelFrame(text="File Paths", padding=(20, 10))
-    phase_scan.pack(side="top", anchor="nw", padx=10, pady=10)
-
-    """
     phase_scan_button = ttk.Button(phase_scan, text="Phase Scan")
-    phase_scan_button.pack(side="top", anchor="nw", padx=10, pady=10)
+    phase_scan_button.pack(side="left", anchor="nw", padx=10, pady=10)
 
     decimation_button = ttk.Button(phase_scan, text="Decimation")
-    decimation_button.pack(side="top", anchor="nw", padx=10, pady=10)"""
+    decimation_button.pack(side="left", anchor="nw", padx=10, pady=10)
 
     inversion_button = ttk.Button(phase_scan, text="PTI Inversion")
-    inversion_button.pack(side="top", anchor="nw", padx=10, pady=10)
+    inversion_button.pack(side="left", padx=10, pady=10, fill=tk.BOTH, expand=True)
 
-    canvas = FigureCanvasTkAgg(fig_dc, master=root)
-    canvas.draw()
-    canvas.get_tk_widget().pack(side="top")
+    programms = ttk.LabelFrame(master=settings_frame, text="Offline", padding=(20, 10))
+    programms.pack(side="top", anchor="nw", expand=True, padx=10, pady=10)
 
-    canvas = FigureCanvasTkAgg(fig_phi, master=root)
+    phase_scan_button = ttk.Button(programms, text="Phase Scan")
+    phase_scan_button.pack(side="left", padx=10, pady=10)
+
+    decimation_button = ttk.Button(programms, text="Decimation")
+    decimation_button.pack(side="left", anchor="nw", padx=10, pady=10)
+
+    inversion_button = ttk.Button(programms, text="PTI Inversion")
+    inversion_button.pack(side="left", padx=10, pady=10, anchor="nw", expand=True)
+
+    programms_online = ttk.LabelFrame(master=settings_frame, text="Online", padding=(20, 10))
+    programms_online.pack(side="top", anchor="nw",  padx=10, pady=10, expand=True)
+
+    run_button = ttk.Button(programms_online, text="Run")
+    run_button.pack(side="left", anchor="nw", padx=10, pady=10)
+
+    stop_button = ttk.Button(programms_online, text="Stop")
+    stop_button.pack(side="left", anchor="nw", padx=10, pady=10)
+
+
+    plot_frame = tk.Frame()
+    plot_frame.pack(side=tk.LEFT)
+
+    fig = plt.figure()
+
+    dc_plot = fig.add_subplot(321)
+    phase_plot = fig.add_subplot(323)
+    pti_plot = fig.add_subplot(325)
+
+    dc_plot.grid()
+    phase_plot.grid()
+    pti_plot.grid()
+
+    output_phase_1 = fig.add_subplot(222)
+    output_phase_2 = fig.add_subplot(224)
+
+    canvas = FigureCanvasTkAgg(fig, master=root)
     canvas.draw()
-    canvas.get_tk_widget().pack(side="top")
+    canvas.get_tk_widget().pack(side="top", fill=tk.BOTH, expand=True)
 
     root.bind("<F1>", main_window.set_theme)
     root.mainloop()
