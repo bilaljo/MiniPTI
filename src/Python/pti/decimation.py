@@ -33,7 +33,8 @@ class Decimation:
         file: _io.TextIOWrapper
             The binary file with the measurements.
     """
-    def __init__(self, file_name):
+
+    def __init__(self):
         self.samples = 50000
         self.dc = np.empty(shape=(3, self.samples))
         self.ac = np.empty(shape=(3, self.samples))
@@ -46,7 +47,7 @@ class Decimation:
         self.ac_y = np.empty(shape=3)
         self.eof = False
         self.ref = None
-        self.file = open(file_name, "rb")
+        self.file = None
 
     def read_data(self):
         """
