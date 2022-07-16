@@ -1,16 +1,20 @@
 import os
+import tkinter as tk
 from tkinter import filedialog
 from tkinter import messagebox
 
 import numpy as np
 import pandas as pd
+from matplotlib import pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 
 
 class Action:
-    def __init__(self, decimation, inversion=None, phase_scan=None):
+    def __init__(self, decimation, inversion=None, phase_scan=None, dc_frame=None, phase_frame=None, pti_frame=None):
         self.file_path = {"Decimation": "data.bin", "Phase Scan": "Decimation.csv", "Inversion": "Decimation.csv"}
         self.mode = {"Decimation": "Offline", "Inversion": "Offline"}
         self.programs = {"Decimation": decimation, "Inversion": inversion, "Phase Scan": phase_scan}
+        self.frames = {"DC Signal": dc_frame, "Interferometric Phase": phase_frame, "PTI Signal": pti_frame}
 
     def set_mode(self, mode):
         self.mode = mode
@@ -66,7 +70,7 @@ class Action:
                 file_types = (("Binary File", "*.bin"), ("All Files", "*"))
             else:
                 default_extension = "*.csv"
-                file_types = (("CSV File", "*.cvv"), ("Tab Separated File", "*.txt"), ("All Files", "*"))
+                file_types = (("CSV File", "*.csv"), ("Tab Separated File", "*.txt"), ("All Files", "*"))
             file = filedialog.askopenfilename(defaultextension=default_extension, filetypes=file_types,
                                               title=f"{program} File Path")
             if not file:
@@ -75,3 +79,73 @@ class Action:
                 self.file_path[program] = file
 
         return decimation_path
+
+    def plot(self):
+        messagebox.showinfo(title="DC Path", message="Please give the file path of the DC signals")
+        default_extension = "*.csv"
+        file_types = (("CSV File", "*.csv"), ("Tab Separated File", "*.txt"), ("All Files", "*"))
+        file_dc = filedialog.askopenfilename(defaultextension=default_extension, filetypes=file_types,
+                                      title=f"DC File Path")
+        if not file_dc:
+            messagebox.showerror(title="Path Error", message="No path specicifed")
+            return
+        messagebox.showinfo(title="PTI Path", message="Please give the file path of the PTI signals")
+        file_pti = filedialog.askopenfilename(defaultextension=default_extension, filetypes=file_types,
+                                      title=f"PTI File Path")
+        if not file_pti:
+            messagebox.showerror(title="Path Error", message="No path specicifed")
+            return
+
+        def plot_dc():
+            fig = plt.figure()
+            data = pd.read_csv(file_dc)
+            time = range(len(data["DC CH1"]))
+            plt.plot(time, data["DC CH1"], label="CH1")
+            plt.plot(time, data["DC CH2"], label="CH2")
+            plt.plot(time, data["DC CH3"], label="CH3")
+            plt.xlabel("Time in [s]", fontsize=11)
+            plt.ylabel("Intensity [V]", fontsize=11)
+            plt.grid()
+            plt.legend(fontsize=11)
+
+            canvas_dc = FigureCanvasTkAgg(fig, master=self.frames["DC Signal"])
+            canvas_dc.draw()
+            canvas_dc.get_tk_widget().pack()
+            toolbar = NavigationToolbar2Tk(canvas_dc, self.frames["DC Signal"])
+            toolbar.update()
+            canvas_dc.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+
+        def plot_phase():
+            fig_phase = plt.figure()
+            data = pd.read_csv(file_pti)
+            time = range(len(data["Interferometric Phase"]))
+            plt.scatter(time, data["Interferometric Phase"], s=2)
+            plt.xlabel("Time in [s]", fontsize=11)
+            plt.ylabel(r"$\varphi$ [rad]", fontsize=12)
+            plt.grid()
+
+            canvas = FigureCanvasTkAgg(fig_phase, master=self.frames["Interferometric Phase"])
+            canvas.draw()
+            canvas.get_tk_widget().pack()
+            toolbar = NavigationToolbar2Tk(canvas, self.frames["Interferometric Phase"])
+            toolbar.update()
+            canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+
+        def plot_pti():
+            fig_pti = plt.figure()
+            data = pd.read_csv(file_pti)
+            time = range(len(data["PTI Signal"]))
+            plt.scatter(time, data["PTI Signal"] * 1e4, s=2)
+            plt.xlabel("Time in [s]", fontsize=11)
+            plt.ylabel(r"$\Delta \varphi$ [$10^{-4}$ rad]", fontsize=11)
+            plt.grid()
+
+            canvas = FigureCanvasTkAgg(fig_pti, master=self.frames["PTI Signal"])
+            canvas.draw()
+            canvas.get_tk_widget().pack()
+            toolbar = NavigationToolbar2Tk(canvas, self.frames["PTI Signal"])
+            toolbar.update()
+            canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+        plot_dc()
+        plot_phase()
+        plot_pti()

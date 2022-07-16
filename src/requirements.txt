@@ -3,3 +3,5 @@ numpy
 pandas
 networkx
 scipy
+tksheet
+sv_ttk
