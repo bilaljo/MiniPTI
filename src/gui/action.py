@@ -73,4 +73,5 @@ class Action:
                 messagebox.showwarning("File Path", "You have not specificed any file path.")
             else:
                 self.file_path[program] = file
+
         return decimation_path

@@ -7,14 +7,12 @@ from pti.phase_scan import PhaseScan
 class Inversion(PhaseScan):
     """
     Implements the algorithm for PTI Inversion and calculating the interfeometric phase.
-    Attributes:
-        response_phases: dict
-        The respone phases of the system are obtained by calbiration measurements.
     """
 
-    def __init__(self, signals=None, response_phases=None):
+    response_phases = None
+
+    def __init__(self, signals=None):
         super().__init__(signals)
-        self.response_phases = response_phases
         self.pti = None
         self.interferometric_phases = None
 
