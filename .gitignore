@@ -3,12 +3,12 @@ src/pti/__pycache__
 src/pti/*.csv
 src/pti/*.bin
 src/gui/*.csv
+src/*.bin
+src/*.csv
+src/.idea
 .idea
 notebooks/*.csv
 notebooks/*.pdf
 notebooks/*.txt
 notebooks/.ipynb_checkpoints
 notebooks/__pycache__
-src/decimation/cmake-build-release
-src/phase_scan/cmake-build-release
-src/inversion/cmake-build-release
