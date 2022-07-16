@@ -60,7 +60,7 @@ def main():
     create_button(frame=plot_frame, text="Inversion", action=actions.plot)
     create_button(frame=plot_frame, text="Phase Scan", action=actions.scan)
 
-    online_frame = ttk.LabelFrame(master=settings_frame.tab, text="Online")
+    online_frame = ttk.LabelFrame(master=settings_frame.tab, text="Live")
     online_frame.pack(side="top", anchor="nw", padx=10, pady=10, expand=True, fill=tk.BOTH)
     create_button(frame=online_frame, text="Run", action=actions.plot)
     create_button(frame=online_frame, text="Stop", action=actions.scan)
