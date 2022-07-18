@@ -28,13 +28,20 @@ class Inversion(PhaseScan):
                     np.cos(x - PhaseScan.output_phases[1]) - intensity[1]) ** 2 + (
                                      np.cos(x - PhaseScan.output_phases[2]) - intensity[2]) ** 2
 
+        def error_function_df(intensity):
+            output_phase = [PhaseScan.output_phases[1], PhaseScan.output_phases[2]]
+            return lambda x: -2 * (-intensity[0] + np.cos(x)) * np.sin(x) + 2 * (
+                                   -intensity[1] + np.cos(output_phase[1] - x)) * np.sin(output_phase[1] - x) + 2 * (
+                                   -intensity[2] + np.cos(output_phase[2] - x)) * np.sin(output_phase[2] - x)
+
         phases = []
         bnds_1 = ((0, np.pi),)
         bnds_2 = ((np.pi, 2 * np.pi),)
         for signal in self.scaled_signals:
-            phi_1 = minimize(error_function(signal), x0=np.array([np.arccos(signal[0])]), bounds=bnds_1).x[0]
+            phi_1 = minimize(error_function(signal), x0=np.array([np.arccos(signal[0])]), bounds=bnds_1,
+                             jac=error_function_df(signal)).x[0]
             phi_2 = minimize(error_function(signal), x0=np.array([2 * np.pi - np.arccos(signal[0])]),
-                             bounds=bnds_2).x[0]
+                             bounds=bnds_2, jac=error_function_df(signal)).x[0]
             if abs(error_function(signal)(phi_1)) < abs(error_function(signal)(phi_2)):
                 phases.append(phi_1)
             else:

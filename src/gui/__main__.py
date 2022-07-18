@@ -42,6 +42,8 @@ def main():
     config_frame.pack(side="top", anchor="nw", padx=10, pady=10, expand=True, fill=tk.BOTH)
     settings.setup_config(config_frame)
     create_button(frame=config_frame, text="Save Config", action=settings.save_config)
+    create_button(frame=config_frame, text="Load Config", action=settings.load_config)
+
     path_frame = ttk.LabelFrame(master=settings_frame.tab, text="File Paths", padding=(20, 10))
     path_frame.pack(side="top", anchor="nw", padx=10, pady=10, expand=True, fill=tk.BOTH)
     create_button(frame=path_frame, text="Decimation", action=actions.set_file_path("Decimation"))
