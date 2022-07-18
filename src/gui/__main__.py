@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
-import sv_ttk
 
+import sv_ttk
 
 from action import Action
 from button import create_button

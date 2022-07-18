@@ -8,6 +8,8 @@ import pandas as pd
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 
+from settings import Settings
+
 
 class Action:
     def __init__(self, decimation, inversion=None, phase_scan=None, dc_frame=None, phase_frame=None, pti_frame=None):
@@ -42,15 +44,19 @@ class Action:
 
     def invert(self):
         inversion = self.programs["Inversion"]
-        data = pd.read_csv(self.file_path["Decimation"])
+        data = pd.read_csv(self.file_path["Inversion"])
         dc_signals = np.array([data[f"DC CH{i}"] for i in range(1, 4)])
         ac_signals = np.array([data[f"RMS CH{i}"] for i in range(1, 4)])
         lock_in_phase = np.array([data[f"Response Phase CH{i}"] for i in range(1, 4)])
+        inversion.output_phases = np.deg2rad(Settings.data.loc["Output Phases"].to_numpy())
+        inversion.response_phases = np.deg2rad(Settings.data.loc["Response Phases"].to_numpy())
+        inversion.min_intensities = Settings.data.loc["Min Intensities"].to_numpy()
+        inversion.max_intensities = Settings.data.loc["Max Intensities"].to_numpy()
         inversion.set_signals(dc_signals)
-        inversion.scale_data()
-        interferometric_phase = inversion.get_interferometric_phase()
+        inversion.scale_signal()
+        inversion.calculate_interferometric_phase()
         inversion.calculate_pti_signal(ac_signals, lock_in_phase)
-        pd.DataFrame({"Interferometric Phase": interferometric_phase,
+        pd.DataFrame({"Interferometric Phase": inversion.interferometric_phases,
                       "PTI Signal": inversion.pti}).to_csv("PTI_Inversion.csv")
 
     def scan(self):
@@ -85,13 +91,13 @@ class Action:
         default_extension = "*.csv"
         file_types = (("CSV File", "*.csv"), ("Tab Separated File", "*.txt"), ("All Files", "*"))
         file_dc = filedialog.askopenfilename(defaultextension=default_extension, filetypes=file_types,
-                                      title=f"DC File Path")
+                                             title=f"DC File Path")
         if not file_dc:
             messagebox.showerror(title="Path Error", message="No path specicifed")
             return
         messagebox.showinfo(title="PTI Path", message="Please give the file path of the PTI signals")
         file_pti = filedialog.askopenfilename(defaultextension=default_extension, filetypes=file_types,
-                                      title=f"PTI File Path")
+                                              title=f"PTI File Path")
         if not file_pti:
             messagebox.showerror(title="Path Error", message="No path specicifed")
             return
@@ -135,9 +141,9 @@ class Action:
             fig_pti = plt.figure()
             data = pd.read_csv(file_pti)
             time = range(len(data["PTI Signal"]))
-            plt.scatter(time, data["PTI Signal"] * 1e4, s=2)
+            plt.scatter(time, data["PTI Signal"] * 1e6, s=2)
             plt.xlabel("Time in [s]", fontsize=11)
-            plt.ylabel(r"$\Delta \varphi$ [$10^{-4}$ rad]", fontsize=11)
+            plt.ylabel(r"$\Delta \varphi$ [$10^{-6}$ rad]", fontsize=11)
             plt.grid()
 
             canvas = FigureCanvasTkAgg(fig_pti, master=self.frames["PTI Signal"])
@@ -146,6 +152,7 @@ class Action:
             toolbar = NavigationToolbar2Tk(canvas, self.frames["PTI Signal"])
             toolbar.update()
             canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+
         plot_dc()
         plot_phase()
         plot_pti()
