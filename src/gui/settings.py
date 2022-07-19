@@ -14,7 +14,8 @@ class Settings:
 
     def setup_config(self, settings_frame):
         Settings.data = pd.read_csv(Settings.file_path, index_col="Setting")
-        self.sheet = Sheet(parent=settings_frame, data=Settings.data.values.tolist(), headers=list(Settings.data.columns),
+        self.sheet = Sheet(parent=settings_frame, data=Settings.data.values.tolist(),
+                           headers=list(Settings.data.columns),
                            row_index=list(Settings.data.index), show_x_scrollbar=False, show_y_scrollbar=False,
                            height=160, width=460, font=("Arial", 11, "normal"), header_font=("Arial", 11, "normal"),
                            column_width=100, row_index_width=150)

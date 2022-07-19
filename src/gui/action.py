@@ -1,8 +1,10 @@
+import collections
 import os
 import tkinter as tk
 from tkinter import filedialog
 from tkinter import messagebox
 
+import matplotlib.animation as animation
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
@@ -17,6 +19,8 @@ class Action:
         self.mode = {"Decimation": "Offline", "Inversion": "Offline"}
         self.programs = {"Decimation": decimation, "Inversion": inversion, "Phase Scan": phase_scan}
         self.frames = {"DC Signal": dc_frame, "Interferometric Phase": phase_frame, "PTI Signal": pti_frame}
+        self.pti_live_data = collections.deque(maxlen=1000)
+        self.pti_live_time = collections.deque(maxlen=1000)
 
     def set_mode(self, mode):
         self.mode = mode
@@ -52,12 +56,11 @@ class Action:
         inversion.response_phases = np.deg2rad(Settings.data.loc["Response Phases"].to_numpy())
         inversion.min_intensities = Settings.data.loc["Min Intensities"].to_numpy()
         inversion.max_intensities = Settings.data.loc["Max Intensities"].to_numpy()
-        inversion.set_signals(dc_signals)
-        inversion.scale_signal()
-        inversion.calculate_interferometric_phase()
+        inversion.calculate_interferometric_phase(dc_signals.T)
         inversion.calculate_pti_signal(ac_signals, lock_in_phase)
-        pd.DataFrame({"Interferometric Phase": inversion.interferometric_phases,
+        pd.DataFrame({"Interferometric Phase": inversion.interferometric_phase,
                       "PTI Signal": inversion.pti}).to_csv("PTI_Inversion.csv")
+        return inversion.pti, inversion.interferometric_phase
 
     def scan(self):
         phase_scan = self.programs["Phase Scan"]
@@ -86,19 +89,12 @@ class Action:
 
         return decimation_path
 
-    def plot(self):
-        messagebox.showinfo(title="DC Path", message="Please give the file path of the DC signals")
+    def plot_decimation(self):
         default_extension = "*.csv"
         file_types = (("CSV File", "*.csv"), ("Tab Separated File", "*.txt"), ("All Files", "*"))
         file_dc = filedialog.askopenfilename(defaultextension=default_extension, filetypes=file_types,
                                              title=f"DC File Path")
         if not file_dc:
-            messagebox.showerror(title="Path Error", message="No path specicifed")
-            return
-        messagebox.showinfo(title="PTI Path", message="Please give the file path of the PTI signals")
-        file_pti = filedialog.askopenfilename(defaultextension=default_extension, filetypes=file_types,
-                                              title=f"PTI File Path")
-        if not file_pti:
             messagebox.showerror(title="Path Error", message="No path specicifed")
             return
 
@@ -120,6 +116,17 @@ class Action:
             toolbar = NavigationToolbar2Tk(canvas_dc, self.frames["DC Signal"])
             toolbar.update()
             canvas_dc.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+
+        plot_dc()
+
+    def plot_inversion(self):
+        default_extension = "*.csv"
+        file_types = (("CSV File", "*.csv"), ("Tab Separated File", "*.txt"), ("All Files", "*"))
+        file_pti = filedialog.askopenfilename(defaultextension=default_extension, filetypes=file_types,
+                                              title=f"PTI File Path")
+        if not file_pti:
+            messagebox.showerror(title="Path Error", message="No path specicifed")
+            return
 
         def plot_phase():
             fig_phase = plt.figure()
@@ -153,6 +160,29 @@ class Action:
             toolbar.update()
             canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
 
-        plot_dc()
         plot_phase()
         plot_pti()
+
+    def live_plotting(self, line):
+        self.pti_live_data.append(self.invert()[self.time])
+        self.time += 1
+        self.pti_live_time.append(self.time)
+
+        def update(i):
+            line.set_xdata(self.pti_live_time)
+            line.set_ydata(self.pti_live_data)
+            return line,
+
+        return update
+
+    def live(self):
+        fig, ax = plt.subplots()
+        line, = ax.plot(self.pti_live_time, self.pti_live_data)
+        ani = animation.FuncAnimation(fig, self.live_plotting(line), interval=500, blit=True)
+
+        canvas = FigureCanvasTkAgg(fig, master=self.frames["PTI Signal"])
+        canvas.draw()
+        canvas.get_tk_widget().pack()
+        toolbar = NavigationToolbar2Tk(canvas, self.frames["PTI Signal"])
+        toolbar.update()
+        canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)

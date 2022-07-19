@@ -7,7 +7,7 @@ from action import Action
 from button import create_button
 from pti.decimation import Decimation
 from pti.inversion import Inversion
-from pti.inversion import PhaseScan
+from pti.phase_scan import PhaseScan
 from settings import Settings
 from tabs import Tabs
 
@@ -59,12 +59,13 @@ def main():
 
     plot_frame = ttk.LabelFrame(master=settings_frame.tab, text="Plotting", padding=(20, 10))
     plot_frame.pack(side="top", anchor="nw", padx=10, pady=10, expand=True, fill=tk.BOTH)
-    create_button(frame=plot_frame, text="Inversion", action=actions.plot)
+    create_button(frame=plot_frame, text="Decimation", action=actions.plot_decimation)
+    create_button(frame=plot_frame, text="Inversion", action=actions.plot_inversion)
     create_button(frame=plot_frame, text="Phase Scan", action=actions.scan)
 
     online_frame = ttk.LabelFrame(master=settings_frame.tab, text="Live")
     online_frame.pack(side="top", anchor="nw", padx=10, pady=10, expand=True, fill=tk.BOTH)
-    create_button(frame=online_frame, text="Run", action=actions.plot)
+    create_button(frame=online_frame, text="Run", action=actions.live)
     create_button(frame=online_frame, text="Stop", action=actions.scan)
 
     root.mainloop()
