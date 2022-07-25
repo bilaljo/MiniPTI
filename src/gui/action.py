@@ -19,8 +19,16 @@ class Action:
         self.mode = {"Decimation": "Offline", "Inversion": "Offline"}
         self.programs = {"Decimation": decimation, "Inversion": inversion, "Phase Scan": phase_scan}
         self.frames = {"DC Signal": dc_frame, "Interferometric Phase": phase_frame, "PTI Signal": pti_frame}
-        self.pti_live_data = collections.deque(maxlen=1000)
-        self.pti_live_time = collections.deque(maxlen=1000)
+        self.live_path = "./"
+        self.dc_live = []
+        self.phase_live = []
+        self.dc_canvas = None
+        self.dc_ani = None
+        self.phase_ani = None
+        self.pti_canvas = None
+        self.decimation_data = None
+        self.phase_data = None
+        self.pti_data = None
 
     def set_mode(self, mode):
         self.mode = mode
@@ -88,6 +96,9 @@ class Action:
                 self.file_path[program] = file
 
         return decimation_path
+
+    def set_live_path(self):
+        self.live_path = filedialog.askdirectory(title="Directory for live measurements")
 
     def plot_decimation(self):
         default_extension = "*.csv"
@@ -163,26 +174,91 @@ class Action:
         plot_phase()
         plot_pti()
 
-    def live_plotting(self, line):
-        self.pti_live_data.append(self.invert()[self.time])
-        self.time += 1
-        self.pti_live_time.append(self.time)
-
-        def update(i):
-            line.set_xdata(self.pti_live_time)
-            line.set_ydata(self.pti_live_data)
-            return line,
-
-        return update
-
     def live(self):
-        fig, ax = plt.subplots()
-        line, = ax.plot(self.pti_live_time, self.pti_live_data)
-        ani = animation.FuncAnimation(fig, self.live_plotting(line), interval=500, blit=True)
+        def live_dc():
+            fig, ax = plt.subplots()
+            line, = ax.plot([], [], lw=2)
+            time = collections.deque(maxlen=1000)
+            self.dc_live.append(collections.deque(maxlen=1000))
+            self.dc_live.append(collections.deque(maxlen=1000))
+            self.dc_live.append(collections.deque(maxlen=1000))
+            self.decimation_data = pd.read_csv(self.live_path + "/Decimation.csv", iterator=True, chunksize=1)
 
-        canvas = FigureCanvasTkAgg(fig, master=self.frames["PTI Signal"])
-        canvas.draw()
-        canvas.get_tk_widget().pack()
-        toolbar = NavigationToolbar2Tk(canvas, self.frames["PTI Signal"])
-        toolbar.update()
-        canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+            def animate(i):
+                time.append(i)
+                self.dc_live[0].append(next(self.decimation_data)["DC CH1"])
+                self.dc_live[1].append(next(self.decimation_data)["DC CH2"])
+                self.dc_live[2].append(next(self.decimation_data)["DC CH3"])
+                ax.cla()
+                ax.plot(time, self.dc_live[0], label="CH 1")
+                ax.plot(time, self.dc_live[1], label="CH 2")
+                ax.plot(time, self.dc_live[2], label="CH 3")
+                ax.grid()
+                ax.set_xlabel("Time [s]", fontsize=11)
+                ax.set_ylabel("Intensity [V]", fontsize=11)
+                ax.legend(fontsize=11)
+                return line,
+
+            self.dc_ani = animation.FuncAnimation(fig, animate, interval=1000, blit=False)
+            canvas = FigureCanvasTkAgg(fig, master=self.frames["DC Signal"])
+            canvas.draw()
+            canvas.get_tk_widget().pack()
+            toolbar = NavigationToolbar2Tk(canvas, self.frames["DC Signal"])
+            toolbar.update()
+            canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+
+        def live_phase():
+            fig2, ax2 = plt.subplots()
+            line, = ax2.plot([], [], lw=2)
+
+            time = collections.deque(maxlen=1000)
+            self.phase_live = collections.deque(maxlen=1000)
+            self.phase_data = pd.read_csv(self.live_path + "/PTI_Inversion.csv", iterator=True, chunksize=1)
+
+            def animate(i):
+                time.append(i)
+                self.phase_live.append(next(self.phase_data)["Interferometric Phase"])
+                ax2.cla()
+                ax2.plot(time, self.phase_live)
+                ax2.grid()
+                ax2.set_xlabel("Time [s]", fontsize=11)
+                ax2.set_ylabel("Interferometric Phase [rad]", fontsize=11)
+                return line,
+
+            self.phase_ani = animation.FuncAnimation(fig2, animate, interval=1000, blit=False)
+            self.dc_canvas = FigureCanvasTkAgg(fig2, master=self.frames["Interferometric Phase"])
+            self.dc_canvas.draw()
+            self.dc_canvas.get_tk_widget().pack()
+            toolbar = NavigationToolbar2Tk(self.dc_canvas, self.frames["Interferometric Phase"])
+            toolbar.update()
+            self.dc_canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+
+        def live_pti():
+            fig3, ax3 = plt.subplots()
+            line, = ax3.plot([], [], lw=2)
+
+            time = collections.deque(maxlen=1000)
+            self.pti_live = collections.deque(maxlen=1000)
+            self.pti_data = pd.read_csv(self.live_path + "/PTI_Inversion.csv", iterator=True, chunksize=1)
+
+            def animate(i):
+                time.append(i)
+                self.pti_live.append(next(self.pti_data)["PTI Signal"]* 1e6)
+                ax3.cla()
+                ax3.plot(time, self.pti_live)
+                ax3.grid()
+                ax3.set_xlabel("Time [s]", fontsize=11)
+                ax3.set_ylabel("PTI Signal [$10^{-6}$ rad]", fontsize=11)
+                return line,
+
+            self.phase_ani = animation.FuncAnimation(fig3, animate, interval=1000, blit=False)
+            self.pti_canvas = FigureCanvasTkAgg(fig3, master=self.frames["PTI Signal"])
+            self.pti_canvas.draw()
+            self.pti_canvas.get_tk_widget().pack()
+            toolbar = NavigationToolbar2Tk(self.pti_canvas, self.frames["PTI Signal"])
+            toolbar.update()
+            self.pti_canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+
+        live_dc()
+        live_phase()
+        live_pti()
