@@ -3,13 +3,13 @@ from tkinter import ttk
 
 import sv_ttk
 
-from action import Action
-from button import create_button
+from gui.action import Action
+from gui.button import create_button
 from pti.decimation import Decimation
 from pti.inversion import Inversion
 from pti.phase_scan import PhaseScan
-from settings import Settings
-from tabs import Tabs
+from gui.settings import Settings
+from gui.tabs import Tabs
 
 
 def main():
