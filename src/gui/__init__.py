@@ -1,7 +1,7 @@
 import sys
 
-from .button import create_button
 from .action import Action
+from .button import create_button
 from .settings import Settings
 from .tabs import Tabs
 

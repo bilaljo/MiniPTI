@@ -1,5 +1,6 @@
 import collections
-import os
+import threading
+import multiprocessing
 import tkinter as tk
 from tkinter import filedialog
 from tkinter import messagebox
@@ -11,64 +12,46 @@ from matplotlib import pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 
 from gui.settings import Settings
+from pti.decimation import Decimation
+from pti.inversion import Inversion
+from pti.phase_scan import PhaseScan
+from pti.pti import PTI
 
 
 class Action:
-    def __init__(self, decimation, inversion=None, phase_scan=None, dc_frame=None, phase_frame=None, pti_frame=None):
+    def __init__(self, settings: Settings, dc_frame=None, phase_frame=None, pti_frame=None):
         self.file_path = {"Decimation": "data.bin", "Phase Scan": "Decimation.csv", "Inversion": "Decimation.csv"}
-        self.mode = {"Decimation": "Offline", "Inversion": "Offline"}
-        self.programs = {"Decimation": decimation, "Inversion": inversion, "Phase Scan": phase_scan}
+        self.decimation = Decimation()
+        self.inversion = Inversion()
+        self.phase_scan = PhaseScan()
+        self.pti = PTI()
         self.frames = {"DC Signal": dc_frame, "Interferometric Phase": phase_frame, "PTI Signal": pti_frame}
-        self.live_path = "./"
+        self.settings = settings
+        self.live_path = "280422.bin"
         self.dc_live = []
         self.phase_live = []
         self.dc_canvas = None
-        self.dc_ani = None
-        self.phase_ani = None
         self.pti_canvas = None
         self.decimation_data = None
         self.phase_data = None
         self.pti_data = None
 
-    def set_mode(self, mode):
-        self.mode = mode
+    def calculate_decimation(self):
+        decimate_thread = threading.Thread(target=self.pti.decimate, args=(self.decimation,
+                                                                           self.file_path["Decimation"], "Offline"))
+        decimate_thread.start()
 
-    def decimate(self):
-        decimation = self.programs["Decimation"]
-        decimation.file = open(self.file_path["Decimation"], "rb")
-        if self.mode["Decimation"] == "Offline":
-            if os.path.exists("Decimation.csv"):
-                os.remove("Decimation.csv")
-        while not decimation.eof:
-            decimation.read_data()
-            decimation.calucalte_dc()
-            decimation.common_mode_noise_reduction()
-            decimation.lock_in_amplifier()
-            ac, response_phase = decimation.get_lock_in_values()
-            dc = decimation.dc_down_sampled
-            pd.DataFrame({"AC CH1": ac[0], "Response Phase CH1": response_phase[0],
-                          "AC CH2": ac[1], "Response Phase CH2": response_phase[1],
-                          "AC CH3": ac[2], "Response Phase CH3": response_phase[2],
-                          "DC CH1": dc[0], "DC CH2": dc[1], "DC CH3": dc[2]},
-                         index=[0]).to_csv("Decimation.csv", mode="a", header=not os.path.exists("Decimation.csv"))
-        if self.mode["Decimation"] == "Offline":
-            decimation.file.close()
+    def calculate_inversion(self):
+        inversion_thread = threading.Thread(target=self.pti.invert, args=(self.inversion, self.file_path["Inversion"],
+                                                                          self.settings.data, "Offline"))
+        inversion_thread.start()
 
-    def invert(self):
-        inversion = self.programs["Inversion"]
-        data = pd.read_csv(self.file_path["Inversion"])
-        dc_signals = np.array([data[f"DC CH{i}"] for i in range(1, 4)])
-        ac_signals = np.array([data[f"RMS CH{i}"] for i in range(1, 4)])
-        lock_in_phase = np.array([data[f"Response Phase CH{i}"] for i in range(1, 4)])
-        inversion.output_phases = np.deg2rad(Settings.data.loc["Output Phases"].to_numpy())
-        inversion.response_phases = np.deg2rad(Settings.data.loc["Response Phases"].to_numpy())
-        inversion.min_intensities = Settings.data.loc["Min Intensities"].to_numpy()
-        inversion.max_intensities = Settings.data.loc["Max Intensities"].to_numpy()
-        inversion.calculate_interferometric_phase(dc_signals.T)
-        inversion.calculate_pti_signal(ac_signals, lock_in_phase)
-        pd.DataFrame({"Interferometric Phase": inversion.interferometric_phase,
-                      "PTI Signal": inversion.pti}).to_csv("PTI_Inversion.csv")
-        return inversion.pti, inversion.interferometric_phase
+    def caluclate_live(self):
+        pti_process = multiprocessing.Process(target=self.pti.run_live, args=(self.decimation, self.inversion,
+                                                                              self.live_path, self.settings.data))
+        pti_process.start()
+
+    # TODO: Kill Measurements
 
     def scan(self):
         phase_scan = self.programs["Phase Scan"]
@@ -243,7 +226,7 @@ class Action:
 
             def animate(i):
                 time.append(i)
-                self.pti_live.append(next(self.pti_data)["PTI Signal"]* 1e6)
+                self.pti_live.append(next(self.pti_data)["PTI Signal"] * 1e6)
                 ax3.cla()
                 ax3.plot(time, self.pti_live)
                 ax3.grid()
