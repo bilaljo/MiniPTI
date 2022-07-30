@@ -1,4 +1,3 @@
-import multiprocessing
 import tkinter as tk
 from tkinter import ttk
 
@@ -60,6 +59,7 @@ def main():
     online_frame.pack(side="top", anchor="nw", padx=10, pady=10, expand=True, fill=tk.BOTH)
     create_button(frame=online_frame, text="Run", action=actions.live)
     create_button(frame=online_frame, text="Destination Folder", action=actions.set_live_path)
+    root.protocol("WM_DELETE_WINDOW", actions.on_close(root))
 
     root.mainloop()
 
