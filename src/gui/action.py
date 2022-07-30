@@ -36,25 +36,29 @@ class Action:
         self.pti_data = None
         self.live_plot = None
 
-    def close(self, root):
-        if messagebox.askokcancel("Quit", "Do you want to quit?"):
-            self.pti_process.kill()
-            self.live_plot.kill()
-            root.destroy()
+    @staticmethod
+    def on_close(root):
+        def close():
+            if messagebox.askokcancel("Quit", "Do you want to quit?"):
+                root.destroy()
+
+        return close
 
     def calculate_decimation(self):
-        decimate_thread = threading.Thread(target=self.pti.decimate, args=(self.decimation,
-                                                                           self.file_path["Decimation"], "Offline"))
+        decimate_thread = threading.Thread(target=self.pti.decimate, daemon=True, args=(self.decimation,
+                                                                                        self.file_path["Decimation"],
+                                                                                        "Offline"))
         decimate_thread.start()
 
     def calculate_inversion(self):
         inversion_thread = threading.Thread(target=self.pti.invert, args=(self.inversion, self.file_path["Inversion"],
-                                                                          self.settings.data, "Offline"))
+                                                                          self.settings.data, "Offline"), daemon=True)
         inversion_thread.start()
 
     def calculate_live(self):
-        self.pti_process = multiprocessing.Process(target=self.pti.run_live, args=(self.decimation, self.inversion,
-                                                                                   self.live_path, self.settings.data))
+        self.pti_process = multiprocessing.Process(target=self.pti.run_live, daemon=True,
+                                                   args=(self.decimation, self.inversion,
+                                                         self.live_path, self.settings.data))
         self.pti_process.start()
 
     # TODO: Kill Measurements
@@ -144,6 +148,7 @@ class Action:
                          y_data=data["PTI Signal"], tab="PTI Signal")
 
     def plot_live(self):
+        # FIXME: If the user switches at beginning to fast in the plottings tabe it will be blocked.
         self.__setup_plots(tab="DC Signal")
         self.__setup_plots(tab="Interferometric Phase")
         self.__setup_plots(tab="PTI Signal")
@@ -196,10 +201,12 @@ class Action:
                                  y_data=pti_live, tab="PTI Signal")
                 time.sleep(1)
         finally:
-            dc_csv.close()
-            pti_csv.close()
+            if dc_csv:
+                dc_csv.close()
+            if pti_csv:
+                pti_csv.close()
 
     def live(self):
         self.calculate_live()
-        self.live_plot = threading.Thread(target=self.plot_live)
+        self.live_plot = threading.Thread(target=self.plot_live, daemon=True)
         self.live_plot.start()

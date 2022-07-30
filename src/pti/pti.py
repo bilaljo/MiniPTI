@@ -18,7 +18,7 @@ class PTI:
 
         def calculate_decimation():
             decimation.read_data()
-            decimation.calucalte_dc()
+            decimation.calculate_dc()
             decimation.common_mode_noise_reduction()
             decimation.lock_in_amplifier()
             ac, response_phase = decimation.get_lock_in_values()
