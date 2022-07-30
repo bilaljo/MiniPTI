@@ -18,3 +18,8 @@ class Tabs:
             raise ValueError("Tab control is none")
         self.tab = tk.Frame(self.tab_control)
         self.tab_control.add(self.tab, text=text)
+
+    def set_frame(self, title):
+        frame = ttk.LabelFrame(master=self.tab, text=title, padding=(20, 10))
+        frame.pack(side="top", anchor="nw", padx=10, pady=10, expand=True, fill=tk.BOTH)
+        return frame

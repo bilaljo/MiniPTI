@@ -148,7 +148,7 @@ class Action:
                          y_data=data["PTI Signal"], tab="PTI Signal")
 
     def plot_live(self):
-        # FIXME: If the user switches at beginning to fast in the plottings tabe it will be blocked.
+        # FIXME: If the user switches at beginning to fast in the plot-tabs it will be blocked.
         self.__setup_plots(tab="DC Signal")
         self.__setup_plots(tab="Interferometric Phase")
         self.__setup_plots(tab="PTI Signal")
