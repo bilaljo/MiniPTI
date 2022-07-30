@@ -1,7 +1,7 @@
 import os
 import queue
-import time
 import threading
+import time
 
 import numpy as np
 import pandas as pd
@@ -14,6 +14,8 @@ class PTI:
         self.pti_thread = None
 
     def decimate(self, decimation, file_path, mode):
+        file_path = "280422.bin"
+
         def calculate_decimation():
             decimation.read_data()
             decimation.calucalte_dc()
