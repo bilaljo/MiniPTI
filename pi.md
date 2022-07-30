@@ -12,7 +12,7 @@ pip install -U numpy
 
 ## Step 2
 **Error Message**
-```bash
+```python
 libcblas.so.3: cannot open shared object file: No such file or directory
 ```
 
@@ -24,7 +24,7 @@ sudo apt install libatlas-base-dev
 
 ## Step 3
 **Error Message**
-```bash
+```python
 ImportError: cannot import name 'ImageTK' 
 ```
 
