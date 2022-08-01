@@ -2,7 +2,7 @@ import array
 
 import networkx
 import numpy as np
-from scipy.optimize import minimize
+from scipy import optimize
 
 
 class PhaseScan:
@@ -13,15 +13,15 @@ class PhaseScan:
 
     def __init__(self, signals=None, step_size=None):
         self.signals = signals
+        self.phases = None
         self.scaled_signals = None
         self.step_size = step_size
         self.phase_graph = networkx.Graph(directed=True)
-        self.roots = array.array('b')
+        self.roots = []
         self.colored_nodes = []
         self.last_node = 0
         self.enough_values = False
-
-    output_phases = None
+        self.output_phases = [0, 0, 0]
 
     min_intensities = None
 
@@ -29,6 +29,9 @@ class PhaseScan:
 
     def set_signals(self, signal):
         self.signals = signal
+
+    def set_phases(self, phases):
+        self.phases = phases
 
     def set_min(self):
         PhaseScan.min_intensities = np.min(self.signals, axis=1)
@@ -45,9 +48,9 @@ class PhaseScan:
             self.phase_graph.add_node(2 * np.pi / self.step_size * i)
             self.roots.append(2 * np.pi / self.step_size * i)
 
-    def add_phase(self, phase):
-        k = int(self.step_size * phase / (2 * np.pi))
-        self.phase_graph.add_edge(k, list(self.phase_graph.nodes())[k])
+    def add_phase(self, phase, time):
+        k = int((self.step_size + 1) * phase / (2 * np.pi))
+        self.phase_graph.add_edge(self.roots[k - 1], time)
 
     def color_nodes(self):
         for i in range(self.last_node, self.step_size):
@@ -58,6 +61,7 @@ class PhaseScan:
                 self.colored_nodes.append(colored_node)
                 self.phase_graph.remove_node(colored_node)
             else:
+                self.last_node = i
                 self.enough_values = False
                 break
         else:
@@ -66,11 +70,9 @@ class PhaseScan:
     def calulcate_output_phases(self):
         if self.scaled_signals is None:
             raise ValueError("Signals are not scaled")
-        if self.output_phases is None:
-            raise ValueError("No Output Phases given")
 
-        def error_function(intensity, i):
-            return lambda x: np.sum((np.cos(x - PhaseScan.output_phases[i]) - intensity[i]) ** 2)
+        def error_function(intensity, channel):
+            return lambda x: np.sum((np.cos(x - self.phases) - intensity[channel]) ** 2)
 
-        self.output_phases[1] = minimize(error_function(self.scaled_signals, 1), x0=PhaseScan.output_phases[1])
-        self.output_phases[2] = minimize(error_function(self.scaled_signals, 2), x0=PhaseScan.output_phases[2])
+        self.output_phases[1] = optimize.fminbound(func=error_function(self.scaled_signals.T, 1), x1=0, x2=2*np.pi)
+        self.output_phases[2] = optimize.fminbound(func=error_function(self.scaled_signals.T, 2), x1=0, x2=2*np.pi)

@@ -20,13 +20,14 @@ def init_tab_frames(actions, settings, settings_frame):
     offline_frame = settings_frame.set_frame("Offline")
     create_button(frame=offline_frame, text="Decimation", action=actions.calculate_decimation)
     create_button(frame=offline_frame, text="Inversion", action=actions.calculate_inversion)
-    create_button(frame=offline_frame, text="Phase Scan", action=actions.scan)
+    create_button(frame=offline_frame, text="Phase Scan", action=actions.phase_scan)
 
     plot_frame = settings_frame.set_frame("Plotting")
     create_button(frame=plot_frame, text="Decimation", action=actions.plot_dc)
     create_button(frame=plot_frame, text="Inversion", action=actions.plot_inversion)
-    create_button(frame=plot_frame, text="Phase Scan", action=actions.scan)
+    create_button(frame=plot_frame, text="Output Phases", action=actions.plot_phase_scan)
 
     online_frame = settings_frame.set_frame("Live")
-    create_button(frame=online_frame, text="Run", action=actions.live)
+    create_button(frame=online_frame, text="Run", action=actions.run)
+    create_button(frame=online_frame, text="Stop", action=actions.stop)
     create_button(frame=online_frame, text="Destination Folder", action=actions.set_live_path)

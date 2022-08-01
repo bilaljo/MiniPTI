@@ -4,37 +4,29 @@ import threading
 import time
 import tkinter as tk
 from collections import deque
-from tkinter import filedialog
-from tkinter import messagebox
+from tkinter import filedialog, messagebox
 
 import pandas as pd
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 
 from gui.settings import Settings
-from pti.decimation import Decimation
-from pti.inversion import Inversion
-from pti.phase_scan import PhaseScan
 from pti.pti import PTI
 
 
 class Action:
-    def __init__(self, settings: Settings, dc_frame=None, phase_frame=None, pti_frame=None):
-        self.file_path = {"Decimation": "data.bin", "Phase Scan": "Decimation.csv", "Inversion": "Decimation.csv"}
-        self.decimation = Decimation()
-        self.inversion = Inversion()
-        self.phase_scan = PhaseScan()
-        self.pti = PTI()
-        self.pti_process = None
-        self.frames = {"DC Signal": dc_frame, "Interferometric Phase": phase_frame, "PTI Signal": pti_frame}
-        self.figs = {"DC Signal": None, "Interferometric Phase": None, "PTI Signal": None}
-        self.axes = {"DC Signal": None, "Interferometric Phase": None, "PTI Signal": None}
-        self.canvas = {"DC Signal": None, "Interferometric Phase": None, "PTI Signal": None}
+    def __init__(self, settings: Settings, dc_frame=None, phase_frame=None, pti_frame=None, output_phases_frame=None):
+        self.file_path = {"Decimation": "data.bin", "Output Phases": "Decimation.csv", "Inversion": "Decimation.csv"}
+        self.frames = {"DC Signal": dc_frame, "Interferometric Phase": phase_frame, "PTI Signal": pti_frame,
+                       "Output Phases": output_phases_frame}
+        self.figs = {"DC Signal": None, "Interferometric Phase": None, "PTI Signal": None, "Output Phases": None}
+        self.axes = {"DC Signal": None, "Interferometric Phase": None, "PTI Signal": None, "Output Phases": None}
+        self.canvas = {"DC Signal": None, "Interferometric Phase": None, "PTI Signal": None, "Output Phases": None}
         self.settings = settings
         self.live_path = ""
-        self.decimation_data = None
-        self.pti_data = None
         self.live_plot = None
+        self.pti = PTI()
+        self.running = None
 
     @staticmethod
     def on_close(root):
@@ -45,26 +37,24 @@ class Action:
         return close
 
     def calculate_decimation(self):
-        decimate_thread = threading.Thread(target=self.pti.decimate, daemon=True, args=(self.decimation,
-                                                                                        self.file_path["Decimation"],
-                                                                                        "Offline"))
+        decimate_thread = threading.Thread(target=self.pti.decimate, daemon=True,
+                                           args=(self.file_path["Decimation"], "Offline"))
         decimate_thread.start()
 
+    def phase_scan(self):
+        phase_scan_thread = threading.Thread(target=self.pti.phase_scan, daemon=True,
+                                             args=(self.file_path["Inversion"], self.file_path["Phase Scan"],))
+        phase_scan_thread.start()
+
     def calculate_inversion(self):
-        inversion_thread = threading.Thread(target=self.pti.invert, args=(self.inversion, self.file_path["Inversion"],
-                                                                          self.settings.data, "Offline"), daemon=True)
+        inversion_thread = threading.Thread(target=self.pti.invert, daemon=True,
+                                            args=(self.file_path["Inversion"], self.settings.data, "Offline"))
         inversion_thread.start()
 
     def calculate_live(self):
-        self.pti_process = multiprocessing.Process(target=self.pti.run_live, daemon=True,
-                                                   args=(self.decimation, self.inversion,
-                                                         self.live_path, self.settings.data))
-        self.pti_process.start()
-
-    # TODO: Kill Measurements
-
-    def scan(self):
-        pass
+        pti_process = multiprocessing.Process(target=self.pti.run_live, daemon=True,
+                                              args=(self.live_path, self.settings.data))
+        pti_process.start()
 
     def set_file_path(self, program):
         def decimation_path():
@@ -110,12 +100,25 @@ class Action:
             self.axes[tab].plot(x_data, y_data)
         self.canvas[tab].draw()
 
+    def __draw_histogram(self, output_phase_1, output_phase_2, tab):
+        self.axes[tab].cla()
+        self.axes[tab].grid()
+        self.axes[tab].set_xlabel("Output Phase [rad]", fontsize=11)
+        self.axes[tab].set_ylabel("Count", fontsize=11)
+        self.axes[tab].hist(output_phase_1, label="Detector 2", bins=10)
+        self.axes[tab].hist(output_phase_2, label="Detector 3")
+        self.canvas[tab].draw()
+
     def __setup_plots(self, tab):
         self.figs[tab], self.axes[tab] = plt.subplots()
         if tab == "DC Signal":
             self.axes[tab].plot([], [], label="CH1")
             self.axes[tab].plot([], [], label="CH2")
             self.axes[tab].plot([], [], label="CH3")
+            self.axes[tab].legend(fontsize=11)
+        elif tab == "Output Phases":
+            self.axes[tab].hist([], label="Detector 2")
+            self.axes[tab].hist([], label="Detector 3")
             self.axes[tab].legend(fontsize=11)
         else:
             self.axes[tab].plot([], [])
@@ -147,6 +150,14 @@ class Action:
         self.__draw_plot(x_label="Time [s]", y_label=r"$\Delta\varphi$ [rad]", x_data=range(len(data)),
                          y_data=data["PTI Signal"], tab="PTI Signal")
 
+    def plot_phase_scan(self):
+        file_path = self.__plot_path("Output Phases")
+        if file_path is None:
+            return
+        data = pd.read_csv(file_path)
+        self.__setup_plots(tab="Output Phases")
+        self.__draw_histogram(output_phase_1=data["Detector 2"], output_phase_2=data["Detector 3"], tab="Output Phases")
+
     def plot_live(self):
         # FIXME: If the user switches at beginning to fast in the plot-tabs it will be blocked.
         self.__setup_plots(tab="DC Signal")
@@ -175,6 +186,8 @@ class Action:
             dc_added_data = 0
             pti_added_data = 0
             while True:
+                if not self.running:
+                    break
                 for data in decimation_data:  # This should stop after one iteration if we are in sync.
                     dc_live["DC CH1"].append(float(data["DC CH1"]))
                     dc_live["DC CH2"].append(float(data["DC CH2"]))
@@ -206,7 +219,12 @@ class Action:
             if pti_csv:
                 pti_csv.close()
 
-    def live(self):
+    def run(self):
+        self.running = True
         self.calculate_live()
         self.live_plot = threading.Thread(target=self.plot_live, daemon=True)
         self.live_plot.start()
+
+    def stop(self):
+        self.running = False
+        self.pti.running = False

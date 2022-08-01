@@ -49,7 +49,7 @@ class Decimation:
         """
         Applies a low pass to the DC-coupled signals and decimate it to 1 s values.
         """
-        self.dc_down_sampled = np.mean(self.dc, axis=1)
+        np.mean(self.dc, axis=1, out=self.dc_down_sampled)
 
     def common_mode_noise_reduction(self):
         noise_factor = np.sum(self.ac, axis=0) / sum(self.dc_down_sampled)
