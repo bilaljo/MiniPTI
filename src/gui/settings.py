@@ -29,8 +29,8 @@ class Settings:
         Settings.settings_path = filedialog.askopenfilename(defaultextension=default_extension, filetypes=file_types,
                                                             title="Settings File Path")
         Settings.data = pd.read_csv(Settings.file_path, index_col="Setting")
-        contrast = round((Settings.data.loc["Max Intensities"] - Settings.data.loc["Min Intensities"]) / (
-                Settings.data.loc["Max Intensities"] + Settings.data.loc["Min Intensities"]), 2)
+        contrast = round(((Settings.data.loc["Max Intensities"] - Settings.data.loc["Min Intensities"]) / (
+                Settings.data.loc["Max Intensities"] + Settings.data.loc["Min Intensities"])), 2)
         Settings.data.loc["Contrast"] = contrast
         self.sheet.set_sheet_data(data=Settings.data.values.tolist())
 
