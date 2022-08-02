@@ -4,7 +4,7 @@ from scipy import optimize
 
 class Inversion:
     """
-    Implements the algorithm for PTI Inversion and calculating the interfeometric phase.
+    Implements the algorithm for PTI Inversion and calculating the interferometric phase.
     """
 
     def __init__(self, response_phases=None):
@@ -37,9 +37,9 @@ class Inversion:
         for channel in range(3):
             sign = np.sin(self.interferometric_phase - self.output_phases[channel]) / np.abs(
                 np.sin(self.interferometric_phase - self.output_phases[channel]))
-            reponse_phase = self.response_phases[channel]
-            demoudalted_signal = ac_signal[channel] * np.cos(lock_in_phase[channel] - reponse_phase)
-            pti_signal += demoudalted_signal * sign
+            response_phase = self.response_phases[channel]
+            demodulated_signal = ac_signal[channel] * np.cos(lock_in_phase[channel] - response_phase)
+            pti_signal += demodulated_signal * sign
             weight += (self.max_intensities[channel] - self.min_intensities[channel]) / 2 * np.abs(
                 np.sin(self.interferometric_phase - self.output_phases[channel]))
         self.pti = -np.sum(-pti_signal, axis=0) / np.sum(weight, axis=0)

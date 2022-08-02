@@ -1,84 +1,60 @@
-import collections
-import os
+import csv
+import multiprocessing
+import threading
+import time
 import tkinter as tk
-from tkinter import filedialog
-from tkinter import messagebox
+from collections import deque
+from tkinter import filedialog, messagebox
 
-import matplotlib.animation as animation
-import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 
-from settings import Settings
+from gui.settings import Settings
+from pti.pti import PTI
 
 
 class Action:
-    def __init__(self, decimation, inversion=None, phase_scan=None, dc_frame=None, phase_frame=None, pti_frame=None):
-        self.file_path = {"Decimation": "data.bin", "Phase Scan": "Decimation.csv", "Inversion": "Decimation.csv"}
-        self.mode = {"Decimation": "Offline", "Inversion": "Offline"}
-        self.programs = {"Decimation": decimation, "Inversion": inversion, "Phase Scan": phase_scan}
-        self.frames = {"DC Signal": dc_frame, "Interferometric Phase": phase_frame, "PTI Signal": pti_frame}
-        self.live_path = "./"
-        self.dc_live = []
-        self.phase_live = []
-        self.dc_canvas = None
-        self.dc_ani = None
-        self.phase_ani = None
-        self.pti_canvas = None
-        self.decimation_data = None
-        self.phase_data = None
-        self.pti_data = None
+    def __init__(self, settings: Settings, dc_frame=None, phase_frame=None, pti_frame=None, output_phases_frame=None):
+        self.file_path = {"Decimation": "data.bin", "Output Phases": "Decimation.csv", "Inversion": "Decimation.csv"}
+        self.frames = {"DC Signal": dc_frame, "Interferometric Phase": phase_frame, "PTI Signal": pti_frame,
+                       "Output Phases": output_phases_frame}
+        self.figs = {"DC Signal": None, "Interferometric Phase": None, "PTI Signal": None, "Output Phases": None}
+        self.axes = {"DC Signal": None, "Interferometric Phase": None, "PTI Signal": None, "Output Phases": None}
+        self.canvas = {"DC Signal": None, "Interferometric Phase": None, "PTI Signal": None, "Output Phases": None}
+        self.settings = settings
+        self.live_path = ""
+        self.live_plot = None
+        self.pti = PTI()
+        self.running = None
 
-    def set_mode(self, mode):
-        self.mode = mode
+    @staticmethod
+    def on_close(root):
+        def close():
+            if messagebox.askokcancel("Quit", "Do you want to quit?"):
+                root.destroy()
 
-    def decimate(self):
-        decimation = self.programs["Decimation"]
-        decimation.file = open(self.file_path["Decimation"], "rb")
-        if self.mode["Decimation"] == "Offline":
-            if os.path.exists("Decimation.csv"):
-                os.remove("Decimation.csv")
-        while not decimation.eof:
-            decimation.read_data()
-            decimation.calucalte_dc()
-            decimation.common_mode_noise_reduction()
-            decimation.lock_in_amplifier()
-            ac, response_phase = decimation.get_lock_in_values()
-            dc = decimation.dc_down_sampled
-            pd.DataFrame({"AC CH1": ac[0], "Response Phase CH1": response_phase[0],
-                          "AC CH2": ac[1], "Response Phase CH2": response_phase[1],
-                          "AC CH3": ac[2], "Response Phase CH3": response_phase[2],
-                          "DC CH1": dc[0], "DC CH2": dc[1], "DC CH3": dc[2]},
-                         index=[0]).to_csv("Decimation.csv", mode="a", header=not os.path.exists("Decimation.csv"))
-        if self.mode["Decimation"] == "Offline":
-            decimation.file.close()
+        return close
 
-    def invert(self):
-        inversion = self.programs["Inversion"]
-        data = pd.read_csv(self.file_path["Inversion"])
-        dc_signals = np.array([data[f"DC CH{i}"] for i in range(1, 4)])
-        ac_signals = np.array([data[f"RMS CH{i}"] for i in range(1, 4)])
-        lock_in_phase = np.array([data[f"Response Phase CH{i}"] for i in range(1, 4)])
-        inversion.output_phases = np.deg2rad(Settings.data.loc["Output Phases"].to_numpy())
-        inversion.response_phases = np.deg2rad(Settings.data.loc["Response Phases"].to_numpy())
-        inversion.min_intensities = Settings.data.loc["Min Intensities"].to_numpy()
-        inversion.max_intensities = Settings.data.loc["Max Intensities"].to_numpy()
-        inversion.calculate_interferometric_phase(dc_signals.T)
-        inversion.calculate_pti_signal(ac_signals, lock_in_phase)
-        pd.DataFrame({"Interferometric Phase": inversion.interferometric_phase,
-                      "PTI Signal": inversion.pti}).to_csv("PTI_Inversion.csv")
-        return inversion.pti, inversion.interferometric_phase
+    def calculate_decimation(self):
+        decimate_thread = threading.Thread(target=self.pti.decimate, daemon=True,
+                                           args=(self.file_path["Decimation"], "Offline"))
+        decimate_thread.start()
 
-    def scan(self):
-        phase_scan = self.programs["Phase Scan"]
-        data = pd.read_csv(self.file_path["Decimation"])
-        dc_signals = np.array([data[f"DC CH{i}"] for i in range(1, 4)])
-        phase_scan.set_data(dc_signals)
-        phase_scan.set_min()
-        phase_scan.set_max()
-        phase_scan.scale_data()
-        phase_scan.calulcate_output_phases()
+    def phase_scan(self):
+        phase_scan_thread = threading.Thread(target=self.pti.phase_scan, daemon=True,
+                                             args=(self.file_path["Inversion"], self.file_path["Phase Scan"],))
+        phase_scan_thread.start()
+
+    def calculate_inversion(self):
+        inversion_thread = threading.Thread(target=self.pti.invert, daemon=True,
+                                            args=(self.file_path["Inversion"], self.settings.data, "Offline"))
+        inversion_thread.start()
+
+    def calculate_live(self):
+        pti_process = multiprocessing.Process(target=self.pti.run_live, daemon=True,
+                                              args=(self.live_path, self.settings.data))
+        pti_process.start()
 
     def set_file_path(self, program):
         def decimation_path():
@@ -91,7 +67,7 @@ class Action:
             file = filedialog.askopenfilename(defaultextension=default_extension, filetypes=file_types,
                                               title=f"{program} File Path")
             if not file:
-                messagebox.showwarning("File Path", "You have not specificed any file path.")
+                messagebox.showwarning("File Path", "You have not specified any file path.")
             else:
                 self.file_path[program] = file
 
@@ -100,165 +76,155 @@ class Action:
     def set_live_path(self):
         self.live_path = filedialog.askdirectory(title="Directory for live measurements")
 
-    def plot_decimation(self):
+    @staticmethod
+    def __plot_path(title):
         default_extension = "*.csv"
         file_types = (("CSV File", "*.csv"), ("Tab Separated File", "*.txt"), ("All Files", "*"))
-        file_dc = filedialog.askopenfilename(defaultextension=default_extension, filetypes=file_types,
-                                             title=f"DC File Path")
-        if not file_dc:
-            messagebox.showerror(title="Path Error", message="No path specicifed")
+        file_path = filedialog.askopenfilename(defaultextension=default_extension, filetypes=file_types,
+                                               title=title)
+        if not file_path:
+            messagebox.showerror(title="Path Error", message="No path specified")
             return
+        return file_path
 
-        def plot_dc():
-            fig = plt.figure()
-            data = pd.read_csv(file_dc)
-            time = range(len(data["DC CH1"]))
-            plt.plot(time, data["DC CH1"], label="CH1")
-            plt.plot(time, data["DC CH2"], label="CH2")
-            plt.plot(time, data["DC CH3"], label="CH3")
-            plt.xlabel("Time in [s]", fontsize=11)
-            plt.ylabel("Intensity [V]", fontsize=11)
-            plt.grid()
-            plt.legend(fontsize=11)
+    def __draw_plot(self, x_label, y_label, x_data, y_data, tab):
+        self.axes[tab].cla()
+        self.axes[tab].grid()
+        self.axes[tab].set_xlabel(x_label, fontsize=11)
+        self.axes[tab].set_ylabel(y_label, fontsize=11)
+        if tab == "DC Signal":
+            for channel in range(3):
+                self.axes[tab].plot(x_data, y_data[f"DC CH{channel + 1}"], label=f"CH{channel + 1}")
+                self.axes[tab].legend(fontsize=11)
+        else:
+            self.axes[tab].plot(x_data, y_data)
+        self.canvas[tab].draw()
 
-            canvas_dc = FigureCanvasTkAgg(fig, master=self.frames["DC Signal"])
-            canvas_dc.draw()
-            canvas_dc.get_tk_widget().pack()
-            toolbar = NavigationToolbar2Tk(canvas_dc, self.frames["DC Signal"])
-            toolbar.update()
-            canvas_dc.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+    def __draw_histogram(self, output_phase_1, output_phase_2, tab):
+        self.axes[tab].cla()
+        self.axes[tab].grid()
+        self.axes[tab].set_xlabel("Output Phase [rad]", fontsize=11)
+        self.axes[tab].set_ylabel("Count", fontsize=11)
+        self.axes[tab].hist(output_phase_1, label="Detector 2", bins=10)
+        self.axes[tab].hist(output_phase_2, label="Detector 3")
+        self.canvas[tab].draw()
 
-        plot_dc()
+    def __setup_plots(self, tab):
+        self.figs[tab], self.axes[tab] = plt.subplots()
+        if tab == "DC Signal":
+            self.axes[tab].plot([], [], label="CH1")
+            self.axes[tab].plot([], [], label="CH2")
+            self.axes[tab].plot([], [], label="CH3")
+            self.axes[tab].legend(fontsize=11)
+        elif tab == "Output Phases":
+            self.axes[tab].hist([], label="Detector 2")
+            self.axes[tab].hist([], label="Detector 3")
+            self.axes[tab].legend(fontsize=11)
+        else:
+            self.axes[tab].plot([], [])
+        self.canvas[tab] = FigureCanvasTkAgg(self.figs[tab], master=self.frames[tab])
+        self.canvas[tab].draw()
+        self.canvas[tab].get_tk_widget().pack()
+        toolbar = NavigationToolbar2Tk(self.canvas[tab], self.frames[tab])
+        toolbar.update()
+        self.canvas[tab].get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+
+    def plot_dc(self):
+        file_path = self.__plot_path("Inversion")
+        if file_path is None:
+            return
+        data = pd.read_csv(file_path)
+        self.__setup_plots(tab="DC Signal")
+        self.__draw_plot(x_label="Time [s]", y_label="Intensity [V]", x_data=range(len(data)), y_data=data,
+                         tab="DC Signal")
 
     def plot_inversion(self):
-        default_extension = "*.csv"
-        file_types = (("CSV File", "*.csv"), ("Tab Separated File", "*.txt"), ("All Files", "*"))
-        file_pti = filedialog.askopenfilename(defaultextension=default_extension, filetypes=file_types,
-                                              title=f"PTI File Path")
-        if not file_pti:
-            messagebox.showerror(title="Path Error", message="No path specicifed")
+        file_path = self.__plot_path("Inversion")
+        if file_path is None:
             return
+        data = pd.read_csv(file_path)
+        self.__setup_plots(tab="Interferometric Phase")
+        self.__draw_plot(x_label="Time [s]", y_label=r"$\varphi$ [rad]", x_data=range(len(data)),
+                         y_data=data["Interferometric Phase"], tab="Interferometric Phase")
+        self.__setup_plots(tab="PTI Signal")
+        self.__draw_plot(x_label="Time [s]", y_label=r"$\Delta\varphi$ [rad]", x_data=range(len(data)),
+                         y_data=data["PTI Signal"], tab="PTI Signal")
 
-        def plot_phase():
-            fig_phase = plt.figure()
-            data = pd.read_csv(file_pti)
-            time = range(len(data["Interferometric Phase"]))
-            plt.scatter(time, data["Interferometric Phase"], s=2)
-            plt.xlabel("Time in [s]", fontsize=11)
-            plt.ylabel(r"$\varphi$ [rad]", fontsize=12)
-            plt.grid()
+    def plot_phase_scan(self):
+        file_path = self.__plot_path("Output Phases")
+        if file_path is None:
+            return
+        data = pd.read_csv(file_path)
+        self.__setup_plots(tab="Output Phases")
+        self.__draw_histogram(output_phase_1=data["Detector 2"], output_phase_2=data["Detector 3"], tab="Output Phases")
 
-            canvas = FigureCanvasTkAgg(fig_phase, master=self.frames["Interferometric Phase"])
-            canvas.draw()
-            canvas.get_tk_widget().pack()
-            toolbar = NavigationToolbar2Tk(canvas, self.frames["Interferometric Phase"])
-            toolbar.update()
-            canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+    def plot_live(self):
+        # FIXME: If the user switches at beginning to fast in the plot-tabs it will be blocked.
+        self.__setup_plots(tab="DC Signal")
+        self.__setup_plots(tab="Interferometric Phase")
+        self.__setup_plots(tab="PTI Signal")
+        dc_csv = None
+        pti_csv = None
+        try:
+            while True:
+                try:
+                    dc_csv = open("Decimation.csv", "r")
+                    decimation_data = csv.DictReader(dc_csv)
+                except FileExistsError:
+                    time.sleep(1)
+                else:
+                    break
+            pti_csv = open("PTI_Inversion.csv", "r")
+            pti_data = csv.DictReader(pti_csv)
+            max_time = 1000
+            time_live = deque(maxlen=max_time)
+            dc_live = {"DC CH1": deque(maxlen=max_time), "DC CH2": deque(maxlen=max_time),
+                       "DC CH3": deque(maxlen=max_time)}
+            phase_live = deque(maxlen=max_time)
+            pti_live = deque(maxlen=max_time)
+            current_time = 0
+            dc_added_data = 0
+            pti_added_data = 0
+            while True:
+                if not self.running:
+                    break
+                for data in decimation_data:  # This should stop after one iteration if we are in sync.
+                    dc_live["DC CH1"].append(float(data["DC CH1"]))
+                    dc_live["DC CH2"].append(float(data["DC CH2"]))
+                    dc_live["DC CH3"].append(float(data["DC CH3"]))
+                    current_time += 1
+                    time_live.append(current_time)
+                    dc_added_data += 1
+                for data in pti_data:
+                    phase_live.append(float(data["Interferometric Phase"]))
+                    pti_live.append(float(data["PTI Signal"]))
+                    pti_added_data += 1
+                while pti_added_data < dc_added_data:
+                    try:
+                        phase_live.append(float(next(pti_data)["Interferometric Phase"]))
+                        pti_live.append(float(next(pti_data)["PTI Signal"]))
+                        pti_added_data += 1
+                    except StopIteration:
+                        continue
+                self.__draw_plot(x_label="Time [s]", y_label="Intensity [V]", x_data=time_live, y_data=dc_live,
+                                 tab="DC Signal")
+                self.__draw_plot(x_label="Time [s]", y_label=r"$\varphi$ [rad]", x_data=time_live, y_data=phase_live,
+                                 tab="Interferometric Phase")
+                self.__draw_plot(x_label="Time [s]", y_label=r"$\Delta\varphi$ [rad]", x_data=time_live,
+                                 y_data=pti_live, tab="PTI Signal")
+                time.sleep(1)
+        finally:
+            if dc_csv:
+                dc_csv.close()
+            if pti_csv:
+                pti_csv.close()
 
-        def plot_pti():
-            fig_pti = plt.figure()
-            data = pd.read_csv(file_pti)
-            time = range(len(data["PTI Signal"]))
-            plt.scatter(time, data["PTI Signal"] * 1e6, s=2)
-            plt.xlabel("Time in [s]", fontsize=11)
-            plt.ylabel(r"$\Delta \varphi$ [$10^{-6}$ rad]", fontsize=11)
-            plt.grid()
+    def run(self):
+        self.running = True
+        self.calculate_live()
+        self.live_plot = threading.Thread(target=self.plot_live, daemon=True)
+        self.live_plot.start()
 
-            canvas = FigureCanvasTkAgg(fig_pti, master=self.frames["PTI Signal"])
-            canvas.draw()
-            canvas.get_tk_widget().pack()
-            toolbar = NavigationToolbar2Tk(canvas, self.frames["PTI Signal"])
-            toolbar.update()
-            canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
-
-        plot_phase()
-        plot_pti()
-
-    def live(self):
-        def live_dc():
-            fig, ax = plt.subplots()
-            line, = ax.plot([], [], lw=2)
-            time = collections.deque(maxlen=1000)
-            self.dc_live.append(collections.deque(maxlen=1000))
-            self.dc_live.append(collections.deque(maxlen=1000))
-            self.dc_live.append(collections.deque(maxlen=1000))
-            self.decimation_data = pd.read_csv(self.live_path + "/Decimation.csv", iterator=True, chunksize=1)
-
-            def animate(i):
-                time.append(i)
-                self.dc_live[0].append(next(self.decimation_data)["DC CH1"])
-                self.dc_live[1].append(next(self.decimation_data)["DC CH2"])
-                self.dc_live[2].append(next(self.decimation_data)["DC CH3"])
-                ax.cla()
-                ax.plot(time, self.dc_live[0], label="CH 1")
-                ax.plot(time, self.dc_live[1], label="CH 2")
-                ax.plot(time, self.dc_live[2], label="CH 3")
-                ax.grid()
-                ax.set_xlabel("Time [s]", fontsize=11)
-                ax.set_ylabel("Intensity [V]", fontsize=11)
-                ax.legend(fontsize=11)
-                return line,
-
-            self.dc_ani = animation.FuncAnimation(fig, animate, interval=1000, blit=False)
-            canvas = FigureCanvasTkAgg(fig, master=self.frames["DC Signal"])
-            canvas.draw()
-            canvas.get_tk_widget().pack()
-            toolbar = NavigationToolbar2Tk(canvas, self.frames["DC Signal"])
-            toolbar.update()
-            canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
-
-        def live_phase():
-            fig2, ax2 = plt.subplots()
-            line, = ax2.plot([], [], lw=2)
-
-            time = collections.deque(maxlen=1000)
-            self.phase_live = collections.deque(maxlen=1000)
-            self.phase_data = pd.read_csv(self.live_path + "/PTI_Inversion.csv", iterator=True, chunksize=1)
-
-            def animate(i):
-                time.append(i)
-                self.phase_live.append(next(self.phase_data)["Interferometric Phase"])
-                ax2.cla()
-                ax2.plot(time, self.phase_live)
-                ax2.grid()
-                ax2.set_xlabel("Time [s]", fontsize=11)
-                ax2.set_ylabel("Interferometric Phase [rad]", fontsize=11)
-                return line,
-
-            self.phase_ani = animation.FuncAnimation(fig2, animate, interval=1000, blit=False)
-            self.dc_canvas = FigureCanvasTkAgg(fig2, master=self.frames["Interferometric Phase"])
-            self.dc_canvas.draw()
-            self.dc_canvas.get_tk_widget().pack()
-            toolbar = NavigationToolbar2Tk(self.dc_canvas, self.frames["Interferometric Phase"])
-            toolbar.update()
-            self.dc_canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
-
-        def live_pti():
-            fig3, ax3 = plt.subplots()
-            line, = ax3.plot([], [], lw=2)
-
-            time = collections.deque(maxlen=1000)
-            self.pti_live = collections.deque(maxlen=1000)
-            self.pti_data = pd.read_csv(self.live_path + "/PTI_Inversion.csv", iterator=True, chunksize=1)
-
-            def animate(i):
-                time.append(i)
-                self.pti_live.append(next(self.pti_data)["PTI Signal"]* 1e6)
-                ax3.cla()
-                ax3.plot(time, self.pti_live)
-                ax3.grid()
-                ax3.set_xlabel("Time [s]", fontsize=11)
-                ax3.set_ylabel("PTI Signal [$10^{-6}$ rad]", fontsize=11)
-                return line,
-
-            self.phase_ani = animation.FuncAnimation(fig3, animate, interval=1000, blit=False)
-            self.pti_canvas = FigureCanvasTkAgg(fig3, master=self.frames["PTI Signal"])
-            self.pti_canvas.draw()
-            self.pti_canvas.get_tk_widget().pack()
-            toolbar = NavigationToolbar2Tk(self.pti_canvas, self.frames["PTI Signal"])
-            toolbar.update()
-            self.pti_canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
-
-        live_dc()
-        live_phase()
-        live_pti()
+    def stop(self):
+        self.running = False
+        self.pti.running = False
