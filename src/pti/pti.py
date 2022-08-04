@@ -61,12 +61,15 @@ class PTI:
                 print(self.running)
 
     def phase_scan(self, decimation_path, inversion_path):
-        phase_scan = PhaseScan(step_size=150)
+        phase_scan = PhaseScan(step_size=200)
         decimation_data = pd.read_csv(decimation_path)
         inversion_data = pd.read_csv(inversion_path)
         dc_signals = np.array([decimation_data[f"DC CH{i}"] for i in range(1, 4)])
         phases = inversion_data["Interferometric Phase"]
         phase_scan.create_graph()
+        phase_scan.set_signals(dc_signals)
+        phase_scan.set_min()
+        phase_scan.set_max()
         for i in range(len(phases)):
             phase_scan.add_phase(phases[i], i)
         while True:
@@ -79,7 +82,6 @@ class PTI:
             phase_scan.set_max()
             phase_scan.scale_data()
             phase_scan.calulcate_output_phases()
-            print(phase_scan.output_phases)
             pd.DataFrame({"Detector 2": phase_scan.output_phases[1],
                           "Detector 3": phase_scan.output_phases[2]},
                          index=[0]).to_csv("Output_Phases.csv", mode="a",
@@ -92,15 +94,16 @@ class PTI:
         inversion.response_phases = np.deg2rad(settings.loc["Response Phases"].to_numpy())
         inversion.min_intensities = settings.loc["Min Intensities"].to_numpy()
         inversion.max_intensities = settings.loc["Max Intensities"].to_numpy()
+        print(inversion.output_phases)
         if os.path.exists("PTI_Inversion.csv"):
             os.remove("PTI_Inversion.csv")
         if mode == "Offline":
             data = pd.read_csv(file_path)
             dc_signals = np.array([data[f"DC CH{i}"] for i in range(1, 4)])
-            ac_signals = np.array([data[f"AC CH{i}"] for i in range(1, 4)])
-            lock_in_phase = np.array([data[f"Response Phase CH{i}"] for i in range(1, 4)])
+            #ac_signals = np.array([data[f"AC CH{i}"] for i in range(1, 4)])
+            #lock_in_phase = np.array([data[f"Response Phase CH{i}"] for i in range(1, 4)])
             inversion.calculate_interferometric_phase(dc_signals.T)
-            inversion.calculate_pti_signal(ac_signals, lock_in_phase)
+            #inversion.calculate_pti_signal(ac_signals, lock_in_phase)
             pd.DataFrame({"Interferometric Phase": inversion.interferometric_phase,
                           "PTI Signal": inversion.pti}).to_csv("PTI_Inversion.csv")
         else:

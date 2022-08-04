@@ -97,7 +97,7 @@ class Action:
                 self.axes[tab].plot(x_data, y_data[f"DC CH{channel + 1}"], label=f"CH{channel + 1}")
                 self.axes[tab].legend(fontsize=11)
         else:
-            self.axes[tab].plot(x_data, y_data)
+            self.axes[tab].scatter(x_data, y_data, s=2)
         self.canvas[tab].draw()
 
     def __draw_histogram(self, output_phase_1, output_phase_2, tab):
