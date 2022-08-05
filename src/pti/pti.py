@@ -61,7 +61,7 @@ class PTI:
                 print(self.running)
 
     def phase_scan(self, decimation_path, inversion_path):
-        phase_scan = PhaseScan(step_size=200)
+        phase_scan = PhaseScan(step_size=100)
         decimation_data = pd.read_csv(decimation_path)
         inversion_data = pd.read_csv(inversion_path)
         dc_signals = np.array([decimation_data[f"DC CH{i}"] for i in range(1, 4)])
