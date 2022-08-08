@@ -21,7 +21,7 @@ class PhaseScan:
         self.colored_nodes = []
         self.last_node = 0
         self.enough_values = False
-        self.output_phases = [0, 0, 0]
+        self.output_phases = np.empty(3)
 
     min_intensities = None
 
