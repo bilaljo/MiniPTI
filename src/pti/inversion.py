@@ -32,10 +32,10 @@ class Inversion:
                 phases = [
                     [np.arccos(scaled_intensity[i][0]),
                      -np.arccos(scaled_intensity[i][0])],
-                    [np.arccos(scaled_intensity[i][1]) + 1.85,
-                     -np.arccos(scaled_intensity[i][1]) + 1.85],
-                    [np.arccos(scaled_intensity[i][2]) + 3.71,
-                     -np.arccos(scaled_intensity[i][2]) + 3.71],
+                    [np.arccos(scaled_intensity[i][1]) + 1.81288881,
+                     -np.arccos(scaled_intensity[i][1]) + 1.81288881],
+                    [np.arccos(scaled_intensity[i][2]) + 3.75085711,
+                     -np.arccos(scaled_intensity[i][2]) + 3.75085711],
                 ]
                 current_phase = None
                 current_error = float("inf")

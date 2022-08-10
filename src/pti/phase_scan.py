@@ -1,6 +1,3 @@
-import array
-
-import networkx as nx
 import numpy as np
 from scipy import optimize
 
@@ -16,12 +13,13 @@ class PhaseScan:
         self.phases = None
         self.scaled_signals = None
         self.step_size = step_size
-        self.phase_graph = nx.Graph(directed=True)
-        self.roots = []
-        self.colored_nodes = []
-        self.last_node = 0
+        self.descritized_phase = [2 * np.pi / step_size * i for i in range(1, step_size + 1)]
+        self.occured_phases = [False for i in range(1, step_size + 1)]
+        self.last_index = 0
         self.enough_values = False
         self.output_phases = np.empty(3)
+        self.min_intensities = np.empty(3)
+        self.max_intensities = np.empty(3)
 
     min_intensities = None
 
@@ -43,36 +41,32 @@ class PhaseScan:
         self.scaled_signals = 2 * (self.signals.T - PhaseScan.min_intensities) / (
                 PhaseScan.max_intensities - PhaseScan.min_intensities) - 1
 
-    def create_graph(self):
-        for i in range(1, self.step_size + 1):
-            self.phase_graph.add_node(2 * np.pi / self.step_size * i)
-            self.roots.append(2 * np.pi / self.step_size * i)
-
-    def add_phase(self, phase, time):
+    def add_phase(self, phase):
         k = int(self.step_size * phase / (2 * np.pi))
-        self.phase_graph.add_edge(self.roots[k - 1], time)
+        self.occured_phases[k] = True
 
-    def color_nodes(self):
-        for i in range(self.last_node, self.step_size):
-            root = self.roots[i]
-            neighbors = list(self.phase_graph[root])
-            if neighbors:
-                colored_node = neighbors[0]  # We choice the first neighbor since it doesn't matter which we use.
-                self.colored_nodes.append(colored_node)
-                self.phase_graph.remove_node(colored_node)
-            else:
-                self.last_node = i
-                self.enough_values = False
-                break
-        else:
-            self.enough_values = True
+    def check_enough_values(self):
+        self.enough_values = np.all(self.occured_phases)
 
     def calulcate_output_phases(self):
         if self.scaled_signals is None:
             raise ValueError("Signals are not scaled")
 
-        def error_function(intensity, channel):
-            return lambda x: np.sum((np.cos(x - self.phases) - intensity[channel]) ** 2)
+        def best_fit(measured, output_phase):
+            if output_phase:
+                return lambda x: np.sum((measured -
+                                         ((x[0] - x[1]) / 2 * np.cos(self.phases - x[2]) + (x[0] + x[1]) / 2)) ** 2)
+            else:  # Without searching for output phases the problem is reduced by one dimension
+                return lambda x: np.sum((measured - ((x[0] - x[1]) / 2 * np.cos(self.phases) + (x[0] + x[1]) / 2)) ** 2)
 
-        self.output_phases[1] = optimize.fminbound(func=error_function(self.scaled_signals.T, 1), x1=0, x2=2*np.pi)
-        self.output_phases[2] = optimize.fminbound(func=error_function(self.scaled_signals.T, 2), x1=0, x2=2*np.pi)
+        res = optimize.minimize(fun=best_fit(measured=self.scaled_signals[0], output_phase=False),
+                                x0=np.array([0, 0])).x
+        self.min_intensities[0], self.max_intensities[0] = res[0], res[1]
+
+        res = optimize.minimize(fun=best_fit(measured=self.scaled_signals[1], output_phase=True),
+                                x0=np.array([0, 0, 0])).x
+        self.min_intensities[1], self.max_intensities[1], self.output_phases[1] = res[0], res[1], res[2]
+
+        res = optimize.minimize(fun=best_fit(measured=self.scaled_signals[2], output_phase=True),
+                                x0=np.array([0, 0, 0])).x
+        self.min_intensities[2], self.max_intensities[2], self.output_phases[2] = res[0], res[1], res[2]
