@@ -109,34 +109,7 @@ class Action:
         self.axes[tab].hist(output_phase_2, label="Detector 3")
         self.canvas[tab].draw()
 
-    def __setup_plots(self, tab):
-        self.figs[tab], self.axes[tab] = plt.subplots()
-        if tab == "DC Signal":
-            self.axes[tab].plot([], [], label="CH1")
-            self.axes[tab].plot([], [], label="CH2")
-            self.axes[tab].plot([], [], label="CH3")
-            self.axes[tab].legend(fontsize=11)
-        elif tab == "Output Phases":
-            self.axes[tab].hist([], label="Detector 2")
-            self.axes[tab].hist([], label="Detector 3")
-            self.axes[tab].legend(fontsize=11)
-        else:
-            self.axes[tab].plot([], [])
-        self.canvas[tab] = FigureCanvasTkAgg(self.figs[tab], master=self.frames[tab])
-        self.canvas[tab].draw()
-        self.canvas[tab].get_tk_widget().pack()
-        toolbar = NavigationToolbar2Tk(self.canvas[tab], self.frames[tab])
-        toolbar.update()
-        self.canvas[tab].get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
 
-    def plot_dc(self):
-        file_path = self.__plot_path("Inversion")
-        if file_path is None:
-            return
-        data = pd.read_csv(file_path)
-        self.__setup_plots(tab="DC Signal")
-        self.__draw_plot(x_label="Time [s]", y_label="Intensity [V]", x_data=range(len(data)), y_data=data,
-                         tab="DC Signal")
 
     def plot_inversion(self):
         file_path = self.__plot_path("Inversion")

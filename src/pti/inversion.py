@@ -10,7 +10,7 @@ class Inversion:
 
     def __init__(self, response_phases=None):
         self.response_phases = response_phases
-        self.pti = None
+        self.pti_signal = None
         self.interferometric_phase = np.empty(1)
         self.output_phases = None
         self.min_intensities = None
@@ -62,5 +62,5 @@ class Inversion:
             pti_signal += demodulated_signal * sign
             weight += (self.max_intensities[channel] - self.min_intensities[channel]) / 2 * np.abs(
                 np.sin(self.interferometric_phase - self.output_phases[channel]))
-        self.pti = -np.sum(-pti_signal, axis=0) / np.sum(weight, axis=0)
-        return self.pti
+        self.pti_signal = -np.sum(-pti_signal, axis=0) / np.sum(weight, axis=0)
+        return self.pti_signal
