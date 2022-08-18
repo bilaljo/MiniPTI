@@ -1,6 +1,5 @@
 matplotlib
 numpy
 pandas
-networkx
+tksheet
 scipy
-kivy

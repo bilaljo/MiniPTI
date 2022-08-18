@@ -1,7 +1,7 @@
 import sys
 
-from .action import Action
-from .settings import Settings
-from .tabs import Tabs
+from .controller import Controller
+from .model import Model
+from .view import View
 
 sys.path.append('../')

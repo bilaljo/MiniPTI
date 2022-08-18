@@ -22,7 +22,7 @@ class Decimation:
         time = np.linspace(0, 1, self.samples) + 0.00133
         self.in_phase = np.sin(2 * np.pi * time * 80)
         self.quadrature = np.cos(2 * np.pi * time * 80)
-        self.amplification = 1000  # The amplification is given by the hardware setup.
+        self.amplification = 10  # The amplification is given by the hardware setup.
         self.ac_x = np.empty(shape=3)
         self.ac_y = np.empty(shape=3)
         self.eof = False
