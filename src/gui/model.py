@@ -1,6 +1,6 @@
 import threading
 from collections import deque
-
+from scipy import ndimage
 from pti.pti import PTI
 
 
@@ -22,13 +22,18 @@ class Model:
         decimate_thread = threading.Thread(target=self.pti.decimate, daemon=True, args=[decimation_path])
         decimate_thread.start()
 
-    def phase_scan(self):
-        pass
+    def calculate_characitersation(self, dc_file_path):
+        characterisation_thread = threading.Thread(target=self.pti.characterise, args=[dc_file_path, None])
+        characterisation_thread.start()
 
     def calculate_inversion(self, settings_path, inversion_path):
         self.pti.init_inversion(settings_path)
         inversion_thread = threading.Thread(target=self.pti.invert, daemon=True, args=[inversion_path])
         inversion_thread.start()
+
+    def __calculcate_running_average(self):
+        if len(self.pti_values["PTI Signal"]) < 10:
+            ndimage.uniform_filter1d(input=self.pti_values["PTI Signal"])
 
     def live_calculation(self):
         self.pti.pti(self.decimation_path, self.settings_path, self.destination_folder)

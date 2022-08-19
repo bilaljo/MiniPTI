@@ -63,7 +63,8 @@ class View(tk.Tk):
 
         create_button(frame=self.frames["Offline"], text="Decimation", action=self.controller.decimation_button_pressed)
         create_button(frame=self.frames["Offline"], text="Inversion", action=self.controller.inversion_button_pressed)
-        create_button(frame=self.frames["Offline"], text="Phase Scan", action=None)
+        create_button(frame=self.frames["Offline"], text="Characterisation",
+                      action=self.controller.characterisation_button_pressed)
 
         create_button(frame=self.frames["Plotting"], text="Decimation", action=self.controller.plot_dc)
         create_button(frame=self.frames["Plotting"], text="Inversion", action=self.controller.plot_inversion)

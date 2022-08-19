@@ -32,10 +32,15 @@ class Controller:
             self.settings.data = pd.DataFrame(index=index, columns=headers)
             self.settings.data.to_csv("settings.csv", index=True, index_label="Setting")
         else:
-            settings = pd.read_csv(filepath_or_buffer="settings.csv", index_col="Setting")
-            if list(settings.columns) != headers or list(settings.index) != index:  # The file is in any way broken.
+            try:
+                settings = pd.read_csv(filepath_or_buffer="settings.csv", index_col="Setting")
+            except ValueError:
                 self.settings.data = pd.DataFrame(index=index, columns=headers)
                 self.settings.data.to_csv("settings.csv", index=True, index_label="Setting")
+            else:
+                if list(settings.columns) != headers or list(settings.index) != index:  # The file is in any way broken.
+                    self.settings.data = pd.DataFrame(index=index, columns=headers)
+                    self.settings.data.to_csv("settings.csv", index=True, index_label="Setting")
 
     def load_config(self):
         default_extension = "*.csv"
@@ -50,6 +55,12 @@ class Controller:
         self.settings.sheet.set_sheet_data(data=self.settings.data.values.tolist())
 
     def save_config(self):
+        data = self.settings.sheet.get_sheet_data(get_header=False, get_index=False)
+        headers = ["Detector 1", "Detector 2", "Detector 3"]
+        index = ["Max Intensities [V]", "Min Intensities [V]", "Output Phases [deg]", "Response Phases [deg]",
+                 "Contrast [%]"]
+        self.settings.data = pd.DataFrame(data=data, columns=headers, index=index)
+        self.settings.data.index.name = "Setting"
         self.settings.data.to_csv(self.settings.file_path)
 
     def decimation_button_pressed(self):
@@ -68,7 +79,20 @@ class Controller:
                                                title="Inversion File Path")
         if not file_path:
             return
-        self.model.calculate_inversion(file_path, self.settings.file_path)
+        self.model.calculate_inversion(settings_path=self.settings.file_path, inversion_path=file_path)
+
+    def characterisation_button_pressed(self):
+        default_extension = "*.csv"
+        file_types = (("CSV File", "*.csv"), ("Tab Separated File", "*.txt"), ("All Files", "*"))
+        file_path = filedialog.askopenfilename(defaultextension=default_extension, filetypes=file_types,
+                                               title="Inversion File Path")
+        if not file_path:
+            return
+        self.model.calculate_characitersation(file_path)
+        self.settings.data.loc["Output Phases [deg]"] = self.model.pti.interferometer_characterisation.output_phases
+        self.settings.data.loc["Min Intensities [V]"] = self.model.pti.interferometer_characterisation.min_intensities
+        self.settings.data.loc["Max Intensities [V]"] = self.model.pti.interferometer_characterisation.max_intensities
+        self.settings.sheet.set_sheet_data(data=self.settings.data.values.tolist())
 
     def online_path_cooser(self):
         default_extension = "*.bin"
@@ -80,13 +104,12 @@ class Controller:
         self.model.destination_folder = filedialog.askdirectory()
         self.model.decimation_path = file_path
         self.model.settings_path = self.settings.file_path
-        self.model.pti()
 
     def __set_file_path(self):
         default_extension = "*.csv"
         file_types = (("CSV File", "*.csv"), ("Tab Separated File", "*.txt"), ("All Files", "*"))
         file_path = filedialog.askopenfilename(defaultextension=default_extension, filetypes=file_types,
-                                               title="Inversion File Path")
+                                               title="Plotting File Path")
         if file_path is None:
             return
         self.file_path = file_path

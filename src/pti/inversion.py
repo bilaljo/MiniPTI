@@ -24,45 +24,17 @@ class Inversion:
             elif intensity[channel] < self.min_intensities[channel]:
                 self.min_intensities[channel] = intensity[channel]
 
-        scaled_intensity = 2 * (intensity - self.min_intensities) / (self.max_intensities - self.min_intensities) - 1
+        amplitude = (self.max_intensities - self.min_intensities) / 2
+        offset = (self.max_intensities + self.min_intensities) / 2
 
-        def error_function(signal):
-            return lambda x: (np.cos(x) - signal[0]) ** 2 + (
-                    np.cos(x - self.output_phases[1]) - signal[1]) ** 2 + (
-                                     np.cos(x - self.output_phases[2]) - signal[2]) ** 2
+        def error_function(x, signal):
+            return np.sum((amplitude * np.cos(x - self.output_phases) + offset - signal) ** 2)
 
-        if intensity.size > 3:  # Vector of intensities.
-            self.interferometric_phase = np.zeros(shape=intensity.size // 3)
-            for i in range(intensity.size // 3):
-                phases = [
-                    [np.arccos(scaled_intensity[i][0]),
-                     -np.arccos(scaled_intensity[i][0])],
-                    [np.arccos(scaled_intensity[i][1]) + 1.85,
-                     -np.arccos(scaled_intensity[i][1]) + 1.85],
-                    [np.arccos(scaled_intensity[i][2]) + 3.71,
-                     -np.arccos(scaled_intensity[i][2]) + 3.71],
-                ]
-                current_phase = None
-                current_error = float("inf")
-                for phase_triple in itertools.product(phases[0], phases[1], phases[2]):
-                    if abs(phase_triple[0] - phase_triple[1]) + abs(phase_triple[0] - phase_triple[2]) + abs(
-                            phase_triple[1] - phase_triple[2]) < current_error:
-                        current_error = abs(phase_triple[0] - phase_triple[1]) + abs(
-                            phase_triple[0] - phase_triple[2]) + abs(phase_triple[1] - phase_triple[2])
-                        current_phase = phase_triple
-                current_phase = np.mean(current_phase)
-                self.interferometric_phase[i] = optimize.minimize(fun=error_function(scaled_intensity[i]),
-                                                                  x0=current_phase).x
-            self.interferometric_phase[self.interferometric_phase < 0] += 2 * np.pi
-        else:
-            phases = [
-                [np.arccos(scaled_intensity[0]),
-                 -np.arccos(scaled_intensity[0])],
-                [np.arccos(scaled_intensity[1]) + 1.85,
-                 -np.arccos(scaled_intensity[1]) + 1.85],
-                [np.arccos(scaled_intensity[2]) + 3.71,
-                 -np.arccos(scaled_intensity[2]) + 3.71],
-            ]
+        def first_guess(signal):
+            intensity_scaled = (signal - offset) / amplitude
+            phases = [[np.arccos(intensity_scaled[0]), -np.arccos(intensity_scaled[0])],
+                      [np.arccos(intensity_scaled[1]) + self.output_phases[1], -np.arccos(intensity_scaled[1]) + self.output_phases[1]],
+                      [np.arccos(intensity_scaled[2]) + self.output_phases[2], -np.arccos(intensity_scaled[2]) + self.output_phases[2]]]
             current_phase = None
             current_error = float("inf")
             for phase_triple in itertools.product(phases[0], phases[1], phases[2]):
@@ -71,8 +43,17 @@ class Inversion:
                     current_error = abs(phase_triple[0] - phase_triple[1]) + abs(
                         phase_triple[0] - phase_triple[2]) + abs(phase_triple[1] - phase_triple[2])
                     current_phase = phase_triple
-            current_phase = np.mean(current_phase)
-            self.interferometric_phase = optimize.minimize(fun=error_function(scaled_intensity), x0=current_phase).x
+            return np.mean(current_phase)
+
+        if intensity.size > 3:  # Vector of intensities.
+            self.interferometric_phase = np.zeros(shape=intensity.size // 3)
+            for i in range(intensity.size // 3):
+                self.interferometric_phase[i] = optimize.minimize(fun=error_function, args=[intensity.T[i]],
+                                                                  x0=first_guess(intensity[i])).x
+            self.interferometric_phase[self.interferometric_phase < 0] += 2 * np.pi
+        else:
+            self.interferometric_phase = optimize.minimize(fun=error_function, args=[intensity],
+                                                           x0=first_guess(intensity)).x
             if self.interferometric_phase < 0:
                 self.interferometric_phase += 2 * np.pi
 
@@ -80,8 +61,7 @@ class Inversion:
         pti_signal = np.zeros(shape=(3, self.interferometric_phase.size))
         weight = np.zeros(shape=(3, self.interferometric_phase.size))
         for channel in range(3):
-            sign = np.sin(self.interferometric_phase - self.output_phases[channel]) / np.abs(
-                np.sin(self.interferometric_phase - self.output_phases[channel]))
+            sign = 1 if np.sin(self.interferometric_phase - self.output_phases[channel]) > 0 else -1
             response_phase = self.response_phases[channel]
             demodulated_signal = ac_signal[channel] * np.cos(lock_in_phase[channel] - response_phase)
             pti_signal += demodulated_signal * sign

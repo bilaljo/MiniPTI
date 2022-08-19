@@ -5,6 +5,7 @@ import pandas as pd
 
 from pti.decimation import Decimation
 from pti.inversion import Inversion
+from pti.interferometer_charaterisation import InterferometerCharaterisation
 
 
 class PTI:
@@ -12,6 +13,7 @@ class PTI:
         self.decimation_first_call = True
         self.decimation = Decimation()
         self.inversion = Inversion()
+        self.interferometer_characterisation = InterferometerCharaterisation(step_size=100)
 
     def __calculate_decimation(self, destination_folder="./"):
         self.decimation.read_data()
@@ -35,21 +37,38 @@ class PTI:
             self.__calculate_decimation(destination_folder)
         self.decimation.file.close()
 
-    def phase_scan(self, decimation_path, inversion_path):
-        pass
+    def characterise(self, dc_signals_path, inversion_path):
+        data = pd.read_csv(dc_signals_path)
+        dc_signals = np.array([data[f"DC CH{i}"] for i in range(1, 4)])
+        self.interferometer_characterisation.set_signals(dc_signals)
+        if np.isnan(self.interferometer_characterisation.min_intensities).any():
+            self.interferometer_characterisation.set_min()
+        if np.isnan(self.interferometer_characterisation.max_intensities).any():
+            self.interferometer_characterisation.set_max()
+        if np.isnan(self.interferometer_characterisation.output_phases).any():
+            self.interferometer_characterisation.output_phases[1] = 1.83 # 2 * np.pi / 3
+            self.interferometer_characterisation.output_phases[2] = 3.65 # 4 * np.pi / 3
+        if inversion_path is None:
+            phases = self.inversion.interferometric_phase
+            self.interferometer_characterisation.set_phases(phases)
+        else:
+            pti_data = pd.read_csv(inversion_path)
+            phases = pti_data["Interferometric Phase"]
+            self.interferometer_characterisation.set_phases(phases)
+        self.interferometer_characterisation.characterise_interferometer()
 
     def init_inversion(self, settings_path):
         settings = pd.read_csv(settings_path, index_col="Setting")
-        self.inversion.output_phases = np.deg2rad(settings.loc["Output Phases"].to_numpy())
-        self.inversion.response_phases = np.deg2rad(settings.loc["Response Phases"].to_numpy())
-        self.inversion.min_intensities = settings.loc["Min Intensities"].to_numpy()
-        self.inversion.max_intensities = settings.loc["Max Intensities"].to_numpy()
+        self.inversion.output_phases = np.deg2rad(settings.loc["Output Phases [deg]"].to_numpy())
+        self.inversion.response_phases = np.deg2rad(settings.loc["Response Phases [deg]"].to_numpy())
+        self.inversion.min_intensities = settings.loc["Min Intensities [V]"].to_numpy()
+        self.inversion.max_intensities = settings.loc["Max Intensities [V]"].to_numpy()
 
     def invert(self, file_path):
         data = pd.read_csv(file_path)
         dc_signals = np.array([data[f"DC CH{i}"] for i in range(1, 4)])
         ac_signals = np.array([data[f"AC CH{i}"] for i in range(1, 4)])
-        lock_in_phase = np.array([data[f"Response Phase CH{i}"] for i in range(1, 4)])
+        lock_in_phase = np.array([data[f"Phase Difference CH{i}"] for i in range(1, 4)])
         self.inversion.calculate_interferometric_phase(dc_signals.T)
         self.inversion.calculate_pti_signal(ac_signals, lock_in_phase)
         pd.DataFrame({"Interferometric Phase": self.inversion.interferometric_phase,
