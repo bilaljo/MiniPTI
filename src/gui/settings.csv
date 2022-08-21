@@ -1,6 +1,0 @@
-Setting,Detector 1,Detector 2,Detector 3
-Max Intensities [V],3.8,1.6,3.8
-Min Intensities [V],0.03,0.03,0.10
-Output Phases [deg],0.0,105.4,213.1
-Response Phases [deg],220.9,217.7,221.5
-Contrast [%],0.91,0.91,0.93

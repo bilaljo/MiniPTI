@@ -14,7 +14,7 @@ class Controller:
         self.live_destination = "./"
         self.live_plot = None
         self.settings = namedtuple("Settings", ("file_path", "data", "sheet"))
-        self.settings.file_path = "settings.csv"
+        self.settings.file_path = "../settings.csv"
         self.running = False
         self.init_settings()
         self.model = Model()
@@ -29,12 +29,12 @@ class Controller:
         headers = ["Detector 1", "Detector 2", "Detector 3"]
         index = ["Max Intensities [V]", "Min Intensities [V]", "Output Phases [deg]", "Response Phases [deg]",
                  "Contrast [%]"]
-        if not os.path.exists("settings.csv"):  # If no settings found, a new empty file is created.
+        if not os.path.exists("../settings.csv"):  # If no settings found, a new empty file is created.
             self.settings.data = pd.DataFrame(index=index, columns=headers)
             self.settings.data.to_csv("settings.csv", index=True, index_label="Setting")
         else:
             try:
-                settings = pd.read_csv(filepath_or_buffer="settings.csv", index_col="Setting")
+                settings = pd.read_csv(filepath_or_buffer="../settings.csv", index_col="Setting")
             except ValueError:
                 self.settings.data = pd.DataFrame(index=index, columns=headers)
                 self.settings.data.to_csv("settings.csv", index=True, index_label="Setting")

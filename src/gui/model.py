@@ -19,7 +19,7 @@ class Model:
         self.time = deque(maxlen=queue_size)
         self.pti = PTI()
         self.decimation_path = r"C:\temp\220816.bin"
-        self.settings_path = "settings.csv"
+        self.settings_path = "../settings.csv"
         self.destination_folder = ""
 
     def calculate_decimation(self, decimation_path):
