@@ -1,4 +1,5 @@
 import os
+import platform
 
 import numpy as np
 import pandas as pd
@@ -73,6 +74,10 @@ class PTI:
             if os.path.exists("PTI_Inversion.csv"):
                 os.remove("PTI_Inversion.csv")
             self.decimation.file = open(file_path_decimation, "rb")
+        if platform.system() == "Windows":
+            destination_directory += "\\"
+        else:
+            destination_directory += "/"
         self.decimation_first_call = False
         ac_signal, phase, dc_signal = self.__calculate_decimation(destination_directory)
         self.init_inversion(settings_path)

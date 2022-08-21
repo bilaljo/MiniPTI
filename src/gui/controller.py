@@ -1,4 +1,5 @@
 import os
+import platform
 from collections import namedtuple
 from tkinter import filedialog, messagebox
 
@@ -89,7 +90,6 @@ class Controller:
         if not file_path:
             return
         self.model.calculate_characitersation(file_path)
-        print(self.model.pti.interferometer_characterisation.output_phases)
         self.settings.data.loc["Output Phases [deg]"] = self.model.pti.interferometer_characterisation.output_phases
         self.settings.data.loc["Min Intensities [V]"] = self.model.pti.interferometer_characterisation.min_intensities
         self.settings.data.loc["Max Intensities [V]"] = self.model.pti.interferometer_characterisation.max_intensities
@@ -102,7 +102,11 @@ class Controller:
                                                title="Decimation File Path")
         if not file_path:
             return
-        self.model.destination_folder = filedialog.askdirectory()
+        if platform.system() == "Windows":
+            desktop = os.path.join(os.path.join(os.environ['USERPROFILE']), 'Desktop')
+            self.model.destination_folder = filedialog.askdirectory(initialdir=desktop)
+        else:
+            self.model.destination_folder = filedialog.askdirectory(initialdir="~")
         self.model.decimation_path = file_path
         self.model.settings_path = self.settings.file_path
 
