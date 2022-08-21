@@ -4,8 +4,8 @@ import numpy as np
 import pandas as pd
 
 from pti.decimation import Decimation
-from pti.inversion import Inversion
 from pti.interferometer_charaterisation import InterferometerCharaterisation
+from pti.inversion import Inversion
 
 
 class PTI:
@@ -26,7 +26,8 @@ class PTI:
                       "AC CH2": ac[1], "AC Phase CH2": phase[1],
                       "AC CH3": ac[2], "AC Phase Phase CH3": phase[2],
                       "DC CH1": dc[0], "DC CH2": dc[1], "DC CH3": dc[2]},
-                     index=[0]).to_csv(destination_folder + "Decimation.csv", mode="a", header=not os.path.exists(destination_folder + "Decimation.csv"))
+                     index=[0]).to_csv(destination_folder + "Decimation.csv", mode="a",
+                                       header=not os.path.exists(destination_folder + "Decimation.csv"))
         return ac, phase, dc
 
     def decimate(self, file_path, destination_folder="./"):
@@ -37,24 +38,15 @@ class PTI:
             self.__calculate_decimation(destination_folder)
         self.decimation.file.close()
 
-    def characterise(self, dc_signals_path, inversion_path):
+    def characterise(self, dc_signals_path):
         data = pd.read_csv(dc_signals_path)
         dc_signals = np.array([data[f"DC CH{i}"] for i in range(1, 4)])
         self.interferometer_characterisation.set_signals(dc_signals)
-        if np.isnan(self.interferometer_characterisation.min_intensities).any():
-            self.interferometer_characterisation.set_min()
-        if np.isnan(self.interferometer_characterisation.max_intensities).any():
-            self.interferometer_characterisation.set_max()
+        self.interferometer_characterisation.set_min()
+        self.interferometer_characterisation.set_max()
         if np.isnan(self.interferometer_characterisation.output_phases).any():
-            self.interferometer_characterisation.output_phases[1] = 1.83 # 2 * np.pi / 3
-            self.interferometer_characterisation.output_phases[2] = 3.65 # 4 * np.pi / 3
-        if inversion_path is None:
-            phases = self.inversion.interferometric_phase
-            self.interferometer_characterisation.set_phases(phases)
-        else:
-            pti_data = pd.read_csv(inversion_path)
-            phases = pti_data["Interferometric Phase"]
-            self.interferometer_characterisation.set_phases(phases)
+            self.interferometer_characterisation.output_phases[1] = 1.83
+            self.interferometer_characterisation.output_phases[2] = 3.65
         self.interferometer_characterisation.characterise_interferometer()
 
     def init_inversion(self, settings_path):
@@ -66,7 +58,7 @@ class PTI:
 
     def invert(self, file_path):
         data = pd.read_csv(file_path)
-        dc_signals = np.array([data[f"DC CH{i}"] for i in range(1, 4)])
+        dc_signals = np.array([data[f"DC CH{i}"] for i in range(1, 4)], dtype=np.float64)
         ac_signals = np.array([data[f"AC CH{i}"] for i in range(1, 4)])
         lock_in_phase = np.array([data[f"Phase Difference CH{i}"] for i in range(1, 4)])
         self.inversion.calculate_interferometric_phase(dc_signals.T)
@@ -88,4 +80,5 @@ class PTI:
         self.inversion.calculate_pti_signal(ac_signal, phase)
         pd.DataFrame({"Interferometric Phase": self.inversion.interferometric_phase,
                       "PTI Signal": self.inversion.pti_signal},
-                     index=[0]).to_csv(destination_directory + "PTI_Inversion.csv", mode="a", header=not os.path.exists(destination_directory + "PTI_Inversion.csv"))
+                     index=[0]).to_csv(destination_directory + "PTI_Inversion.csv", mode="a",
+                                       header=not os.path.exists(destination_directory + "PTI_Inversion.csv"))

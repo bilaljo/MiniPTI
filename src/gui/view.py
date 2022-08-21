@@ -87,19 +87,6 @@ class View(tk.Tk):
         self.sheet.pack(side="top", padx=10, expand=True, fill=tk.BOTH)
         self.controller.settings.sheet = self.sheet
 
-    def draw_plot(self, x_label, y_label, x_data, y_data, tab):
-        self.axes[tab].cla()
-        self.axes[tab].grid()
-        self.axes[tab].set_xlabel(x_label, fontsize=11)
-        self.axes[tab].set_ylabel(y_label, fontsize=11)
-        if tab == "DC Signals":
-            for channel in range(3):
-                self.axes[tab].plot(x_data, y_data[f"DC CH{channel + 1}"], label=f"CH{channel + 1}")
-                self.axes[tab].legend(fontsize=11)
-        else:
-            self.axes[tab].plot(x_data, y_data)
-        self.canvas[tab].draw()
-
     def setup_plots(self, tab):
         self.figs[tab], self.axes[tab] = plt.subplots()
         if tab == "DC Signals":
@@ -107,12 +94,12 @@ class View(tk.Tk):
             self.axes[tab].plot([], [], label="CH2")
             self.axes[tab].plot([], [], label="CH3")
             self.axes[tab].legend(fontsize=11)
-        elif tab == "Output Phases":
-            self.axes[tab].hist([], label="Detector 2")
-            self.axes[tab].hist([], label="Detector 3")
+        elif tab == "PTI Signal":
+            self.axes[tab].scatter([], [], label="1 s Data")
+            self.axes[tab].plot([], [], label="60s Mean")
             self.axes[tab].legend(fontsize=11)
         else:
-            self.axes[tab].plot([], [])
+            self.axes[tab].scatter([], [])
         if self.canvas[tab] is not None:
             self.canvas[tab].get_tk_widget().pack_forget()
             self.plot_toolbar[tab].pack_forget()
@@ -123,6 +110,23 @@ class View(tk.Tk):
         self.plot_toolbar[tab].update()
         self.canvas[tab].get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
 
+    def draw_plot(self, x_label, y_label, x_data, y_data, tab):
+        self.axes[tab].cla()
+        self.axes[tab].grid()
+        self.axes[tab].set_xlabel(x_label, fontsize=11)
+        self.axes[tab].set_ylabel(y_label, fontsize=11)
+        if tab == "DC Signals":
+            for channel in range(3):
+                self.axes[tab].plot(x_data, y_data[f"DC CH{channel + 1}"], label=f"CH{channel + 1}")
+                self.axes[tab].legend(fontsize=11)
+        elif tab == "PTI Signal":
+            self.axes[tab].scatter(x_data, y_data["1 s Data"], label="1 s Data", s=2)
+            self.axes[tab].plot(x_data, y_data["10 s Mean"], label="60s Mean", color="tab:orange")
+            self.axes[tab].legend(fontsize=11)
+        else:
+            self.axes[tab].plot(x_data, y_data)
+        self.canvas[tab].draw()
+
     def plot_phase_scan(self):
         pass
 
@@ -131,10 +135,10 @@ class View(tk.Tk):
         self.setup_plots(tab="Interferometric Phase")
         self.setup_plots(tab="PTI Signal")
 
-    def live_plot(self, time, decimation_data, pti_values):
+    def live_plot(self, time, decimation_data, pti_values, pti_mean):
         self.draw_plot(x_label="Time [s]", y_label="Intensity [V]", x_data=time, y_data=decimation_data,
                        tab="DC Signals")
         self.draw_plot(x_label="Time [s]", y_label=r"$\varphi$ [rad]", x_data=time,
                        y_data=pti_values["Interferometric Phase"], tab="Interferometric Phase")
         self.draw_plot(x_label="Time [s]", y_label=r"$\Delta\varphi$ [rad]", x_data=time,
-                       y_data=pti_values["PTI Signal"], tab="PTI Signal")
+                       y_data={"1 s Data": pti_values["PTI Signal"], "10 s Mean": pti_mean}, tab="PTI Signal")

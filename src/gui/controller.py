@@ -89,6 +89,7 @@ class Controller:
         if not file_path:
             return
         self.model.calculate_characitersation(file_path)
+        print(self.model.pti.interferometer_characterisation.output_phases)
         self.settings.data.loc["Output Phases [deg]"] = self.model.pti.interferometer_characterisation.output_phases
         self.settings.data.loc["Min Intensities [V]"] = self.model.pti.interferometer_characterisation.min_intensities
         self.settings.data.loc["Max Intensities [V]"] = self.model.pti.interferometer_characterisation.max_intensities
@@ -141,7 +142,8 @@ class Controller:
 
         def live():
             self.model.live_calculation()
-            self.view.live_plot(self.model.time, self.model.decimation_data, self.model.pti_values)
+            self.view.live_plot(self.model.time, self.model.decimation_data, self.model.pti_values,
+                                self.model.pti_signal_mean)
             if self.running:
                 self.view.after(1000, live)
 

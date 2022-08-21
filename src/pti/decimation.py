@@ -1,4 +1,5 @@
 import numpy as np
+from scipy import signal
 
 
 class Decimation:
@@ -19,9 +20,7 @@ class Decimation:
         self.dc = np.empty(shape=(3, self.samples))
         self.ac = np.empty(shape=(3, self.samples))
         self.dc_down_sampled = np.empty(shape=3)
-        time = np.linspace(0, 1, self.samples) + 0.00133
-        self.in_phase = np.sin(2 * np.pi * time * 80)
-        self.quadrature = np.cos(2 * np.pi * time * 80)
+        self.time = np.linspace(0, 1, self.samples)
         self.amplification = 10  # The amplification is given by the hardware setup.
         self.ac_x = np.empty(shape=3)
         self.ac_y = np.empty(shape=3)
@@ -41,7 +40,7 @@ class Decimation:
         np.frombuffer(self.file.read(4), dtype=np.intc)
         for channel in range(3):
             self.dc[channel] = np.frombuffer(self.file.read(self.samples * 8), dtype=np.float64)
-        np.frombuffer(self.file.read(self.samples * 8), dtype=np.float64)
+        self.ref = np.frombuffer(self.file.read(self.samples * 8), dtype=np.float64)
         for channel in range(3):
             self.ac[channel] = np.frombuffer(self.file.read(self.samples * 8), dtype=np.float64) / self.amplification
 
@@ -57,8 +56,15 @@ class Decimation:
             self.ac[channel] = self.ac[channel] - noise_factor
 
     def lock_in_amplifier(self):
-        np.mean(self.ac * self.in_phase, axis=1, out=self.ac_x)
-        np.mean(self.ac * self.quadrature, axis=1, out=self.ac_y)
+        first = np.where(self.ref > (1 / 2 * signal.square(self.time * 2 * np.pi * 80) + 1 / 2))[0][0]
+        second = np.where(self.ref < (1 / 2 * signal.square(self.time * 2 * np.pi * 80) + 1 / 2))[0][0]
+        phase_shift = max(first, second) / 50e3
+        if phase_shift != 0.00492:
+            print("Jitter!")
+        in_phase = np.sin(2 * np.pi * 80 * (self.time - phase_shift))
+        quadrature = np.cos(2 * np.pi * 80 * (self.time - phase_shift))
+        np.mean(self.ac * in_phase, axis=1, out=self.ac_x)
+        np.mean(self.ac * quadrature, axis=1, out=self.ac_y)
 
     def get_lock_in_values(self):
         return np.sqrt(self.ac_x ** 2 + self.ac_y ** 2), np.arctan2(self.ac_y, self.ac_x)

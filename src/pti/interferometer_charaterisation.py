@@ -43,6 +43,7 @@ class InterferometerCharaterisation:
         If no min/max values and output phases are given (either none or nan) the function try to estimate them
         best-possible.
         """
+
         def best_fit(measured, output_phase):
             if output_phase:
                 return lambda x: np.sum((measured -
@@ -52,12 +53,14 @@ class InterferometerCharaterisation:
 
         res = optimize.minimize(fun=best_fit(measured=self.signals[0], output_phase=False),
                                 x0=np.array([self.max_intensities[0], self.min_intensities[1]])).x
-        self.min_intensities[0], self.max_intensities[0] = res[0], res[1]
+        self.max_intensities[0], self.min_intensities[0] = res[0], res[1]
 
         res = optimize.minimize(fun=best_fit(measured=self.signals[1], output_phase=True),
-                                x0=np.array([self.max_intensities[1], self.min_intensities[1], self.output_phases[1]])).x
-        self.min_intensities[1], self.max_intensities[1], self.output_phases[1] = res[0], res[1], res[2]
+                                x0=np.array(
+                                    [self.max_intensities[1], self.min_intensities[1], self.output_phases[1]])).x
+        self.max_intensities[1], self.max_intensities[1], self.output_phases[1] = res[0], res[1], res[2]
 
         res = optimize.minimize(fun=best_fit(measured=self.signals[2], output_phase=True),
-                                x0=np.array([self.max_intensities[2], self.min_intensities[2], self.output_phases[2], 0])).x
-        self.min_intensities[2], self.max_intensities[2], self.output_phases[2] = res[0], res[1], res[2]
+                                x0=np.array(
+                                    [self.max_intensities[2], self.min_intensities[2], self.output_phases[2], 0])).x
+        self.max_intensities[2], self.min_intensities[2], self.output_phases[2] = res[0], res[1], res[2]

@@ -1,6 +1,8 @@
 import threading
 from collections import deque
-from scipy import ndimage
+
+import numpy as np
+
 from pti.pti import PTI
 
 
@@ -11,29 +13,26 @@ class Model:
                                 "DC CH3": deque(maxlen=queue_size)}
         self.pti_values = {"Interferometric Phase": deque(maxlen=queue_size),
                            "PTI Signal": deque(maxlen=queue_size)}
-        self.current_time = 0  # FIXME: Replace with counter from itertools
+        self.pti_signal_mean = deque(maxlen=queue_size)
+        self.pti_signal_mean_queue = deque(maxlen=60)
+        self.current_time = 0
         self.time = deque(maxlen=queue_size)
         self.pti = PTI()
         self.decimation_path = r"C:\temp\220816.bin"
         self.settings_path = "settings.csv"
-        self.destination_folder = "./"
+        self.destination_folder = ""
 
     def calculate_decimation(self, decimation_path):
         decimate_thread = threading.Thread(target=self.pti.decimate, daemon=True, args=[decimation_path])
         decimate_thread.start()
 
     def calculate_characitersation(self, dc_file_path):
-        characterisation_thread = threading.Thread(target=self.pti.characterise, args=[dc_file_path, None])
-        characterisation_thread.start()
+        self.pti.characterise(dc_file_path)
 
     def calculate_inversion(self, settings_path, inversion_path):
         self.pti.init_inversion(settings_path)
         inversion_thread = threading.Thread(target=self.pti.invert, daemon=True, args=[inversion_path])
         inversion_thread.start()
-
-    def __calculcate_running_average(self):
-        if len(self.pti_values["PTI Signal"]) < 10:
-            ndimage.uniform_filter1d(input=self.pti_values["PTI Signal"])
 
     def live_calculation(self):
         self.pti.pti(self.decimation_path, self.settings_path, self.destination_folder)
@@ -42,5 +41,7 @@ class Model:
         self.decimation_data["DC CH3"].append(self.pti.decimation.dc_down_sampled[2])
         self.pti_values["Interferometric Phase"].append(self.pti.inversion.interferometric_phase)
         self.pti_values["PTI Signal"].append(self.pti.inversion.pti_signal * (-1e6))
+        self.pti_signal_mean_queue.append(self.pti.inversion.pti_signal * (-1e6))
+        self.pti_signal_mean.append(np.mean(self.pti_signal_mean_queue))
         self.current_time += 1
         self.time.append(self.current_time)
