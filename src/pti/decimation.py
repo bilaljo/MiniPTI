@@ -59,8 +59,6 @@ class Decimation:
         first = np.where(self.ref > (1 / 2 * signal.square(self.time * 2 * np.pi * 80) + 1 / 2))[0][0]
         second = np.where(self.ref < (1 / 2 * signal.square(self.time * 2 * np.pi * 80) + 1 / 2))[0][0]
         phase_shift = max(first, second) / 50e3
-        if phase_shift != 0.00492:
-            print("Jitter!")
         in_phase = np.sin(2 * np.pi * 80 * (self.time - phase_shift))
         quadrature = np.cos(2 * np.pi * 80 * (self.time - phase_shift))
         np.mean(self.ac * in_phase, axis=1, out=self.ac_x)

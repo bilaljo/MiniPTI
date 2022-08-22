@@ -119,12 +119,12 @@ class View(tk.Tk):
             for channel in range(3):
                 self.axes[tab].plot(x_data, y_data[f"DC CH{channel + 1}"], label=f"CH{channel + 1}")
                 self.axes[tab].legend(fontsize=11)
-        elif tab == "PTI Signal":
+        elif tab == "PTI Signal1":
             self.axes[tab].scatter(x_data, y_data["1 s Data"], label="1 s Data", s=2)
             self.axes[tab].plot(x_data, y_data["10 s Mean"], label="60s Mean", color="tab:orange")
             self.axes[tab].legend(fontsize=11)
         else:
-            self.axes[tab].plot(x_data, y_data)
+            self.axes[tab].scatter(x_data, y_data, s=2)
         self.canvas[tab].draw()
 
     def plot_phase_scan(self):

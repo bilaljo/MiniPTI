@@ -18,8 +18,8 @@ class Model:
         self.current_time = 0
         self.time = deque(maxlen=queue_size)
         self.pti = PTI()
-        self.decimation_path = r"C:\temp\220816.bin"
-        self.settings_path = "../settings.csv"
+        self.decimation_path = ""
+        self.settings_path = "./settings.csv"
         self.destination_folder = ""
 
     def calculate_decimation(self, decimation_path):
@@ -31,8 +31,7 @@ class Model:
 
     def calculate_inversion(self, settings_path, inversion_path):
         self.pti.init_inversion(settings_path)
-        inversion_thread = threading.Thread(target=self.pti.invert, daemon=True, args=[inversion_path])
-        inversion_thread.start()
+        self.pti.invert(inversion_path)
 
     def live_calculation(self):
         self.pti.pti(self.decimation_path, self.settings_path, self.destination_folder)

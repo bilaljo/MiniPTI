@@ -4,6 +4,7 @@ from collections import namedtuple
 from tkinter import filedialog, messagebox
 
 import pandas as pd
+import numpy as np
 
 from gui.model import Model
 from gui.view import View
@@ -14,7 +15,7 @@ class Controller:
         self.live_destination = "./"
         self.live_plot = None
         self.settings = namedtuple("Settings", ("file_path", "data", "sheet"))
-        self.settings.file_path = "../settings.csv"
+        self.settings.file_path = "settings.csv"
         self.running = False
         self.init_settings()
         self.model = Model()
@@ -27,14 +28,13 @@ class Controller:
 
     def init_settings(self):
         headers = ["Detector 1", "Detector 2", "Detector 3"]
-        index = ["Max Intensities [V]", "Min Intensities [V]", "Output Phases [deg]", "Response Phases [deg]",
-                 "Contrast [%]"]
-        if not os.path.exists("../settings.csv"):  # If no settings found, a new empty file is created.
+        index = ["Amplitude [V]", "Offset [V]", "Output Phases [deg]", "Response Phases [deg]"]
+        if not os.path.exists("settings.csv"):  # If no settings found, a new empty file is created.
             self.settings.data = pd.DataFrame(index=index, columns=headers)
             self.settings.data.to_csv("settings.csv", index=True, index_label="Setting")
         else:
             try:
-                settings = pd.read_csv(filepath_or_buffer="../settings.csv", index_col="Setting")
+                settings = pd.read_csv(filepath_or_buffer="settings.csv", index_col="Setting")
             except ValueError:
                 self.settings.data = pd.DataFrame(index=index, columns=headers)
                 self.settings.data.to_csv("settings.csv", index=True, index_label="Setting")
@@ -49,17 +49,12 @@ class Controller:
         self.settings.file_path = filedialog.askopenfilename(defaultextension=default_extension, filetypes=file_types,
                                                              title="Settings File Path")
         self.settings.data = pd.read_csv(self.settings.file_path, index_col="Setting")
-        contrast = round(
-            (self.settings.data.loc["Max Intensities [V]"] - self.settings.data.loc["Min Intensities [V]"]) /
-            (self.settings.data.loc["Max Intensities [V]"] + self.settings.data.loc["Min Intensities [V]"]), 2)
-        self.settings.data.loc["Contrast [%]"] = contrast
         self.settings.sheet.set_sheet_data(data=self.settings.data.values.tolist())
 
     def save_config(self):
         data = self.settings.sheet.get_sheet_data(get_header=False, get_index=False)
         headers = ["Detector 1", "Detector 2", "Detector 3"]
-        index = ["Max Intensities [V]", "Min Intensities [V]", "Output Phases [deg]", "Response Phases [deg]",
-                 "Contrast [%]"]
+        index = ["Amplitude [V]", "Offset [V]", "Output Phases [deg]", "Response Phases [deg]"]
         self.settings.data = pd.DataFrame(data=data, columns=headers, index=index)
         self.settings.data.index.name = "Setting"
         self.settings.data.to_csv(self.settings.file_path)
@@ -90,9 +85,9 @@ class Controller:
         if not file_path:
             return
         self.model.calculate_characitersation(file_path)
-        self.settings.data.loc["Output Phases [deg]"] = self.model.pti.interferometer_characterisation.output_phases
-        self.settings.data.loc["Min Intensities [V]"] = self.model.pti.interferometer_characterisation.min_intensities
-        self.settings.data.loc["Max Intensities [V]"] = self.model.pti.interferometer_characterisation.max_intensities
+        self.settings.data.loc["Output Phases [deg]"] = np.rad2deg(self.model.pti.interferometer_characterisation.output_phases)
+        self.settings.data.loc["Amplitude [V]"] = self.model.pti.interferometer_characterisation.offset
+        self.settings.data.loc["Offset [V]"] = self.model.pti.interferometer_characterisation.amplitude
         self.settings.sheet.set_sheet_data(data=self.settings.data.values.tolist())
 
     def online_path_cooser(self):
