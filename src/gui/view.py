@@ -2,9 +2,11 @@ import tkinter as tk
 from tkinter import ttk
 
 import pandas as pd
+import matplotlib
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from tksheet import Sheet
+import sv_ttk
 
 
 class View(tk.Tk):
@@ -27,6 +29,8 @@ class View(tk.Tk):
         self.setup_config(self.frames["Configuration"])
         self.init_buttons()
         self.protocol("WM_DELETE_WINDOW", controller.on_close)
+        sv_ttk.use_light_theme()
+        matplotlib.use('TkAgg')
 
     def create_tab(self, text):
         if self.tab_control is None:

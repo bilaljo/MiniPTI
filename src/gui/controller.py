@@ -3,8 +3,8 @@ import platform
 from collections import namedtuple
 from tkinter import filedialog, messagebox
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 
 from gui.model import Model
 from gui.view import View
@@ -80,12 +80,17 @@ class Controller:
     def characterisation_button_pressed(self):
         default_extension = "*.csv"
         file_types = (("CSV File", "*.csv"), ("Tab Separated File", "*.txt"), ("All Files", "*"))
-        file_path = filedialog.askopenfilename(defaultextension=default_extension, filetypes=file_types,
-                                               title="Inversion File Path")
-        if not file_path:
+        decimation_file_path = filedialog.askopenfilename(defaultextension=default_extension, filetypes=file_types,
+                                                          title="Decimation File Path")
+        if not decimation_file_path:
             return
-        self.model.calculate_characitersation(file_path)
-        self.settings.data.loc["Output Phases [deg]"] = np.rad2deg(self.model.pti.interferometer_characterisation.output_phases)
+        phases_file_path = filedialog.askopenfilename(defaultextension=default_extension, filetypes=file_types,
+                                                      title="Inversion File Path")
+        use_inversion = phases_file_path != ""
+        self.model.calculate_characitersation(dc_file_path=decimation_file_path, inversion_path=phases_file_path,
+                                              use_inversion=use_inversion, settings_path=self.settings.file_path)
+        self.settings.data.loc["Output Phases [deg]"] = np.rad2deg(
+            self.model.pti.interferometer_characterisation.output_phases)
         self.settings.data.loc["Amplitude [V]"] = self.model.pti.interferometer_characterisation.offset
         self.settings.data.loc["Offset [V]"] = self.model.pti.interferometer_characterisation.amplitude
         self.settings.sheet.set_sheet_data(data=self.settings.data.values.tolist())
@@ -116,7 +121,7 @@ class Controller:
 
     def plot_inversion(self):
         self.__set_file_path()
-        if self.file_path is None:
+        if not self.file_path:
             return
         data = pd.read_csv(self.file_path)
         self.view.setup_plots(tab="Interferometric Phase")

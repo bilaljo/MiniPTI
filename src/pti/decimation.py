@@ -4,24 +4,21 @@ from scipy import signal
 
 class Decimation:
     """
-    Provides the methods for a software based Lock-In-Amplifier and decimation.
+    Provided an API for the PTI decimation described in [1] from Weingartner et al.
 
-    This class parses binary data with a fixed encoding: the first 3 x 50,000 Doubles
-    represent DC-coupled signals. The next 50.000 Doubles represent the measured reference
-    signal. The last 3 x 50,000 Doubles represent the measured AC-coupled signals.
-    The reference for the Lock-In-Amplifier is assumed to have a stable frequency at
-    80 Hz.
-    The sample frequency is at 50 kHz. With 1 s decimation interval this results in
-    50,000 samples.
+    The number of samples
+
+    [1]: Waveguide based passively demodulated photothermal
+         interferometer for aerosol measurements
     """
-
-    def __init__(self):
-        self.samples = 50000
+    def __init__(self, samples=50000, mod_frequency=80, amplification=10):
+        self.samples = samples
+        self.mod_frequency = mod_frequency
         self.dc = np.empty(shape=(3, self.samples))
         self.ac = np.empty(shape=(3, self.samples))
         self.dc_down_sampled = np.empty(shape=3)
         self.time = np.linspace(0, 1, self.samples)
-        self.amplification = 10  # The amplification is given by the hardware setup.
+        self.amplification = amplification  # The amplification is given by the hardware setup.
         self.ac_x = np.empty(shape=3)
         self.ac_y = np.empty(shape=3)
         self.eof = False
@@ -53,12 +50,12 @@ class Decimation:
     def common_mode_noise_reduction(self):
         noise_factor = np.sum(self.ac, axis=0) / sum(self.dc_down_sampled)
         for channel in range(3):
-            self.ac[channel] = self.ac[channel] - noise_factor
+            self.ac[channel] = self.ac[channel] - noise_factor * self.dc_down_sampled[channel]
 
     def lock_in_amplifier(self):
         first = np.where(self.ref > (1 / 2 * signal.square(self.time * 2 * np.pi * 80) + 1 / 2))[0][0]
         second = np.where(self.ref < (1 / 2 * signal.square(self.time * 2 * np.pi * 80) + 1 / 2))[0][0]
-        phase_shift = max(first, second) / 50e3
+        phase_shift = max(first, second) / self.samples
         in_phase = np.sin(2 * np.pi * 80 * (self.time - phase_shift))
         quadrature = np.cos(2 * np.pi * 80 * (self.time - phase_shift))
         np.mean(self.ac * in_phase, axis=1, out=self.ac_x)

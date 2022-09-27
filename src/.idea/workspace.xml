@@ -5,11 +5,8 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="7beec46b-942a-4e1f-98b0-258298880fea" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/../notebooks/algorithm_verfication.ipynb" beforeDir="false" afterPath="$PROJECT_DIR$/../notebooks/algorithm_verfication.ipynb" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../notebooks/calculations.ipynb" beforeDir="false" afterPath="$PROJECT_DIR$/../notebooks/calculations.ipynb" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../notebooks/plot.py" beforeDir="false" afterPath="$PROJECT_DIR$/../notebooks/plot.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../notebooks/pti.ipynb" beforeDir="false" afterPath="$PROJECT_DIR$/../notebooks/pti.ipynb" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/__main__.py" beforeDir="false" afterPath="$PROJECT_DIR$/__main__.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/gui/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/gui/__init__.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/gui/controller.py" beforeDir="false" afterPath="$PROJECT_DIR$/gui/controller.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/gui/model.py" beforeDir="false" afterPath="$PROJECT_DIR$/gui/model.py" afterDir="false" />
@@ -19,7 +16,6 @@
       <change beforePath="$PROJECT_DIR$/pti/interferometer_charaterisation.py" beforeDir="false" afterPath="$PROJECT_DIR$/pti/interferometer_charaterisation.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/pti/inversion.py" beforeDir="false" afterPath="$PROJECT_DIR$/pti/inversion.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/pti/pti.py" beforeDir="false" afterPath="$PROJECT_DIR$/pti/pti.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/requirements.txt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -38,18 +34,18 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "RunOnceActivity.OpenProjectViewOnStart": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "WebServerToolWindowFactoryState": "false",
-    "last_opened_file_path": "/home/jonas/MiniPTI/src/gui/__main__.py",
-    "node.js.detected.package.eslint": "true",
-    "node.js.detected.package.tslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "node.js.selected.package.tslint": "(autodetect)"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;RunOnceActivity.OpenProjectViewOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;WebServerToolWindowFactoryState&quot;: &quot;false&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/home/jonas/MiniPTI/src&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$" />
@@ -90,6 +86,13 @@
       <workItem from="1661111610918" duration="54000" />
       <workItem from="1661115725901" duration="137000" />
       <workItem from="1661193287495" duration="2221000" />
+      <workItem from="1661264204668" duration="7920000" />
+      <workItem from="1661537197011" duration="14000" />
+      <workItem from="1662189651022" duration="16000" />
+      <workItem from="1664218969806" duration="1911000" />
+      <workItem from="1664266037149" duration="785000" />
+      <workItem from="1664293466890" duration="631000" />
+      <workItem from="1664296813249" duration="4379000" />
     </task>
     <servers />
   </component>
@@ -108,6 +111,6 @@
     </option>
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
-    <SUITE FILE_PATH="coverage/src$Run.coverage" NAME="Run Coverage Results" MODIFIED="1661194905345" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/" />
+    <SUITE FILE_PATH="coverage/src$Run.coverage" NAME="Run Coverage Results" MODIFIED="1664304173784" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/" />
   </component>
 </project>

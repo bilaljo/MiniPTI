@@ -1,13 +1,13 @@
+"""
+Implements a passive phase scan. A phase scan means calculating the output phases and can be done if there are
+enough elements for the algorithm. Enoug means that every phase-bucket has at least one occoured.
+"""
+
 import numpy as np
 from scipy import optimize
 
 
 class InterferometerCharaterisation:
-    """
-    Implements a passive phase scan. A phase scan means calculating the output phases and can be done if there are
-    enough elements for the algorithm. Enoug means that every phase-bucket has at least one occoured.
-    """
-
     def __init__(self, signals=None, step_size=None):
         self.signals = signals
         self.phases = None
@@ -55,11 +55,9 @@ class InterferometerCharaterisation:
         self.amplitude[0], self.offset[0] = res[0], res[1]
 
         res = optimize.minimize(fun=best_fit(measured=self.signals[1], output_phase=True),
-                                x0=np.array(
-                                    [self.amplitude[1], self.offset[1], self.output_phases[1]])).x
+                                x0=np.array([self.amplitude[1], self.offset[1], self.output_phases[1]])).x
         self.amplitude[1], self.offset[1], self.output_phases[1] = res[0], res[1], res[2]
 
         res = optimize.minimize(fun=best_fit(measured=self.signals[2], output_phase=True),
-                                x0=np.array(
-                                    [self.amplitude[2], self.offset[2], self.output_phases[2]])).x
+                                x0=np.array([self.amplitude[2], self.offset[2], self.output_phases[2]])).x
         self.amplitude[2], self.offset[2], self.output_phases[2] = res[0], res[1], res[2]
