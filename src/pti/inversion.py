@@ -12,6 +12,7 @@ class Inversion:
     [1]: Waveguide based passively demodulated photothermal
          interferometer for aerosol measurements
     """
+
     def __init__(self, response_phases=None):
         self.response_phases = response_phases
         self.pti_signal = None
@@ -66,6 +67,7 @@ class Inversion:
     Implements the algorithm for the interferometric phase from [1], Signal analysis and retrieval of PTI signal,
     equation 18.
     """
+
     def calculate_pti_signal(self, ac_signal: np.array, lock_in_phase: np.array) -> np.array:
         pti_signal = np.zeros(shape=(3, self.interferometric_phase.size))
         weight = np.zeros(shape=(3, self.interferometric_phase.size))

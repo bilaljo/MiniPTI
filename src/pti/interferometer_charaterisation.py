@@ -1,19 +1,20 @@
-"""
-Implements a passive phase scan. A phase scan means calculating the output phases and can be done if there are
-enough elements for the algorithm. Enoug means that every phase-bucket has at least one occoured.
-"""
-
 import numpy as np
 from scipy import optimize
 
 
 class InterferometerCharaterisation:
+    """
+    Provied an API for the characteriation of an interferometer as described in [1].
+
+    [1]: Waveguide based passively demodulated photothermal
+         interferometer for aerosol measurements
+    """
+
     def __init__(self, signals=None, step_size=None):
         self.signals = signals
-        self.phases = None
+        self.phases = []
         self.step_size = step_size
         self.occured_phases = np.full(step_size, True)
-        self.enough_values = False
         self.output_phases = np.array([0, 2 * np.pi / 3, 4 * np.pi / 3])
         self.offset = None
         self.amplitude = None
@@ -35,7 +36,7 @@ class InterferometerCharaterisation:
         self.occured_phases[k] = True
 
     def check_enough_values(self):
-        self.enough_values = np.all(self.occured_phases)
+        return np.all(self.occured_phases)
 
     def characterise_interferometer(self):
         """
@@ -43,6 +44,7 @@ class InterferometerCharaterisation:
         If no min/max values and output phases are given (either none or nan) the function try to estimate them
         best-possible.
         """
+        self.phases = np.array(self.phases)
 
         def best_fit(measured, output_phase):
             if output_phase:

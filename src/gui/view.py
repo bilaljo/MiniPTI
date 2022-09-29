@@ -1,12 +1,12 @@
 import tkinter as tk
 from tkinter import ttk
 
-import pandas as pd
 import matplotlib
+import pandas as pd
+import sv_ttk
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from tksheet import Sheet
-import sv_ttk
 
 
 class View(tk.Tk):

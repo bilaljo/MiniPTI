@@ -11,6 +11,7 @@ class Decimation:
     [1]: Waveguide based passively demodulated photothermal
          interferometer for aerosol measurements
     """
+
     def __init__(self, samples=50000, mod_frequency=80, amplification=10):
         self.samples = samples
         self.mod_frequency = mod_frequency

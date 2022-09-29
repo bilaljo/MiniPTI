@@ -86,9 +86,8 @@ class Controller:
             return
         phases_file_path = filedialog.askopenfilename(defaultextension=default_extension, filetypes=file_types,
                                                       title="Inversion File Path")
-        use_inversion = phases_file_path != ""
-        self.model.calculate_characitersation(dc_file_path=decimation_file_path, inversion_path=phases_file_path,
-                                              use_inversion=use_inversion, settings_path=self.settings.file_path)
+        #use_inversion = phases_file_path != ""
+        self.model.calculate_characitersation(dc_file_path=decimation_file_path, inversion_path=phases_file_path)
         self.settings.data.loc["Output Phases [deg]"] = np.rad2deg(
             self.model.pti.interferometer_characterisation.output_phases)
         self.settings.data.loc["Amplitude [V]"] = self.model.pti.interferometer_characterisation.offset

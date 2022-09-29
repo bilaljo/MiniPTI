@@ -26,9 +26,9 @@ class Model:
         decimate_thread = threading.Thread(target=self.pti.decimate, daemon=True, args=[decimation_path])
         decimate_thread.start()
 
-    def calculate_characitersation(self, dc_file_path, inversion_path="", use_inversion=False, settings_path=""):
-        self.pti.characterise(dc_signals_path=dc_file_path, inversion_path=inversion_path, use_inversion=use_inversion,
-                              settings_path=settings_path)
+    def calculate_characitersation(self, dc_file_path, inversion_path="", use_inversion=False,
+                                   settings_path="settings.csv"):
+        self.pti.calculcate_characterisation(dc_path=dc_file_path, pti_path=inversion_path, settings_path=settings_path)
 
     def calculate_inversion(self, settings_path, inversion_path):
         self.pti.init_inversion(settings_path)
