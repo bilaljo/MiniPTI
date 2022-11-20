@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from scipy import signal
 
-from interferometry import Interferometry
+from interferometry import Interferometer
 
 
 @dataclass
@@ -23,7 +23,7 @@ class Inversion:
     """
     MICRO_RAD = 1e6
 
-    def __init__(self, response_phases=None, sign=1, interferometer=Interferometry()):
+    def __init__(self, response_phases=None, sign=1, interferometer=Interferometer()):
         self.response_phases = response_phases
         self.pti_signal = None  # type: float | np.array
         self.sensitivity = None
@@ -35,6 +35,16 @@ class Inversion:
         self.sign = sign  # Makes the pti signal positive if it isn't
         self.interferometer = interferometer
         self.load_response_phase()
+
+    def __repr__(self):
+        class_name = self.__class__.__name__
+        representation = f"{class_name}(response_phases={self.response_phases}, pti_signal={self.pti_signal}," \
+                         f"sensitivity={self.sensitivity}, lock_in={repr(self.lock_in)}"
+        return representation
+
+    def __str__(self):
+        return f"Interferometric Phase: {self.interferometer.phase}\n" \
+               f"Sensitivity: {self.sensitivity}\nPTI signal: {self.pti_signal}"
 
     def load_response_phase(self):
         settings = pd.read_csv(self.settings_path, index_col="Setting")

@@ -8,7 +8,7 @@ import pandas as pd
 from scipy import optimize, linalg
 
 
-class Interferometry:
+class Interferometer:
     def __init__(self, settings_path="configs/settings.csv", decimation_filepath="data/Decimation.csv",
                  output_phases=np.empty(shape=3), amplitudes=np.empty(shape=3), offsets=np.empty(shape=3)):
         self.settings_path = settings_path
@@ -34,7 +34,7 @@ class Interferometry:
         class_name = self.__class__.__name__
         representation = f"{class_name}(setting_path={self.settings_path}, decimation_path={self.decimation_filepath}\n"
         representation += f"phae={self.phase}, output_phases={self.output_phases}, amplitudes={self.amplitudes}\n"
-        representation += f"offsets={self.offsets})"
+        representation += f"offsets={self.offsets}) phases={self.phase}"
         return representation
 
     def __str__(self):
@@ -101,14 +101,14 @@ class Interferometry:
             raise ValueError(f"Same shape for both dimensions. Could determine which dimension describes channels.")
 
     def calculate_amplitudes(self, intensity):
-        Interferometry.error_handing_intensity(intensity)
+        Interferometer.error_handing_intensity(intensity)
         if intensity.shape[1] == 3:
             self.amplitudes = (np.max(intensity, axis=0) - np.min(intensity, axis=0)) / 2
         else:
             self.amplitudes = (np.max(intensity, axis=1) - np.min(intensity, axis=1)) / 2
 
     def calculate_offsets(self, intensity):
-        Interferometry.error_handing_intensity(intensity)
+        Interferometer.error_handing_intensity(intensity)
         if intensity.shape[1] == 3:
             self.offsets = (np.max(intensity, axis=0) + np.min(intensity, axis=0)) / 2
         else:
@@ -150,7 +150,7 @@ class Characterization:
          interferometer for aerosol measurements
     """
 
-    def __init__(self, step_size=100, interferometry=Interferometry(), signals=None, use_settings=True):
+    def __init__(self, step_size=100, interferometry=Interferometer(), signals=None, use_settings=True):
         self._signals = signals
         self.tracking_phase = []
         self._phases = []
@@ -175,7 +175,7 @@ class Characterization:
     def __repr__(self):
         class_name = self.__class__.__name__
         representation = f"{class_name}(signals={self.signals}, use_settings={self.use_settings}," \
-                         f" step_size={self.step_size}, interferometry={self.interferometry}"
+                         f" step_size={self.step_size}, characterised_data={self.characterised_data})"
         return representation
 
     @property
