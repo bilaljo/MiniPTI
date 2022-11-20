@@ -34,6 +34,7 @@ with pti.Decimation(binary_file) as decimation:
 The interferometry provides an API for calculating the interferometric phase and characterisising the interferometer (output phases, amplitudes and offsets). For a propper use it is needed to proive a configuration file. An example of such a file can be found in src/configs/settings.csv. There also settings files for other couplers and experiments.
 
 **Calculating the interferometric Phase**
+
 ```python
 from interferometry import interferometer
 
@@ -46,15 +47,29 @@ interferometer.calculate_phase()
 ```
 
 **Characterising the Interferometer**
-The characterisation uses interferometer object, as well the PTI Inversion. The accessed fields (output_phases, amplitudes and offsets) are threadsafe via locks.
+
+The characterisation uses interferometer object, as well the PTI Inversion. The accessed fields (output_phases, amplitudes and offsets) are threadsafe via locks. If no output phases, amplitudes or offsets are known, the field ```use_settings``` can be set to ```False```. In thise case the settings will ignored and the paramters will be find by repating of calculating the interferometric phase and parameters.
+
+characterization itself saves the data directly to ```data/Characterization.csv```
+```python
+from interferometry import interferometer
+interferometer.settings_file_path = "configs/settings.csv"
+interferometer.decimation_file_path = "data/Decimation.csv"
+
+characterization = Characterization()
+characterization()
+
+characterization.use_settings = False
+characterization()
+```
+
 
 
 ### **PTI Inversion**
 The pti inversion algorithms can be applied from a call to the functor or by calling the single function by itself. The first one is recommened if it is needed to run the whole procedure based on Decimation-Files. The second gives access to the actual API.
 
-**Call over Functor**
 ```python
 import pti
 
-
-pti.Inversion().
+inversion = pti.Inversion()
+inversion()
