@@ -145,7 +145,6 @@ class Characterization:
         self.step_size = step_size  # type: int
         self._occurred_phases = np.full(step_size, False)
         self.use_settings = True
-        self.event = threading.Event()
         self.time_stamp = 0
         self.characterised_data = defaultdict(list)
         for channel in range(1, 4):
@@ -206,7 +205,6 @@ class Characterization:
         self.tracking_phase = []
         self._occurred_phases = np.full(self.step_size, False)
         self._signals = []
-        self.event.clear()
 
     def characterise_interferometer(self):
         """

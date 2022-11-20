@@ -121,7 +121,7 @@ class Decimation:
          interferometer for aerosol measurements
     """
 
-    def __init__(self, samples=50000, mod_frequency=80, amplification=10):
+    def __init__(self, samples=50000, mod_frequency=80, amplification=10, file_path="binary.bin"):
         self.samples = samples
         self.mod_frequency = mod_frequency
         self.dc = np.empty(shape=(3, self.samples))
@@ -134,35 +134,47 @@ class Decimation:
         self.eof = False
         self.ref = None
         self.file = None
+        self.file_path = file_path
+
+    def __call__(self):
+        self._calculate_dc()
+        self._common_mode_noise_reduction()
+        self._lock_in_amplifier()
+
+    def __enter__(self):
+        self.file = open(file=self.file_path, mode="rb")
+
+    def __exit(self):
+        self.file.close()
 
     def read_data(self):
         """
         Reads the binary data and save it into numpy arrays.
         """
-        if self.file is None:
+        if self.file_path is None:
             raise FileNotFoundError
         if not np.frombuffer(self.file.read(4), dtype=np.intc):
-            self.eof = True
-            return
+            return False
         np.frombuffer(self.file.read(4), dtype=np.intc)
         for channel in range(3):
             self.dc[channel] = np.frombuffer(self.file.read(self.samples * 8), dtype=np.float64)
         self.ref = np.frombuffer(self.file.read(self.samples * 8), dtype=np.float64)
         for channel in range(3):
             self.ac[channel] = np.frombuffer(self.file.read(self.samples * 8), dtype=np.float64) / self.amplification
+        return True
 
-    def calculate_dc(self):
+    def _calculate_dc(self):
         """
         Applies a low pass to the DC-coupled signals and decimate it to 1 s values.
         """
         np.mean(self.dc, axis=1, out=self.dc_down_sampled)
 
-    def common_mode_noise_reduction(self):
+    def _common_mode_noise_reduction(self):
         noise_factor = np.sum(self.ac, axis=0) / sum(self.dc_down_sampled)
         for channel in range(3):
             self.ac[channel] = self.ac[channel] - noise_factor * self.dc_down_sampled[channel]
 
-    def lock_in_amplifier(self):
+    def _lock_in_amplifier(self):
         first = np.where(self.ref > (1 / 2 * signal.square(self.time * 2 * np.pi * self.mod_frequency) + 1 / 2))[0][0]
         second = np.where(self.ref < (1 / 2 * signal.square(self.time * 2 * np.pi * self.mod_frequency) + 1 / 2))[0][0]
         phase_shift = max(first, second) / self.samples
@@ -171,5 +183,5 @@ class Decimation:
         np.mean(self.ac * in_phase, axis=1, out=self.ac_x)
         np.mean(self.ac * quadrature, axis=1, out=self.ac_y)
 
-    def get_lock_in_values(self):
+    def polar_lock_in(self):
         return np.sqrt(self.ac_x ** 2 + self.ac_y ** 2), np.arctan2(self.ac_y, self.ac_x)
