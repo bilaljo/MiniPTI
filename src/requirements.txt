@@ -1,6 +1,4 @@
 matplotlib
 numpy
 pandas
-tksheet
 scipy
-sv_ttk

@@ -1,0 +1,8 @@
+fastcrc
+matplotlib
+numpy
+pandas
+pyserial
+scipy
+pyqt6
+pyqtgraph
