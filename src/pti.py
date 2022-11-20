@@ -144,7 +144,7 @@ class Decimation:
     def __enter__(self):
         self.file = open(file=self.file_path, mode="rb")
 
-    def __exit(self):
+    def __exit__(self):
         self.file.close()
 
     def read_data(self):
