@@ -1,5 +1,3 @@
-# Source Code, Algorithm and GUI for the MiniPTI
-
 ## **Version 1.0**
 Version 1.0 provides the whole algorithms for offline evaluation, based on from LabView generated binary files.
 
