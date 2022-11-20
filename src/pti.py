@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from scipy import signal
 
-from interferometry import interferometer
+from interferometry import Interferometry
 
 
 @dataclass
@@ -23,17 +23,17 @@ class Inversion:
     """
     MICRO_RAD = 1e6
 
-    def __init__(self, response_phases=None, sign=1):
-        super().__init__()
+    def __init__(self, response_phases=None, sign=1, interferometer=Interferometry()):
         self.response_phases = response_phases
         self.pti_signal = None  # type: float | np.array
         self.sensitivity = None
         self.decimation_file_delimiter = ","
         self.dc_signals = np.empty(shape=3)
-        self.settings_path = "configs/settings_daq.csv"
+        self.settings_path = "configs/settings.csv"
         self.lock_in = LockIn
         self.init_header = True
         self.sign = sign  # Makes the pti signal positive if it isn't
+        self.interferometer = interferometer
         self.load_response_phase()
 
     def load_response_phase(self):
@@ -46,33 +46,33 @@ class Inversion:
         equation 18.
         """
         try:
-            pti_signal = np.zeros(shape=(len(interferometer.phase)))
-            weight = np.zeros(shape=(len(interferometer.phase)))
+            pti_signal = np.zeros(shape=(len(self.interferometer.phase)))
+            weight = np.zeros(shape=(len(self.interferometer.phase)))
         except TypeError:
             pti_signal = 0
             weight = 0
         for channel in range(3):
             try:
-                sign = np.ones(shape=len(interferometer.phase))
-                sign[np.sin(interferometer.phase - interferometer.output_phases[channel]) < 0] = -1
+                sign = np.ones(shape=len(self.interferometer.phase))
+                sign[np.sin(self.interferometer.phase - self.interferometer.output_phases[channel]) < 0] = -1
             except TypeError:
-                sign = 1 if np.sin(interferometer.phase - interferometer.output_phases[channel]) >= 0 else -1
+                sign = 1 if np.sin(self.interferometer.phase - self.interferometer.output_phases[channel]) >= 0 else -1
             response_phase = self.response_phases[channel]
-            amplitude = interferometer.amplitudes[channel]
+            amplitude = self.interferometer.amplitudes[channel]
             demodulated_signal = self.lock_in.amplitude[channel] * np.cos(self.lock_in.phase[channel] - response_phase)
             pti_signal += demodulated_signal * sign * amplitude
-            weight += amplitude * np.abs(np.sin(interferometer.phase - interferometer.output_phases[channel]))
+            weight += amplitude * np.abs(np.sin(self.interferometer.phase - self.interferometer.output_phases[channel]))
         self.pti_signal = -pti_signal / weight * Inversion.MICRO_RAD
 
     def calculate_sensitivity(self):
         slopes = 0
         for i in range(3):
-            slopes += interferometer.amplitudes[i] * np.abs(np.sin(interferometer.phase
-                                                                   - interferometer.output_phases[i]))
-        self.sensitivity = slopes / np.sum(interferometer.offsets)
+            slopes += self.interferometer.amplitudes[i] * np.abs(np.sin(self.interferometer.phase
+                                                                 - self.interferometer.output_phases[i]))
+        self.sensitivity = slopes / np.sum(self.interferometer.offsets)
 
     def _calculate_offline(self):
-        data = interferometer.read_decimation()
+        data = self.interferometer.read_decimation()
         dc_signals = data[[f"DC CH{i}" for i in range(1, 4)]].to_numpy()
         ac_signals = None
         ac_phases = None
@@ -87,7 +87,7 @@ class Inversion:
                 ac_phases = data[[f"Lock In Phase CH{i}" for i in range(1, 4)]].to_numpy().T
             except KeyError:
                 pass
-        interferometer.calculate_phase(dc_signals)
+        self.interferometer.calculate_phase(dc_signals)
         self.calculate_sensitivity()
         if ac_signals is not None:
             self.lock_in.amplitude = ac_signals
@@ -96,12 +96,12 @@ class Inversion:
         if ac_signals is not None:
             pd.DataFrame({"Interferometric Phase": "rad", "Sensitivity": "1/rad", "PTI Signal": "µrad"},
                          index=["s"]).to_csv("data/PTI_Inversion.csv", index_label="Time")
-            pd.DataFrame({"Interferometric Phase": interferometer.phase, "Sensitivity": self.sensitivity,
+            pd.DataFrame({"Interferometric Phase": self.interferometer.phase, "Sensitivity": self.sensitivity,
                           "PTI Signal": self.pti_signal}).to_csv(f"data/PTI_Inversion.csv", mode="a", header=False)
         else:
             pd.DataFrame({"Interferometric Phase": "rad", "Sensitivity": "1/rad."}, index=["s"]).to_csv(
                 "data/PTI_Inversion.csv", index_label="Time")
-            pd.DataFrame({"Interferometric Phase": interferometer.phase, "Sensitivity": self.sensitivity}
+            pd.DataFrame({"Interferometric Phase": self.interferometer.phase, "Sensitivity": self.sensitivity}
                          ).to_csv("data/PTI_Inversion.csv", header=False, mode="a", index_label="Time")
         logging.info("PTI Inversion calculated.")
 
@@ -152,7 +152,7 @@ class Decimation:
         Reads the binary data and save it into numpy arrays.
         """
         if self.file_path is None:
-            raise FileNotFoundError
+            raise FileNotFoundError(f"Could not open {self.file_path}")
         if not np.frombuffer(self.file.read(4), dtype=np.intc):
             return False
         np.frombuffer(self.file.read(4), dtype=np.intc)
@@ -178,8 +178,8 @@ class Decimation:
         first = np.where(self.ref > (1 / 2 * signal.square(self.time * 2 * np.pi * self.mod_frequency) + 1 / 2))[0][0]
         second = np.where(self.ref < (1 / 2 * signal.square(self.time * 2 * np.pi * self.mod_frequency) + 1 / 2))[0][0]
         phase_shift = max(first, second) / self.samples
-        in_phase = np.sin(2 * np.pi * 80 * (self.time - phase_shift))
-        quadrature = np.cos(2 * np.pi * 80 * (self.time - phase_shift))
+        in_phase = np.sin(2 * np.pi * self.mod_frequency * (self.time - phase_shift))
+        quadrature = np.cos(2 * np.pi * self.mod_frequency * (self.time - phase_shift))
         np.mean(self.ac * in_phase, axis=1, out=self.ac_x)
         np.mean(self.ac * quadrature, axis=1, out=self.ac_y)
 

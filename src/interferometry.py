@@ -2,21 +2,21 @@ import csv
 import threading
 from collections import defaultdict
 import logging
-from enum import IntEnum
 
 import numpy as np
 import pandas as pd
 from scipy import optimize, linalg
 
 
-class _Interferometry:
-    def __init__(self):
-        self.settings_path = "configs/settings.csv"
-        self.decimation_filepath = "data/Decimation.csv"
+class Interferometry:
+    def __init__(self, settings_path="configs/settings.csv", decimation_filepath="data/Decimation.csv",
+                 output_phases=np.empty(shape=3), amplitudes=np.empty(shape=3), offsets=np.empty(shape=3)):
+        self.settings_path = settings_path
+        self.decimation_filepath = decimation_filepath
         self.phase = 0  # type: float | np.ndarray
-        self._output_phases = np.empty(shape=3)
-        self._amplitudes = np.empty(shape=3)
-        self._offsets = np.empty(shape=3)
+        self._output_phases = output_phases
+        self._amplitudes = amplitudes
+        self._offsets = offsets
         self._locks = {"Output Phases": threading.Lock(), "Amplitudes": threading.Lock(), "Offsets": threading.Lock()}
         self.init_settings()
 
@@ -25,6 +25,27 @@ class _Interferometry:
         self.output_phases = np.deg2rad(settings.loc["Output Phases [deg]"].to_numpy())
         self.amplitudes = settings.loc["Amplitude [V]"].to_numpy()
         self.offsets = settings.loc["Offset [V]"].to_numpy()
+
+    def __eq__(self, other):
+        return self.amplitudes == other.amplitudes and self.offsets == other.amplitudes and\
+               self.output_phases == other.output_phases
+
+    def __repr__(self):
+        class_name = self.__class__.__name__
+        representation = f"{class_name}(setting_path={self.settings_path}, decimation_path={self.decimation_filepath}\n"
+        representation += f"phae={self.phase}, output_phases={self.output_phases}, amplitudes={self.amplitudes}\n"
+        representation += f"offsets={self.offsets})"
+        return representation
+
+    def __str__(self):
+        output_phase_str = "Output Phases [deg]:"
+        amplitude_str = "Amplitudes [V]:"
+        offset_str = "Offsets [V]:"
+        for i in range(3):
+            output_phase_str.join(f"CH {i + 1}: {np.rad2deg(round(self.output_phases[i])), 2}\n")
+            amplitude_str.join(f"CH {i + 1}: {round(self.amplitudes[i]), 2}\n")
+            offset_str.join(f"CH {i + 1}: {round(self.offsets[i]), 2}\n")
+        return amplitude_str + "\n" + offset_str + "\n" + output_phase_str
 
     @property
     def amplitudes(self):
@@ -79,15 +100,15 @@ class _Interferometry:
         elif intensity.shape[0] == intensity.shape[1]:
             raise ValueError(f"Same shape for both dimensions. Could determine which dimension describes channels.")
 
-    def calculate_amplitude(self, intensity):
-        _Interferometry.error_handing_intensity(intensity)
+    def calculate_amplitudes(self, intensity):
+        Interferometry.error_handing_intensity(intensity)
         if intensity.shape[1] == 3:
             self.amplitudes = (np.max(intensity, axis=0) - np.min(intensity, axis=0)) / 2
         else:
             self.amplitudes = (np.max(intensity, axis=1) - np.min(intensity, axis=1)) / 2
 
-    def calculate_offset(self, intensity):
-        _Interferometry.error_handing_intensity(intensity)
+    def calculate_offsets(self, intensity):
+        Interferometry.error_handing_intensity(intensity)
         if intensity.shape[1] == 3:
             self.offsets = (np.max(intensity, axis=0) + np.min(intensity, axis=0)) / 2
         else:
@@ -121,15 +142,6 @@ class _Interferometry:
             self.phase = np.fromiter(map(self._calculate_phase, intensities), dtype=np.float)
 
 
-interferometer = _Interferometry()
-
-
-class _Index(IntEnum):
-    AMPLITUDES = 0
-    OFFSETS = 1
-    OUTPUT_PHASES = 2
-
-
 class Characterization:
     """
     Provided an API for the characterization of an interferometer as described in [1].
@@ -138,19 +150,33 @@ class Characterization:
          interferometer for aerosol measurements
     """
 
-    def __init__(self, step_size=100):
-        self._signals = None
+    def __init__(self, step_size=100, interferometry=Interferometry(), signals=None, use_settings=True):
+        self._signals = signals
         self.tracking_phase = []
         self._phases = []
-        self.step_size = step_size  # type: int
+        self.step_size = step_size
         self._occurred_phases = np.full(step_size, False)
-        self.use_settings = True
+        self.use_settings = use_settings
         self.time_stamp = 0
         self.characterised_data = defaultdict(list)
+        self.interferometry = interferometry
         for channel in range(1, 4):
             self.characterised_data[f"Output Phase CH{channel}"].append("deg")
             self.characterised_data[f"Amplitude CH{channel}"].append("V")
             self.characterised_data[f"Offset CH{channel}"].append("V")
+
+    def __call__(self, mode):
+        match mode:
+            case "offline":
+                self._calculate_offline()
+            case _:
+                raise TypeError(f"Mode {mode} is an invalid mode.")
+
+    def __repr__(self):
+        class_name = self.__class__.__name__
+        representation = f"{class_name}(signals={self.signals}, use_settings={self.use_settings}," \
+                         f" step_size={self.step_size}, interferometry={self.interferometry}"
+        return representation
 
     @property
     def signals(self):
@@ -158,7 +184,7 @@ class Characterization:
 
     @signals.setter
     def signals(self, signals):
-        interferometer.error_handing_intensity(signals)
+        self.interferometry.error_handing_intensity(signals)
         try:
             if signals.shape[1] == 3:
                 self._signals = signals.T
@@ -238,66 +264,55 @@ class Characterization:
         p, res, rnk, s = linalg.lstsq(parameters, self.signals[2], check_finite=False)
         add_values(p)
 
-        interferometer.output_phases = output_phases
-        interferometer.amplitudes = amplitudes
-        interferometer.offsets = offsets
+        self.interferometry.output_phases = output_phases
+        self.interferometry.amplitudes = amplitudes
+        self.interferometry.offsets = offsets
 
-    def _iterate_characterization(self, dc_signals):
+    def iterate_characterization(self, dc_signals):
         if not self.use_settings:
             logging.info("Start iteration...")
             for i in range(30):
-                interferometer.calculate_phase(dc_signals)
+                self.interferometry.calculate_phase(dc_signals)
                 self.signals = dc_signals
-                self.phases = interferometer.phase
+                self.phases = self.interferometry.phase
                 self.characterise_interferometer()
-                logging.info(f"i = {i}: Output Phases: {np.rad2deg(interferometer.output_phases)}")
-                logging.info(f"Amplitudes: {interferometer.amplitudes}")
-                logging.info(f"Offsets: {interferometer.offsets}")
+                logging.info(msg=self.interferometry)
             else:
-                logging.info("Final value: ", np.rad2deg(interferometer.output_phases))
-                logging.info(f"Amplitudes: {interferometer.amplitudes}")
-                logging.info(f"Offsets: {interferometer.offsets}")
+                logging.info("Final values:\n".join(str(self.interferometry)))
         else:
             self.characterise_interferometer()
 
     def _add_characterisation_data(self):
         for i in range(3):
-            self.characterised_data[f"Output Phase CH{1 + i}"].append(np.rad2deg(interferometer.output_phases[i]))
-            self.characterised_data[f"Amplitude CH{1 + i}"].append(interferometer.amplitudes[i])
-            self.characterised_data[f"Offset CH{1 + i}"].append(interferometer.offsets[i])
+            self.characterised_data[f"Output Phase CH{1 + i}"].append(np.rad2deg(self.interferometry.output_phases[i]))
+            self.characterised_data[f"Amplitude CH{1 + i}"].append(self.interferometry.amplitudes[i])
+            self.characterised_data[f"Offset CH{1 + i}"].append(self.interferometry.offsets[i])
 
     def _calculate_offline(self):
-        data = interferometer.read_decimation()
+        data = self.interferometry.read_decimation()
         dc_signals = data[[f"DC CH{i}" for i in range(1, 4)]].to_numpy()
         self.clear()
         last_index = 0
         if self.use_settings:
-            settings = pd.read_csv(interferometer.settings_path, index_col="Setting")
-            interferometer.output_phases = np.deg2rad(settings.loc["Output Phases [deg]"])
-            interferometer.amplitudes = settings.loc["Amplitude [V]"]
-            interferometer.offsets = settings.loc["Offset [V]"]
+            settings = pd.read_csv(self.interferometry.settings_path, index_col="Setting")
+            self.interferometry.output_phases = np.deg2rad(settings.loc["Output Phases [deg]"])
+            self.interferometry.amplitudes = settings.loc["Amplitude [V]"]
+            self.interferometry.offsets = settings.loc["Offset [V]"]
         else:
-            interferometer.calculate_offset(dc_signals)
-            interferometer.calculate_amplitude(dc_signals)
-            interferometer.output_phases = np.array([0, 2 * np.pi / 3, 4 * np.pi / 3])
+            self.interferometry.calculate_offsets(dc_signals)
+            self.interferometry.calculate_amplitudes(dc_signals)
+            self.interferometry.output_phases = np.array([0, 2 * np.pi / 3, 4 * np.pi / 3])
         self.characterised_data["Time Stamp"].append("s")
         for i in range(len(data)):
-            interferometer.calculate_phase(dc_signals[i])
-            self.add_phase(interferometer.phase)
+            self.interferometry.calculate_phase(dc_signals[i])
+            self.add_phase(self.interferometry.phase)
             if self.enough_values():
                 self.signals = dc_signals[last_index: i + 1]
                 self.phases = self.tracking_phase
-                self._iterate_characterization(dc_signals=dc_signals[last_index: i + 1])
+                self.iterate_characterization(dc_signals=dc_signals[last_index: i + 1])
                 self._add_characterisation_data()
                 last_index = i + 1
                 self.characterised_data["Time Stamp"].append(i)
                 self.clear()
         pd.DataFrame(self.characterised_data).to_csv("data/Characterisation.csv", index=False)
         logging.info("Characterization finished")
-
-    def __call__(self, mode):
-        match mode:
-            case "offline":
-                self._calculate_offline()
-            case _:
-                raise TypeError(f"Mode {mode} is an invalid mode.")
