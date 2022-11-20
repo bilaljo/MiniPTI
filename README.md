@@ -51,14 +51,20 @@ such a file can be found in src/configs/settings.csv. There also settings files 
 ### **Calculating the interferometric Phase**
 
 ```python
-from interferometry import interferometer
+from interferometry import Interferometry
+import pandas as pd
 
+interferometer = Interferometry()
 
-interferometer.settings_file_path = "configs/settings.csv"
-interferometer.decimation_file_path = "data/Decimation.csv"
-interferometer.calculate_offsets()  # Estimate offsets
-interferometer.calculate_amplitudes()  # Estimate amplitudes
-interferometer.calculate_phase()
+interferometer.settings_file_path = "https://github.com/bilaljo/MiniPTI/blob/main/src/configs/settings.csv"
+interferometer.decimation_file_path = "https://github.com/bilaljo/MiniPTI/blob/main/notebooks/data/Decimation_Comercial.csv"
+data = pd.read_csv("https://github.com/bilaljo/MiniPTI/blob/main/notebooks/data/Decimation_Comercial.csv")
+
+dc_signals = [data[f"DC CH{i}"] for i in range(1, 4)]
+
+interferometer.calculate_offsets(dc_signals)  # Estimate offsets
+interferometer.calculate_amplitudes(dc_signals)  # Estimate amplitudes
+interferometer.calculate_phase(dc_signals)
 ```
 
 ### **Characterising the Interferometer**
@@ -71,9 +77,10 @@ repeating of calculating the interferometric phase and parameters.
 characterization itself saves the data directly to ```data/Characterization.csv```
 if you use the provided wrappers.
 ```python
-from interferometry import interferometer, Characterization
-interferometer.settings_file_path = "configs/settings.csv"
-interferometer.decimation_file_path = "data/Decimation.csv"
+from interferometry import Interferometry, Characterization
+interferometer = Interferometry()
+interferometer.settings_file_path = "https://github.com/bilaljo/MiniPTI/blob/main/src/configs/settings.csv"
+interferometer.decimation_file_path = "https://github.com/bilaljo/MiniPTI/blob/main/notebooks/data/Decimation_Comercial.csv"
 
 characterization = Characterization()
 characterization(mode="offline")
@@ -83,21 +90,23 @@ characterization(mode="offline")
 ```
 ### **Direct usage of API**
 ```python
-from interferometry import interferometer, Characterization
+from interferometry import Interferometry, Characterization
 import pandas as pd
 
-dc_signals = pd.read_csv("Decimation.csv")
+interferometer = Interferometry()
+dc_signals = pd.read_csv("https://github.com/bilaljo/MiniPTI/blob/main/notebooks/data/Decimation_Comercial.csv")
 characterization = Characterization()
-interferometer.settings_path = "configs/settings.csv"
+interferometer.settings_path = "https://github.com/bilaljo/MiniPTI/blob/main/src/configs/settings.csv"
 characterization.signals = [dc_signals[f"DC CH{i}"] for i in range(1, 4)]
+interferometer.init_settings()
 
 # Without knowing any parameter
 characterization.use_settings = False
-characterization.iterate_characterization()
+characterization.iterate_characterization(characterization.signals)
 print(characterization)
 
 # With knowing the parameters and already calculated phases
-phases = pd.read_csv("PTI_Inversion.csv")
+phases = pd.read_csv("https://github.com/bilaljo/MiniPTI/blob/main/notebooks/data/PTI_Inversion_Comercial.csv")
 characterization.phases = phases["Interferometric Phase"]
 characterization.characterise_interferometer()
 print(characterization)
@@ -112,11 +121,13 @@ to the actual API.
 ```python
 import pandas as pd
 import pti
-from interferometry import interferometer
+from interferometry import Interferometry
 
+interferometer = Interferometry()
 
-dc_signals = pd.read_csv("Decimation.csv")
+dc_signals = pd.read_csv("https://github.com/bilaljo/MiniPTI/blob/main/notebooks/data/Decimation_Comercial.csv")
 interferometer.signals = [dc_signals[f"DC CH{i}"] for i in range(1, 4)]
+interferometer.init_settings()
 inversion = pti.Inversion()
 inversion(mode="offline")
 ```
@@ -124,12 +135,15 @@ inversion(mode="offline")
 ```python
 import pti
 import pandas as pd
-from interferometry import interferometer
+from interferometry import Interferometry
 
-dc_signals = pd.read_csv("Decimation.csv")
-interferometer.signals = [dc_signals[f"DC CH{i}"] for i in range(1, 4)]
-inversion = pti.Inversion()
-interferometer.calculate_phase()
+interferometer = Interferometry()
+
+data = pd.read_csv("https://github.com/bilaljo/MiniPTI/blob/main/notebooks/data/Decimation_Comercial.csv")
+interferometer.init_settings()
+dc_signals = [data[f"DC CH{i}"] for i in range(1, 4)]
+inversion = pti.Inversion(interferometer=interferometer)
+interferometer.calculate_phase(dc_signals)
 
 inversion.calculate_sensitivity()
 inversion.calculate_pti_signal()
