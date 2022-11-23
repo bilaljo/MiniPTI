@@ -1,3 +1,1 @@
 notebooks/* linguist-vendored=true
-src/gui/azure.tcl linguist-vendored=true
-src/gui/theme/* linguist-vendored=true
