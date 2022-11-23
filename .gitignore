@@ -1,14 +1,6 @@
-src/gui/__pycache__
-src/pti/__pycache__
-src/pti/*.csv
-src/pti/*.bin
-src/gui/*.csv
-src/*.bin
-src/*.csv
-src/.idea
 .idea
-notebooks/*.csv
-notebooks/*.pdf
-notebooks/*.txt
+data
+__pycache__
 notebooks/.ipynb_checkpoints
 notebooks/__pycache__
+notebooks/data
