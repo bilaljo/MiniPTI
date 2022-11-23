@@ -1,11 +1,12 @@
 import logging
+import os
 from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
 from scipy import signal
 
-from interferometry import Interferometer
+from minipti.interferometry import Interferometer
 
 
 @dataclass
@@ -23,18 +24,17 @@ class Inversion:
     """
     MICRO_RAD = 1e6
 
-    def __init__(self, response_phases=None, sign=1, interferometer=Interferometer()):
+    def __init__(self, response_phases=None, sign=1, interferometer=None, settings_path="configs/settings.csv"):
         self.response_phases = response_phases
         self.pti_signal = None  # type: float | np.array
         self.sensitivity = None
         self.decimation_file_delimiter = ","
         self.dc_signals = np.empty(shape=3)
-        self.settings_path = "configs/settings.csv"
+        self.settings_path = settings_path
         self.lock_in = LockIn
         self.init_header = True
         self.sign = sign  # Makes the pti signal positive if it isn't
         self.interferometer = interferometer
-        self.load_response_phase()
 
     def __repr__(self):
         class_name = self.__class__.__name__
@@ -78,10 +78,12 @@ class Inversion:
         slopes = 0
         for i in range(3):
             slopes += self.interferometer.amplitudes[i] * np.abs(np.sin(self.interferometer.phase
-                                                                 - self.interferometer.output_phases[i]))
+                                                                        - self.interferometer.output_phases[i]))
         self.sensitivity = slopes / np.sum(self.interferometer.offsets)
 
     def _calculate_offline(self):
+        if not os.path.exists("data"):
+            os.mkdir("data")
         data = self.interferometer.read_decimation()
         dc_signals = data[[f"DC CH{i}" for i in range(1, 4)]].to_numpy()
         ac_signals = None

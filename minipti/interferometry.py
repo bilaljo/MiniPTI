@@ -1,7 +1,7 @@
 import csv
+import logging
 import threading
 from collections import defaultdict
-import logging
 
 import numpy as np
 import pandas as pd
@@ -18,7 +18,6 @@ class Interferometer:
         self._amplitudes = amplitudes
         self._offsets = offsets
         self._locks = {"Output Phases": threading.Lock(), "Amplitudes": threading.Lock(), "Offsets": threading.Lock()}
-        self.init_settings()
 
     def init_settings(self):
         settings = pd.read_csv(self.settings_path, index_col="Setting")
@@ -27,7 +26,7 @@ class Interferometer:
         self.offsets = settings.loc["Offset [V]"].to_numpy()
 
     def __eq__(self, other):
-        return self.amplitudes == other.amplitudes and self.offsets == other.amplitudes and\
+        return self.amplitudes == other.amplitudes and self.offsets == other.amplitudes and \
                self.output_phases == other.output_phases
 
     def __repr__(self):
@@ -122,6 +121,7 @@ class Interferometer:
                 return np.cos(phase - self.output_phases) - intensity_scaled
             except TypeError:
                 return np.cos(np.array(phase) - np.array(self.output_phases)) - intensity_scaled
+
         return error
 
     def __error_function_df(self, phase):
@@ -150,7 +150,7 @@ class Characterization:
          interferometer for aerosol measurements
     """
 
-    def __init__(self, step_size=100, interferometry=Interferometer(), signals=None, use_settings=True):
+    def __init__(self, step_size=100, interferometry=None, signals=None, use_settings=True):
         self._signals = signals
         self.tracking_phase = []
         self._phases = []
