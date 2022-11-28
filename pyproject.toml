@@ -1,0 +1,18 @@
+[project]
+name = "MiniPTI_bilaljo"
+version = "1.0"
+authors = [
+    { name = "Jonas Bilal", email = "jonasbilal@outlook.com" },
+]
+description = "Provies algorithm for photo thermal interferometry and 3x3 couplers"
+readme = "README.md"
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/bilaljo/MiniPTI"
+"Bug Tracker" = "https://github.com/bilaljo/MiniPTI/issues"
