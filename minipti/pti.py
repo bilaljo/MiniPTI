@@ -1,12 +1,42 @@
+import copy
 import logging
 import os
+import tarfile
+import threading
 from dataclasses import dataclass
+from datetime import datetime
 
 import numpy as np
 import pandas as pd
-from scipy import signal
+import driver
 
-from minipti.interferometry import Interferometer
+from interferometry import interferometer
+
+
+class LiveMeasurement:
+    def __init__(self, inversion, characterization, decimation):
+        self.running = threading.Event()
+        self.decimation = decimation
+        self.inversion = inversion
+        self.characterization = characterization
+        self.signals = []
+
+    def calculate_inversion(self):
+        self.decimation(mode="online")
+        self.inversion.lock_in = self.decimation.lock_in  # Note that this copies a reference
+        self.inversion.dc_signals = self.decimation.dc_signals
+        self.inversion(mode="online")
+        self.characterization.add_phase(interferometer.phase)
+        self.signals.append(copy.deepcopy(self.decimation.dc_signals))
+        if self.characterization.enough_values():
+            self.characterization.signals = copy.deepcopy(self.signals)
+            self.characterization.phases = copy.deepcopy(self.characterization.tracking_phase)
+            self.characterization.event.set()
+            self.signals = []
+
+    def calculate_characterization(self):
+        while self.running.is_set():
+            self.characterization(mode="online")
 
 
 @dataclass
@@ -24,17 +54,18 @@ class Inversion:
     """
     MICRO_RAD = 1e6
 
-    def __init__(self, response_phases=None, sign=1, interferometer=None, settings_path="configs/settings.csv"):
+    def __init__(self, response_phases=None, sign=1):
+        super().__init__()
         self.response_phases = response_phases
         self.pti_signal = None  # type: float | np.array
         self.sensitivity = None
         self.decimation_file_delimiter = ","
         self.dc_signals = np.empty(shape=3)
-        self.settings_path = settings_path
+        self.settings_path = "configs/settings_daq.csv"
         self.lock_in = LockIn
         self.init_header = True
         self.sign = sign  # Makes the pti signal positive if it isn't
-        self.interferometer = interferometer
+        self.load_response_phase()
 
     def __repr__(self):
         class_name = self.__class__.__name__
@@ -56,35 +87,33 @@ class Inversion:
         equation 18.
         """
         try:
-            pti_signal = np.zeros(shape=(len(self.interferometer.phase)))
-            weight = np.zeros(shape=(len(self.interferometer.phase)))
+            pti_signal = np.zeros(shape=(len(interferometer.phase)))
+            weight = np.zeros(shape=(len(interferometer.phase)))
         except TypeError:
             pti_signal = 0
             weight = 0
         for channel in range(3):
             try:
-                sign = np.ones(shape=len(self.interferometer.phase))
-                sign[np.sin(self.interferometer.phase - self.interferometer.output_phases[channel]) < 0] = -1
+                sign = np.ones(shape=len(interferometer.phase))
+                sign[np.sin(interferometer.phase - interferometer.output_phases[channel]) < 0] = -1
             except TypeError:
-                sign = 1 if np.sin(self.interferometer.phase - self.interferometer.output_phases[channel]) >= 0 else -1
+                sign = 1 if np.sin(interferometer.phase - interferometer.output_phases[channel]) >= 0 else -1
             response_phase = self.response_phases[channel]
-            amplitude = self.interferometer.amplitudes[channel]
+            amplitude = interferometer.amplitudes[channel]
             demodulated_signal = self.lock_in.amplitude[channel] * np.cos(self.lock_in.phase[channel] - response_phase)
             pti_signal += demodulated_signal * sign * amplitude
-            weight += amplitude * np.abs(np.sin(self.interferometer.phase - self.interferometer.output_phases[channel]))
+            weight += amplitude * np.abs(np.sin(interferometer.phase - interferometer.output_phases[channel]))
         self.pti_signal = -pti_signal / weight * Inversion.MICRO_RAD
 
     def calculate_sensitivity(self):
         slopes = 0
         for i in range(3):
-            slopes += self.interferometer.amplitudes[i] * np.abs(np.sin(self.interferometer.phase
-                                                                        - self.interferometer.output_phases[i]))
-        self.sensitivity = slopes / np.sum(self.interferometer.offsets)
+            slopes += interferometer.amplitudes[i] * np.abs(np.sin(interferometer.phase
+                                                                   - interferometer.output_phases[i]))
+        self.sensitivity = slopes / np.sum(interferometer.offsets)
 
     def _calculate_offline(self):
-        if not os.path.exists("data"):
-            os.mkdir("data")
-        data = self.interferometer.read_decimation()
+        data = interferometer.read_decimation()
         dc_signals = data[[f"DC CH{i}" for i in range(1, 4)]].to_numpy()
         ac_signals = None
         ac_phases = None
@@ -99,7 +128,7 @@ class Inversion:
                 ac_phases = data[[f"Lock In Phase CH{i}" for i in range(1, 4)]].to_numpy().T
             except KeyError:
                 pass
-        self.interferometer.calculate_phase(dc_signals)
+        interferometer.calculate_phase(dc_signals)
         self.calculate_sensitivity()
         if ac_signals is not None:
             self.lock_in.amplitude = ac_signals
@@ -108,19 +137,42 @@ class Inversion:
         if ac_signals is not None:
             pd.DataFrame({"Interferometric Phase": "rad", "Sensitivity": "1/rad", "PTI Signal": "µrad"},
                          index=["s"]).to_csv("data/PTI_Inversion.csv", index_label="Time")
-            pd.DataFrame({"Interferometric Phase": self.interferometer.phase, "Sensitivity": self.sensitivity,
+            pd.DataFrame({"Interferometric Phase": interferometer.phase, "Sensitivity": self.sensitivity,
                           "PTI Signal": self.pti_signal}).to_csv(f"data/PTI_Inversion.csv", mode="a", header=False)
         else:
             pd.DataFrame({"Interferometric Phase": "rad", "Sensitivity": "1/rad."}, index=["s"]).to_csv(
                 "data/PTI_Inversion.csv", index_label="Time")
-            pd.DataFrame({"Interferometric Phase": self.interferometer.phase, "Sensitivity": self.sensitivity}
+            pd.DataFrame({"Interferometric Phase": interferometer.phase, "Sensitivity": self.sensitivity}
                          ).to_csv("data/PTI_Inversion.csv", header=False, mode="a", index_label="Time")
         logging.info("PTI Inversion calculated.")
+
+    def _calculate_online(self):
+        output_data = {}
+        if self.init_header:
+            output_data["Interferometric Phase"] = "rad"
+            output_data["Sensitivity"] = "1/rad"
+            output_data["PTI Signal"] = "µrad"
+            pd.DataFrame(output_data, index=["s"]).to_csv("data/PTI_Inversion.csv", index_label="Time")
+            self.init_header = False
+        interferometer.calculate_phase(self.dc_signals)
+        self.calculate_pti_signal()
+        self.calculate_sensitivity()
+        now = datetime.now()
+        time_stamp = str(now.strftime("%Y-%m-%d %H:%M:%S"))
+        output_data = {"Interferometric Phase": interferometer.phase, "Sensitivity": self.sensitivity,
+                       "PTI Signal": self.pti_signal}
+        try:
+            pd.DataFrame(output_data, index=[time_stamp]).to_csv("data/PTI_Inversion.csv", mode="a", index_label="Time",
+                                                                 header=not os.path.exists("data/PTI_Inversion.csv"))
+        except PermissionError:
+            logging.info(f"Could not write data. Missing values are: {str(output_data)[1:-1]} at {time_stamp}.")
 
     def __call__(self, mode):
         match mode:
             case "offline":
                 self._calculate_offline()
+            case "online":
+                self._calculate_online()
             case _:
                 raise TypeError(f"Mode {mode} is an invalid mode.")
 
@@ -129,71 +181,119 @@ class Decimation:
     """
     Provided an API for the PTI decimation described in [1] from Weingartner et al.
 
-    [1]: Waveguide based passively demodulated photothermal
+    The number of samples
+
+    [1]: Waveguide based passively demodulated photo-thermal
          interferometer for aerosol measurements
     """
+    REF_VOLTAGE = 3.3
+    DC_RESOLUTION = (1 << 12) - 1
+    AC_RESOLUTION = (1 << 16) // 2  # 16 bit ADC with 2 complement
+    AMPLIFICATION = 85
 
-    def __init__(self, samples=50000, mod_frequency=80, amplification=10, file_path="binary.bin"):
+    def __init__(self, samples=8000, ref_period=100, amplification=100, daq=driver.DAQ(), debug=True):
         self.samples = samples
-        self.mod_frequency = mod_frequency
-        self.dc = np.empty(shape=(3, self.samples))
-        self.ac = np.empty(shape=(3, self.samples))
-        self.dc_down_sampled = np.empty(shape=3)
-        self.time = np.linspace(0, 1, self.samples)
+        self.ref_period = ref_period
+        self.dc_coupled = np.empty(shape=(3, self.samples))
+        self.ac_coupled = np.empty(shape=(3, self.samples))
+        self.dc_signals = np.empty(shape=3)
+        self.lock_in = LockIn()
+        self.time = np.arange(0, self.samples)
         self.amplification = amplification  # The amplification is given by the hardware setup.
-        self.ac_x = np.empty(shape=3)
-        self.ac_y = np.empty(shape=3)
-        self.eof = False
         self.ref = None
-        self.file = None
-        self.file_path = file_path
+        self.daq = daq
+        self.debug = debug
+        self.number = 0
+        self.in_phase = np.cos(2 * np.pi / self.ref_period * self.time)
+        self.quadrature = np.sin(2 * np.pi / self.ref_period * self.time)
+        self.file_path = ""
+        self.init_header = True
+        self.now = datetime.now()
 
-    def __call__(self):
-        self._calculate_dc()
-        self._common_mode_noise_reduction()
-        self._lock_in_amplifier()
-
-    def __enter__(self):
-        self.file = open(file=self.file_path, mode="rb")
-
-    def __exit__(self):
-        self.file.close()
-
-    def read_data(self):
+    def get_daq_data(self):
         """
-        Reads the binary data and save it into numpy arrays.
+        Reads the binary data and save it into numpy arrays. The data is saved into npy archives in debug mode.
         """
-        if self.file_path is None:
-            raise FileNotFoundError(f"Could not open {self.file_path}")
-        if not np.frombuffer(self.file.read(4), dtype=np.intc):
-            return False
-        np.frombuffer(self.file.read(4), dtype=np.intc)
-        for channel in range(3):
-            self.dc[channel] = np.frombuffer(self.file.read(self.samples * 8), dtype=np.float64)
-        self.ref = np.frombuffer(self.file.read(self.samples * 8), dtype=np.float64)
-        for channel in range(3):
-            self.ac[channel] = np.frombuffer(self.file.read(self.samples * 8), dtype=np.float64) / self.amplification
-        return True
+        self.ref = np.array(self.daq.package_data.ref_signal.get(block=True))
+        self.dc_coupled = np.array(self.daq.package_data.dc_coupled.get(block=True))
+        self.ac_coupled = np.array(self.daq.package_data.ac_coupled.get(block=True))
+        if self.debug:
+            np.savez(file=f"data/raw_data_{self.number}", ref=self.ref, dc_coupled=self.dc_coupled,
+                     ac_coupled=self.ac_coupled)
+            with tarfile.open("data/raw_data.tar", "a") as tar:
+                tar.add(f"data/raw_data_{self.number}.npz")
+                try:
+                    os.remove(f"data/raw_data_{self.number}.npz")
+                except PermissionError:
+                    try:  # Try again
+                        os.remove(f"data/raw_data_{self.number}.npz")
+                    except PermissionError:
+                        pass
+            self.number += 1
+        dc_coupled = self.dc_coupled * Decimation.REF_VOLTAGE / Decimation.DC_RESOLUTION
+        ac_coupled = self.ac_coupled / Decimation.AMPLIFICATION * Decimation.REF_VOLTAGE / Decimation.AC_RESOLUTION
+        self.dc_coupled = dc_coupled
+        self.ac_coupled = ac_coupled
 
-    def _calculate_dc(self):
+    def get_raw_data(self):
+        if self.file_path:
+            i = 0
+            with tarfile.open(self.file_path, "r") as tar:
+                try:
+                    tar.extract(f"raw_data_{i}.npz")
+                    yield f"raw_data_{i}.npz"
+                except KeyError:
+                    raise StopIteration
+
+    def calculate_dc(self):
         """
         Applies a low pass to the DC-coupled signals and decimate it to 1 s values.
         """
-        np.mean(self.dc, axis=1, out=self.dc_down_sampled)
+        np.mean(self.dc_coupled, axis=1, out=self.dc_signals)
 
-    def _common_mode_noise_reduction(self):
-        noise_factor = np.sum(self.ac, axis=0) / sum(self.dc_down_sampled)
+    def common_mode_noise_reduction(self):
+        noise_factor = np.sum(self.ac_coupled, axis=0) / sum(self.dc_signals)
         for channel in range(3):
-            self.ac[channel] = self.ac[channel] - noise_factor * self.dc_down_sampled[channel]
+            self.ac_coupled[channel] = self.ac_coupled[channel] - noise_factor * self.dc_signals[channel]
 
-    def _lock_in_amplifier(self):
-        first = np.where(self.ref > (1 / 2 * signal.square(self.time * 2 * np.pi * self.mod_frequency) + 1 / 2))[0][0]
-        second = np.where(self.ref < (1 / 2 * signal.square(self.time * 2 * np.pi * self.mod_frequency) + 1 / 2))[0][0]
-        phase_shift = max(first, second) / self.samples
-        in_phase = np.sin(2 * np.pi * self.mod_frequency * (self.time - phase_shift))
-        quadrature = np.cos(2 * np.pi * self.mod_frequency * (self.time - phase_shift))
-        np.mean(self.ac * in_phase, axis=1, out=self.ac_x)
-        np.mean(self.ac * quadrature, axis=1, out=self.ac_y)
+    def lock_in_amplifier(self):
+        ac_x = np.mean(self.ac_coupled * self.in_phase, axis=1)
+        ac_y = np.mean(self.ac_coupled * self.quadrature, axis=1)
+        self.lock_in.phase = np.arctan2(ac_y, ac_x)
+        self.lock_in.amplitude = np.sqrt(ac_x ** 2 + ac_y ** 2)
 
-    def polar_lock_in(self):
-        return np.sqrt(self.ac_x ** 2 + self.ac_y ** 2), np.arctan2(self.ac_y, self.ac_x)
+    def _calculate_decimation(self):
+        self.calculate_dc()
+        self.common_mode_noise_reduction()
+        self.lock_in_amplifier()
+        output_data = {}
+        if self.init_header:
+            for channel in range(3):
+                output_data[f"Lock In Amplitude CH{channel + 1}"] = "V"
+                output_data[f"Lock In Phase CH{channel + 1}"] = "deg"
+                output_data[f"DC CH{channel + 1}"] = "V"
+            pd.DataFrame(output_data, index=["s"]).to_csv("data/Decimation.csv", index_label="Time")
+            self.init_header = False
+        for channel in range(3):
+            output_data[f"Lock In Amplitude CH{channel + 1}"] = self.lock_in.amplitude[channel]
+            output_data[f"Lock In Phase CH{channel + 1}"] = np.rad2deg(self.lock_in.phase[channel])
+            output_data[f"DC CH{channel + 1}"] = self.dc_signals[channel]
+        now = datetime.now()
+        time_stamp = str(now.strftime("%Y-%m-%d %H:%M:%S"))
+        try:
+            pd.DataFrame(output_data, index=[time_stamp]).to_csv("data/Decimation.csv", mode="a", index_label="Time",
+                                                                 header=not os.path.exists("data/Decimation.csv"))
+        except PermissionError:
+            logging.info(f"Could not write data. Missing values are: {str(output_data)[1:-1]} at {time_stamp}.")
+
+    def __call__(self, mode):
+        match mode:
+            case "online":
+                self.get_daq_data()
+                self._calculate_decimation()
+            case "offline":
+                for file in self.get_raw_data():
+                    with np.load(file) as data:
+                        self.dc_coupled = data["dc_coupled"]
+                        self.ac_coupled = data["ac_coupled"]
+                    self._calculate_decimation()
