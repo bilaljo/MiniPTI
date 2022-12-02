@@ -146,9 +146,9 @@ class Characterization:
     """
     Provided an API for the characterization of an interferometer as described in [1].
 
-    [1]: Waveguide based passively demodulated photo-thermal
-         interferometer for aerosol measurements
+    [1]:
     """
+    MAX_ITERATIONS = 30
 
     def __init__(self, step_size=100, interferometry=None, signals=None, use_settings=True):
         self._signals = signals
@@ -271,8 +271,11 @@ class Characterization:
     def iterate_characterization(self, dc_signals):
         if not self.use_settings:
             logging.info("Start iteration...")
-            for i in range(30):
-                self.interferometry.calculate_phase(dc_signals)
+            for i in range(Characterization.MAX_ITERATIONS):
+                try:
+                    self.interferometry.calculate_phase(dc_signals)
+                except ValueError:
+                    self.interferometry.calculate_phase(dc_signals.T)
                 self.signals = dc_signals
                 self.phases = self.interferometry.phase
                 self.characterise_interferometer()
