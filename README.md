@@ -1,3 +1,6 @@
+# MiniPTI
+This repository provides the python based implementation from the algorithm that we have presented in
+[Waveguide based passively demodulated photothermal interferometer for light absorption measurements](https://doi.org/10.1364/AO.476868).
 # **Version 1.0**
 
 Version 1.0 provides the whole algorithms for offline evaluation, based on from LabView generated binary files.
