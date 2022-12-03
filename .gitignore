@@ -1,6 +1,7 @@
 .idea
-data
-__pycache__
 notebooks/.ipynb_checkpoints
 notebooks/__pycache__
-notebooks/data
+minipti/__pycache__
+tests/__pycache__
+minipti/.idea
+
