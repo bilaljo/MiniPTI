@@ -4,9 +4,9 @@ version = "1.0"
 authors = [
     { name = "Jonas Bilal", email = "jonasbilal@outlook.com" },
 ]
-description = "Provies algorithm for photo thermal interferometry and 3x3 couplers"
+description = "Provides algorithm for photo thermal interferometry and 3x3 couplers"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
