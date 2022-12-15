@@ -151,13 +151,13 @@ class Characterization:
     MAX_ITERATIONS = 30
 
     def __init__(self, step_size=100, interferometry=None, signals=None, use_settings=True):
-        self._signals = signals
+        self.signals = signals
         self.tracking_phase = []
         self._phases = []
         self.step_size = step_size
         self._occurred_phases = np.full(step_size, False)
         self.use_settings = use_settings
-        self.time_stamp = 0
+        self._time_stamp = 0
         self.characterised_data = defaultdict(list)
         self.interferometry = interferometry
         for channel in range(1, 4):
@@ -180,22 +180,22 @@ class Characterization:
 
     @property
     def signals(self):
-        return self._signals
+        return self.signals
 
     @signals.setter
     def signals(self, signals):
         self.interferometry.error_handing_intensity(signals)
         try:
             if signals.shape[1] == 3:
-                self._signals = signals.T
+                self.signals = signals.T
             else:
-                self._signals = signals
+                self.signals = signals
         except AttributeError:
             signals = np.array(signals)
             if signals.shape[1] == 3:
-                self._signals = signals.T
+                self.signals = signals.T
             else:
-                self._signals = signals
+                self.signals = signals
 
     @property
     def occurred_phases(self):
@@ -216,7 +216,7 @@ class Characterization:
         Args:
             phase (float): The occurred interferometric phase in rad.
         """
-        self.time_stamp += 1
+        self._time_stamp += 1
         if phase > 2 * np.pi:
             phase %= 2 * np.pi  # Phase is out of range
         self.tracking_phase.append(phase)
@@ -230,7 +230,7 @@ class Characterization:
         self.phases = []
         self.tracking_phase = []
         self._occurred_phases = np.full(self.step_size, False)
-        self._signals = []
+        self.signals = []
 
     def characterise_interferometer(self):
         """
