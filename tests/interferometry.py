@@ -1,7 +1,9 @@
-import minipti
-import pandas as pd
 import unittest
+
 import numpy as np
+import pandas as pd
+
+import minipti
 
 
 class TestInterferometer(unittest.TestCase):

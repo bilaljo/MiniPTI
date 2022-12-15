@@ -6,8 +6,6 @@ import numpy as np
 import pandas as pd
 from scipy import signal
 
-from minipti.interferometry import Interferometer
-
 
 @dataclass
 class LockIn:
@@ -132,21 +130,20 @@ class Decimation:
     [1]: Waveguide based passively demodulated photothermal
          interferometer for aerosol measurements
     """
+    AMPLIFICATION = 10
+    MOD_FREQUENCY = 80
+    SAMPLES = 50000
 
-    def __init__(self, samples=50000, mod_frequency=80, amplification=10, file_path="binary.bin"):
-        self.samples = samples
-        self.mod_frequency = mod_frequency
-        self.dc = np.empty(shape=(3, self.samples))
-        self.ac = np.empty(shape=(3, self.samples))
-        self.dc_down_sampled = np.empty(shape=3)
-        self.time = np.linspace(0, 1, self.samples)
-        self.amplification = amplification  # The amplification is given by the hardware setup.
-        self.ac_x = np.empty(shape=3)
-        self.ac_y = np.empty(shape=3)
+    def __init__(self, file_path="binary.bin"):
+        self.dc_coupled = np.empty(shape=(3, Decimation.SAMPLES))
+        self.ac_coupled = np.empty(shape=(3, Decimation.SAMPLES))
+        self.dc_signals = np.empty(shape=3)
+        self.lock_in = LockIn()
         self.eof = False
         self.ref = None
         self.file = None
         self.file_path = file_path
+        self._time = np.linspace(0, 1, Decimation.SAMPLES)
 
     def __call__(self):
         self._calculate_dc()
@@ -169,31 +166,33 @@ class Decimation:
             return False
         np.frombuffer(self.file.read(4), dtype=np.intc)
         for channel in range(3):
-            self.dc[channel] = np.frombuffer(self.file.read(self.samples * 8), dtype=np.float64)
-        self.ref = np.frombuffer(self.file.read(self.samples * 8), dtype=np.float64)
+            self.dc_coupled[channel] = np.frombuffer(self.file.read(Decimation.SAMPLES * 8), dtype=np.float64)
+        self.ref = np.frombuffer(self.file.read(Decimation.SAMPLES * 8), dtype=np.float64)
         for channel in range(3):
-            self.ac[channel] = np.frombuffer(self.file.read(self.samples * 8), dtype=np.float64) / self.amplification
+            self.ac_coupled[channel] = np.frombuffer(self.file.read(Decimation.SAMPLES * 8),
+                                                     dtype=np.float64) / Decimation.AMPLIFICATION
         return True
 
     def _calculate_dc(self):
         """
         Applies a low pass to the DC-coupled signals and decimate it to 1 s values.
         """
-        np.mean(self.dc, axis=1, out=self.dc_down_sampled)
+        np.mean(self.dc_coupled, axis=1, out=self.dc_signals)
 
     def _common_mode_noise_reduction(self):
-        noise_factor = np.sum(self.ac, axis=0) / sum(self.dc_down_sampled)
+        noise_factor = np.sum(self.ac_coupled, axis=0) / sum(self.dc_signals)
         for channel in range(3):
-            self.ac[channel] = self.ac[channel] - noise_factor * self.dc_down_sampled[channel]
+            self.ac_coupled[channel] = self.ac_coupled[channel] - noise_factor * self.dc_signals[channel]
 
     def _lock_in_amplifier(self):
-        first = np.where(self.ref > (1 / 2 * signal.square(self.time * 2 * np.pi * self.mod_frequency) + 1 / 2))[0][0]
-        second = np.where(self.ref < (1 / 2 * signal.square(self.time * 2 * np.pi * self.mod_frequency) + 1 / 2))[0][0]
-        phase_shift = max(first, second) / self.samples
-        in_phase = np.sin(2 * np.pi * self.mod_frequency * (self.time - phase_shift))
-        quadrature = np.cos(2 * np.pi * self.mod_frequency * (self.time - phase_shift))
-        np.mean(self.ac * in_phase, axis=1, out=self.ac_x)
-        np.mean(self.ac * quadrature, axis=1, out=self.ac_y)
-
-    def polar_lock_in(self):
-        return np.sqrt(self.ac_x ** 2 + self.ac_y ** 2), np.arctan2(self.ac_y, self.ac_x)
+        first = np.where(self.ref > (1 / 2 * signal.square(self._time * 2 * np.pi * Decimation.MOD_FREQUENCY)
+                                     + 1 / 2))[0][0]
+        second = np.where(self.ref < (1 / 2 * signal.square(self._time * 2 * np.pi * Decimation.MOD_FREQUENCY)
+                                      + 1 / 2))[0][0]
+        phase_shift = max(first, second) / Decimation.SAMPLES
+        in_phase = np.sin(2 * np.pi * Decimation.MOD_FREQUENCY * (self._time - phase_shift))
+        quadrature = np.cos(2 * np.pi * Decimation.MOD_FREQUENCY * (self._time - phase_shift))
+        ac_x = np.mean(self.ac_coupled * in_phase, axis=1)
+        ac_y = np.mean(self.ac_coupled * quadrature, axis=1)
+        self.lock_in.phase = np.arctan2(ac_y, ac_x)
+        self.lock_in.amplitude = np.sqrt(ac_x ** 2 + ac_y ** 2)
