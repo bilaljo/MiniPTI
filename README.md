@@ -1,39 +1,46 @@
 # MiniPTI
+
 In this library the python implementation of the algorithm from
-[Waveguide based passively demodulated photothermal interferometer for light absorption measurements](https://doi.org/10.1364/AO.476868) is provided.
+[Waveguide based passively demodulated photothermal interferometer for light absorption measurements](https://doi.org/10.1364/AO.476868)
+is provided.
 
 The library can be split into sub-libraries:
+
 #### 1. Interferometry
-The Interferometry library provides algorithms to characterise a 3x3 coupler interferometer (calculating the output phases,
+
+The Interferometry library provides algorithms to characterise a 3x3 coupler interferometer (calculating the output
+phases,
 amplitudes and offsets of the output DC-signals) for any given, measured DC-signals.
 It also contains an API for calculating the current phase of the interferometer for given DC signals.
 
-Note that this library is primarily designed for 3x3 couplers, but it can be easily extended for every amount of outputs.
+Note that this library is primarily designed for 3x3 couplers, but it can be easily extended for every amount of
+outputs.
 
 #### 2. PTI
+
 PTI, short for Photo Thermal Inversion, provided the PTI-related algorithm from the mentioned paper above.
 They include an algorithm for common mode noise rejection of high-resolution AC signals, decimation
 and the actual PTI inversion.
 
-Note that both sub-libraries provide only offline routines. Future versions will be provided 
+Note that both sub-libraries provide only offline routines. Future versions will be provided
 as well routines for live data.
 
 A basic structure of the libraries with their classes is shown in the picture above
 from the mentioned paper.
 
-The blue dashed lines show the grouping of classes. Note that common mode noise rejection
-is for the reason of convenience in the decimation class as well.
+The picture below shows the basic file structure and the public members of the classes.
 
 <p>
-<img alt="flowchart" src="images/flowchart.png">
-From our paper <a href="https://doi.org/10.1364/AO.476868">Waveguide based passively demodulated photothermal interferometer for light absorption measurements</a>
-
+<img alt="flowchart" src="images/flowchart.svg">
 </p>
 
 ## **Decimation**
+
 The measured data for decimation is in binary file format generated from LabView.
-It is good practice to use the decimation object with the ```with``` statement so that the binary fill will automatically
-be closed. Note that as the binary file itself can be very large (up to GB) the decimation will read the file chunk-wise.
+It is good practice to use the decimation object with the ```with``` statement so that the binary fill will
+automatically
+be closed. Note that as the binary file itself can be very large (up to GB) the decimation will read the file
+chunk-wise.
 read_data reads a block of 50'000 samples of data and decodes them into NumPy arrays. The call of the decimation will
 then process the algorithms described in [1].
 
@@ -52,11 +59,10 @@ for i in range(3):
 with minipti.pti.Decimation(binary_file) as decimation:
     while decimation.read_data():
         decimation()
-        lock_in_amplitude, lock_in_phase = decimation.polar_lock_in()
     for i in range(3):
         output_data[f"DC CH{i + 1}"].append(decimation.dc_down_sampled[i])
-        output_data[f"Lock In Amplitude CH{i}"].append(lock_in_amplitude[i])
-        output_data[f"Lock In Phase CH{i}"].append(lock_in_phase[i])
+        output_data[f"Lock In Amplitude CH{i}"].append(decimation.lock_in.amplitude[i])
+        output_data[f"Lock In Phase CH{i}"].append(decimation.lock_in.phase[i])
 pd.DataFrame(output_data).to_csv("Decimation.csv")
 ```
 
