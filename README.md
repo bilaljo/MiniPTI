@@ -30,7 +30,7 @@ from the mentioned paper.
 
 The picture below shows the basic file structure and the public members of the classes.
 
-<p style="text-align:center">
+<p align="center">
 <img alt="flowchart" src="images/flowchart.svg" class="center">
 </p>
 
