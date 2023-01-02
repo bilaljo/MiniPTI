@@ -4,14 +4,13 @@ import os
 import threading
 from collections import namedtuple, deque
 from dataclasses import dataclass
-from tkinter import filedialog, messagebox
 
 import numpy as np
 import pandas as pd
 from PySide6 import QtWidgets, QtCore
 import pyqtgraph as pg
 from PySide6.QtCore import QAbstractTableModel, Qt
-from PySide6.QtWidgets import QMainWindow, QApplication
+from PySide6.QtWidgets import QMainWindow, QApplication, QFileDialog, QMessageBox
 from scipy import ndimage
 
 import driver
@@ -53,7 +52,7 @@ class Controller(QApplication):
         self.phase_scan_thread = None
         self.delimiter_sniffer = csv.Sniffer()
         self.closed = False
-        threading.excepthook = Controller.thread_exception
+        threading.excepthook = self.thread_exception
         if not os.path.exists("data"):
             os.mkdir("data")
         if not os.path.exists("data/raw_data"):
@@ -70,52 +69,45 @@ class Controller(QApplication):
         self.running.clear()
         self.view.close()
 
-    @staticmethod
-    def thread_exception(args):
+    def thread_exception(self, args):
         if args.exc_type == KeyError:
-            messagebox.showerror(title="File Error", message="Invalid file given or missing headers.")
+            QMessageBox.critical(parent=self.view, title="File Error", text="Invalid file given or missing headers.")
         elif args.exc_type == TimeoutError:
-            messagebox.showerror(title="Timeout Error", message="Timeout occurs.")
+            QMessageBox.critical(parent=self.view, title="Timeout Error", text="Timeout Error")
         else:
-            messagebox.showerror(title="Error", message=f"{args.exc_type} error occurred.")
+            QMessageBox.critical(parent=self.view, title="Error", text=f"{args.exc_type} error occurred.")
 
-    def save_config(self):
+    def save_settings(self):
         self.model.save_settings()
 
-    def load_config(self):
-        default_extension = "*.csv"
-        file_types = (("CSV File", "*.csv"), ("Tab Separated File", "*.txt"), ("All Files", "*"))
-        self.model.settings.file_path = filedialog.askopenfilename(defaultextension=default_extension,
-                                                                   filetypes=file_types, title="Settings File Path")
-        self.model.load_settings()
+    def load_settings(self):
+        file_path = QFileDialog.getOpenFileName(self.view, caption="Load Settings",
+                                                filter="All Files (*);; CSV File (*.csv);; TXT File (*.txt")
+        if file_path:
+            self.model.settings.file_path = file_path[0]  # The actual file path
+            self.model.load_settings()
 
-    @staticmethod
-    def get_file_path():
-        default_extension = "*.csv"
-        file_types = (("CSV File", "*.csv"), ("Tab Separated File", "*.txt"), ("All Files", "*"))
-        file_path = filedialog.askopenfilename(defaultextension=default_extension, filetypes=file_types,
-                                               title="Inversion File Path")
-        return file_path
+    def get_file_path(self, dialog_name):
+        decimation_file_path = QFileDialog.getOpenFileName(self.view, caption=dialog_name,
+                                                           filter="All Files (*);; CSV File (*.csv);; TXT File (*.txt")
+        return decimation_file_path[0]
 
     def calculate_decimation(self):
-        default_extension = "*.csv"
-        file_types = (("Tar File", "*.tar"), ("All Files", "*"))
-        decimation_file_path = filedialog.askopenfilename(defaultextension=default_extension, filetypes=file_types,
-                                                          title="Decimation File Path")
+        decimation_file_path = self.get_file_path("Decimation")
         if not decimation_file_path:
             return
         threading.Thread(target=self.model.calculate_decimation, args=[decimation_file_path]).start()
 
     def plot_inversion(self):
-        file_path = Controller.get_file_path()
-        if not file_path:
+        inversion_path = self.get_file_path("Inversion")
+        if not inversion_path:
             return
-        delimiter = self.model.find_delimiter(file_path)
-        data = pd.read_csv(file_path, delimiter=delimiter, skiprows=[1], index_col="Time")
+        delimiter = self.model.find_delimiter(inversion_path)
+        data = pd.read_csv(inversion_path, delimiter=delimiter, skiprows=[1], index_col="Time")
         try:
             self.view.draw_plot(data, tab="Interferometric Phase")
         except KeyError:
-            messagebox.showerror(title="Plotting Error", message="Invalid data given. Could not plot.")
+            QMessageBox.critical(parent=self.view, title="Plotting Error", text="Invalid data given. Could not plot.")
             return
         try:
             self.view.draw_plot(data, tab="Sensitivity")
@@ -126,54 +118,53 @@ class Controller(QApplication):
             return  # No PTI data, only phase data
 
     def plot_dc(self):
-        file_path = Controller.get_file_path()
-        if not file_path:
+        decimation_file_path = self.get_file_path("Decimation")
+        if not decimation_file_path:
             return
-        delimiter = self.model.find_delimiter(file_path)
-        data = pd.read_csv(file_path, delimiter=delimiter, skiprows=[1], index_col="Time")
+        delimiter = self.model.find_delimiter(decimation_file_path)
+        data = pd.read_csv(decimation_file_path, delimiter=delimiter, skiprows=[1], index_col="Time")
         try:
             self.view.draw_plot(data, tab="DC Signals")
         except KeyError:
-            messagebox.showerror(title="Plotting Error", message="Invalid data given. Could not plot.")
+            QMessageBox.critical(parent=self.view, title="Plotting Error", text="Invalid data given. Could not plot.")
             return
 
     def plot_characterisation(self):
-        file_path = Controller.get_file_path()
-        if not file_path:
+        characterisation_path = self.get_file_path("Characterisation")
+        if not characterisation_path:
             return
-        delimiter = self.model.find_delimiter(file_path)
-        data = pd.read_csv(file_path, delimiter=delimiter, skiprows=[1])
+        delimiter = self.model.find_delimiter(characterisation_path)
+        data = pd.read_csv(characterisation_path, delimiter=delimiter, skiprows=[1])
         try:
             self.view.draw_plot(data, tab="Output Phases")
             self.view.draw_plot(data, tab="Amplitudes")
         except KeyError:
-            messagebox.showerror(title="Plotting Error", message="Invalid data given. Could not plot.")
+            QMessageBox.critical(parent=self.view, title="Plotting Error", text="Invalid data given. Could not plot.")
             return
 
     def calculate_inversion(self):
-        file_path = Controller.get_file_path()
-        if not file_path:
+        inversion_path = self.get_file_path("Inversion")
+        if not inversion_path:
             return
         threading.Thread(target=self.model.calculate_inversion,
-                         args=[self.model.settings.file_path, file_path]).start()
+                         args=[self.model.settings.file_path, inversion_path]).start()
 
     def calculate_characterisation(self):
-        default_extension = "*.csv"
-        file_types = (("CSV File", "*.csv"), ("Tab Separated File", "*.txt"), ("All Files", "*"))
-        decimation_file_path = filedialog.askopenfilename(defaultextension=default_extension, filetypes=file_types,
-                                                          title="Decimation File Path")
-        if not decimation_file_path:
+        characterisation_path = self.get_file_path("Characterisation")
+        if not characterisation_path:
             return
-        use_settings = messagebox.askyesno(title="Characterisation", message="Do you want to use the settings values?")
+        use_settings = QMessageBox.question(self.view, "Characterisation",
+                                            "Do you want to use the settings values?", QMessageBox.Yes | QMessageBox.No)
+        use_settings = use_settings == QMessageBox.Yes
         threading.Thread(target=self.model.calculate_characterisation,
-                         args=[decimation_file_path, use_settings, self.model.settings.file_path]).start()
+                         args=[characterisation_path, use_settings, self.model.settings.file_path]).start()
 
     def init_live(self):
         self.running.set()
         try:
             self.model.connect_daq()
         except IOError:
-            messagebox.showerror(title="IO Error", message=f"Could not connect to DAQ")
+            QMessageBox.warning(parent=self.view, title="IO Error", text="Could not connect to DAQ")
             self.running.clear()
             return False
         self.model.start_daq()
@@ -233,7 +224,7 @@ class View(QMainWindow):
         self.__init_frames()
         self.settings_table = QtWidgets.QTableView(self.frames["Configuration"])
         self.settings_table.setModel(self.model.settings)
-        self.__init_config()
+        self.__init_settings()
         self.__init_buttons()
         self.__init_plots()
         self.__init_logging()
@@ -247,10 +238,13 @@ class View(QMainWindow):
         self.resize(800, 600)
         self.show()
 
-    def close(self):
-        close = QtWidgets.QMessageBox.question(self, "QUIT", "Are you sure you want to close?")
-        if close.Ok:
+    def closeEvent(self, close_event):
+        close = QMessageBox.question(self, "QUIT", "Are you sure you want to close?", QMessageBox.No | QMessageBox.Yes)
+        if close == QMessageBox.Yes:
+            close_event.accept()
             self.controller.close()
+        else:
+            close_event.ignore()
 
     def create_tab(self, text):
         self.tabs[text] = QtWidgets.QTabWidget()
@@ -266,8 +260,6 @@ class View(QMainWindow):
 
     def __init_tabs(self):
         self.create_tab("Home")
-        self.create_tab("Laser Driver")
-        self.create_tab("Tec Driver")
         self.create_tab("DC Signals")
         self.create_tab("Amplitudes")
         self.create_tab("Output Phases")
@@ -300,14 +292,14 @@ class View(QMainWindow):
         self.buttons["Configuration"] = {}
 
         sub_layout = QtWidgets.QWidget()
-        sub_layout.setLayout(QtWidgets.QHBoxLayout(self.frames["Configuration"]))
+        sub_layout.setLayout(QtWidgets.QHBoxLayout())
 
         self.buttons["Configuration"]["Save Settings"] = QtWidgets.QPushButton("Save Settings")
-        self.buttons["Configuration"]["Save Settings"].clicked.connect(self.controller.save_config)
+        self.buttons["Configuration"]["Save Settings"].clicked.connect(self.controller.save_settings)
         sub_layout.layout().addWidget(self.buttons["Configuration"]["Save Settings"])
 
         self.buttons["Configuration"]["Load Settings"] = QtWidgets.QPushButton("Load Settings")
-        self.buttons["Configuration"]["Load Settings"].clicked.connect(self.controller.load_config)
+        self.buttons["Configuration"]["Load Settings"].clicked.connect(self.controller.load_settings)
         sub_layout.layout().addWidget(self.buttons["Configuration"]["Load Settings"])
 
         button = QtWidgets.QPushButton("Help")
@@ -348,20 +340,20 @@ class View(QMainWindow):
     def __init_live_buttons(self):
         self.buttons["Live Measurement"] = {}
 
-        self.buttons["Live Measurement"]["PTI"] = QtWidgets.QPushButton("PTI")
-        self.buttons["Live Measurement"]["PTI"].setCheckable(True)
-        self.buttons["Live Measurement"]["PTI"].clicked.connect(self.controller.live_measurement)
-        self.frames["Live Measurement"].layout().addWidget(self.buttons["Live Measurement"]["PTI"], 0, 0)
+        self.buttons["Live Measurement"]["DAQ"] = QtWidgets.QPushButton("DAQ")
+        self.buttons["Live Measurement"]["DAQ"].setCheckable(True)
+        self.buttons["Live Measurement"]["DAQ"].clicked.connect(self.controller.live_measurement)
+        self.frames["Live Measurement"].layout().addWidget(self.buttons["Live Measurement"]["DAQ"], 0, 0)
 
-        self.buttons["Live Measurement"]["Laser Driver"] = QtWidgets.QPushButton("Laser Driver")
-        self.buttons["Live Measurement"]["Laser Driver"].clicked.connect(self.controller.live_measurement)
-        self.frames["Live Measurement"].layout().addWidget(self.buttons["Live Measurement"]["Laser Driver"], 0, 1)
+        self.buttons["Live Measurement"]["Pump Laser"] = QtWidgets.QPushButton("Pump Laser")
+        self.buttons["Live Measurement"]["Pump Laser"].clicked.connect(self.controller.live_measurement)
+        self.frames["Live Measurement"].layout().addWidget(self.buttons["Live Measurement"]["Pump Laser"], 0, 1)
 
-        self.buttons["Live Measurement"]["Tec Driver"] = QtWidgets.QPushButton("Tec Driver")
-        self.buttons["Live Measurement"]["Tec Driver"].clicked.connect(self.controller.live_measurement)
-        self.frames["Live Measurement"].layout().addWidget(self.buttons["Live Measurement"]["Tec Driver"], 0, 2)
+        self.buttons["Live Measurement"]["Probe Laser"] = QtWidgets.QPushButton("Probe Laser")
+        self.buttons["Live Measurement"]["Probe Laser"].clicked.connect(self.controller.live_measurement)
+        self.frames["Live Measurement"].layout().addWidget(self.buttons["Live Measurement"]["Probe Laser"], 0, 2)
 
-    def __init_config(self):
+    def __init_settings(self):
         self.settings_table.resizeColumnsToContents()
         self.settings_table.resizeRowsToContents()
         self.frames["Configuration"].layout().addWidget(self.settings_table, 0, 0)
@@ -650,13 +642,16 @@ class Model:
         self.pti_signal_mean_queue = deque(maxlen=60)
         self.current_time = 0
         pti_calculations = namedtuple("PTI", ("decimation", "inversion", "characterization"))
-        self.pti = pti_calculations(pti.Decimation(), pti.Inversion(), interferometry.Characterization())
+        self.interferometry = interferometry.Interferometer()
+        self.pti = pti_calculations(pti.Decimation(), pti.Inversion(interferometry=self.interferometry),
+                                    interferometry.Characterization(interferometry=self.interferometry))
         self.decimation_path = ""
         self.settings = _Settings()
         self.daq = driver.DAQ()
         self.pti.decimation.daq = self.daq
         self.delimiter_sniffer = csv.Sniffer()
-        self.live_measurement = pti.LiveMeasurement(self.pti.inversion, self.pti.characterization, self.pti.decimation)
+        self.live_measurement = pti.LiveMeasurement(self.interferometry,
+                                                    self.pti.inversion, self.pti.characterization, self.pti.decimation)
         self.running = threading.Event()
         self.threads = Threads()
         self._inversion_flag = False
@@ -706,20 +701,20 @@ class Model:
     def update_parameter_buffer(self):
         self.buffered_data.time_stamps.append(self.pti.characterization.time_stamp)
         for i in range(3):
-            amplitudes = interferometry.interferometer.amplitudes
+            amplitudes = self.interferometry.amplitudes
             self.buffered_data.amplitudes[i].append(amplitudes[i])
-            output_phases = np.rad2deg(interferometry.interferometer.output_phases)
+            output_phases = np.rad2deg(self.interferometry.output_phases)
             self.buffered_data.output_phases[i].append(output_phases[i])
 
     def update_settings_parameters(self):
-        self.settings.table_data.loc["Output Phases [deg]"] = np.rad2deg(pti.interferometer.output_phases)
-        self.settings.table_data.loc["Amplitude [V]"] = pti.interferometer.amplitudes
-        self.settings.table_data.loc["Offset [V]"] = pti.interferometer.offsets
+        self.settings.table_data.loc["Output Phases [deg]"] = np.rad2deg(self.interferometry.output_phases)
+        self.settings.table_data.loc["Amplitude [V]"] = self.interferometry.amplitudes
+        self.settings.table_data.loc["Offset [V]"] = self.interferometry.offsets
 
     def update_settings(self):
-        interferometry.interferometer.settings_path = self.settings.file_path
+        self.interferometry.settings_path = self.settings.file_path
         self.pti.inversion.settings_path = self.settings.file_path
-        interferometry.interferometer.init_settings()
+        self.interferometry.init_settings()
         self.pti.inversion.load_response_phase()
 
     @staticmethod
@@ -735,8 +730,8 @@ class Model:
         return result
 
     def calculate_characterisation(self, dc_file_path, use_settings=False, settings_path=""):
-        pti.interferometer.decimation_filepath = dc_file_path
-        pti.interferometer.settings_path = settings_path
+        self.interferometry.decimation_filepath = dc_file_path
+        self.interferometry.settings_path = settings_path
         self.pti.characterization.use_settings = use_settings
         self.pti.characterization(mode="offline")
 
@@ -745,8 +740,8 @@ class Model:
         self.pti.decimation(mode="offline")
 
     def calculate_inversion(self, settings_path, inversion_path):
-        pti.interferometer.decimation_filepath = inversion_path
-        pti.interferometer.settings_path = settings_path
+        self.interferometry.decimation_filepath = inversion_path
+        self.interferometry.settings_path = settings_path
         self.pti.inversion(mode="offline")
 
     def live_calculation(self):
@@ -755,7 +750,7 @@ class Model:
             self.pti.inversion.settings_path = self.settings.file_path
             for i in range(3):
                 self.buffered_data.dc_values[i].append(self.pti.decimation.dc_signals[i])
-            self.buffered_data.interferometric_phase.append(pti.interferometer.phase)
+            self.buffered_data.interferometric_phase.append(self.interferometry.phase)
             self.buffered_data.sensitivity.append(self.pti.inversion.sensitivity)
             self.buffered_data.pti_signal.append(self.pti.inversion.pti_signal)
             self.pti_signal_mean_queue.append(self.pti.inversion.pti_signal)

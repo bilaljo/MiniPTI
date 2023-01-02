@@ -1,3 +1,7 @@
+fastcrc
 numpy
 pandas
+pyserial
 scipy
+PySide6
+pyqtgraph

@@ -10,23 +10,22 @@ import numpy as np
 import pandas as pd
 import driver
 
-from interferometry import interferometer
-
 
 class LiveMeasurement:
-    def __init__(self, inversion, characterization, decimation):
+    def __init__(self, interferometry, inversion, characterization, decimation):
         self.running = threading.Event()
         self.decimation = decimation
         self.inversion = inversion
         self.characterization = characterization
         self.signals = []
+        self.interferometry = interferometry
 
     def calculate_inversion(self):
         self.decimation(mode="online")
         self.inversion.lock_in = self.decimation.lock_in  # Note that this copies a reference
         self.inversion.dc_signals = self.decimation.dc_signals
         self.inversion(mode="online")
-        self.characterization.add_phase(interferometer.phase)
+        self.characterization.add_phase(self.interferometry.phase)
         self.signals.append(copy.deepcopy(self.decimation.dc_signals))
         if self.characterization.enough_values():
             self.characterization.signals = copy.deepcopy(self.signals)
@@ -37,6 +36,10 @@ class LiveMeasurement:
     def calculate_characterization(self):
         while self.running.is_set():
             self.characterization(mode="online")
+
+    def __call__(self):
+        self.calculate_inversion()
+        self.calculate_inversion()
 
 
 @dataclass
@@ -50,21 +53,22 @@ class Inversion:
     Provided an API for the PTI algorithm described in [1] from Weingartner et al.
 
     [1]: Waveguide based passively demodulated photo-thermal
-         interferometer for aerosol measurements
+         interferometry for aerosol measurements
     """
     MICRO_RAD = 1e6
 
-    def __init__(self, response_phases=None, sign=1):
+    def __init__(self, response_phases=None, sign=1, interferometry=None, settings_path="configs/settings.csv"):
         super().__init__()
         self.response_phases = response_phases
         self.pti_signal = None  # type: float | np.array
         self.sensitivity = None
         self.decimation_file_delimiter = ","
         self.dc_signals = np.empty(shape=3)
-        self.settings_path = "configs/settings_daq.csv"
+        self.settings_path = settings_path
         self.lock_in = LockIn
         self.init_header = True
         self.sign = sign  # Makes the pti signal positive if it isn't
+        self.interferometry = interferometry
         self.load_response_phase()
 
     def __repr__(self):
@@ -74,7 +78,7 @@ class Inversion:
         return representation
 
     def __str__(self):
-        return f"Interferometric Phase: {self.interferometer.phase}\n" \
+        return f"Interferometric Phase: {self.interferometry.phase}\n" \
                f"Sensitivity: {self.sensitivity}\nPTI signal: {self.pti_signal}"
 
     def load_response_phase(self):
@@ -87,33 +91,33 @@ class Inversion:
         equation 18.
         """
         try:
-            pti_signal = np.zeros(shape=(len(interferometer.phase)))
-            weight = np.zeros(shape=(len(interferometer.phase)))
+            pti_signal = np.zeros(shape=(len(self.interferometry.phase)))
+            weight = np.zeros(shape=(len(self.interferometry.phase)))
         except TypeError:
             pti_signal = 0
             weight = 0
         for channel in range(3):
             try:
-                sign = np.ones(shape=len(interferometer.phase))
-                sign[np.sin(interferometer.phase - interferometer.output_phases[channel]) < 0] = -1
+                sign = np.ones(shape=len(self.interferometry.phase))
+                sign[np.sin(self.interferometry.phase - self.interferometry.output_phases[channel]) < 0] = -1
             except TypeError:
-                sign = 1 if np.sin(interferometer.phase - interferometer.output_phases[channel]) >= 0 else -1
+                sign = 1 if np.sin(self.interferometry.phase - self.interferometry.output_phases[channel]) >= 0 else -1
             response_phase = self.response_phases[channel]
-            amplitude = interferometer.amplitudes[channel]
+            amplitude = self.interferometry.amplitudes[channel]
             demodulated_signal = self.lock_in.amplitude[channel] * np.cos(self.lock_in.phase[channel] - response_phase)
             pti_signal += demodulated_signal * sign * amplitude
-            weight += amplitude * np.abs(np.sin(interferometer.phase - interferometer.output_phases[channel]))
+            weight += amplitude * np.abs(np.sin(self.interferometry.phase - self.interferometry.output_phases[channel]))
         self.pti_signal = -pti_signal / weight * Inversion.MICRO_RAD
 
     def calculate_sensitivity(self):
         slopes = 0
         for i in range(3):
-            slopes += interferometer.amplitudes[i] * np.abs(np.sin(interferometer.phase
-                                                                   - interferometer.output_phases[i]))
-        self.sensitivity = slopes / np.sum(interferometer.offsets)
+            slopes += self.interferometry.amplitudes[i] * np.abs(np.sin(self.interferometry.phase
+                                                                        - self.interferometry.output_phases[i]))
+        self.sensitivity = slopes / np.sum(self.interferometry.offsets)
 
     def _calculate_offline(self):
-        data = interferometer.read_decimation()
+        data = self.interferometry.read_decimation()
         dc_signals = data[[f"DC CH{i}" for i in range(1, 4)]].to_numpy()
         ac_signals = None
         ac_phases = None
@@ -128,7 +132,7 @@ class Inversion:
                 ac_phases = data[[f"Lock In Phase CH{i}" for i in range(1, 4)]].to_numpy().T
             except KeyError:
                 pass
-        interferometer.calculate_phase(dc_signals)
+        self.interferometry.calculate_phase(dc_signals)
         self.calculate_sensitivity()
         if ac_signals is not None:
             self.lock_in.amplitude = ac_signals
@@ -137,12 +141,12 @@ class Inversion:
         if ac_signals is not None:
             pd.DataFrame({"Interferometric Phase": "rad", "Sensitivity": "1/rad", "PTI Signal": "µrad"},
                          index=["s"]).to_csv("data/PTI_Inversion.csv", index_label="Time")
-            pd.DataFrame({"Interferometric Phase": interferometer.phase, "Sensitivity": self.sensitivity,
+            pd.DataFrame({"Interferometric Phase": self.interferometry.phase, "Sensitivity": self.sensitivity,
                           "PTI Signal": self.pti_signal}).to_csv(f"data/PTI_Inversion.csv", mode="a", header=False)
         else:
             pd.DataFrame({"Interferometric Phase": "rad", "Sensitivity": "1/rad."}, index=["s"]).to_csv(
                 "data/PTI_Inversion.csv", index_label="Time")
-            pd.DataFrame({"Interferometric Phase": interferometer.phase, "Sensitivity": self.sensitivity}
+            pd.DataFrame({"Interferometric Phase": self.interferometry.phase, "Sensitivity": self.sensitivity}
                          ).to_csv("data/PTI_Inversion.csv", header=False, mode="a", index_label="Time")
         logging.info("PTI Inversion calculated.")
 
@@ -154,12 +158,12 @@ class Inversion:
             output_data["PTI Signal"] = "µrad"
             pd.DataFrame(output_data, index=["s"]).to_csv("data/PTI_Inversion.csv", index_label="Time")
             self.init_header = False
-        interferometer.calculate_phase(self.dc_signals)
+        self.interferometry.calculate_phase(self.dc_signals)
         self.calculate_pti_signal()
         self.calculate_sensitivity()
         now = datetime.now()
         time_stamp = str(now.strftime("%Y-%m-%d %H:%M:%S"))
-        output_data = {"Interferometric Phase": interferometer.phase, "Sensitivity": self.sensitivity,
+        output_data = {"Interferometric Phase": self.interferometry.phase, "Sensitivity": self.sensitivity,
                        "PTI Signal": self.pti_signal}
         try:
             pd.DataFrame(output_data, index=[time_stamp]).to_csv("data/PTI_Inversion.csv", mode="a", index_label="Time",
@@ -184,7 +188,7 @@ class Decimation:
     The number of samples
 
     [1]: Waveguide based passively demodulated photo-thermal
-         interferometer for aerosol measurements
+         interferometry for aerosol measurements
     """
     REF_VOLTAGE = 3.3
     DC_RESOLUTION = (1 << 12) - 1
