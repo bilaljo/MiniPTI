@@ -1,5 +1,5 @@
 [project]
-name = "MiniPTI_bilaljo"
+name = "minipti"
 version = "1.0"
 authors = [
     { name = "Jonas Bilal", email = "jonasbilal@outlook.com" },
@@ -14,5 +14,6 @@ classifiers = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/bilaljo/MiniPTI"
+"Homepage" = "https://www.fhnw.ch/en/about-fhnw/schools/school-of-engineering/institutes/institute-for-sensors-and-electronics/aerosol-measurement-technology"
+"Source" = "https://github.com/bilaljo/MiniPTI"
 "Bug Tracker" = "https://github.com/bilaljo/MiniPTI/issues"
