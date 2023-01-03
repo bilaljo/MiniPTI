@@ -1,5 +1,9 @@
 # MiniPTI
 
+<p align="center">
+<img alt="flowchart" src="https://www.fhnw.ch/de/medien/logos/media/fhnw_e_10mm.jpg" class="center">
+</p>
+
 In this library the python implementation of the algorithm from
 [Waveguide based passively demodulated photothermal interferometer for light absorption measurements](https://doi.org/10.1364/AO.476868)
 is provided.
@@ -31,7 +35,7 @@ from the mentioned paper.
 The picture below shows the basic file structure and the public members of the classes.
 
 <p align="center">
-<img alt="flowchart" src="images/flowchart.svg" class="center">
+<img alt="flowchart" src="https://raw.githubusercontent.com/bilaljo/MiniPTI/0dad7516c4a8105e1fcbecc22dcb905d3a4bee11/images/flowchart.svg" class="center">
 </p>
 
 ## **Decimation**
@@ -172,7 +176,8 @@ data = pd.read_csv("data/Decimation_Commercial.csv")
 inversion = minipti.pti.Inversion(interferometer=interferometer)
 
 dc_signals = data[[f"DC CH{i}" for i in range(1, 4)]].to_numpy()
-inversion.lock_in.amplitude = data[[f"Lock In Amplitude CH{i}" for i in range(1, 4)]].to_numpy().T
+amplitudes = data[[f"Lock In Amplitude CH{i}" for i in range(1, 4)]].to_numpy().T
+inversion.lock_in.amplitude = amplitudes
 inversion.lock_in.phase = data[[f"Lock In Phase CH{i}" for i in range(1, 4)]].to_numpy().T
 
 interferometer.calculate_phase(dc_signals)
