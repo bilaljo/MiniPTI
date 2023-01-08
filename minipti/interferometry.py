@@ -28,7 +28,7 @@ class Interferometer:
 
     def __eq__(self, other):
         return self.amplitudes == other.amplitudes and self.offsets == other.amplitudes and \
-               self.output_phases == other.output_phases
+            self.output_phases == other.output_phases
 
     def __repr__(self):
         class_name = self.__class__.__name__
