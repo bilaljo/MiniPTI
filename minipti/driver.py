@@ -1,16 +1,117 @@
-import configparser
 import itertools
 import logging
 import queue
+import re
 import threading
 from collections import deque
 from dataclasses import dataclass
+from enum import Enum
 
-import serial
 from PySide6 import QtSerialPort, QtCore
 from fastcrc import crc16
-from serial import SerialException
-from serial.tools import list_ports
+
+
+class Error(Enum):
+    REQUEST = b"0000"
+    PARAMETER = b"0001"
+    COMMAND = b"0002"
+    UNKNOWN_COMMAND = b"0003"
+
+
+@dataclass
+class Patterns:
+    """
+    The first bytes stand for get (G) the second byte for the required thing (H for Hardware, F for Firmware etc.).
+    The third bytes stands for the required Information (I for ID, V for version). \n is the termination symbol.
+    """
+    HARDWARE_ID = re.compile(b"(GHI...\n)", flags=re.MULTILINE)
+    FIRMWARE_VERSION = re.compile(b"(GFW...\n)", flags=re.MULTILINE)
+    HARDWARE_VERSION = re.compile(b"(GHW...\n)", flags=re.MULTILINE)
+    ERROR = re.compile(b"(ERR...\n)", flags=re.MULTILINE)
+    VALUE = re.compile(b"[0-9a-fA-F]+")  # Hex value
+
+
+class SerialError(Exception):
+    pass
+
+
+class SerialDevice(QtCore.QObject):
+    QUEUE_SIZE = 15
+    WAIT_TIME = 100  # ms
+    GET_HARDWARE_ID = b"GHI0000\n"
+    GET_FIRMWARE_VERSION = b"GFW0000\n"
+    GET_HARDWARE_VERSION = b"GWW0000\n"
+
+    def __init__(self, termination_symbol, device_id):
+        QtCore.QObject.__init__(self)
+        self.termination_symbol = termination_symbol
+        self.device_id = bytes(device_id)
+        self.port = None
+        self.device = QtSerialPort.QSerialPort()
+        self.device.readyRead.connect(self.__receive)
+        self.received_data = queue.Queue(maxsize=SerialDevice.QUEUE_SIZE)
+
+    def get_hardware_id(self):
+        return Patterns.VALUE.search(Patterns.HARDWARE_ID.search(self.received_data.get())).group()
+
+    def get_hardware_version(self):
+        return Patterns.VALUE.search(Patterns.HARDWARE_VERSION.search(self.received_data.get())).group()
+
+    def get_firmware_version(self):
+        return Patterns.VALUE.search(Patterns.FIRMWARE_VERSION.search(self.received_data.get())).group()
+
+    def command_error_handing(self, received):
+        if Patterns.ERROR.search(received):
+            match Patterns.VALUE.search(Patterns.ERROR.search(received)):
+                case Error.COMMAND:
+                    raise SerialError(f"Packet length != 7 characters ('\n' excluded) from {self.device}")
+                case Error.PARAMETER:
+                    raise SerialError(f"Error converting the hex parameter from {self.device}")
+                case Error.COMMAND:
+                    raise SerialError(f"Request consists of an unknown/invalid command from {self.device}")
+                case Error.UNKNOWN_COMMAND:
+                    raise SerialError(f"Unknown command from {self.device}")
+
+    def __enter__(self):
+        self.open()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
+    def open(self):
+        """
+        To recognise the correct port the ports are checked for their correct behavior. The correct port would produce
+        the correct size of package in the given time.
+        """
+        for port in QtSerialPort.QSerialPortInfo.availablePorts():
+            self.device.setPortName(port.portName())
+            self.device.open(QtSerialPort.QSerialPort.ReadWrite)
+            if not self.device.isOpen():
+                continue
+            self.device.write(SerialDevice.GET_HARDWARE_ID)
+            self.device.waitForBytesWritten(msecs=SerialDevice.WAIT_TIME)
+            self.device.waitForReadyRead(msecs=SerialDevice.WAIT_TIME)
+            received = self.device.readAll()
+            self.command_error_handing(received)
+            if not received:
+                self.device.close()
+                continue
+            self.received_data.put(received)
+            if self.get_hardware_id() == self.device_id:
+                self.port = port.portName()
+                break
+        else:
+            raise SerialError("Device not found")
+
+    def close(self):
+        if self.device.isOpen():
+            self.device.close()
+
+    def __receive(self):
+        self.received_data.put(bytes(self.device.readAll()))
+
+    def __repr__(self):
+        pass
 
 
 @dataclass
@@ -20,19 +121,19 @@ class DAQData:
     dc_coupled = None
 
 
-class DAQ(QtCore.QObject):
+class DAQ(SerialDevice):
     """
     This class provides an interface for receiving data from the serial port of a USB connected DAQ system.
     The data is accordingly to a defined protocol encoded and build into a packages of samples.
     """
-    TERMINATION_SYMBOL = b"\r\n"
     PACKAGE_SIZE_START_INDEX = 2
     PACKAGE_SIZE_END_INDEX = 10
     CRC_START_INDEX = 4
     PACKAGE_SIZE = 4110
     WORD_SIZE = 32
+    TERMINATION_SYMBOL = b"\n"
+    ID = b"0000"
 
-    QUEUE_SIZE = 15
     WAIT_TIME_TIMEOUT = 100e-3  # 100 ms
     WAIT_TIME_DATA = 10e-3  # 10 ms
 
@@ -41,18 +142,15 @@ class DAQ(QtCore.QObject):
     NUMBER_OF_SAMPLES = 8000
 
     def __init__(self):
-        QtCore.QObject.__init__(self)
+        SerialDevice.__init__(self, termination_symbol=DAQ.TERMINATION_SYMBOL, device_id=DAQ.ID)
         self.package_data = DAQData()
         self.buffers = DAQData()
         self.buffers.ref_signal = deque()
         self.buffers.ac_coupled = [deque(), deque(), deque()]
         self.buffers.dc_coupled = [deque(), deque(), deque()]
-        self.received_data = queue.Queue(maxsize=DAQ.QUEUE_SIZE)
         self.package_data.ref_signal = queue.Queue(maxsize=DAQ.QUEUE_SIZE)
         self.package_data.dc_coupled = queue.Queue(maxsize=DAQ.QUEUE_SIZE)
         self.package_data.ac_coupled = queue.Queue(maxsize=DAQ.QUEUE_SIZE)
-        self.device = QtSerialPort.QSerialPort()
-        self.device.readyRead.connect(self.__receive)
         self.buffer = b""
         self.running = threading.Event()
         self.sample_numbers = deque(maxlen=2)
@@ -61,41 +159,16 @@ class DAQ(QtCore.QObject):
         self.synchronize = True
         self.ready = False
 
-    def open_port(self):
-        """
-        To recognise the correct port the ports are checked for their correct behavior. The correct port would produce
-        the correct size of package in the given time.
-        """
-        for port in list_ports.comports():
-            try:
-                device = serial.Serial(port.device, timeout=DAQ.WAIT_TIME_TIMEOUT)
-                dummy_data = device.read(size=DAQ.PACKAGE_SIZE + 2)
-                if len(dummy_data) >= DAQ.PACKAGE_SIZE + 2:
-                    device.close()
-                    self.device.setPortName(device.name)
-                    if self.device.open(QtSerialPort.QSerialPort.ReadWrite):
-                        break
-                    else:
-                        raise IOError("Device not connected")
-            except SerialException:
-                continue
-        else:
-            raise IOError("Device not connected")
-
     def __call__(self):
         self.running.set()
         self.__reset()
-        while self.running.is_set():
-            self.__encode_data()
-            if len(self.buffers.ref_signal) >= DAQ.NUMBER_OF_SAMPLES:
-                self.__build_sample_package()
-
-    def close(self):
-        if self.device.isOpen():
-            self.device.close()
-
-    def __receive(self):
-        self.received_data.put(bytes(self.device.readAll()))
+        try:
+            while self.running.is_set():
+                self.__encode_data()
+                if len(self.buffers.ref_signal) >= DAQ.NUMBER_OF_SAMPLES:
+                    self.__build_sample_package()
+        finally:
+            self.close()
 
     @staticmethod
     def __binary_to_2_complement(byte, byte_length):
@@ -210,107 +283,3 @@ class DAQ(QtCore.QObject):
                     ac_package[channel].append(self.buffers.ac_coupled[channel].popleft())
             self.package_data.dc_coupled.put(dc_package)
             self.package_data.ac_coupled.put(ac_package)
-
-
-class Driver:
-    TERMINATION_SYMBOL = ord("\n")
-    WORD_SIZE = 8
-    VALUE_SIZE = 4
-    COMMAND = ord("C")
-    SETTER = ord("S")
-    GETTER = ord("G")
-
-    def __init__(self):
-        self._message = bytearray(self.WORD_SIZE)
-        self._message[self.WORD_SIZE - 1] = Driver.TERMINATION_SYMBOL
-
-    def send(self):
-        if self._message[self.WORD_SIZE - 1] != Driver.TERMINATION_SYMBOL:
-            raise ValueError("No termination symbol")
-        logging.info(f"Send {self._message}")
-
-
-class Laser(Driver):
-    VOLTAGE = ord("V")
-    CURRENT = ord("I")
-    HIGH = ord("H")
-    LOW = ord("L")
-    ENABLE = ord("E")
-    MODE = ord("M")
-    GAIN = ord("G")
-
-    def __init__(self) -> None:
-        super().__init__()
-        self._high_voltage = 0
-        self._high_current = 0
-        self.enabled = False
-
-    def init_settings(self, config_file="laser_driver.ini"):
-        laser_driver_config = configparser.ConfigParser()
-        laser_driver_config.read(config_file)
-        self.high_voltage = int(laser_driver_config["High"]["Voltage"])
-        self.high_current = int(laser_driver_config["High"]["Current"])
-
-    def init_laser(self):
-        self._message[0] = Driver.COMMAND
-        self._message[1] = Laser.HIGH
-        self._message[1] = Laser.VOLTAGE
-        self.send()
-
-    def set_voltage(self):
-        self._message[0] = Driver.SETTER
-        self._message[1] = Laser.HIGH
-        self._message[2] = Laser.VOLTAGE
-        self._message[3:Driver.WORD_SIZE] = self._high_voltage.to_bytes(length=Driver.VALUE_SIZE, byteorder="big")
-        self.send()
-
-    def set_current(self):
-        self._message[0] = Driver.SETTER
-        self._message[1] = Laser.HIGH
-        self._message[2] = Laser.CURRENT  # FIXME: Does this work?
-        self._message[3:Driver.WORD_SIZE] = self._high_current.to_bytes(length=Driver.VALUE_SIZE, byteorder="big")
-        self.send()
-
-    def set_mode(self):
-        self._message[0] = Driver.SETTER
-        self._message[1] = Laser.LOW
-        self._message[2] = Laser.MODE
-        self.send()
-
-    def set_gain(self):
-        self._message[0] = Driver.SETTER
-        self._message[1] = Laser.LOW
-        self._message[2] = Laser.GAIN
-
-    def enable(self):
-        self._message[0] = Driver.SETTER
-        self._message[2] = Laser.ENABLE
-        self._message[1] = Laser.HIGH
-        self.send()  # Enable high
-        self._message[1] = Laser.LOW
-        self.send()  # Enable low
-
-    @property
-    def high_voltage(self):
-        return self._high_voltage
-
-    @high_voltage.setter
-    def high_voltage(self, voltage):
-        if voltage > 2 ** Driver.VALUE_SIZE - 1:
-            raise ValueError("Value exceeds maximum size")
-        self._high_voltage = voltage
-
-    @property
-    def high_current(self):
-        return self._high_current
-
-    @high_current.setter
-    def high_current(self, current):
-        if current > 2 ** Driver.VALUE_SIZE - 1:
-            raise ValueError("Value exceeds maximum size")
-        self._high_current = current
-
-    def __repr__(self):
-        representation = f"Laser Driver\nVoltage: {self.high_voltage} Bit\n"
-        representation += f"Current: {self.high_current} Bit\nEnabled: {self.enabled}"
-        return representation
