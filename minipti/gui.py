@@ -8,14 +8,14 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 from PySide6 import QtWidgets, QtCore
-import pyqtgraph as pg
 from PySide6.QtCore import QAbstractTableModel, Qt
 from PySide6.QtWidgets import QMainWindow, QApplication, QFileDialog, QMessageBox
 from scipy import ndimage
 
 import driver
-import pti
 import interferometry
+import pti
+import tabs
 
 
 @dataclass
@@ -27,20 +27,8 @@ class _Struct:
         setattr(self, key.casefold().replace(" ", "_"), value)
 
 
-@dataclass()
-class _Tabs(_Struct):
-    home = None
-    drivers = None
-    dc_signals = None
-    interferometric_phase = None
-    pti_signal = None
-    output_phases = None
-    amplitudes = None
-    sensitivity = None
-
-
 class Controller(QApplication):
-    def __init__(self, argv):
+    def __init__(self, argv=""):
         QApplication.__init__(self, argv)
         self.live_plot = None
         self.model = Model()
@@ -71,15 +59,17 @@ class Controller(QApplication):
 
     def thread_exception(self, args):
         if args.exc_type == KeyError:
-            QMessageBox.critical(parent=self.view, title="File Error", text="Invalid file given or missing headers.")
+            QMessageBox.critical(self.view, "File Error", "Invalid file given or missing headers.")
         elif args.exc_type == TimeoutError:
-            QMessageBox.critical(parent=self.view, title="Timeout Error", text="Timeout Error")
+            QMessageBox.critical(self.view, "Timeout Error", "Timeout Error")
         else:
-            QMessageBox.critical(parent=self.view, title="Error", text=f"{args.exc_type} error occurred.")
+            QMessageBox.critical(self.view, "Error", f"{args.exc_type} error occurred.")
 
+    @QtCore.Slot()
     def save_settings(self):
         self.model.save_settings()
 
+    @QtCore.Slot()
     def load_settings(self):
         file_path = QFileDialog.getOpenFileName(self.view, caption="Load Settings",
                                                 filter="All Files (*);; CSV File (*.csv);; TXT File (*.txt")
@@ -99,15 +89,18 @@ class Controller(QApplication):
         threading.Thread(target=self.model.calculate_decimation, args=[decimation_file_path]).start()
 
     def plot_inversion(self):
-        inversion_path = self.get_file_path("Inversion")
-        if not inversion_path:
+        inversion_file_path = self.get_file_path("Inversion")
+        if not inversion_file_path:
             return
-        delimiter = self.model.find_delimiter(inversion_path)
-        data = pd.read_csv(inversion_path, delimiter=delimiter, skiprows=[1], index_col="Time")
+        delimiter = self.model.find_delimiter(inversion_file_path)
+        try:
+            data = pd.read_csv(inversion_file_path, delimiter=delimiter, skiprows=[1], index_col="Time")
+        except ValueError:  # Data isn't saved with any index
+            data = pd.read_csv(inversion_file_path, delimiter=delimiter, skiprows=[1])
         try:
             self.view.draw_plot(data, tab="Interferometric Phase")
         except KeyError:
-            QMessageBox.critical(parent=self.view, title="Plotting Error", text="Invalid data given. Could not plot.")
+            QMessageBox.critical(self.view, "Plotting Error", "Invalid data given. Could not plot.")
             return
         try:
             self.view.draw_plot(data, tab="Sensitivity")
@@ -122,7 +115,10 @@ class Controller(QApplication):
         if not decimation_file_path:
             return
         delimiter = self.model.find_delimiter(decimation_file_path)
-        data = pd.read_csv(decimation_file_path, delimiter=delimiter, skiprows=[1], index_col="Time")
+        try:
+            data = pd.read_csv(decimation_file_path, delimiter=delimiter, skiprows=[1], index_col="Time")
+        except ValueError:  # Data isn't saved with any index
+            data = pd.read_csv(decimation_file_path, delimiter=delimiter, skiprows=[1])
         try:
             self.view.draw_plot(data, tab="DC Signals")
         except KeyError:
@@ -130,16 +126,19 @@ class Controller(QApplication):
             return
 
     def plot_characterisation(self):
-        characterisation_path = self.get_file_path("Characterisation")
-        if not characterisation_path:
+        characterisation_file_path = self.get_file_path("Characterisation")
+        if not characterisation_file_path:
             return
-        delimiter = self.model.find_delimiter(characterisation_path)
-        data = pd.read_csv(characterisation_path, delimiter=delimiter, skiprows=[1])
+        delimiter = self.model.find_delimiter(characterisation_file_path)
+        try:
+            data = pd.read_csv(characterisation_file_path, delimiter=delimiter, skiprows=[1], index_col="Time")
+        except ValueError:  # Data isn't saved with any index
+            data = pd.read_csv(characterisation_file_path, delimiter=delimiter, skiprows=[1])
         try:
             self.view.draw_plot(data, tab="Output Phases")
             self.view.draw_plot(data, tab="Amplitudes")
         except KeyError:
-            QMessageBox.critical(parent=self.view, title="Plotting Error", text="Invalid data given. Could not plot.")
+            QMessageBox.critical(self.view, "Plotting Error", "Invalid data given. Could not plot.")
             return
 
     def calculate_inversion(self):
@@ -198,168 +197,37 @@ class Controller(QApplication):
         self.model.stop_daq()
 
 
-class View(QMainWindow):
-    _SETTINGS_ROWS = 4
-    _SETTINGS_COLUMNS = 3
+Tabs = namedtuple("Tab", ["home", "daq", "dc", "amplitudes", "output_phases", "interferometric_phase", "sensitivity",
+                          "pti_signal"])
 
+
+class View(QMainWindow):
     def __init__(self, controller, model):
         super().__init__()
         self.setWindowTitle("Passepartout")
         self.controller = controller
         self.model = model
-        self.plotting = _Plotting()
         self.sheet = None
-        self.help_screens = _Tabs()
-        self.popup = None
-        self.popup_frame = None
         self.tab_bar = QtWidgets.QTabWidget(self)
-        self.tabs = _Tabs()
-        self.frames = dict()
-        self.tab_layouts = _Tabs()
         self.logging = QtHandler(self.model)
         self.logging_window = QtWidgets.QLabel()
-        self.buttons = {}
         self.setCentralWidget(self.tab_bar)
-        self.__init_tabs()
-        self.__init_frames()
-        self.settings_table = QtWidgets.QTableView(self.frames["Configuration"])
-        self.settings_table.setModel(self.model.settings)
-        self.__init_settings()
-        self.__init_buttons()
-        self.__init_plots()
-        self.__init_logging()
-        header = self.settings_table.horizontalHeader()
-        header.setStretchLastSection(True)
-        index = self.settings_table.verticalHeader()
-        index.setSectionResizeMode(QtWidgets.QHeaderView.Stretch)
-        header.setSectionResizeMode(QtWidgets.QHeaderView.Stretch)
-        index.setStretchLastSection(True)
-
-        self.resize(800, 600)
+        self.tabs = Tabs(tabs.Home(self.logging_window, controller), tabs.DAQ(), tabs.DC(), tabs.Amplitudes(),
+                         tabs.OutputPhases(), tabs.InterferometricPhase(), tabs.Sensitivity(), tabs.PTISignal())
+        self.tabs.home.settings.setModel(self.model.settings)
+        for tab in self.tabs:
+            self.tab_bar.addTab(tab, tab.name)
+        self.resize(900, 600)
         self.show()
 
     def closeEvent(self, close_event):
         close = QMessageBox.question(self, "QUIT", "Are you sure you want to close?", QMessageBox.No | QMessageBox.Yes)
         if close == QMessageBox.Yes:
             close_event.accept()
+            self.model.stop_daq()
             self.controller.close()
         else:
             close_event.ignore()
-
-    def create_tab(self, text):
-        self.tabs[text] = QtWidgets.QTabWidget()
-        self.tabs[text].setLayout(QtWidgets.QGridLayout())
-        self.tab_bar.addTab(self.tabs[text], text)
-
-    def set_frame(self, master, title, x, y):
-        self.frames[title] = QtWidgets.QGroupBox()
-        self.frames[title].setTitle(title)
-        layout = QtWidgets.QGridLayout()
-        self.frames[title].setLayout(layout)
-        self.tabs[master].layout().addWidget(self.frames[title], x, y)
-
-    def __init_tabs(self):
-        self.create_tab("Home")
-        self.create_tab("DC Signals")
-        self.create_tab("Amplitudes")
-        self.create_tab("Output Phases")
-        self.create_tab("Interferometric Phase")
-        self.create_tab("Sensitivity")
-        self.create_tab("PTI Signal")
-
-    def __init_frames(self):
-        self.set_frame("Home", "Configuration", 0, 0)
-        self.set_frame("Home", "Offline", 1, 0)
-        self.set_frame("Home", "Plotting", 2, 0)
-        self.set_frame("Home", "Live Measurement", 3, 0)
-        self.set_frame("Home", "Log", 0, 1)
-
-    def __init_plots(self):
-        self.plotting.init_dc_signals(parent=self.tabs["DC Signals"])
-        self.plotting.init_interferometric_phase(parent=self.tabs["Interferometric Phase"])
-        self.plotting.init_sensitivity(parent=self.tabs["Sensitivity"])
-        self.plotting.init_pti_signal(parent=self.tabs["PTI Signal"])
-        self.plotting.init_amplitudes(parent=self.tabs["Amplitudes"])
-        self.plotting.init_output_phases(parent=self.tabs["Output Phases"])
-
-    def __init_buttons(self):
-        self.__init_configuration_buttons()
-        self.__init_offline_buttons()
-        self.__init_plotting_buttons()
-        self.__init_live_buttons()
-
-    def __init_configuration_buttons(self):
-        self.buttons["Configuration"] = {}
-
-        sub_layout = QtWidgets.QWidget()
-        sub_layout.setLayout(QtWidgets.QHBoxLayout())
-
-        self.buttons["Configuration"]["Save Settings"] = QtWidgets.QPushButton("Save Settings")
-        self.buttons["Configuration"]["Save Settings"].clicked.connect(self.controller.save_settings)
-        sub_layout.layout().addWidget(self.buttons["Configuration"]["Save Settings"])
-
-        self.buttons["Configuration"]["Load Settings"] = QtWidgets.QPushButton("Load Settings")
-        self.buttons["Configuration"]["Load Settings"].clicked.connect(self.controller.load_settings)
-        sub_layout.layout().addWidget(self.buttons["Configuration"]["Load Settings"])
-
-        button = QtWidgets.QPushButton("Help")
-        sub_layout.layout().addWidget(button)
-        self.frames["Configuration"].layout().addWidget(sub_layout, 2, 0)
-
-    def __init_offline_buttons(self):
-        self.buttons["Offline"] = {}
-
-        self.buttons["Offline"]["Decimation"] = QtWidgets.QPushButton("Decimation")
-        self.buttons["Offline"]["Decimation"].clicked.connect(self.controller.calculate_decimation)
-        self.frames["Offline"].layout().addWidget(self.buttons["Offline"]["Decimation"], 0, 0)
-
-        self.buttons["Offline"]["Inversion"] = QtWidgets.QPushButton("Inversion")
-        self.buttons["Offline"]["Inversion"].clicked.connect(self.controller.calculate_inversion)
-        self.frames["Offline"].layout().addWidget(self.buttons["Offline"]["Inversion"], 0, 1)
-
-        self.buttons["Offline"]["Characterization"] = QtWidgets.QPushButton("Characterization")
-        self.buttons["Offline"]["Characterization"].clicked.connect(self.controller.calculate_characterisation)
-
-        self.frames["Offline"].layout().addWidget(self.buttons["Offline"]["Characterization"], 0, 2)
-
-    def __init_plotting_buttons(self):
-        self.buttons["Plotting"] = {}
-
-        self.buttons["Plotting"]["Decimation"] = QtWidgets.QPushButton("Decimation")
-        self.buttons["Plotting"]["Decimation"].clicked.connect(self.controller.plot_dc)
-        self.frames["Plotting"].layout().addWidget(self.buttons["Plotting"]["Decimation"], 0, 0)
-
-        self.buttons["Plotting"]["Inversion"] = QtWidgets.QPushButton("Inversion")
-        self.frames["Plotting"].layout().addWidget(self.buttons["Plotting"]["Inversion"], 0, 1)
-        self.buttons["Plotting"]["Inversion"].clicked.connect(self.controller.plot_inversion)
-
-        self.buttons["Plotting"]["Characterization"] = QtWidgets.QPushButton("Characterization")
-        self.buttons["Plotting"]["Characterization"].clicked.connect(self.controller.plot_characterisation)
-        self.frames["Plotting"].layout().addWidget(self.buttons["Plotting"]["Characterization"], 0, 2)
-
-    def __init_live_buttons(self):
-        self.buttons["Live Measurement"] = {}
-
-        self.buttons["Live Measurement"]["DAQ"] = QtWidgets.QPushButton("DAQ")
-        self.buttons["Live Measurement"]["DAQ"].setCheckable(True)
-        self.buttons["Live Measurement"]["DAQ"].clicked.connect(self.controller.live_measurement)
-        self.frames["Live Measurement"].layout().addWidget(self.buttons["Live Measurement"]["DAQ"], 0, 0)
-
-        self.buttons["Live Measurement"]["Pump Laser"] = QtWidgets.QPushButton("Pump Laser")
-        self.buttons["Live Measurement"]["Pump Laser"].clicked.connect(self.controller.live_measurement)
-        self.frames["Live Measurement"].layout().addWidget(self.buttons["Live Measurement"]["Pump Laser"], 0, 1)
-
-        self.buttons["Live Measurement"]["Probe Laser"] = QtWidgets.QPushButton("Probe Laser")
-        self.buttons["Live Measurement"]["Probe Laser"].clicked.connect(self.controller.live_measurement)
-        self.frames["Live Measurement"].layout().addWidget(self.buttons["Live Measurement"]["Probe Laser"], 0, 2)
-
-    def __init_settings(self):
-        self.settings_table.resizeColumnsToContents()
-        self.settings_table.resizeRowsToContents()
-        self.frames["Configuration"].layout().addWidget(self.settings_table, 0, 0)
-
-    def __init_logging(self):
-        self.frames["Log"].layout().addWidget(self.logging_window)
 
     def logging_update(self):
         self.logging_window.setText("".join(self.logging.logging_messages))
@@ -368,43 +236,43 @@ class View(QMainWindow):
         match tab:
             case "DC Signals":
                 for channel in range(3):
-                    self.plotting.curves.dc_signals[channel].setData(data[f"DC CH{channel + 1}"])
+                    self.tabs.dc.plot.curves[channel].setData(data[f"DC CH{channel + 1}"])
             case "Interferometric Phase":
-                self.plotting.curves.interferometric_phase.setData(data["Interferometric Phase"])
+                self.tabs.interferometric_phase.plot.curves.setData(data["Interferometric Phase"])
             case "Sensitivity":
-                self.plotting.curves.sensitivity.setData(data["Sensitivity"])
+                self.tabs.sensitivity.plot.curves.setData(data["Sensitivity"])
             case "PTI Signal":
-                self.plotting.curves.pti_signal.setData(data["PTI Signal"])
-                self.plotting.curves.pti_signal_mean.setData(data["PTI Signal 60 s Mean"])
+                self.tabs.pti_signal.plot.curves["PTI Signal"].setData(data["PTI Signal"])
+                self.tabs.pti_signal.plot.curves["PTI Signal Mean"].setData(data["PTI Signal 60 s Mean"])
             case "Amplitudes":
                 for channel in range(3):
-                    self.plotting.curves.amplitudes[channel].setData(data[f"Amplitude CH{channel + 1}"])
+                    self.tabs.amplitudes.plot.curves[channel].setData(data[f"Amplitude CH{channel + 1}"])
             case "Output Phases":
                 for channel in range(2):
-                    self.plotting.curves.output_phases[channel].setData(data[f"Output Phase CH{channel + 2}"])
+                    self.tabs.output_phases.plot.curves[channel].setData(data[f"Output Phase CH{channel + 2}"])
 
     @QtCore.Slot()
     def live_plot(self):
         for channel in range(3):
-            self.plotting.curves.dc_signals[channel].setData(self.model.buffered_data.time,
-                                                             self.model.buffered_data.dc_values[channel])
-        self.plotting.curves.interferometric_phase.setData(self.model.buffered_data.time,
-                                                           self.model.buffered_data.interferometric_phase)
-        self.plotting.curves.sensitivity.setData(self.model.buffered_data.time,
-                                                 self.model.buffered_data.sensitivity)
-        self.plotting.curves.pti_signal.setData(self.model.buffered_data.time,
-                                                self.model.buffered_data.pti_signal)
-        self.plotting.curves.pti_signal_mean.setData(self.model.buffered_data.time,
-                                                     self.model.buffered_data.pti_signal_mean)
+            self.tabs.dc.plot.curves[channel].setData(self.model.buffered_data.time,
+                                                      self.model.buffered_data.dc_values[channel])
+        self.tabs.interferometric_phase.plot.curves.setData(self.model.buffered_data.time,
+                                                            self.model.buffered_data.interferometric_phase)
+        self.tabs.sensitivity.plot.curves.setData(self.model.buffered_data.time,
+                                                  self.model.buffered_data.sensitivity)
+        self.tabs.pti_signal.plot.curves["PTI Signal"].setData(self.model.buffered_data.time,
+                                                          self.model.buffered_data.pti_signal)
+        self.tabs.pti_signal.plot.curves["PTI Signal Mean"].setData(self.model.buffered_data.time,
+                                                               self.model.buffered_data.pti_signal_mean)
 
     @QtCore.Slot()
     def live_plot_characterisation(self):
         for channel in range(3):
-            self.plotting.curves.amplitudes[channel].setData(self.model.buffered_data.time_stamps,
-                                                             self.model.buffered_data.amplitudes[channel])
+            self.tabs.amplitudes.curves[channel].setData(self.model.buffered_data.time_stamps,
+                                                         self.model.buffered_data.amplitudes[channel])
         for channel in range(2):
-            self.plotting.curves.output_phases[channel].setData(self.model.buffered_data.time_stamps,
-                                                                self.model.buffered_data.output_phases[channel + 1])
+            self.tabs.output_phases.curves[channel].setData(self.model.buffered_data.time_stamps,
+                                                            self.model.buffered_data.output_phases[channel + 1])
 
     def button_checked(self, frame, button):
         return self.buttons[frame][button].isChecked()
@@ -414,92 +282,6 @@ class View(QMainWindow):
             self.buttons[frame][button].setStyleSheet("background-color : lightgreen")
         else:
             self.buttons[frame][button].setStyleSheet("background-color : light gray")
-
-
-class _MatplotlibColors:
-    BLUE = "#045993"
-    ORANGE = "#db6000"
-    GREEN = "#118011"
-
-
-class _Plots(_Tabs):
-    pti_signal_mean = None
-
-
-class _Plotting(pg.PlotWidget):
-    def __init__(self):
-        pg.PlotWidget.__init__(self)
-        pg.setConfigOption('leftButtonPan', False)
-        pg.setConfigOptions(antialias=True)
-        pg.setConfigOption('background', "white")
-        pg.setConfigOption('foreground', 'k')
-        self.curves = _Plots()
-        self.plot_windows = _Plots()
-
-    def init_dc_signals(self, parent: QtWidgets):
-        self.curves.dc_signals = []
-        self.plot_windows.dc_signals = pg.GraphicsLayoutWidget()
-        plot = self.plot_windows.dc_signals.addPlot()
-        plot.addLegend()
-        self.curves.dc_signals = [plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="DC CH1"),
-                                  plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="DC CH2"),
-                                  plot.plot(pen=pg.mkPen(_MatplotlibColors.GREEN), name="DC CH3")]
-        plot.setLabel(axis="bottom", text="Time [s]", size="200pt")
-        plot.setLabel(axis="left", text="Intensity [V]", size="200pt")
-        plot.showGrid(x=True, y=True)
-        parent.layout().addWidget(self.plot_windows.dc_signals)
-
-    def init_interferometric_phase(self, parent: QtWidgets):
-        self.plot_windows.interferometric_phase = pg.GraphicsLayoutWidget()
-        plot = self.plot_windows.interferometric_phase.addPlot()
-        self.curves.interferometric_phase = plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE))
-        plot.setLabel(axis="bottom", text="Time [s]")
-        plot.setLabel(axis="left", text="Interferometric Phase [rad]")
-        plot.showGrid(x=True, y=True)
-        parent.layout().addWidget(self.plot_windows.interferometric_phase)
-
-    def init_sensitivity(self, parent: QtWidgets):
-        self.plot_windows.sensitivity = pg.GraphicsLayoutWidget()
-        plot = self.plot_windows.sensitivity.addPlot()
-        self.curves.sensitivity = plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE))
-        plot.setLabel(axis="bottom", text="Time [s]")
-        plot.setLabel(axis="left", text="Sensitivity [1/rad]")
-        plot.showGrid(x=True, y=True)
-        parent.layout().addWidget(self.plot_windows.sensitivity)
-
-    def init_pti_signal(self, parent: QtWidgets):
-        self.plot_windows.pti_signal = pg.GraphicsLayoutWidget()
-        plot = self.plot_windows.pti_signal.addPlot()
-        plot.addLegend()
-        self.curves.pti_signal = plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="1 s", size=6)
-        self.curves.pti_signal_mean = plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="60 s Mean")
-        plot.setLabel(axis="bottom", text="Time [s]")
-        plot.setLabel(axis="left", text="PTI Signal [µrad]")
-        plot.showGrid(x=True, y=True)
-        parent.layout().addWidget(self.plot_windows.pti_signal)
-
-    def init_amplitudes(self, parent: QtWidgets):
-        self.plot_windows.amplitudes = pg.GraphicsLayoutWidget()
-        plot = self.plot_windows.amplitudes.addPlot()
-        plot.addLegend()
-        self.curves.amplitudes = [plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="Amplitude CH1"),
-                                  plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="Amplitude CH2"),
-                                  plot.plot(pen=pg.mkPen(_MatplotlibColors.GREEN), name="Amplitude CH3")]
-        plot.setLabel(axis="bottom", text="Time [s]")
-        plot.setLabel(axis="left", text="Amplitude [V]")
-        plot.showGrid(x=True, y=True)
-        parent.layout().addWidget(self.plot_windows.amplitudes)
-
-    def init_output_phases(self, parent: QtWidgets):
-        self.plot_windows.output_phases = pg.GraphicsLayoutWidget()
-        plot = self.plot_windows.output_phases.addPlot()
-        plot.addLegend()
-        self.curves.output_phases = [plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="Output Phase CH2"),
-                                     plot.plot(pen=pg.mkPen(_MatplotlibColors.GREEN), name="Output Phase CH3")]
-        plot.setLabel(axis="bottom", text="Time [s]")
-        plot.setLabel(axis="left", text="Output Phase [deg]")
-        plot.showGrid(x=True, y=True)
-        parent.layout().addWidget(self.plot_windows.output_phases)
 
 
 class _BufferedData(_Struct):
@@ -531,6 +313,7 @@ class _BufferedData(_Struct):
 class _Settings(QAbstractTableModel):
     HEADERS = ["Detector 1", "Detector 2", "Detector 3"]
     INDEX = ["Amplitude [V]", "Offset [V]", "Output Phases [deg]", "Response Phases [deg]"]
+    SIGNIFICANT_VALUES = 4
 
     def __init__(self):
         QAbstractTableModel.__init__(self)
@@ -548,7 +331,7 @@ class _Settings(QAbstractTableModel):
         if index.isValid():
             if role == Qt.DisplayRole or role == Qt.EditRole:
                 value = self._data.values[index.row()][index.column()]
-                return str(value)
+                return str(round(value, _Settings.SIGNIFICANT_VALUES))
 
     def flags(self, index):
         return Qt.ItemIsSelectable | Qt.ItemIsEnabled | Qt.ItemIsEditable
@@ -672,7 +455,7 @@ class Model:
                 self.settings.save()
             else:
                 if list(settings.columns) != _Settings.HEADERS or list(settings.index) != _Settings.INDEX:
-                    self.settings.save()   # The file is in any way broken.
+                    self.settings.save()  # The file is in any way broken.
 
     def load_settings(self):
         try:
@@ -777,7 +560,7 @@ class Model:
         self.pti.characterization.init_online = True
 
     def connect_daq(self):
-        self.daq.open_port()
+        self.daq.open()
 
     def start_daq(self):
         self.daq.running.set()
