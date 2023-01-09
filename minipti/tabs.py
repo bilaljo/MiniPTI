@@ -1,5 +1,7 @@
+import abc
+
 import pyqtgraph as pg
-from PySide6 import QtWidgets
+from PySide6 import QtWidgets, QtGui, QtCore
 
 
 class _Tab(QtWidgets.QTabWidget):
@@ -24,6 +26,10 @@ class CreateButton:
         self.buttons[title] = QtWidgets.QPushButton(master, text=title)
         self.buttons[title].clicked.connect(slot)
         master.layout().addWidget(self.buttons[title])
+
+    @abc.abstractmethod
+    def _init_buttons(self, controller):
+        pass
 
 
 class SettingsView(QtWidgets.QTableView):
@@ -84,11 +90,66 @@ class Home(_Tab, CreateButton):
         self.create_button(master=sub_layout, title="Inversion", slot=controller.plot_inversion)
         self.create_button(master=sub_layout, title="Characterisation", slot=controller.plot_characterisation)
 
+        # Driver buttons
+        sub_layout = QtWidgets.QWidget(parent=self.frames["Drivers"])
+        sub_layout.setLayout(QtWidgets.QHBoxLayout())
+        self.frames["Drivers"].layout().addWidget(sub_layout)
+        self.create_button(master=sub_layout, title="Scan Ports", slot=controller.plot_dc)
+        self.create_button(master=sub_layout, title="Connect Devices", slot=controller.plot_dc)
+
+
+class ValveSlider(QtWidgets.QWidget):
+    def __init__(self):
+        QtWidgets.QWidget.__init__(self)
+        self.slider = QtWidgets.QSlider()
+        self.setLayout(QtWidgets.QHBoxLayout())
+        self.layout().addWidget(self.slider)
+        # self.slider.setTickPosition(QtWidgets.QSlider.TickPosition.TicksBothSides)
+        self.slider.setOrientation(QtCore.Qt.Orientation.Horizontal)
+        self.slider_value = QtWidgets.QLabel()
+        self.layout().addWidget(self.slider_value)
+        self.slider_value.setText(f"{self.slider.value() / ((1 << 16) - 1)} %")
+        self.slider.setMaximum((1 << 16) - 1)
+        self.slider.valueChanged.connect(self.update_value)
+
+    def update_value(self):
+        self.slider_value.setText(f"{round(self.slider.value() / ((1 << 16) - 1) * 100, 2)} %")
+
 
 class DAQ(_Tab, CreateButton):
-    def __init__(self, name="DAQ"):
+    def __init__(self, controller, name="DAQ"):
         _Tab.__init__(self, name=name)
         CreateButton.__init__(self)
+        self._init_frames()
+        self._init_buttons(controller)
+
+    def _init_frames(self):
+        self.create_frame(title="Port", x_position=0, y_position=0)
+        self.create_frame(title="Information", x_position=1, y_position=0)
+        self.create_frame(title="Valves", x_position=2, y_position=0)
+
+    def _init_buttons(self, controller):
+        sub_layout = QtWidgets.QWidget()
+        self.frames["Port"].layout().addWidget(sub_layout)
+        sub_layout.setLayout(QtWidgets.QVBoxLayout())
+        information_box = QtWidgets.QLabel()
+        information_box.setText("COM3")
+        sub_layout.layout().addWidget(information_box)
+        information_box = QtWidgets.QLabel()
+        information_box.setText("Connected")
+        sub_layout.layout().addWidget(information_box)
+
+        sub_layout = QtWidgets.QWidget()
+        self.frames["Information"].layout().addWidget(sub_layout)
+        sub_layout.setLayout(QtWidgets.QHBoxLayout())
+        self.create_button(master=sub_layout, title="Device ID", slot=controller.save_settings)
+        self.create_button(master=sub_layout, title="Device Version", slot=controller.save_settings)
+        self.create_button(master=sub_layout, title="Firmware Version", slot=controller.save_settings)
+
+        self.frames["Valves"].layout().addWidget(QtWidgets.QLabel("Valve 1"))
+        self.frames["Valves"].layout().addWidget(ValveSlider())
+        self.frames["Valves"].layout().addWidget(QtWidgets.QLabel("Valve 2"))
+        self.frames["Valves"].layout().addWidget(ValveSlider())
 
 
 class _MatplotlibColors:

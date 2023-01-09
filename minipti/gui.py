@@ -212,7 +212,7 @@ class View(QMainWindow):
         self.logging = QtHandler(self.model)
         self.logging_window = QtWidgets.QLabel()
         self.setCentralWidget(self.tab_bar)
-        self.tabs = Tabs(tabs.Home(self.logging_window, controller), tabs.DAQ(), tabs.DC(), tabs.Amplitudes(),
+        self.tabs = Tabs(tabs.Home(self.logging_window, controller), tabs.DAQ(controller), tabs.DC(), tabs.Amplitudes(),
                          tabs.OutputPhases(), tabs.InterferometricPhase(), tabs.Sensitivity(), tabs.PTISignal())
         self.tabs.home.settings.setModel(self.model.settings)
         for tab in self.tabs:
