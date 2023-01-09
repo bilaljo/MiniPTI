@@ -3,12 +3,14 @@ import logging
 import queue
 import re
 import threading
+import time
 from collections import deque
 from dataclasses import dataclass
 from enum import Enum
 
 from PySide6 import QtSerialPort, QtCore
 from fastcrc import crc16
+import serial
 
 
 class Error(Enum):
@@ -24,11 +26,11 @@ class Patterns:
     The first bytes stand for get (G) the second byte for the required thing (H for Hardware, F for Firmware etc.).
     The third bytes stands for the required Information (I for ID, V for version). \n is the termination symbol.
     """
-    HARDWARE_ID = re.compile(b"(GHI...\n)", flags=re.MULTILINE)
-    FIRMWARE_VERSION = re.compile(b"(GFW...\n)", flags=re.MULTILINE)
-    HARDWARE_VERSION = re.compile(b"(GHW...\n)", flags=re.MULTILINE)
-    ERROR = re.compile(b"(ERR...\n)", flags=re.MULTILINE)
-    VALUE = re.compile(b"[0-9a-fA-F]+")  # Hex value
+    HARDWARE_ID = re.compile(b"(GHI[0-9a-fA-F]{4}\n)", flags=re.MULTILINE)
+    FIRMWARE_VERSION = re.compile(b"(GFW[0-9a-fA-F]{4}\n)", flags=re.MULTILINE)
+    HARDWARE_VERSION = re.compile(b"(GHW[0-9a-fA-F]{4}\n)", flags=re.MULTILINE)
+    ERROR = re.compile(b"(ERR[0-9a-fA-F]{4}\n)", flags=re.MULTILINE)
+    HEX_VALUE = re.compile(b"[0-9a-fA-F]{4}", flags=re.MULTILINE)
 
 
 class SerialError(Exception):
@@ -37,8 +39,8 @@ class SerialError(Exception):
 
 class SerialDevice(QtCore.QObject):
     QUEUE_SIZE = 15
-    WAIT_TIME = 100  # ms
-    GET_HARDWARE_ID = b"GHI0000\n"
+    WAIT_TIME = 50  # ms
+    GET_HARDWARE_ID = b"GHI0001\n"
     GET_FIRMWARE_VERSION = b"GFW0000\n"
     GET_HARDWARE_VERSION = b"GWW0000\n"
 
@@ -51,18 +53,27 @@ class SerialDevice(QtCore.QObject):
         self.device.readyRead.connect(self.__receive)
         self.received_data = queue.Queue(maxsize=SerialDevice.QUEUE_SIZE)
 
+    def __repr__(self):
+        class_name = self.__class__.__name__
+        representation = f"{class_name}(termination_symbol={self.termination_symbol}, device_id={self.device_id}"
+        representation += f"port={self.port}, device={self.device}, received_data={self.received_data})"
+        return representation
+
     def get_hardware_id(self):
-        return Patterns.VALUE.search(Patterns.HARDWARE_ID.search(self.received_data.get())).group()
+        hardware_id = Patterns.HARDWARE_ID.search(self.received_data.get())
+        if hardware_id is not None:
+            hardware_id = hardware_id.group()
+            return Patterns.HEX_VALUE.search(hardware_id).group()
 
     def get_hardware_version(self):
-        return Patterns.VALUE.search(Patterns.HARDWARE_VERSION.search(self.received_data.get())).group()
+        return Patterns.HEX_VALUE.search(Patterns.HARDWARE_VERSION.search(self.received_data.get())).group()
 
     def get_firmware_version(self):
-        return Patterns.VALUE.search(Patterns.FIRMWARE_VERSION.search(self.received_data.get())).group()
+        return Patterns.HEX_VALUE.search(Patterns.FIRMWARE_VERSION.search(self.received_data.get())).group()
 
     def command_error_handing(self, received):
-        if Patterns.ERROR.search(received):
-            match Patterns.VALUE.search(Patterns.ERROR.search(received)):
+        if Patterns.ERROR.search(received) is not None:
+            match Patterns.HEX_VALUE.search(Patterns.ERROR.search(received).group()).group():
                 case Error.COMMAND:
                     raise SerialError(f"Packet length != 7 characters ('\n' excluded) from {self.device}")
                 case Error.PARAMETER:
@@ -84,21 +95,30 @@ class SerialDevice(QtCore.QObject):
         the correct size of package in the given time.
         """
         for port in QtSerialPort.QSerialPortInfo.availablePorts():
-            self.device.setPortName(port.portName())
-            self.device.open(QtSerialPort.QSerialPort.ReadWrite)
-            if not self.device.isOpen():
+            try:
+                device = serial.Serial(port=port.portName(), write_timeout=SerialDevice.WAIT_TIME,
+                                       timeout=SerialDevice.WAIT_TIME)
+            except serial.SerialException:
                 continue
-            self.device.write(SerialDevice.GET_HARDWARE_ID)
-            self.device.waitForBytesWritten(msecs=SerialDevice.WAIT_TIME)
-            self.device.waitForReadyRead(msecs=SerialDevice.WAIT_TIME)
-            received = self.device.readAll()
-            self.command_error_handing(received)
-            if not received:
-                self.device.close()
+            if not device.is_open:
                 continue
-            self.received_data.put(received)
+            if not device.writable():
+                continue
+            received_bytes = b""
+            start_time = time.time() * 1000
+            current_time = start_time
+            device.write(SerialDevice.GET_HARDWARE_ID)
+            while current_time < start_time + SerialDevice.WAIT_TIME:
+                received_bytes += device.read(device.inWaiting())
+                current_time = time.time() * 1000
+            self.received_data.put(received_bytes)
             if self.get_hardware_id() == self.device_id:
+                device.close()
+                print(port.portName())
                 self.port = port.portName()
+                print(self.port)
+                self.device.setPortName(port.portName())
+                self.device.open(QtSerialPort.QSerialPort.ReadWrite)
                 break
         else:
             raise SerialError("Device not found")
@@ -109,9 +129,6 @@ class SerialDevice(QtCore.QObject):
 
     def __receive(self):
         self.received_data.put(bytes(self.device.readAll()))
-
-    def __repr__(self):
-        pass
 
 
 @dataclass
@@ -132,7 +149,7 @@ class DAQ(SerialDevice):
     PACKAGE_SIZE = 4110
     WORD_SIZE = 32
     TERMINATION_SYMBOL = b"\n"
-    ID = b"0000"
+    ID = b"0001"
 
     WAIT_TIME_TIMEOUT = 100e-3  # 100 ms
     WAIT_TIME_DATA = 10e-3  # 10 ms

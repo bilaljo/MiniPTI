@@ -50,6 +50,7 @@ class Controller(QApplication):
         self.model.observers.logging_update.connect(self.view.logging_update, QtCore.Qt.QueuedConnection)
         logging.getLogger().addHandler(self.view.logging)
         self.model.settings.load()
+        self.model.connect_devices()
 
     def close(self):
         self.model.stop_daq()
@@ -64,6 +65,24 @@ class Controller(QApplication):
             QMessageBox.critical(self.view, "Timeout Error", "Timeout Error")
         else:
             QMessageBox.critical(self.view, "Error", f"{args.exc_type} error occurred.")
+
+    def connect_devices(self):
+        try:
+            self.model.connect_daq()
+        except driver.SerialError:
+            QMessageBox.warning(self.view, "Driver Error", "Could not connect with DAQ")
+
+    @QtCore.Slot()
+    def daq_firmware_version(self):
+        return self.model.daq.get_firmware_version()
+
+    @QtCore.Slot()
+    def daq_hardware_version(self):
+        return self.model.daq.get_hardware_version()
+
+    @QtCore.Slot()
+    def daq_id(self):
+        return self.model.daq.get_hardware_id()
 
     @QtCore.Slot()
     def save_settings(self):
@@ -212,7 +231,7 @@ class View(QMainWindow):
         self.logging = QtHandler(self.model)
         self.logging_window = QtWidgets.QLabel()
         self.setCentralWidget(self.tab_bar)
-        self.tabs = Tabs(tabs.Home(self.logging_window, controller), tabs.DAQ(controller), tabs.DC(), tabs.Amplitudes(),
+        self.tabs = Tabs(tabs.Home(self.logging_window, model), tabs.DAQ(model), tabs.DC(), tabs.Amplitudes(),
                          tabs.OutputPhases(), tabs.InterferometricPhase(), tabs.Sensitivity(), tabs.PTISignal())
         self.tabs.home.settings.setModel(self.model.settings)
         for tab in self.tabs:
@@ -558,6 +577,9 @@ class Model:
         self.pti.inversion.init_header = True
         self.pti.decimation.init_header = True
         self.pti.characterization.init_online = True
+
+    def connect_devices(self):
+        self.daq.open()
 
     def connect_daq(self):
         self.daq.open()
