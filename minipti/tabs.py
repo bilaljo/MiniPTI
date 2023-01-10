@@ -93,7 +93,7 @@ class Home(_Tab, CreateButton):
         sub_layout = QtWidgets.QWidget(parent=self.frames["Drivers"])
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
         self.frames["Drivers"].layout().addWidget(sub_layout)
-        self.create_button(master=sub_layout, title="Scan Ports", slot=controller.plot_dc)
+        self.create_button(master=sub_layout, title="Scan Ports", slot=controller.find_devices)
         self.create_button(master=sub_layout, title="Connect Devices", slot=controller.connect_devices)
 
 
@@ -125,26 +125,9 @@ class DAQ(_Tab, CreateButton):
         self._init_buttons(controller)
 
     def _init_frames(self):
-        self.create_frame(title="Port", x_position=0, y_position=0)
-        self.create_frame(title="Information", x_position=1, y_position=0)
         self.create_frame(title="Valves", x_position=2, y_position=0)
 
     def _init_buttons(self, controller):
-        sub_layout = QtWidgets.QWidget()
-        self.frames["Port"].layout().addWidget(sub_layout)
-        sub_layout.setLayout(QtWidgets.QVBoxLayout())
-        self.port_box.setText(controller.ports.daq)
-        sub_layout.layout().addWidget(self.port_box)
-        self.connected_box.setText("Connected")
-        sub_layout.layout().addWidget(self.connected_box)
-
-        sub_layout = QtWidgets.QWidget()
-        self.frames["Information"].layout().addWidget(sub_layout)
-        sub_layout.setLayout(QtWidgets.QHBoxLayout())
-        self.create_button(master=sub_layout, title="Device ID", slot=controller.save_settings)
-        self.create_button(master=sub_layout, title="Device Version", slot=controller.save_settings)
-        self.create_button(master=sub_layout, title="Firmware Version", slot=controller.save_settings)
-
         self.frames["Valves"].layout().addWidget(QtWidgets.QLabel("Valve 1"))
         self.frames["Valves"].layout().addWidget(ValveSlider())
         self.frames["Valves"].layout().addWidget(QtWidgets.QLabel("Valve 2"))

@@ -49,6 +49,7 @@ class SerialDevice(QtCore.QObject):
     WAIT_TIME = 50  # ms
 
     TERMINATION_SYMBOL = b"\n"
+    NUMBER_OF_HEX_BYTES = 4
 
     def __init__(self):
         QtCore.QObject.__init__(self)
@@ -60,6 +61,11 @@ class SerialDevice(QtCore.QObject):
     @property
     @abc.abstractmethod
     def device_id(self):
+        pass
+
+    @property
+    @abc.abstractmethod
+    def device_name(self):
         pass
 
     def __repr__(self):
@@ -94,12 +100,12 @@ class SerialDevice(QtCore.QObject):
                     raise SerialError(f"Unknown command from {self.device}")
 
     def __enter__(self):
-        self.open()
+        self.find_port()
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
 
-    def open(self):
+    def find_port(self):
         """
         To recognise the correct port the ports are checked for their correct behavior. The correct port would produce
         the correct size of package in the given time.
@@ -113,7 +119,7 @@ class SerialDevice(QtCore.QObject):
             if not device.is_open:
                 continue
             if not device.writable():
-                continue
+                device.close()
             received_bytes = b""
             start_time = time.time() * 1000
             current_time = start_time
@@ -124,21 +130,34 @@ class SerialDevice(QtCore.QObject):
             self.received_data.put(received_bytes)
             if self.get_hardware_id() == self.device_id:
                 device.close()
-                print(port.portName())
                 self.port = port.portName()
-                print(self.port)
+                logging.info(f"Found {self.device_name} at {self.port}")
                 self.device.setPortName(port.portName())
-                self.device.open(QtSerialPort.QSerialPort.ReadWrite)
                 break
+            else:
+                device.close()
         else:
-            raise SerialError("Device not found")
+            logging.error(f"Could not connect with {self.device_name}")
+            raise SerialError("Could not found {self.device_name}")
+
+    def open(self):
+        if self.device.portName():
+            logging.info(f"Connected with {self.device_name}")
+            self.device.open(QtSerialPort.QSerialPort.ReadWrite)
+        else:
+            raise SerialError(f"Could not connect with {self.device_name}")
 
     def close(self):
         if self.device.isOpen():
             self.device.close()
 
     def __receive(self):
-        self.received_data.put(bytes(self.device.readAll()))
+        try:
+            self.received_data.put(bytes(self.device.readAll()), block=False)
+        except queue.Full:
+            logging.error(f"Buffer queue of device {self.device_name} is full")
+            logging.info("Removed one item")
+            self.received_data.get()  # Remove the oldest item since the queue is full
 
 
 @dataclass
@@ -158,7 +177,9 @@ class DAQ(SerialDevice):
     CRC_START_INDEX = 4
     PACKAGE_SIZE = 4110
     WORD_SIZE = 32
+
     ID = b"0001"
+    NAME = "DAQ"
 
     WAIT_TIME_TIMEOUT = 100e-3  # 100 ms
     WAIT_TIME_DATA = 10e-3  # 10 ms
@@ -188,6 +209,10 @@ class DAQ(SerialDevice):
     @property
     def device_id(self):
         return DAQ.ID
+
+    @property
+    def device_name(self):
+        return DAQ.NAME
 
     def __call__(self):
         self.running.set()
@@ -317,6 +342,12 @@ class DAQ(SerialDevice):
 
 class Laser(SerialDevice):
     HARDWARE_ID = b"0002"
+    NAME = "Laser"
+
+    RESISTOR = 2.2e3
+    DIGITAL_POT = 1e3
+    NUMBER_OF_STEPS = 128
+    PRE_RESISTOR = 1.6e3
 
     def __init__(self):
         SerialDevice.__init__(self)
@@ -325,9 +356,33 @@ class Laser(SerialDevice):
     def device_id(self):
         return Laser.HARDWARE_ID
 
+    @property
+    def device_name(self):
+        return Laser.NAME
+
+    def check_open(self):
+        if not self.device.isOpen():
+            self.device.open(QtSerialPort.QSerialPort.ReadWrite)
+
+    def set_pump_voltage(self, voltage):
+        # 0.8 is an interpolation constant without any practical meaning.
+        voltage_bytes = int((0.8 * Laser.RESISTOR / (voltage - 0.8) - Laser.PRE_RESISTOR) * (Laser.NUMBER_OF_STEPS
+                                                                                             / Laser.DIGITAL_POT))
+        hex_bytes = f"{voltage_bytes:0{SerialDevice.NUMBER_OF_HEX_BYTES}x}".encode()
+        self.device.write(b"SHV" + hex_bytes + b"\n")
+
+    def set_static_current(self, current):
+        self.check_open()
+        self.device.write(b"SC3" + bytes(current) + b"\n")
+
+    def set_modulated_current(self, current):
+        self.check_open()
+        self.device.write(b"SC4" + bytes(current) + b"\n")
+
 
 class Tec(SerialDevice):
     HARDWARE_ID = b"0003"
+    NAME = "Tec"
 
     def __init__(self):
         SerialDevice.__init__(self)
@@ -335,3 +390,7 @@ class Tec(SerialDevice):
     @property
     def device_id(self):
         return Tec.HARDWARE_ID
+
+    @property
+    def device_name(self):
+        return Tec.NAME

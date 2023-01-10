@@ -54,7 +54,7 @@ class Controller(QApplication):
         self.model.observers.logging_update.connect(self.view.logging_update, QtCore.Qt.QueuedConnection)
         logging.getLogger().addHandler(self.view.logging)
         self.model.settings.load()
-        self.connect_devices()
+        self.find_devices()
 
     def close(self):
         self.model.stop_daq()
@@ -69,6 +69,13 @@ class Controller(QApplication):
             QMessageBox.critical(self.view, "Timeout Error", "Timeout Error")
         else:
             QMessageBox.critical(self.view, "Error", f"{args.exc_type} error occurred.")
+
+    def find_devices(self):
+        try:
+            self.model.daq.find_port()
+        except driver.SerialError:
+            logging.error("Could not find DAQ")
+            QMessageBox.warning(self.view, "Driver Error", "Could not find DAQ")
 
     def connect_devices(self):
         try:
@@ -583,7 +590,7 @@ class Model:
         self.pti.characterization.init_online = True
 
     def connect_daq(self):
-        self.daq.open()
+        self.daq.find_port()
 
     def start_daq(self):
         self.daq.running.set()
