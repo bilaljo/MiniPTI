@@ -1,3 +1,4 @@
+import abc
 import itertools
 import logging
 import queue
@@ -37,25 +38,34 @@ class SerialError(Exception):
     pass
 
 
+class Command:
+    HARDWARE_ID = b"GHI0000\n"
+    FIRMWARE_VERSION = b"GFW0000\n"
+    HARDWARE_VERSION = b"GWW0000\n"
+
+
 class SerialDevice(QtCore.QObject):
     QUEUE_SIZE = 15
     WAIT_TIME = 50  # ms
-    GET_HARDWARE_ID = b"GHI0001\n"
-    GET_FIRMWARE_VERSION = b"GFW0000\n"
-    GET_HARDWARE_VERSION = b"GWW0000\n"
 
-    def __init__(self, termination_symbol, device_id):
+    TERMINATION_SYMBOL = b"\n"
+
+    def __init__(self):
         QtCore.QObject.__init__(self)
-        self.termination_symbol = termination_symbol
-        self.device_id = bytes(device_id)
         self.port = None
         self.device = QtSerialPort.QSerialPort()
         self.device.readyRead.connect(self.__receive)
         self.received_data = queue.Queue(maxsize=SerialDevice.QUEUE_SIZE)
 
+    @property
+    @abc.abstractmethod
+    def device_id(self):
+        pass
+
     def __repr__(self):
         class_name = self.__class__.__name__
-        representation = f"{class_name}(termination_symbol={self.termination_symbol}, device_id={self.device_id}"
+        representation = f"{class_name}(termination_symbol={SerialDevice.TERMINATION_SYMBOL}," \
+                         f" device_id={self.device_id}"
         representation += f"port={self.port}, device={self.device}, received_data={self.received_data})"
         return representation
 
@@ -107,7 +117,7 @@ class SerialDevice(QtCore.QObject):
             received_bytes = b""
             start_time = time.time() * 1000
             current_time = start_time
-            device.write(SerialDevice.GET_HARDWARE_ID)
+            device.write(Command.HARDWARE_ID)
             while current_time < start_time + SerialDevice.WAIT_TIME:
                 received_bytes += device.read(device.inWaiting())
                 current_time = time.time() * 1000
@@ -148,7 +158,6 @@ class DAQ(SerialDevice):
     CRC_START_INDEX = 4
     PACKAGE_SIZE = 4110
     WORD_SIZE = 32
-    TERMINATION_SYMBOL = b"\n"
     ID = b"0001"
 
     WAIT_TIME_TIMEOUT = 100e-3  # 100 ms
@@ -159,7 +168,7 @@ class DAQ(SerialDevice):
     NUMBER_OF_SAMPLES = 8000
 
     def __init__(self):
-        SerialDevice.__init__(self, termination_symbol=DAQ.TERMINATION_SYMBOL, device_id=DAQ.ID)
+        SerialDevice.__init__(self)
         self.package_data = DAQData()
         self.buffers = DAQData()
         self.buffers.ref_signal = deque()
@@ -175,6 +184,10 @@ class DAQ(SerialDevice):
         self.encode_daq = None
         self.synchronize = True
         self.ready = False
+
+    @property
+    def device_id(self):
+        return DAQ.ID
 
     def __call__(self):
         self.running.set()
@@ -300,3 +313,25 @@ class DAQ(SerialDevice):
                     ac_package[channel].append(self.buffers.ac_coupled[channel].popleft())
             self.package_data.dc_coupled.put(dc_package)
             self.package_data.ac_coupled.put(ac_package)
+
+
+class Laser(SerialDevice):
+    HARDWARE_ID = b"0002"
+
+    def __init__(self):
+        SerialDevice.__init__(self)
+
+    @property
+    def device_id(self):
+        return Laser.HARDWARE_ID
+
+
+class Tec(SerialDevice):
+    HARDWARE_ID = b"0003"
+
+    def __init__(self):
+        SerialDevice.__init__(self)
+
+    @property
+    def device_id(self):
+        return Tec.HARDWARE_ID

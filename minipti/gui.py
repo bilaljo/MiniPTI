@@ -27,11 +27,15 @@ class _Struct:
         setattr(self, key.casefold().replace(" ", "_"), value)
 
 
+Ports = namedtuple("Ports", ("daq", "laser", "tec"))
+
+
 class Controller(QApplication):
     def __init__(self, argv=""):
         QApplication.__init__(self, argv)
         self.live_plot = None
         self.model = Model()
+        self.ports = Ports(self.model.daq.port, "", "")
         self.view = View(self, self.model)
         self.running = False
         self.running = threading.Event()
@@ -50,7 +54,7 @@ class Controller(QApplication):
         self.model.observers.logging_update.connect(self.view.logging_update, QtCore.Qt.QueuedConnection)
         logging.getLogger().addHandler(self.view.logging)
         self.model.settings.load()
-        self.model.connect_devices()
+        self.connect_devices()
 
     def close(self):
         self.model.stop_daq()
@@ -68,7 +72,7 @@ class Controller(QApplication):
 
     def connect_devices(self):
         try:
-            self.model.connect_daq()
+            self.model.daq.open()
         except driver.SerialError:
             QMessageBox.warning(self.view, "Driver Error", "Could not connect with DAQ")
 
@@ -231,7 +235,7 @@ class View(QMainWindow):
         self.logging = QtHandler(self.model)
         self.logging_window = QtWidgets.QLabel()
         self.setCentralWidget(self.tab_bar)
-        self.tabs = Tabs(tabs.Home(self.logging_window, model), tabs.DAQ(model), tabs.DC(), tabs.Amplitudes(),
+        self.tabs = Tabs(tabs.Home(self.logging_window, controller), tabs.DAQ(controller), tabs.DC(), tabs.Amplitudes(),
                          tabs.OutputPhases(), tabs.InterferometricPhase(), tabs.Sensitivity(), tabs.PTISignal())
         self.tabs.home.settings.setModel(self.model.settings)
         for tab in self.tabs:
@@ -578,9 +582,6 @@ class Model:
         self.pti.decimation.init_header = True
         self.pti.characterization.init_online = True
 
-    def connect_devices(self):
-        self.daq.open()
-
     def connect_daq(self):
         self.daq.open()
 
@@ -591,7 +592,6 @@ class Model:
 
     def stop_daq(self):
         self.daq.running.clear()
-        self.daq.close()
 
     def stop_measurement(self):
         self.live_measurement.running.clear()

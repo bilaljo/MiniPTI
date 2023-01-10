@@ -28,7 +28,7 @@ class CreateButton:
         master.layout().addWidget(self.buttons[title])
 
     @abc.abstractmethod
-    def _init_buttons(self, model=None, controller=None): ...
+    def _init_buttons(self, controller): ...
 
 
 class SettingsView(QtWidgets.QTableView):
@@ -45,14 +45,14 @@ class SettingsView(QtWidgets.QTableView):
 
 
 class Home(_Tab, CreateButton):
-    def __init__(self, logging_window, model, name="Home"):
+    def __init__(self, logging_window, controller, name="Home"):
         _Tab.__init__(self, name=name)
         CreateButton.__init__(self)
         self._init_frames()
         self.settings = SettingsView(parent=self.frames["Setting"])
         self.frames["Setting"].layout().addWidget(self.settings, 0, 0)
         self.frames["Log"].layout().addWidget(logging_window)
-        self._init_buttons(model)
+        self._init_buttons(controller)
 
     def _init_frames(self):
         self.create_frame(title="Log", x_position=0, y_position=1)
@@ -61,17 +61,17 @@ class Home(_Tab, CreateButton):
         self.create_frame(title="Plot Data", x_position=2, y_position=0)
         self.create_frame(title="Drivers", x_position=3, y_position=0)
 
-    def _init_buttons(self, model=model):
-        assert (model is not None)
+    def _init_buttons(self, controller):
+        assert (controller is not None)
 
         # Settings buttons
         sub_layout = QtWidgets.QWidget()
         self.frames["Setting"].layout().addWidget(sub_layout)
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
-        self.create_button(master=sub_layout, title="Save Settings", slot=model.save_settings)
-        self.create_button(master=sub_layout, title="Load Settings", slot=model.load_settings)
+        self.create_button(master=sub_layout, title="Save Settings", slot=controller.save_settings)
+        self.create_button(master=sub_layout, title="Load Settings", slot=controller.load_settings)
         # TODO: Implement autosave slot
-        self.create_button(master=sub_layout, title="Auto Save", slot=model.load_settings)
+        self.create_button(master=sub_layout, title="Auto Save", slot=controller.load_settings)
 
         # Offline Processing buttons
         sub_layout = QtWidgets.QWidget()
@@ -93,8 +93,8 @@ class Home(_Tab, CreateButton):
         sub_layout = QtWidgets.QWidget(parent=self.frames["Drivers"])
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
         self.frames["Drivers"].layout().addWidget(sub_layout)
-        self.create_button(master=sub_layout, title="Scan Ports", slot=model.plot_dc)
-        self.create_button(master=sub_layout, title="Connect Devices", slot=model.connect_devices)
+        self.create_button(master=sub_layout, title="Scan Ports", slot=controller.plot_dc)
+        self.create_button(master=sub_layout, title="Connect Devices", slot=controller.connect_devices)
 
 
 class ValveSlider(QtWidgets.QWidget):
@@ -116,35 +116,34 @@ class ValveSlider(QtWidgets.QWidget):
 
 
 class DAQ(_Tab, CreateButton):
-    def __init__(self, model, name="DAQ"):
+    def __init__(self, controller, name="DAQ"):
         _Tab.__init__(self, name=name)
         CreateButton.__init__(self)
+        self.port_box = QtWidgets.QLabel()
+        self.connected_box = QtWidgets.QLabel()
         self._init_frames()
-        self._init_buttons(model)
+        self._init_buttons(controller)
 
     def _init_frames(self):
         self.create_frame(title="Port", x_position=0, y_position=0)
         self.create_frame(title="Information", x_position=1, y_position=0)
         self.create_frame(title="Valves", x_position=2, y_position=0)
 
-    def _init_buttons(self, model):
+    def _init_buttons(self, controller):
         sub_layout = QtWidgets.QWidget()
         self.frames["Port"].layout().addWidget(sub_layout)
         sub_layout.setLayout(QtWidgets.QVBoxLayout())
-        information_box = QtWidgets.QLabel()
-        print(model.daq.port)
-        information_box.setText(model.daq.port)
-        sub_layout.layout().addWidget(information_box)
-        information_box = QtWidgets.QLabel()
-        information_box.setText("Connected")
-        sub_layout.layout().addWidget(information_box)
+        self.port_box.setText(controller.ports.daq)
+        sub_layout.layout().addWidget(self.port_box)
+        self.connected_box.setText("Connected")
+        sub_layout.layout().addWidget(self.connected_box)
 
         sub_layout = QtWidgets.QWidget()
         self.frames["Information"].layout().addWidget(sub_layout)
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
-        self.create_button(master=sub_layout, title="Device ID", slot=model.save_settings)
-        self.create_button(master=sub_layout, title="Device Version", slot=model.save_settings)
-        self.create_button(master=sub_layout, title="Firmware Version", slot=model.save_settings)
+        self.create_button(master=sub_layout, title="Device ID", slot=controller.save_settings)
+        self.create_button(master=sub_layout, title="Device Version", slot=controller.save_settings)
+        self.create_button(master=sub_layout, title="Firmware Version", slot=controller.save_settings)
 
         self.frames["Valves"].layout().addWidget(QtWidgets.QLabel("Valve 1"))
         self.frames["Valves"].layout().addWidget(ValveSlider())
