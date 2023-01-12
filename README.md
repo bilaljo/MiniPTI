@@ -5,8 +5,14 @@
 </p>
 
 In this library the python implementation of the algorithm from
-[Waveguide based passively demodulated photothermal interferometer for light absorption measurements](https://doi.org/10.1364/AO.476868)
+[Waveguide based passively demodulated photothermal interferometer for light absorption measurements of trace substances](https://doi.org/10.1364/AO.476868)
 is provided.
+
+### Installation
+```bash
+pip install minipti
+```
+https://pypi.org/project/minipti/1.0/
 
 The library can be split into sub-libraries:
 
@@ -63,10 +69,10 @@ for i in range(3):
 with minipti.pti.Decimation(binary_file) as decimation:
     while decimation.read_data():
         decimation()
-    for i in range(3):
-        output_data[f"DC CH{i + 1}"].append(decimation.dc_down_sampled[i])
-        output_data[f"Lock In Amplitude CH{i}"].append(decimation.lock_in.amplitude[i])
-        output_data[f"Lock In Phase CH{i}"].append(decimation.lock_in.phase[i])
+        for i in range(3):
+            output_data[f"DC CH{i + 1}"].append(decimation.dc_down_sampled[i])
+            output_data[f"Lock In Amplitude CH{i}"].append(decimation.lock_in.amplitude[i])
+            output_data[f"Lock In Phase CH{i}"].append(decimation.lock_in.phase[i])
 pd.DataFrame(output_data).to_csv("Decimation.csv")
 ```
 
