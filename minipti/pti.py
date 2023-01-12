@@ -16,7 +16,6 @@ class LockIn:
 class Inversion:
     """
     Provided an API for the PTI algorithm described in [1] from Weingartner et al.
-
     [1]: Waveguide based passively demodulated photo-thermal
          interferometer for aerosol measurements
     """
@@ -126,7 +125,6 @@ class Inversion:
 class Decimation:
     """
     Provided an API for the PTI decimation described in [1] from Weingartner et al.
-
     [1]: Waveguide based passively demodulated photothermal
          interferometer for aerosol measurements
     """
@@ -152,8 +150,9 @@ class Decimation:
 
     def __enter__(self):
         self.file = open(file=self.file_path, mode="rb")
+        return self
 
-    def __exit__(self):
+    def __exit__(self, exc_type, exc_value, exc_traceback):
         self.file.close()
 
     def read_data(self):
