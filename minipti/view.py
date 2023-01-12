@@ -11,11 +11,14 @@ class _Tab(QtWidgets.QTabWidget):
         self.frames = {}
         self.setLayout(QtWidgets.QGridLayout())
 
-    def create_frame(self, title, x_position, y_position):
+    def create_frame(self, title, x_position, y_position, master=None):
         self.frames[title] = QtWidgets.QGroupBox()
         self.frames[title].setTitle(title)
         self.frames[title].setLayout(QtWidgets.QGridLayout())
-        self.layout().addWidget(self.frames[title], x_position, y_position)
+        if master is None:
+            self.layout().addWidget(self.frames[title], x_position, y_position)
+        else:
+            master.layout().addWidget(self.frames[title], x_position, y_position)
 
 
 class CreateButton:
@@ -97,8 +100,8 @@ class Home(_Tab, CreateButton):
         self.create_button(master=sub_layout, title="Connect Devices", slot=controller.connect_devices)
 
 
-class ValveSlider(QtWidgets.QWidget):
-    def __init__(self):
+class Slider(QtWidgets.QWidget):
+    def __init__(self, calculator=lambda x: x, minimum=0, maximum=100, unit="%"):
         QtWidgets.QWidget.__init__(self)
         self.slider = QtWidgets.QSlider()
         self.setLayout(QtWidgets.QHBoxLayout())
@@ -107,9 +110,14 @@ class ValveSlider(QtWidgets.QWidget):
         self.slider.setOrientation(QtCore.Qt.Orientation.Horizontal)
         self.slider_value = QtWidgets.QLabel()
         self.layout().addWidget(self.slider_value)
-        self.slider_value.setText(f"{self.slider.value() / ((1 << 16) - 1)} %")
-        self.slider.setMaximum((1 << 16) - 1)
+        self.slider.setMinimum(minimum)
+        self.slider.setMaximum(maximum)
         self.slider.valueChanged.connect(self.update_value)
+        self.calulcate_value = calculator
+        self.slider_value.setText(f"0 {unit}")
+
+    def calulcate_value(self):
+        return self.slider.value()
 
     def update_value(self):
         self.slider_value.setText(f"{round(self.slider.value() / ((1 << 16) - 1) * 100, 2)} %")
@@ -117,7 +125,7 @@ class ValveSlider(QtWidgets.QWidget):
 
 class DAQ(_Tab, CreateButton):
     def __init__(self, controller, name="DAQ"):
-        _Tab.__init__(self, name=name)
+        _Tab.__init__(self, name)
         CreateButton.__init__(self)
         self.port_box = QtWidgets.QLabel()
         self.connected_box = QtWidgets.QLabel()
@@ -129,9 +137,79 @@ class DAQ(_Tab, CreateButton):
 
     def _init_buttons(self, controller):
         self.frames["Valves"].layout().addWidget(QtWidgets.QLabel("Valve 1"))
-        self.frames["Valves"].layout().addWidget(ValveSlider())
+        self.frames["Valves"].layout().addWidget(Slider())
         self.frames["Valves"].layout().addWidget(QtWidgets.QLabel("Valve 2"))
-        self.frames["Valves"].layout().addWidget(ValveSlider())
+        self.frames["Valves"].layout().addWidget(Slider())
+
+
+class LaserDriver(_Tab, CreateButton):
+    def __init__(self, controller, name="Laser Driver"):
+        _Tab.__init__(self, name)
+        CreateButton.__init__(self)
+        self.plot = _Plotting()
+        self.tab_bar = QtWidgets.QTabWidget()
+        self.config_tab = QtWidgets.QTabWidget()
+        self.plot_tab = QtWidgets.QTabWidget()
+        self.probe_laser_tab = QtWidgets.QTabWidget()
+        self.config_tab.setLayout(QtWidgets.QGridLayout())
+        self.probe_laser_tab.setLayout(QtWidgets.QGridLayout())
+        self.plot_tab.setLayout(QtWidgets.QGridLayout())
+        self.tab_bar.addTab(self.config_tab, "Pump Laser")
+        self.tab_bar.addTab(self.plot_tab, "Probe Laser")
+        self.tab_bar.addTab(self.probe_laser_tab, "Plots")
+        self.driver_voltage_slider = Slider(minimum=0, maximum=3, unit="V")
+        self.dac_slider = [Slider(minimum=0, maximum=3, unit="V"), Slider(minimum=0, maximum=3, unit="V")]
+        self.mode_matrix = [[QtWidgets.QComboBox() for i in range(3)], [QtWidgets.QComboBox() for i in range(3)]]
+        self.layout().addWidget(self.tab_bar)
+        self._init_frames()
+        #self._init_laser_plot()
+        self._init_buttons(controller)
+
+    def _init_frames(self):
+        pass
+        # self.create_frame(master=self.config_tab, title="Pump Laser", x_position=0, y_position=0)
+        # self.create_frame(master=self.config_tab, title="Probe Laser", x_position=1, y_position=0)
+
+    def _init_laser_plot(self):
+        plot = self.plot.window.addPlot()
+        plot.showGrid(x=True, y=True)
+        self.frames["Plot"].layout().addWidget(self.plot.window)
+
+    def _init_buttons(self, controller):
+        voltage_frame = QtWidgets.QGroupBox()
+        voltage_frame.setTitle("Driver Voltage")
+        voltage_frame.setLayout(QtWidgets.QHBoxLayout())
+        voltage_frame.layout().addWidget(Slider(minimum=0, maximum=3, unit="V"))
+        self.config_tab.layout().addWidget(voltage_frame, 0, 0)
+
+        dac_outer_frame = QtWidgets.QWidget()
+        dac_inner_frames = [QtWidgets.QGroupBox() for _ in range(2)]
+        self.config_tab.layout().addWidget(dac_outer_frame, 1, 0)
+        for j in range(2):
+            dac_outer_frame.setLayout(QtWidgets.QVBoxLayout())
+            dac_inner_frames[j].setLayout(QtWidgets.QHBoxLayout())
+            dac_inner_frames[j].setTitle(f"DAC {j + 1}")
+            dac_outer_frame.layout().addWidget(dac_inner_frames[j])
+            dac_inner_frames[j].layout().addWidget(self.dac_slider[j])
+            for i in range(3):
+                sub_frames = [QtWidgets.QWidget() for _ in range(3)]
+                sub_frames[i].setLayout(QtWidgets.QVBoxLayout())
+                dac_inner_frames[j].layout().addWidget(sub_frames[i])
+                self.mode_matrix[j][i].addItem("Disabled")
+                self.mode_matrix[j][i].addItem("Pulsed Mode")
+                self.mode_matrix[j][i].addItem("Continuous Wave")
+                sub_frames[i].layout().addWidget(QtWidgets.QLabel(f"Channel {i + 1}"))
+                sub_frames[i].layout().addWidget(self.mode_matrix[j][i])
+
+        config = QtWidgets.QWidget()
+        config.setLayout(QtWidgets.QHBoxLayout())
+        config.layout().addWidget(QtWidgets.QPushButton("Save Configuration"))
+        choice_config = QtWidgets.QComboBox()
+        choice_config.addItem("Config 1")
+        choice_config.addItem("Config 2")
+        config.layout().addWidget(choice_config)
+        config.layout().addWidget(QtWidgets.QPushButton("Apply Configuration"))
+        self.config_tab.layout().addWidget(config, 2, 0)
 
 
 class _MatplotlibColors:
