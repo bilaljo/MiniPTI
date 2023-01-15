@@ -1,62 +1,30 @@
-import numpy as np
-from scipy import ndimage
-from dataclasses import dataclass
+import copy
+import csv
+import itertools
 import logging
-from collections import deque, namedtuple
-import threading
 import os
+import threading
+from collections import deque, namedtuple
+from dataclasses import dataclass
 
-from PySide6 import QtCore
+import numpy as np
 import pandas as pd
+from PySide6 import QtCore
+from scipy import ndimage
 
+import driver
 import interferometry
 import pti
-import driver
 
 
-@dataclass
-class _Struct:
-    def __getitem__(self, key):
-        return getattr(self, key.casefold().replace(" ", "_"))
-
-    def __setitem__(self, key, value):
-        setattr(self, key.casefold().replace(" ", "_"), value)
-
-
-class BufferedData(_Struct):
-    _QUEUE_SIZE = 1000
-
-    def __init__(self):
-        self.time = deque(maxlen=BufferedData._QUEUE_SIZE)
-        self.dc_values = [deque(maxlen=BufferedData._QUEUE_SIZE) for _ in range(3)]
-        self.interferometric_phase = deque(maxlen=BufferedData._QUEUE_SIZE)
-        self.sensitivity = deque(maxlen=BufferedData._QUEUE_SIZE)
-        self.pti_signal = deque(maxlen=BufferedData._QUEUE_SIZE)
-        self.pti_signal_mean = deque(maxlen=BufferedData._QUEUE_SIZE)
-        self.amplitudes = [deque(maxlen=BufferedData._QUEUE_SIZE) for _ in range(3)]
-        self.output_phases = [deque(maxlen=BufferedData._QUEUE_SIZE) for _ in range(3)]
-        self.time_stamps = deque(maxlen=BufferedData._QUEUE_SIZE)
-
-    def clear_buffers(self):
-        self.time = deque(maxlen=BufferedData._QUEUE_SIZE)
-        self.dc_values = [deque(maxlen=BufferedData._QUEUE_SIZE) for _ in range(3)]
-        self.interferometric_phase = deque(maxlen=BufferedData._QUEUE_SIZE)
-        self.sensitivity = deque(maxlen=BufferedData._QUEUE_SIZE)
-        self.pti_signal = deque(maxlen=BufferedData._QUEUE_SIZE)
-        self.pti_signal_mean = deque(maxlen=BufferedData._QUEUE_SIZE)
-        self.amplitudes = [deque(maxlen=BufferedData._QUEUE_SIZE) for _ in range(3)]
-        self.output_phases = [deque(maxlen=BufferedData._QUEUE_SIZE) for _ in range(3)]
-        self.time_stamps = deque(maxlen=BufferedData._QUEUE_SIZE)
-
-
-class Settings(QtCore.QAbstractTableModel):
+class SettingsTable(QtCore.QAbstractTableModel):
     HEADERS = ["Detector 1", "Detector 2", "Detector 3"]
     INDEX = ["Amplitude [V]", "Offset [V]", "Output Phases [deg]", "Response Phases [deg]"]
     SIGNIFICANT_VALUES = 4
 
     def __init__(self):
         QtCore.QAbstractTableModel.__init__(self)
-        self._data = pd.DataFrame(columns=Settings.HEADERS, index=Settings.INDEX)
+        self._data = pd.DataFrame(columns=SettingsTable.HEADERS, index=SettingsTable.INDEX)
         self._file_path = "configs/settings.csv"
         self._observer_callbacks = []
 
@@ -68,24 +36,24 @@ class Settings(QtCore.QAbstractTableModel):
 
     def data(self, index, role: int = ...):
         if index.isValid():
-            if role == Qt.DisplayRole or role == Qt.EditRole:
+            if role == QtCore.Qt.DisplayRole or role == QtCore.Qt.EditRole:
                 value = self._data.values[index.row()][index.column()]
-                return str(round(value, Settings.SIGNIFICANT_VALUES))
+                return str(round(value, SettingsTable.SIGNIFICANT_VALUES))
 
     def flags(self, index):
         return QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsEditable
 
     def setData(self, index, value, role: int = ...):
         if index.isValid():
-            if role == Qt.EditRole:
-                self._data.at[Settings.INDEX[index.row()], Settings.HEADERS[index.column()]] = value
+            if role == QtCore.Qt.EditRole:
+                self._data.at[SettingsTable.INDEX[index.row()], SettingsTable.HEADERS[index.column()]] = value
                 return True
 
-    def headerData(self, section, orientation, role=Qt.DisplayRole):
-        if orientation == Qt.Horizontal and role == Qt.DisplayRole:
-            return Settings.HEADERS[section]
-        elif orientation == Qt.Vertical and role == Qt.DisplayRole:
-            return Settings.INDEX[section]
+    def headerData(self, section, orientation, role=QtCore.Qt.DisplayRole):
+        if orientation == QtCore.Qt.Horizontal and role == QtCore.Qt.DisplayRole:
+            return SettingsTable.HEADERS[section]
+        elif orientation == QtCore.Qt.Vertical and role == QtCore.Qt.DisplayRole:
+            return SettingsTable.INDEX[section]
         return super().headerData(section, orientation, role)
 
     @property
@@ -99,7 +67,7 @@ class Settings(QtCore.QAbstractTableModel):
             observer(self.table_data.values.tolist())
 
     def update_data(self, data):
-        self._data = pd.DataFrame(data, columns=Settings.HEADERS, index=Settings.INDEX)
+        self._data = pd.DataFrame(data, columns=SettingsTable.HEADERS, index=SettingsTable.INDEX)
 
     @property
     def file_path(self):
@@ -123,15 +91,48 @@ class Settings(QtCore.QAbstractTableModel):
     def load(self):
         self.table_data = pd.read_csv(self.file_path, index_col="Setting")
 
+    def update_settings_parameters(self, interferometer):
+        self.table_data.loc["Output Phases [deg]"] = np.rad2deg(interferometer.output_phases)
+        self.table_data.loc["Amplitude [V]"] = interferometer.amplitudes
+        self.table_data.loc["Offset [V]"] = interferometer.offsets
 
-class Observers(QtCore.QObject):
+    def update_settings(self, interferometer, inversion):
+        interferometer.settings_path = self.file_path
+        inversion.settings_path = self.file_path
+        interferometer.init_settings()
+        inversion.load_response_phase()
+
+    def setup_settings_file(self):
+        if not os.path.exists("configs/settings.csv"):  # If no settings found, a new empty file is created.
+            self.save()
+        else:
+            try:
+                settings = pd.read_csv("configs/settings.csv", index_col="Setting")
+            except FileNotFoundError:
+                self.save()
+            else:
+                if list(settings.columns) != SettingsTable.HEADERS or list(settings.index) != SettingsTable.INDEX:
+                    self.save()  # The file is in any way broken.
+
+    def load_settings(self):
+        try:
+            self.load()
+        except (ValueError, PermissionError) as e:
+            logging.error(f"Could not load settings. Got \"{e}\".")
+            return
+
+    def save_settings(self):
+        self.save()
+
+
+class _Signals(QtCore.QObject):
+    INVERSION = QtCore.Signal()
+    CHARACTERISATION = QtCore.Signal()
+    PTI_SETTINGS = QtCore.Signal()
+    LOGGING_UPDATE = QtCore.Signal()
+
     def __init__(self):
         QtCore.QObject.__init__(self)
-
-    inversion = QtCore.Signal()
-    characterisation = QtCore.Signal()
-    pti_settings = QtCore.Signal()
-    logging_update = QtCore.Signal()
 
 
 class QtHandler(logging.Handler):
@@ -155,166 +156,186 @@ class Threads:
     daq = threading.Thread()
 
 
-class Calculation:
+_pti_calculations = namedtuple("PTI", ("decimation", "inversion", "characterization"))
+
+
+def find_delimiter(file_path):
+    delimiter_sniffer = csv.Sniffer()
+    if not file_path:
+        return
+    with open(file_path, "r") as file:
+        delimiter = str(delimiter_sniffer.sniff(file.readline()).delimiter)
+    return delimiter
+
+
+def calculate_mean(data, mean_size):
+    i = 1
+    current_mean = data[0]
+    result = [current_mean]
+    while i < Calculation.MEAN_INTERVAL and i < len(data):
+        current_mean += data[i]
+        result.append(current_mean / i)
+        i += 1
+    result.extend(ndimage.uniform_filter1d(data[mean_size:], size=mean_size))
+    return result
+
+
+class BufferedData:
+    _QUEUE_SIZE = 1000
+    MEAN_SIZE = 60
+
     def __init__(self):
-        pass
+        self.time = deque(maxlen=BufferedData._QUEUE_SIZE)
+        self.dc_values = [deque(maxlen=BufferedData._QUEUE_SIZE) for _ in range(3)]
+        self.interferometric_phase = deque(maxlen=BufferedData._QUEUE_SIZE)
+        self.sensitivity = deque(maxlen=BufferedData._QUEUE_SIZE)
+        self.pti_signal = deque(maxlen=BufferedData._QUEUE_SIZE)
+        self.pti_signal_mean = deque(maxlen=BufferedData._QUEUE_SIZE)
+        self.pti_signal_mean_queue = deque(maxlen=BufferedData.MEAN_SIZE)
+        self.amplitudes = [deque(maxlen=BufferedData._QUEUE_SIZE) for _ in range(3)]
+        self.output_phases = [deque(maxlen=BufferedData._QUEUE_SIZE) for _ in range(3)]
+        self.time_counter = itertools.count()
+        self.time_stamps = deque(maxlen=BufferedData._QUEUE_SIZE)
+
+    def __getitem__(self, key):
+        return getattr(self, key.casefold().replace(" ", "_"))
+
+    def __setitem__(self, key, value):
+        setattr(self, key.casefold().replace(" ", "_"), value)
+
+    def add_pti_data(self, pti_data: _pti_calculations, interferometer: interferometry.Interferometer):
+        for i in range(3):
+            self.dc_values[i].append(pti_data.decimation.dc_signals[i])
+        self.interferometric_phase.append(interferometer.phase)
+        self.sensitivity.append(pti_data.inversion.sensitivity)
+        self.pti_signal.append(pti_data.inversion.pti_signal)
+        self.pti_signal_mean_queue.append(pti_data.inversion.pti_signal)
+        self.pti_signal_mean.append(np.mean(self.pti_signal_mean_queue))
+        self.time.append(next(self.time_counter))
+
+    def clear_buffers(self):
+        self.time_counter = itertools.count()
+        self.time = deque(maxlen=BufferedData._QUEUE_SIZE)
+        self.dc_values = [deque(maxlen=BufferedData._QUEUE_SIZE) for _ in range(3)]
+        self.interferometric_phase = deque(maxlen=BufferedData._QUEUE_SIZE)
+        self.sensitivity = deque(maxlen=BufferedData._QUEUE_SIZE)
+        self.pti_signal = deque(maxlen=BufferedData._QUEUE_SIZE)
+        self.pti_signal_mean = deque(maxlen=BufferedData._QUEUE_SIZE)
+        self.amplitudes = [deque(maxlen=BufferedData._QUEUE_SIZE) for _ in range(3)]
+        self.output_phases = [deque(maxlen=BufferedData._QUEUE_SIZE) for _ in range(3)]
+        self.time_stamps = deque(maxlen=BufferedData._QUEUE_SIZE)
 
 
-class Driver:
+class Calculation:
     MEAN_INTERVAL = 60
 
     def __init__(self, queue_size=1000):
+        self.running = threading.Event()
+        self.settings_path = ""
         self.queue_size = queue_size
+        self.signals = _Signals()
+        self.dc_signals = []
         self.buffered_data = BufferedData()
         self.pti_signal_mean_queue = deque(maxlen=60)
         self.current_time = 0
-        pti_calculations = namedtuple("PTI", ("decimation", "inversion", "characterization"))
-        self.interferometry = interferometry.Interferometer()
-        self.pti = pti_calculations(pti.Decimation(), pti.Inversion(interferometry=self.interferometry),
-                                    interferometry.Characterization(interferometry=self.interferometry))
-        self.decimation_path = ""
-        self.settings = Settings()
-        self.daq = driver.DAQ()
-        self.pti.decimation.daq = self.daq
-        self.delimiter_sniffer = csv.Sniffer()
-        self.live_measurement = pti.LiveMeasurement(self.interferometry,
-                                                    self.pti.inversion, self.pti.characterization, self.pti.decimation)
-        self.running = threading.Event()
-        self.threads = Threads()
-        self._inversion_flag = False
-        self._characterisation_flag = False
-        self.observers = Observers()
-        self.pti.characterization.observers.append(self.update_parameter_buffer)
-        self.pti.characterization.observers.append(self.update_settings_parameters)
-        self.pti.characterization.observers.append(self.emit_parameter_plot_signal)
-        self.logging = QtHandler(self)
-
-    def init_settings(self):
-        if not os.path.exists("configs/settings.csv"):  # If no settings found, a new empty file is created.
-            self.settings.save()
-        else:
-            try:
-                settings = pd.read_csv("configs/settings.csv", index_col="Setting")
-            except FileNotFoundError:
-                self.settings.save()
-            else:
-                if list(settings.columns) != Settings.HEADERS or list(settings.index) != Settings.INDEX:
-                    self.settings.save()  # The file is in any way broken.
-
-    def load_settings(self):
-        try:
-            self.settings.load()
-        except (ValueError, PermissionError) as e:
-            logging.error(f"Could not load settings. Exception was \"{e}\".")
-            return
-
-    def save_settings(self):
-        self.settings.save()
-
-    def emit_parameter_plot_signal(self):
-        self.observers.characterisation.emit()
-
-    @property
-    def measurement_running(self):
-        return self.live_measurement.running.is_set()
-
-    def find_delimiter(self, file_path):
-        if not file_path:
-            return
-        with open(file_path, "r") as file:
-            delimiter = str(self.delimiter_sniffer.sniff(file.readline()).delimiter)
-        return delimiter
-
-    def update_parameter_buffer(self):
-        self.buffered_data.time_stamps.append(self.pti.characterization.time_stamp)
-        for i in range(3):
-            amplitudes = self.interferometry.amplitudes
-            self.buffered_data.amplitudes[i].append(amplitudes[i])
-            output_phases = np.rad2deg(self.interferometry.output_phases)
-            self.buffered_data.output_phases[i].append(output_phases[i])
-
-    def update_settings_parameters(self):
-        self.settings.table_data.loc["Output Phases [deg]"] = np.rad2deg(self.interferometry.output_phases)
-        self.settings.table_data.loc["Amplitude [V]"] = self.interferometry.amplitudes
-        self.settings.table_data.loc["Offset [V]"] = self.interferometry.offsets
-
-    def update_settings(self):
-        self.interferometry.settings_path = self.settings.file_path
-        self.pti.inversion.settings_path = self.settings.file_path
-        self.interferometry.init_settings()
-        self.pti.inversion.load_response_phase()
-
-    @staticmethod
-    def calculate_mean(data):
-        i = 1
-        current_mean = data[0]
-        result = [current_mean]
-        while i < Model.MEAN_INTERVAL and i < len(data):
-            current_mean += data[i]
-            result.append(current_mean / i)
-            i += 1
-        result.extend(ndimage.uniform_filter1d(data[Model.MEAN_INTERVAL:], size=Model.MEAN_INTERVAL))
-        return result
-
-    def calculate_characterisation(self, dc_file_path, use_settings=False, settings_path=""):
-        self.interferometry.decimation_filepath = dc_file_path
-        self.interferometry.settings_path = settings_path
-        self.pti.characterization.use_settings = use_settings
-        self.pti.characterization(mode="offline")
-
-    def calculate_decimation(self, decimation_path):
-        self.pti.decimation.file_path = decimation_path
-        self.pti.decimation(mode="offline")
-
-    def calculate_inversion(self, settings_path, inversion_path):
-        self.interferometry.decimation_filepath = inversion_path
-        self.interferometry.settings_path = settings_path
-        self.pti.inversion(mode="offline")
+        self.interferometer = interferometry.Interferometer()
+        self.pti = _pti_calculations(pti.Decimation(), pti.Inversion(interferometry=self.interferometer),
+                                     interferometry.Characterization(interferometry=self.interferometer))
+        self.daq = DAQ()
+        self.live = threading.Event()
 
     def live_calculation(self):
-        while self.running.is_set():
-            self.live_measurement.calculate_inversion()
-            self.pti.inversion.settings_path = self.settings.file_path
-            for i in range(3):
-                self.buffered_data.dc_values[i].append(self.pti.decimation.dc_signals[i])
-            self.buffered_data.interferometric_phase.append(self.interferometry.phase)
-            self.buffered_data.sensitivity.append(self.pti.inversion.sensitivity)
-            self.buffered_data.pti_signal.append(self.pti.inversion.pti_signal)
-            self.pti_signal_mean_queue.append(self.pti.inversion.pti_signal)
-            self.buffered_data.pti_signal_mean.append(np.mean(self.pti_signal_mean_queue))
-            self.current_time += 1
-            self.buffered_data.time.append(self.current_time)
-            self.observers.inversion.emit()
+        def calculate_characterization():
+            while self.live.is_set():
+                self.pti.characterization()
 
-    def run_measurement(self):
-        self.live_measurement.running.set()
-        self.threads.characterisation = threading.Thread(target=self.live_measurement.calculate_characterization,
-                                                         daemon=True)
-        self.threads.inversion = threading.Thread(target=self.live_calculation, daemon=True)
-        self.threads.inversion.start()
-        self.threads.characterisation.start()
+        def calculate_inversion():
+            while self.live.is_set():
+                self.pti.decimation.ref = np.array(self.daq.ref_signal)
+                self.pti.decimation.dc_coupled = np.array(self.daq.dc_coupled)
+                self.pti.decimation.ac_coupled = np.array(self.daq.ac_coupled)
+                self.pti.decimation()
+                self.pti.inversion.lock_in = self.pti.decimation.lock_in  # Note that this copies a reference
+                self.pti.inversion.dc_signals = self.pti.decimation.dc_signals
+                self.pti.inversion()
+                self.pti.characterization.add_phase(self.interferometer.phase)
+                self.dc_signals.append(copy.deepcopy(self.pti.decimation.dc_signals))
+                if self.pti.characterization.enough_values():
+                    self.pti.characterization.signals = copy.deepcopy(self.dc_signals)
+                    self.pti.characterization.phases = copy.deepcopy(self.pti.characterization.tracking_phase)
+                    self.pti.characterization.event.set()
+                    self.dc_signals = []
+                    self.signals.CHARACTERISATION.emit()
+                self.buffered_data.add_pti_data(self.pti, self.interferometer)
+                self.signals.INVERSION.emit()
 
-    def clear_all(self):
-        self.daq.running.clear()
-        self.buffered_data.clear_buffers()
-        self.live_measurement.running.clear()
-        self.current_time = 0
+        characterization_thread = threading.Thread(target=calculate_characterization)
+        inversion_thread = threading.Thread(target=calculate_inversion)
+        characterization_thread.start()
+        inversion_thread.start()
+        return characterization_thread, inversion_thread
+
+    def __call__(self):
         self.pti.inversion.init_header = True
         self.pti.decimation.init_header = True
         self.pti.characterization.init_online = True
+        self.running.set()
+        self.live_calculation()
 
-    def connect_daq(self):
-        self.daq.find_port()
+    def calculate_characterisation(self, dc_file_path, use_settings=False, settings_path=""):
+        self.interferometer.decimation_filepath = dc_file_path
+        self.interferometer.settings_path = settings_path
+        self.pti.characterization.use_settings = use_settings
+        self.pti.characterization()
 
-    def start_daq(self):
-        self.daq.running.set()
-        self.threads.daq = threading.Thread(target=self.daq, daemon=True)
-        self.threads.daq.start()
+    def calculate_decimation(self, decimation_path):
+        self.pti.decimation.file_path = decimation_path
+        self.pti.decimation()
 
-    def stop_daq(self):
-        self.daq.running.clear()
+    def calculate_inversion(self, settings_path, inversion_path):
+        self.interferometer.decimation_filepath = inversion_path
+        self.interferometer.settings_path = settings_path
+        self.pti.inversion()
 
-    def stop_measurement(self):
-        self.live_measurement.running.clear()
-        self.clear_all()
-        self.running.clear()
+
+class DAQ:
+    def __init__(self):
+        self.daq = driver.DAQ()
+        self.running = threading.Event()
+        self._inversion_flag = False
+        self._characterisation_flag = False
+        self.logging = QtHandler(self)
+
+    @property
+    def ref_signal(self):
+        return self.daq.package_data.ref_signal.get(block=True)
+
+    @property
+    def dc_coupled(self):
+        return self.daq.package_data.dc_coupled.get(block=True)
+
+    @property
+    def ac_coupled(self):
+        return self.daq.package_data.ac_coupled.get(block=True)
+
+
+class Measurement:
+    def __init__(self, calculation: Calculation, device: driver.DAQ, buffered_data: BufferedData):
+        self.device = device
+        self.calculation = calculation
+        self.buffered_data = buffered_data
+        self.threads = {}
+        self.running = False
+
+    def __call__(self):
+        if not self.running:
+            self.device.running.set()
+            self.calculation.running.set()
+            self.threads["Device"] = threading.Thread(target=self.device, daemon=True)
+            self.threads["Calculation"] = threading.Thread(target=self.calculation, daemon=True)
+            for name, thread in self.threads:
+                thread.start()
+        else:
+            self.device.running.clear()
+            self.calculation.running.clear()
+            self.buffered_data.clear_buffers()

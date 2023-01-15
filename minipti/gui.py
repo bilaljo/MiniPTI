@@ -4,8 +4,6 @@ import os
 import threading
 from collections import namedtuple, deque
 
-
-
 from PySide6 import QtWidgets, QtCore
 from PySide6.QtWidgets import QMainWindow, QApplication, QFileDialog, QMessageBox
 
@@ -13,7 +11,6 @@ from PySide6.QtWidgets import QMainWindow, QApplication, QFileDialog, QMessageBo
 import driver
 
 import view
-
 
 
 Ports = namedtuple("Ports", ("daq", "laser", "tec"))
@@ -90,7 +87,7 @@ class Controller(QApplication):
 
     @QtCore.Slot()
     def load_settings(self):
-        file_path = QFileDialog.getOpenFileName(self.view, caption="Load Settings",
+        file_path = QFileDialog.getOpenFileName(self.view, caption="Load SettingsTable",
                                                 filter="All Files (*);; CSV File (*.csv);; TXT File (*.txt")
         if file_path:
             self.model.settings.file_path = file_path[0]  # The actual file path
@@ -139,7 +136,7 @@ class Controller(QApplication):
         except ValueError:  # Data isn't saved with any index
             data = pd.read_csv(decimation_file_path, delimiter=delimiter, skiprows=[1])
         try:
-            self.view.draw_plot(data, tab="DC Signals")
+            self.view.draw_plot(data, tab="DC _Signals")
         except KeyError:
             QMessageBox.critical(parent=self.view, title="Plotting Error", text="Invalid data given. Could not plot.")
             return
@@ -253,7 +250,7 @@ class View(QMainWindow):
 
     def draw_plot(self, data, tab):
         match tab:
-            case "DC Signals":
+            case "DC _Signals":
                 for channel in range(3):
                     self.tabs.dc.plot.curves[channel].setData(data[f"DC CH{channel + 1}"])
             case "Interferometric Phase":
