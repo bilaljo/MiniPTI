@@ -168,12 +168,11 @@ class Characterization:
         self._parameters_changed = False  # Toggles if it changes
         self.observers = []
 
-    def __call__(self, mode):
-        match mode:
-            case "offline":
-                self._calculate_offline()
-            case _:
-                raise TypeError(f"Mode {mode} is an invalid mode.")
+    def __call__(self, live=True):
+        if live:
+            self._calculate_online()
+        else:
+            self._calculate_offline()
 
     def __repr__(self):
         class_name = self.__class__.__name__

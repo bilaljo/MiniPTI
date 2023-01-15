@@ -136,7 +136,7 @@ class Controller(QApplication):
         except ValueError:  # Data isn't saved with any index
             data = pd.read_csv(decimation_file_path, delimiter=delimiter, skiprows=[1])
         try:
-            self.view.draw_plot(data, tab="DC _Signals")
+            self.view.draw_plot(data, tab="DC Signals")
         except KeyError:
             QMessageBox.critical(parent=self.view, title="Plotting Error", text="Invalid data given. Could not plot.")
             return
@@ -211,90 +211,3 @@ class Controller(QApplication):
         self.model.running.clear()
         self.model.stop_measurement()
         self.model.stop_daq()
-
-
-Tabs = namedtuple("Tab", ["home", "daq", "laser_driver", "dc", "amplitudes", "output_phases", "interferometric_phase",
-                          "sensitivity", "pti_signal"])
-
-
-class View(QMainWindow):
-    def __init__(self, controller, model):
-        super().__init__()
-        self.setWindowTitle("Passepartout")
-        self.controller = controller
-        self.model = model
-        self.sheet = None
-        self.tab_bar = QtWidgets.QTabWidget(self)
-        self.logging = QtHandler(self.model)
-        self.logging_window = QtWidgets.QLabel()
-        self.setCentralWidget(self.tab_bar)
-        self.tabs = Tabs(view.Home(self.logging_window, controller), view.DAQ(controller), view.LaserDriver(controller), view.DC(), view.Amplitudes(),
-                         view.OutputPhases(), view.InterferometricPhase(), view.Sensitivity(), view.PTISignal())
-        self.tabs.home.settings.setModel(self.model.settings)
-        for tab in self.tabs:
-            self.tab_bar.addTab(tab, tab.name)
-        self.resize(900, 600)
-        self.show()
-
-    def closeEvent(self, close_event):
-        close = QMessageBox.question(self, "QUIT", "Are you sure you want to close?", QMessageBox.No | QMessageBox.Yes)
-        if close == QMessageBox.Yes:
-            close_event.accept()
-            self.model.stop_daq()
-            self.controller.close()
-        else:
-            close_event.ignore()
-
-    def logging_update(self):
-        self.logging_window.setText("".join(self.logging.logging_messages))
-
-    def draw_plot(self, data, tab):
-        match tab:
-            case "DC _Signals":
-                for channel in range(3):
-                    self.tabs.dc.plot.curves[channel].setData(data[f"DC CH{channel + 1}"])
-            case "Interferometric Phase":
-                self.tabs.interferometric_phase.plot.curves.setData(data["Interferometric Phase"])
-            case "Sensitivity":
-                self.tabs.sensitivity.plot.curves.setData(data["Sensitivity"])
-            case "PTI Signal":
-                self.tabs.pti_signal.plot.curves["PTI Signal"].setData(data["PTI Signal"])
-                self.tabs.pti_signal.plot.curves["PTI Signal Mean"].setData(data["PTI Signal 60 s Mean"])
-            case "Amplitudes":
-                for channel in range(3):
-                    self.tabs.amplitudes.plot.curves[channel].setData(data[f"Amplitude CH{channel + 1}"])
-            case "Output Phases":
-                for channel in range(2):
-                    self.tabs.output_phases.plot.curves[channel].setData(data[f"Output Phase CH{channel + 2}"])
-
-    @QtCore.Slot()
-    def live_plot(self):
-        for channel in range(3):
-            self.tabs.dc.plot.curves[channel].setData(self.model.buffered_data.time,
-                                                      self.model.buffered_data.dc_values[channel])
-        self.tabs.interferometric_phase.plot.curves.setData(self.model.buffered_data.time,
-                                                            self.model.buffered_data.interferometric_phase)
-        self.tabs.sensitivity.plot.curves.setData(self.model.buffered_data.time,
-                                                  self.model.buffered_data.sensitivity)
-        self.tabs.pti_signal.plot.curves["PTI Signal"].setData(self.model.buffered_data.time,
-                                                          self.model.buffered_data.pti_signal)
-        self.tabs.pti_signal.plot.curves["PTI Signal Mean"].setData(self.model.buffered_data.time,
-                                                               self.model.buffered_data.pti_signal_mean)
-
-    @QtCore.Slot()
-    def live_plot_characterisation(self):
-        for channel in range(3):
-            self.tabs.amplitudes.curves[channel].setData(self.model.buffered_data.time_stamps,
-                                                         self.model.buffered_data.amplitudes[channel])
-        for channel in range(2):
-            self.tabs.output_phases.curves[channel].setData(self.model.buffered_data.time_stamps,
-                                                            self.model.buffered_data.output_phases[channel + 1])
-
-    def button_checked(self, frame, button):
-        return self.buttons[frame][button].isChecked()
-
-    def toggle_button(self, state, frame, button):
-        if state:
-            self.buttons[frame][button].setStyleSheet("background-color : lightgreen")
-        else:
-            self.buttons[frame][button].setStyleSheet("background-color : light gray")

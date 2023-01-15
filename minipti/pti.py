@@ -1,51 +1,17 @@
-import copy
 import logging
 import os
 import tarfile
-import threading
-from dataclasses import dataclass
 from datetime import datetime
+from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
-import driver
-
-
-class LiveMeasurement:
-    def __init__(self, interferometry, inversion, characterization, decimation):
-        self.running = threading.Event()
-        self.decimation = decimation
-        self.inversion = inversion
-        self.characterization = characterization
-        self.signals = []
-        self.interferometry = interferometry
-
-    def calculate_inversion(self):
-        self.decimation(mode="online")
-        self.inversion.lock_in = self.decimation.lock_in  # Note that this copies a reference
-        self.inversion.dc_signals = self.decimation.dc_signals
-        self.inversion(mode="online")
-        self.characterization.add_phase(self.interferometry.phase)
-        self.signals.append(copy.deepcopy(self.decimation.dc_signals))
-        if self.characterization.enough_values():
-            self.characterization.signals = copy.deepcopy(self.signals)
-            self.characterization.phases = copy.deepcopy(self.characterization.tracking_phase)
-            self.characterization.event.set()
-            self.signals = []
-
-    def calculate_characterization(self):
-        while self.running.is_set():
-            self.characterization(mode="online")
-
-    def __call__(self):
-        self.calculate_inversion()
-        self.calculate_inversion()
 
 
 @dataclass
 class LockIn:
-    amplitude = 0  # type: float | np.ndarray
-    phase = 0  # type: float | np.ndarray
+    amplitude: np.ndarray
+    phase: np.ndarray
 
 
 class Inversion:
@@ -53,7 +19,7 @@ class Inversion:
     Provided an API for the PTI algorithm described in [1] from Weingartner et al.
 
     [1]: Waveguide based passively demodulated photo-thermal
-         interferometry for aerosol measurements
+         interferometer for aerosol measurements
     """
     MICRO_RAD = 1e6
 
@@ -171,14 +137,11 @@ class Inversion:
         except PermissionError:
             logging.info(f"Could not write data. Missing values are: {str(output_data)[1:-1]} at {time_stamp}.")
 
-    def __call__(self, mode):
-        match mode:
-            case "offline":
-                self._calculate_offline()
-            case "online":
-                self._calculate_online()
-            case _:
-                raise TypeError(f"Mode {mode} is an invalid mode.")
+    def __call__(self, live=True):
+        if live:
+            self._calculate_online()
+        else:
+            self._calculate_offline()
 
 
 class Decimation:
@@ -188,51 +151,36 @@ class Decimation:
     The number of samples
 
     [1]: Waveguide based passively demodulated photo-thermal
-         interferometry for aerosol measurements
+         interferometer for aerosol measurements
     """
-    REF_VOLTAGE = 3.3
-    DC_RESOLUTION = (1 << 12) - 1
+    REF_VOLTAGE = 3.3  # V
+    REF_PERIOD = 100  # Samples
+    SAMPLES = 8000
+    DC_RESOLUTION = (1 << 12) - 1  # 12 Bit ADC
     AC_RESOLUTION = (1 << 16) // 2  # 16 bit ADC with 2 complement
-    AMPLIFICATION = 85
+    AMPLIFICATION = 100  # Theoretical value given by the hardware
 
-    def __init__(self, samples=8000, ref_period=100, amplification=100, daq=driver.DAQ(), debug=True):
-        self.samples = samples
-        self.ref_period = ref_period
-        self.dc_coupled = np.empty(shape=(3, self.samples))
-        self.ac_coupled = np.empty(shape=(3, self.samples))
+    def __init__(self, debug=True):
+        self.dc_coupled = np.empty(shape=(3, Decimation.SAMPLES))
+        self.ac_coupled = np.empty(shape=(3, Decimation.SAMPLES))
         self.dc_signals = np.empty(shape=3)
-        self.lock_in = LockIn()
-        self.time = np.arange(0, self.samples)
-        self.amplification = amplification  # The amplification is given by the hardware setup.
+        self.lock_in = LockIn(np.empty(shape=3), np.empty(shape=3))
         self.ref = None
-        self.daq = daq
         self.debug = debug
         self.number = 0
-        self.in_phase = np.cos(2 * np.pi / self.ref_period * self.time)
-        self.quadrature = np.sin(2 * np.pi / self.ref_period * self.time)
+        self.in_phase = np.cos(2 * np.pi / Decimation.REF_PERIOD * np.arange(0, Decimation.SAMPLES))
+        self.quadrature = np.sin(2 * np.pi / Decimation.REF_PERIOD * np.arange(0, Decimation.SAMPLES))
         self.file_path = ""
         self.init_header = True
         self.now = datetime.now()
 
-    def get_daq_data(self):
+    def process_raw_data(self):
         """
         Reads the binary data and save it into numpy arrays. The data is saved into npy archives in debug mode.
         """
-        self.ref = np.array(self.daq.package_data.ref_signal.get(block=True))
-        self.dc_coupled = np.array(self.daq.package_data.dc_coupled.get(block=True))
-        self.ac_coupled = np.array(self.daq.package_data.ac_coupled.get(block=True))
         if self.debug:
             np.savez(file=f"data/raw_data_{self.number}", ref=self.ref, dc_coupled=self.dc_coupled,
                      ac_coupled=self.ac_coupled)
-            with tarfile.open("data/raw_data.tar", "a") as tar:
-                tar.add(f"data/raw_data_{self.number}.npz")
-                try:
-                    os.remove(f"data/raw_data_{self.number}.npz")
-                except PermissionError:
-                    try:  # Try again
-                        os.remove(f"data/raw_data_{self.number}.npz")
-                    except PermissionError:
-                        pass
             self.number += 1
         dc_coupled = self.dc_coupled * Decimation.REF_VOLTAGE / Decimation.DC_RESOLUTION
         ac_coupled = self.ac_coupled / Decimation.AMPLIFICATION * Decimation.REF_VOLTAGE / Decimation.AC_RESOLUTION
@@ -290,14 +238,13 @@ class Decimation:
         except PermissionError:
             logging.info(f"Could not write data. Missing values are: {str(output_data)[1:-1]} at {time_stamp}.")
 
-    def __call__(self, mode):
-        match mode:
-            case "online":
-                self.get_daq_data()
+    def __call__(self, live=True):
+        if live:
+            self.process_raw_data()
+            self._calculate_decimation()
+        else:
+            for file in self.get_raw_data():
+                with np.load(file) as data:
+                    self.dc_coupled = data["dc_coupled"]
+                    self.ac_coupled = data["ac_coupled"]
                 self._calculate_decimation()
-            case "offline":
-                for file in self.get_raw_data():
-                    with np.load(file) as data:
-                        self.dc_coupled = data["dc_coupled"]
-                        self.ac_coupled = data["ac_coupled"]
-                    self._calculate_decimation()

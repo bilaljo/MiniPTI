@@ -1,7 +1,105 @@
 import abc
+from typing import NamedTuple
 
 import pyqtgraph as pg
-from PySide6 import QtWidgets, QtGui, QtCore
+from PySide6 import QtWidgets, QtCore
+
+import model
+from dataclasses import dataclass
+
+
+@dataclass
+class Model:
+    pti_settings: model.SettingsTable = model.SettingsTable()
+    logging: model.Logging = model.Logging()
+    calculation: model.Calculation = model.Calculation()
+    daq: model.DAQ = model.DAQ()
+    pti_buffer: model.PTIBuffer = model.PTIBuffer()
+    characterisation_buffer: model.CharacterisationBuffer = model.CharacterisationBuffer()
+    measurement: model.Measurement = model.Measurement(daq, [pti_buffer, characterisation_buffer])
+
+
+class MainWindow(QtWidgets.QMainWindow):
+    def __init__(self, controller):
+        QtWidgets.QMainWindow.__init__(self)
+        self.setWindowTitle("Passepartout")
+        self.controller = controller
+        self.model = Model()
+        self.sheet = None
+        self.tab_bar = QtWidgets.QTabWidget(self)
+        self.logging_window = QtWidgets.QLabel()
+        self.setCentralWidget(self.tab_bar)
+        self.tabs = Tab(Home(self.logging_window, controller), DAQ(controller), LaserDriver(controller), DC(),
+                        Amplitudes(), OutputPhases(), InterferometricPhase(), Sensitivity(), PTISignal())
+        self.tabs.home.settings.setModel(self.model.pti_settings)
+        for tab in self.tabs:
+            self.tab_bar.addTab(tab, tab.name)
+        self.resize(900, 600)
+        self.show()
+
+    def closeEvent(self, close_event):
+        close = QtWidgets.QMessageBox.question(self, "QUIT", "Are you sure you want to close?",
+                                               QtWidgets.QMessageBox.No | QtWidgets.QMessageBox.Yes)
+        if close == QtWidgets.QMessageBox.Yes:
+            close_event.accept()
+            self.model.daq.close()
+            self.controller.close()
+        else:
+            close_event.ignore()
+
+    def logging_update(self):
+        self.logging_window.setText("".join(self.model.logging.logging_messages))
+
+    def draw_plot(self, data, tab):
+        match tab:
+            case "DC Signals":
+                for channel in range(3):
+                    self.tabs.dc.plot.curves[channel].setData(data[f"DC CH{channel + 1}"])
+            case "Interferometric Phase":
+                self.tabs.interferometric_phase.plot.curves.setData(data["Interferometric Phase"])
+            case "Sensitivity":
+                self.tabs.sensitivity.plot.curves.setData(data["Sensitivity"])
+            case "PTI Signal":
+                self.tabs.pti_signal.plot.curves["PTI Signal"].setData(data["PTI Signal"])
+                self.tabs.pti_signal.plot.curves["PTI Signal Mean"].setData(data["PTI Signal 60 s Mean"])
+            case "Amplitudes":
+                for channel in range(3):
+                    self.tabs.amplitudes.plot.curves[channel].setData(data[f"Amplitude CH{channel + 1}"])
+            case "Output Phases":
+                for channel in range(2):
+                    self.tabs.output_phases.plot.curves[channel].setData(data[f"Output Phase CH{channel + 2}"])
+
+    @QtCore.Slot()
+    def live_plot_pti(self):
+        for channel in range(3):
+            self.tabs.dc.plot.curves[channel].setData(self.model.pti_buffer.time,
+                                                      self.model.pti_buffer.dc_values[channel])
+        self.tabs.interferometric_phase.plot.curves.setData(self.model.pti_buffer.time,
+                                                            self.model.pti_buffer.interferometric_phase)
+        self.tabs.sensitivity.plot.curves.setData(self.model.pti_buffer.time,
+                                                  self.model.pti_buffer.sensitivity)
+        self.tabs.pti_signal.plot.curves["PTI Signal"].setData(self.model.pti_buffer.time,
+                                                               self.model.pti_buffer.pti_signal)
+        self.tabs.pti_signal.plot.curves["PTI Signal Mean"].setData(self.model.pti_buffer.time,
+                                                                    self.model.pti_buffer.pti_signal_mean)
+
+    @QtCore.Slot()
+    def live_plot_characterisation(self):
+        for channel in range(3):
+            self.tabs.amplitudes.curves[channel].setData(self.model.characterisation_buffer.time,
+                                                         self.model.characterisation_buffer.amplitudes[channel])
+        for channel in range(2):
+            self.tabs.output_phases.curves[channel].setData(self.model.characterisation_buffer.time,
+                                                            self.model.characterisation_buffer.output_phases[channel])
+
+    def button_checked(self, frame, button):
+        return self.buttons[frame][button].isChecked()
+
+    def toggle_button(self, state, frame, button):
+        if state:
+            self.buttons[frame][button].setStyleSheet("background-color : lightgreen")
+        else:
+            self.buttons[frame][button].setStyleSheet("background-color : light gray")
 
 
 class _Tab(QtWidgets.QTabWidget):
@@ -67,12 +165,12 @@ class Home(_Tab, CreateButton):
     def _init_buttons(self, controller):
         assert (controller is not None)
 
-        # Settings buttons
+        # SettingsTable buttons
         sub_layout = QtWidgets.QWidget()
         self.frames["Setting"].layout().addWidget(sub_layout)
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
-        self.create_button(master=sub_layout, title="Save Settings", slot=controller.save_settings)
-        self.create_button(master=sub_layout, title="Load Settings", slot=controller.load_settings)
+        self.create_button(master=sub_layout, title="Save SettingsTable", slot=controller.save_settings)
+        self.create_button(master=sub_layout, title="Load SettingsTable", slot=controller.load_settings)
         # TODO: Implement autosave slot
         self.create_button(master=sub_layout, title="Auto Save", slot=controller.load_settings)
 
@@ -162,7 +260,7 @@ class LaserDriver(_Tab, CreateButton):
         self.mode_matrix = [[QtWidgets.QComboBox() for i in range(3)], [QtWidgets.QComboBox() for i in range(3)]]
         self.layout().addWidget(self.tab_bar)
         self._init_frames()
-        #self._init_laser_plot()
+        # self._init_laser_plot()
         self._init_buttons(controller)
 
     def _init_frames(self):
@@ -311,3 +409,15 @@ class PTISignal(_Tab):
         plot.setLabel(axis="left", text="PTI Signal [µrad]")
         plot.showGrid(x=True, y=True)
         self.layout().addWidget(self.plot.window)
+
+
+class Tab(NamedTuple):
+    home: Home
+    daq: DAQ
+    laser_driver: LaserDriver
+    dc: DC
+    amplitudes: Amplitudes
+    output_phases: OutputPhases
+    interferometric_phase: InterferometricPhase
+    sensitivity: Sensitivity
+    pti_signal: PTISignal

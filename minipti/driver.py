@@ -1,4 +1,5 @@
 import abc
+import collections
 import itertools
 import logging
 import queue
@@ -162,9 +163,9 @@ class SerialDevice(QtCore.QObject):
 
 @dataclass
 class DAQData:
-    ref_signal = None
-    ac_coupled = None
-    dc_coupled = None
+    ref_signal: queue.Queue | deque | list
+    ac_coupled: queue.Queue | deque | list
+    dc_coupled: queue.Queue | deque | list
 
 
 class DAQ(SerialDevice):
@@ -190,14 +191,10 @@ class DAQ(SerialDevice):
 
     def __init__(self):
         SerialDevice.__init__(self)
-        self.package_data = DAQData()
-        self.buffers = DAQData()
-        self.buffers.ref_signal = deque()
-        self.buffers.ac_coupled = [deque(), deque(), deque()]
+        self.package_data = DAQData(queue.Queue(maxsize=DAQ.QUEUE_SIZE), queue.Queue(maxsize=DAQ.QUEUE_SIZE),
+                                    queue.Queue(maxsize=DAQ.QUEUE_SIZE))
+        self.buffers = DAQData(deque(), [deque(), deque(), deque()], [deque(), deque(), deque()])
         self.buffers.dc_coupled = [deque(), deque(), deque()]
-        self.package_data.ref_signal = queue.Queue(maxsize=DAQ.QUEUE_SIZE)
-        self.package_data.dc_coupled = queue.Queue(maxsize=DAQ.QUEUE_SIZE)
-        self.package_data.ac_coupled = queue.Queue(maxsize=DAQ.QUEUE_SIZE)
         self.buffer = b""
         self.running = threading.Event()
         self.sample_numbers = deque(maxlen=2)
