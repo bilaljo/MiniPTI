@@ -8,30 +8,18 @@ import model
 from dataclasses import dataclass
 
 
-@dataclass
-class Model:
-    pti_settings: model.SettingsTable = model.SettingsTable()
-    logging: model.Logging = model.Logging()
-    calculation: model.Calculation = model.Calculation()
-    daq: model.DAQ = model.DAQ()
-    pti_buffer: model.PTIBuffer = model.PTIBuffer()
-    characterisation_buffer: model.CharacterisationBuffer = model.CharacterisationBuffer()
-    measurement: model.Measurement = model.Measurement(daq, [pti_buffer, characterisation_buffer])
-
-
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, controller):
         QtWidgets.QMainWindow.__init__(self)
         self.setWindowTitle("Passepartout")
         self.controller = controller
-        self.model = Model()
         self.sheet = None
         self.tab_bar = QtWidgets.QTabWidget(self)
         self.logging_window = QtWidgets.QLabel()
         self.setCentralWidget(self.tab_bar)
         self.tabs = Tab(Home(self.logging_window, controller), DAQ(controller), LaserDriver(controller), DC(),
                         Amplitudes(), OutputPhases(), InterferometricPhase(), Sensitivity(), PTISignal())
-        self.tabs.home.settings.setModel(self.model.pti_settings)
+        self.tabs.home.settings.setModel(model.SettingsTable())
         for tab in self.tabs:
             self.tab_bar.addTab(tab, tab.name)
         self.resize(900, 600)
@@ -39,8 +27,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def closeEvent(self, close_event):
         close = QtWidgets.QMessageBox.question(self, "QUIT", "Are you sure you want to close?",
-                                               QtWidgets.QMessageBox.No | QtWidgets.QMessageBox.Yes)
-        if close == QtWidgets.QMessageBox.Yes:
+                                               QtWidgets.QMessageBox.StandardButton.Yes
+                                               | QtWidgets.QMessageBox.StandardButton.No)
+        if close == QtWidgets.QMessageBox.StandardButton.Yes:
             close_event.accept()
             self.model.daq.close()
             self.controller.close()
@@ -49,6 +38,15 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def logging_update(self):
         self.logging_window.setText("".join(self.model.logging.logging_messages))
+
+
+class Plotting:
+    def __init__(self):
+        self.pti_buffer = model.PTIBuffer()
+        self.characterization_buffer = model.CharacterisationBuffer()
+        self.measurement = model.Measurement([self.pti_buffer, self.characterization_buffer])
+        self.live_plot_pti.connect(model.Signals.inversion)
+        self.live_plot_characterisation.connect(model.Signals.characterization)
 
     def draw_plot(self, data, tab):
         match tab:
@@ -402,9 +400,8 @@ class PTISignal(_Tab):
         self.plot = _Plotting()
         plot = self.plot.window.addPlot()
         plot.addLegend()
-        self.curves = {}
-        self.curves["PTI Signal"] = plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="1 s", size=6)
-        self.curves["PTI Signal Mean"] = plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="60 s Mean")
+        self.curves = {"PTI Signal": plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="1 s", size=6),
+                       "PTI Signal Mean": plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="60 s Mean")}
         plot.setLabel(axis="bottom", text="Time [s]")
         plot.setLabel(axis="left", text="PTI Signal [µrad]")
         plot.showGrid(x=True, y=True)

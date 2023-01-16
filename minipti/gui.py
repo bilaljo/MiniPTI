@@ -211,3 +211,8 @@ class Controller(QApplication):
         self.model.running.clear()
         self.model.stop_measurement()
         self.model.stop_daq()
+
+
+class Driver:
+    def __init__(self):
+        pass
