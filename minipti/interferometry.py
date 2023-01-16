@@ -146,7 +146,8 @@ class Characterization:
     """
     Provided an API for the characterization of an interferometer as described in [1].
 
-    [1]:
+    [1]: Waveguide based passively demodulated photothermal interferometer for light
+     absorption measurements of trace substances
     """
     MAX_ITERATIONS = 30
 
@@ -165,12 +166,11 @@ class Characterization:
             self.characterised_data[f"Amplitude CH{channel}"].append("V")
             self.characterised_data[f"Offset CH{channel}"].append("V")
 
-    def __call__(self, mode):
-        match mode:
-            case "offline":
+    def __call__(self, live=False):
+        if live:
+            raise NotImplementedError("Will be avaiable in version 1.0")
+        else:
                 self._calculate_offline()
-            case _:
-                raise TypeError(f"Mode {mode} is an invalid mode.")
 
     def __repr__(self):
         class_name = self.__class__.__name__

@@ -9,13 +9,13 @@ if __name__ == "__main__":
 
     # Using the default settings values
     characterization = minipti.interferometry.Characterization(interferometry=interferometer)
-    characterization(mode="offline")
+    characterization()
     print(characterization)
 
     # Without default values
     characterization = minipti.interferometry.Characterization(interferometry=interferometer)
     characterization.use_settings = False
-    characterization(mode="offline")
+    characterization()
     print(characterization)
 
     dc_signals = pd.read_csv("sample_data/Decimation_Comercial.csv")

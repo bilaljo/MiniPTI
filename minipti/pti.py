@@ -15,9 +15,9 @@ class LockIn:
 
 class Inversion:
     """
-    Provided an API for the PTI algorithm described in [1] from Weingartner et al.
-    [1]: Waveguide based passively demodulated photo-thermal
-         interferometer for aerosol measurements
+    Provided an API for the PTI algorithm described in [1] from Vissler and Bilal et al.
+    [1]: Waveguide based passively demodulated photothermal interferometer for light
+     absorption measurements of trace substances
     """
     MICRO_RAD = 1e6
 
@@ -114,19 +114,18 @@ class Inversion:
                          ).to_csv("data/PTI_Inversion.csv", header=False, mode="a", index_label="Time")
         logging.info("PTI Inversion calculated.")
 
-    def __call__(self, mode):
-        match mode:
-            case "offline":
-                self._calculate_offline()
-            case _:
-                raise TypeError(f"Mode {mode} is an invalid mode.")
+    def __call__(self, live=False):
+        if live:
+            raise NotImplementedError("Will be avaiable in version 1.1")
+        else:
+            self._calculate_offline()
 
 
 class Decimation:
     """
-    Provided an API for the PTI decimation described in [1] from Weingartner et al.
-    [1]: Waveguide based passively demodulated photothermal
-         interferometer for aerosol measurements
+    Provided an API for the PTI decimation described in [1] from Vissler and Bilal et al.
+    [1]: Waveguide based passively demodulated photothermal interferometer for light
+     absorption measurements of trace substances
     """
     AMPLIFICATION = 10
     MOD_FREQUENCY = 80
