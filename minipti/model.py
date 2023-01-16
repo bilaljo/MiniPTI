@@ -225,7 +225,7 @@ class PTIBuffer(Buffer):
         self.sensitivity = deque(maxlen=Buffer.QUEUE_SIZE)
         self.pti_signal = deque(maxlen=Buffer.QUEUE_SIZE)
         self.pti_signal_mean = deque(maxlen=Buffer.QUEUE_SIZE)
-        self.pti_signal_mean_queue = deque(maxlen=PTIBuffer.MEAN_SIZE)
+        self._pti_signal_mean_queue = deque(maxlen=PTIBuffer.MEAN_SIZE)
 
     def append(self, pti_data: PTI, interferometer: interferometry.Interferometer):
         for i in range(3):
@@ -233,8 +233,8 @@ class PTIBuffer(Buffer):
         self.interferometric_phase.append(interferometer.phase)
         self.sensitivity.append(pti_data.inversion.sensitivity)
         self.pti_signal.append(pti_data.inversion.pti_signal)
-        self.pti_signal_mean_queue.append(pti_data.inversion.pti_signal)
-        self.pti_signal_mean_queue.append(np.mean(self.pti_signal_mean))
+        self._pti_signal_mean_queue.append(pti_data.inversion.pti_signal)
+        self._pti_signal_mean_queue.append(np.mean(self.pti_signal_mean))
         self.time.append(next(self.time_counter))
 
 
@@ -276,6 +276,7 @@ class Calculation:
             while self.running.is_set():
                 self.interferometry.characterization()
                 self.characterisation_buffer.append(self.interferometry)
+                Signals.characterization.emit(self.characterisation_buffer)
 
         def calculate_inversion():
             while self.running.is_set():
@@ -296,7 +297,7 @@ class Calculation:
                     self.dc_signals = []
                     Signals.characterization.emit()
                 self.pti_buffer.append(self.pti, self.interferometry.interferometer)
-                Signals.inversion.emit()
+                Signals.inversion.emit(self.pti_buffer)
 
         characterization_thread = threading.Thread(target=calculate_characterization)
         inversion_thread = threading.Thread(target=calculate_inversion)

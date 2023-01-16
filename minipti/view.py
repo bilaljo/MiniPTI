@@ -37,55 +37,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
 class Plotting:
-    def __init__(self):
-        self.pti_buffer = model.PTIBuffer()
-        self.characterization_buffer = model.CharacterisationBuffer()
-        self.measurement = model.Measurement([self.pti_buffer, self.characterization_buffer])
-        self.live_plot_pti.connect(model.Signals.inversion)
-        self.live_plot_characterisation.connect(model.Signals.characterization)
-
-    def draw_plot(self, data, tab):
-        match tab:
-            case "DC Signals":
-                for channel in range(3):
-                    self.tabs.dc.plot.curves[channel].setData(data[f"DC CH{channel + 1}"])
-            case "Interferometric Phase":
-                self.tabs.interferometric_phase.plot.curves.setData(data["Interferometric Phase"])
-            case "Sensitivity":
-                self.tabs.sensitivity.plot.curves.setData(data["Sensitivity"])
-            case "PTI Signal":
-                self.tabs.pti_signal.plot.curves["PTI Signal"].setData(data["PTI Signal"])
-                self.tabs.pti_signal.plot.curves["PTI Signal Mean"].setData(data["PTI Signal 60 s Mean"])
-            case "Amplitudes":
-                for channel in range(3):
-                    self.tabs.amplitudes.plot.curves[channel].setData(data[f"Amplitude CH{channel + 1}"])
-            case "Output Phases":
-                for channel in range(2):
-                    self.tabs.output_phases.plot.curves[channel].setData(data[f"Output Phase CH{channel + 2}"])
-
-    @QtCore.Slot()
-    def live_plot_pti(self):
-        for channel in range(3):
-            self.tabs.dc.plot.curves[channel].setData(self.model.pti_buffer.time,
-                                                      self.model.pti_buffer.dc_values[channel])
-        self.tabs.interferometric_phase.plot.curves.setData(self.model.pti_buffer.time,
-                                                            self.model.pti_buffer.interferometric_phase)
-        self.tabs.sensitivity.plot.curves.setData(self.model.pti_buffer.time,
-                                                  self.model.pti_buffer.sensitivity)
-        self.tabs.pti_signal.plot.curves["PTI Signal"].setData(self.model.pti_buffer.time,
-                                                               self.model.pti_buffer.pti_signal)
-        self.tabs.pti_signal.plot.curves["PTI Signal Mean"].setData(self.model.pti_buffer.time,
-                                                                    self.model.pti_buffer.pti_signal_mean)
-
-    @QtCore.Slot()
-    def live_plot_characterisation(self):
-        for channel in range(3):
-            self.tabs.amplitudes.curves[channel].setData(self.model.characterisation_buffer.time,
-                                                         self.model.characterisation_buffer.amplitudes[channel])
-        for channel in range(2):
-            self.tabs.output_phases.curves[channel].setData(self.model.characterisation_buffer.time,
-                                                            self.model.characterisation_buffer.output_phases[channel])
-
     def button_checked(self, frame, button):
         return self.buttons[frame][button].isChecked()
 
@@ -321,97 +272,108 @@ class _Plotting(pg.PlotWidget):
         pg.setConfigOptions(antialias=True)
         pg.setConfigOption('background', "white")
         pg.setConfigOption('foreground', 'k')
-        #self.window = pg.GraphicsLayoutWidget()
-        #self.plot = self.window.addPlot()
-        #self.curves = self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE))
+        self.window = pg.GraphicsLayoutWidget()
+        self.plot = self.window.addPlot()
+        self.curves = self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE))
 
-    def update_data(self, data):
-        try:
-            pass
-        except TypeError:
+    @abc.abstractmethod
+    def update_data(self, data: model.Buffer):
+        ...
 
 
-class DC(_Tab):
-    def __init__(self, name="DC Signals"):
-        _Tab.__init__(self, name)
-        self.plot = _Plotting()
-        plot = self.plot.window.addPlot()
-        plot.addLegend()
-        self.plot.curves = [plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="DC CH1"),
-                            plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="DC CH2"),
-                            plot.plot(pen=pg.mkPen(_MatplotlibColors.GREEN), name="DC CH3")]
-        plot.setLabel(axis="bottom", text="Time [s]")
-        plot.setLabel(axis="left", text="Intensity [V]")
-        plot.showGrid(x=True, y=True)
+class DC(_Plotting):
+    def __init__(self):
+        _Plotting.__init__(self)
+        self.curves = [self.plot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="DC CH1"),
+                       self.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="DC CH2"),
+                       self.plot(pen=pg.mkPen(_MatplotlibColors.GREEN), name="DC CH3")]
+        self.setLabel(axis="bottom", text="Time [s]")
+        self.setLabel(axis="left", text="Intensity [V]")
+        self.showGrid(x=True, y=True)
+        self.layout().addWidget(self.window)
+        model.Signals.inversion.connect(self.update_data)
+
+    def update_data(self, data: model.PTIBuffer):
+        for channel in range(3):
+            self.curves[channel].setData(data.time, data.dc_values[channel])
+
+
+class Amplitudes(_Plotting):
+    def __init__(self):
+        _Plotting.__init__(self)
+        self.curves = [self.plot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="Amplitude CH1"),
+                       self.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="Amplitude CH2"),
+                       self.plot(pen=pg.mkPen(_MatplotlibColors.GREEN), name="Amplitude CH3")]
+        self.setLabel(axis="bottom", text="Time [s]")
+        self.setLabel(axis="left", text="Amplitude [V]")
+        self.showGrid(x=True, y=True)
+        self.layout().addWidget(self.window)
+        model.Signals.characterization.connect(self.update_data)
+
+    def update_data(self, data: model.CharacterisationBuffer):
+        for channel in range(3):
+            self.curves[channel].setData(data.time, data.amplitudes[channel])
+
+
+class OutputPhases(_Plotting):
+    def __init__(self):
+        _Plotting.__init__(self)
+        self.curves = [self.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="Output Phase CH2"),
+                       self.plot(pen=pg.mkPen(_MatplotlibColors.GREEN), name="Output Phase CH3")]
+        self.setLabel(axis="bottom", text="Time [s]")
+        self.setLabel(axis="left", text="Output Phase [deg]")
+        self.showGrid(x=True, y=True)
+        self.layout().addWidget(self.window)
+        model.Signals.characterization.connect(self.update_data)
+
+    def update_data(self, data: model.CharacterisationBuffer):
+        for channel in range(2):
+            self.curves[channel].setData(data.time, data.amplitudes[channel])
+
+
+class InterferometricPhase(_Plotting):
+    def __init__(self):
+        _Plotting.__init__(self)
+        self.curves = self.plot(pen=pg.mkPen(_MatplotlibColors.BLUE))
+        self.setLabel(axis="bottom", text="Time [s]")
+        self.setLabel(axis="left", text="Interferometric Phase [rad]")
+        self.showGrid(x=True, y=True)
         self.layout().addWidget(self.plot.window)
+        model.Signals.inversion.connect(self.update_data)
+
+    def update_data(self, data: model.PTIBuffer):
+        for channel in range(2):
+            self.curves[channel].setData(data.time, data.interferometric_phase[channel])
 
 
-class Amplitudes(_Tab):
-    def __init__(self, name="Amplitudes"):
-        _Tab.__init__(self, name)
-        self.plot = _Plotting()
-        plot = self.plot.window.addPlot()
-        plot.addLegend()
-        self.curves = [plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="Amplitude CH1"),
-                       plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="Amplitude CH2"),
-                       plot.plot(pen=pg.mkPen(_MatplotlibColors.GREEN), name="Amplitude CH3")]
-        plot.setLabel(axis="bottom", text="Time [s]")
-        plot.setLabel(axis="left", text="Amplitude [V]")
-        plot.showGrid(x=True, y=True)
+class Sensitivity(_Plotting):
+    def __init__(self):
+        _Plotting.__init__(self)
+        self.curves = self.plot(pen=pg.mkPen(_MatplotlibColors.BLUE))
+        self.setLabel(axis="bottom", text="Time [s]")
+        self.setLabel(axis="left", text="Sensitivity [1/rad]")
+        self.showGrid(x=True, y=True)
         self.layout().addWidget(self.plot.window)
+        model.Signals.inversion.connect(self.update_data)
+
+    def update_data(self, data: model.PTIBuffer):
+        self.curves.setData(data.time, data.sensitivity)
 
 
-class OutputPhases(_Tab):
-    def __init__(self, name="Output Phases"):
-        _Tab.__init__(self, name)
-        self.plot = _Plotting()
-        plot = self.plot.window.addPlot()
-        plot.addLegend()
-        self.curves = [plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="Output Phase CH2"),
-                       plot.plot(pen=pg.mkPen(_MatplotlibColors.GREEN), name="Output Phase CH3")]
-        plot.setLabel(axis="bottom", text="Time [s]")
-        plot.setLabel(axis="left", text="Output Phase [deg]")
-        plot.showGrid(x=True, y=True)
+class PTISignal(_Plotting):
+    def __init__(self):
+        _Plotting.__init__(self)
+        self.curves = {"PTI Signal": self.scatterPlot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="1 s", size=6),
+                       "PTI Signal Mean": self.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="60 s Mean")}
+        self.setLabel(axis="bottom", text="Time [s]")
+        self.setLabel(axis="left", text="PTI Signal [µrad]")
+        self.showGrid(x=True, y=True)
         self.layout().addWidget(self.plot.window)
+        model.Signals.inversion.connect(self.update_data)
 
-
-class InterferometricPhase(_Tab):
-    def __init__(self, name="Interferometric Phase"):
-        _Tab.__init__(self, name)
-        self.plot = _Plotting()
-        plot = self.plot.window.addPlot()
-        plot.addLegend()
-        self.curves = plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE))
-        plot.setLabel(axis="bottom", text="Time [s]")
-        plot.setLabel(axis="left", text="Interferometric Phase [rad]")
-        plot.showGrid(x=True, y=True)
-        self.layout().addWidget(self.plot.window)
-
-
-class Sensitivity(_Tab):
-    def __init__(self, name="Sensitivity"):
-        _Tab.__init__(self, name)
-        self.plot = _Plotting()
-        plot = self.plot.window.addPlot()
-        self.curves = plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE))
-        plot.setLabel(axis="bottom", text="Time [s]")
-        plot.setLabel(axis="left", text="Sensitivity [1/rad]")
-        plot.showGrid(x=True, y=True)
-        self.layout().addWidget(self.plot.window)
-
-
-class PTISignal(_Tab):
-    def __init__(self, name="PTI Signal"):
-        _Tab.__init__(self, name)
-        self.plot = _Plotting()
-        plot = self.plot.window.addPlot()
-        plot.addLegend()
-        self.curves = {"PTI Signal": plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="1 s", size=6),
-                       "PTI Signal Mean": plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="60 s Mean")}
-        plot.setLabel(axis="bottom", text="Time [s]")
-        plot.setLabel(axis="left", text="PTI Signal [µrad]")
-        plot.showGrid(x=True, y=True)
-        self.layout().addWidget(self.plot.window)
+    def update_data(self, data: model.PTIBuffer):
+        self.curves["PTI Signal"].setData(data.time, data.pti_signal)
+        self.curves["PTI Signal Mean"].setData(data.time, data.pti_signal_mean)
 
 
 class Tab(NamedTuple):
