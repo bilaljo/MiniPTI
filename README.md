@@ -12,7 +12,7 @@ is provided.
 ```bash
 pip install minipti
 ```
-https://pypi.org/project/minipti/1.0.1/
+https://pypi.org/project/minipti
 
 The library can be split into sub-libraries:
 
