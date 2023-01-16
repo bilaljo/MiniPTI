@@ -15,9 +15,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.controller = controller
         self.sheet = None
         self.tab_bar = QtWidgets.QTabWidget(self)
-        self.logging_window = QtWidgets.QLabel()
         self.setCentralWidget(self.tab_bar)
-        self.tabs = Tab(Home(self.logging_window, controller), DAQ(controller), LaserDriver(controller), DC(),
+        self.tabs = Tab(Home(controller), DAQ(controller), LaserDriver(controller), DC(),
                         Amplitudes(), OutputPhases(), InterferometricPhase(), Sensitivity(), PTISignal())
         self.tabs.home.settings.setModel(model.SettingsTable())
         for tab in self.tabs:
@@ -35,9 +34,6 @@ class MainWindow(QtWidgets.QMainWindow):
             self.controller.close()
         else:
             close_event.ignore()
-
-    def logging_update(self):
-        self.logging_window.setText("".join(self.model.logging.logging_messages))
 
 
 class Plotting:
@@ -144,13 +140,15 @@ class SettingsView(QtWidgets.QTableView):
 
 
 class Home(_Tab, CreateButton):
-    def __init__(self, logging_window, controller, name="Home"):
+    def __init__(self, controller, name="Home"):
         _Tab.__init__(self, name=name)
         CreateButton.__init__(self)
+        self.logging_window = QtWidgets.QLabel()
+        model.Signals.logging_update.connect(self.logging_update)
         self._init_frames()
         self.settings = SettingsView(parent=self.frames["Setting"])
         self.frames["Setting"].layout().addWidget(self.settings, 0, 0)
-        self.frames["Log"].layout().addWidget(logging_window)
+        self.frames["Log"].layout().addWidget(self.logging_window)
         self._init_buttons(controller)
 
     def _init_frames(self):
@@ -162,7 +160,6 @@ class Home(_Tab, CreateButton):
 
     def _init_buttons(self, controller):
         assert (controller is not None)
-
         # SettingsTable buttons
         sub_layout = QtWidgets.QWidget()
         self.frames["Setting"].layout().addWidget(sub_layout)
@@ -194,6 +191,9 @@ class Home(_Tab, CreateButton):
         self.frames["Drivers"].layout().addWidget(sub_layout)
         self.create_button(master=sub_layout, title="Scan Ports", slot=controller.find_devices)
         self.create_button(master=sub_layout, title="Connect Devices", slot=controller.connect_devices)
+
+    def logging_update(self, log):
+        self.logging_window.setText("".join(log))
 
 
 class Slider(QtWidgets.QWidget):
@@ -321,8 +321,14 @@ class _Plotting(pg.PlotWidget):
         pg.setConfigOptions(antialias=True)
         pg.setConfigOption('background', "white")
         pg.setConfigOption('foreground', 'k')
-        self.curves = None
-        self.window = pg.GraphicsLayoutWidget()
+        #self.window = pg.GraphicsLayoutWidget()
+        #self.plot = self.window.addPlot()
+        #self.curves = self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE))
+
+    def update_data(self, data):
+        try:
+            pass
+        except TypeError:
 
 
 class DC(_Tab):

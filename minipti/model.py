@@ -130,7 +130,7 @@ class Signals(QtCore.QObject):
     inversion = QtCore.Signal()
     characterization = QtCore.Signal()
     settings_pti = QtCore.Signal()
-    logging_update = QtCore.Signal()
+    logging_update = QtCore.Signal(arguments="log")
 
     def __init__(self):
         QtCore.QObject.__init__(self)
@@ -146,7 +146,7 @@ class Logging(logging.Handler):
 
     def emit(self, record: logging.LogRecord):
         self.logging_messages.append(self.format(record))
-        Signals.logging_update.emit()
+        Signals.logging_update.emit(self.logging_messages)
 
 
 def find_delimiter(file_path: str):
