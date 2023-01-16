@@ -121,10 +121,10 @@ interferometer.decimation_filepath = "data/Decimation_Commercial.csv"
 interferometer.init_settings()
 
 characterization = minipti.interferometry.Characterization()
-characterization(mode="offline")
+characterization()
 
 characterization.use_settings = False
-characterization(mode="offline")
+characterization()
 ```
 
 ### **Direct usage of API**
@@ -164,7 +164,7 @@ interferometer.decimation_filepath = "data/Decimation_Commercial.csv"
 interferometer.settings_path = "configs/settings.csv"
 interferometer.init_settings()
 inversion = minipti.pti.Inversion(interferometer=interferometer)
-inversion(mode="offline")
+inversion()
 ```
 
 ### **Direct Usage of API**
