@@ -13,7 +13,7 @@ than process the algorithms described in [1].
 from collections import defaultdict
 
 import pandas as pd
-import minipti
+from src import minipti
 
 binary_file = "data.bin"
 output_data = defaultdict(list)
@@ -44,7 +44,7 @@ such a file can be found in src/configs/settings.csv. There also settings files 
 import minipti
 import pandas as pd
 
-interferometer = minipti.interferometry.Interferometer()
+interferometer = src.minipti.interferometry.Interferometer()
 
 interferometer.settings_file_path = "configs/settings.csv"
 interferometer.decimation_filepath = "data/Decimation_Comercial.csv"
@@ -71,12 +71,12 @@ if you use the provided wrappers.
 ```python
 import minipti
 
-interferometer = minipti.interferometry.Interferometer()
+interferometer = src.minipti.interferometry.Interferometer()
 interferometer.settings_file_path = "configs/settings.csv"
 interferometer.decimation_filepath = "data/Decimation_Comercial.csv"
 interferometer.init_settings()
 
-characterization = minipti.interferometry.Characterization()
+characterization = src.minipti.interferometry.Characterization()
 characterization(mode="offline")
 
 characterization.use_settings = False
@@ -89,9 +89,9 @@ characterization(mode="offline")
 import minipti
 import pandas as pd
 
-interferometer = minipti.interferometry.Interferometer()
+interferometer = src.minipti.interferometry.Interferometer()
 dc_signals = pd.read_csv("data/Decimation_Comercial.csv")
-characterization = minipti.interferometry.Characterization()
+characterization = src.minipti.interferometry.Characterization()
 interferometer.settings_path = "configs/settings.csv"
 characterization.signals = dc_signals[[f"DC CH{i}" for i in range(1, 4)]].to_numpy()
 interferometer.init_settings()
@@ -115,7 +115,7 @@ to the actual API.
 ```python
 import minipti
 
-interferometer = minipti.interferometry.Interferometer()
+interferometer = src.minipti.interferometry.Interferometer()
 interferometer.decimation_filepath = "data/Decimation_Comercial.csv"
 interferometer.settings_path = "configs/settings.csv"
 interferometer.init_settings()
@@ -129,7 +129,7 @@ inversion(mode="offline")
 import pandas as pd
 import minipti
 
-interferometer = minipti.interferometry.Interferometer()
+interferometer = src.minipti.interferometry.Interferometer()
 interferometer.decimation_filepath = "data/Decimation_Comercial.csv"
 interferometer.settings_path = "configs/settings.csv"
 interferometer.init_settings()

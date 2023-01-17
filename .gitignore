@@ -4,5 +4,5 @@ __pycache__
 notebooks/.ipynb_checkpoints
 notebooks/__pycache__
 notebooks/data
-minipti/pti.log
+src/minipti/pti.log
 

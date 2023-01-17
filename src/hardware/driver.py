@@ -148,6 +148,9 @@ class SerialDevice(QtCore.QObject):
         else:
             raise SerialError(f"Could not connect with {self.device_name}")
 
+    def is_open(self):
+        return self.device.isOpen()
+
     def close(self):
         if self.device.isOpen():
             self.device.close()
@@ -210,6 +213,18 @@ class DAQ(SerialDevice):
     @property
     def device_name(self):
         return DAQ.NAME
+
+    @property
+    def ref_signal(self):
+        return self.package_data.ref_signal.get(block=True)
+
+    @property
+    def dc_coupled(self):
+        return self.package_data.dc_coupled.get(block=True)
+
+    @property
+    def ac_coupled(self):
+        return self.package_data.ac_coupled.get(block=True)
 
     def __call__(self):
         self.running.set()

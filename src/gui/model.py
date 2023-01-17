@@ -13,9 +13,8 @@ import pandas as pd
 from PySide6 import QtCore
 from scipy import ndimage
 
-import driver
-import interferometry
-import pti
+from minipti import interferometry, pti
+import hardware
 
 
 class SettingsTable(QtCore.QAbstractTableModel):
@@ -26,7 +25,7 @@ class SettingsTable(QtCore.QAbstractTableModel):
     def __init__(self):
         QtCore.QAbstractTableModel.__init__(self)
         self._data = pd.DataFrame(columns=SettingsTable.HEADERS, index=SettingsTable.INDEX)
-        self._file_path = "configs/settings.csv"
+        self._file_path = "../minipti/configs/settings.csv"
         self._observer_callbacks = []
 
     def rowCount(self, parent=None):
@@ -104,11 +103,11 @@ class SettingsTable(QtCore.QAbstractTableModel):
         inversion.load_response_phase()
 
     def setup_settings_file(self):
-        if not os.path.exists("configs/settings.csv"):  # If no settings found, a new empty file is created.
+        if not os.path.exists("../minipti/configs/settings.csv"):  # If no settings found, a new empty file is created.
             self.save()
         else:
             try:
-                settings = pd.read_csv("configs/settings.csv", index_col="Setting")
+                settings = pd.read_csv("../minipti/configs/settings.csv", index_col="Setting")
             except FileNotFoundError:
                 self.save()
             else:
@@ -131,6 +130,7 @@ class Signals(QtCore.QObject):
     characterization = QtCore.Signal()
     settings_pti = QtCore.Signal()
     logging_update = QtCore.Signal(arguments="log")
+    daq_running = QtCore.Signal()
 
     def __init__(self):
         QtCore.QObject.__init__(self)
@@ -143,6 +143,7 @@ class Logging(logging.Handler):
         logging.Handler.__init__(self)
         self.logging_messages = deque(maxlen=Logging.LOGGING_HISTORY)
         self.formatter = logging.Formatter('%(levelname)s %(asctime)s: %(message)s\n', datefmt='%Y-%m-%d %H:%M:%S')
+        logging.getLogger().addHandler(self)
 
     def emit(self, record: logging.LogRecord):
         self.logging_messages.append(self.format(record))
@@ -158,7 +159,7 @@ def find_delimiter(file_path: str):
     return delimiter
 
 
-def calculate_mean(data, mean_size: int):
+def running_average(data, mean_size: int):
     i = 1
     current_mean = data[0]
     result = [current_mean]
@@ -268,21 +269,21 @@ class Calculation:
         self.current_time = 0
         self.interferometry = Interferometry(interferometry.Interferometer(), interferometry.Characterization())
         self.pti = PTI(pti.Decimation(), pti.Inversion(interferometry=self.interferometry.interferometer))
-        self.daq = DAQ()
+        self.driver = Driver()
         self.running = threading.Event()
 
     def live_calculation(self):
         def calculate_characterization():
-            while self.running.is_set():
+            while self.running.is_set() and self.driver.ports.daq.is_open():
                 self.interferometry.characterization()
                 self.characterisation_buffer.append(self.interferometry)
                 Signals.characterization.emit(self.characterisation_buffer)
 
         def calculate_inversion():
-            while self.running.is_set():
-                self.pti.decimation.ref = np.array(self.daq.ref_signal)
-                self.pti.decimation.dc_coupled = np.array(self.daq.dc_coupled)
-                self.pti.decimation.ac_coupled = np.array(self.daq.ac_coupled)
+            while self.running.is_set() and self.driver.ports.daq.is_open():
+                self.pti.decimation.ref = np.array(self.driver.ports.daq.ref_signal)
+                self.pti.decimation.dc_coupled = np.array(self.driver.ports.daq.dc_coupled)
+                self.pti.decimation.ac_coupled = np.array(self.driver.ports.daq.ac_coupled)
                 self.pti.decimation()
                 self.pti.inversion.lock_in = self.pti.decimation.lock_in  # Note that this copies a reference
                 self.pti.inversion.dc_signals = self.pti.decimation.dc_signals
@@ -325,59 +326,105 @@ class Calculation:
         self.interferometry.interferometer.decimation_filepath = inversion_path
         self.interferometry.interferometer.settings_path = settings_path
         self.pti.inversion()
+        Signals.inversion.emit({"PTI Signal": self.pti.inversion.pti_signal,
+                                "PTI Signal 60 s Mean": running_average(self.pti.inversion.pti_signal, mean_size=60)})
 
 
-class DAQ:
+class Ports(typing.NamedTuple):
+    daq = hardware.driver.DAQ()
+    laser = hardware.driver.Laser()
+    tec = hardware.driver.Tec()
+
+
+class Driver:
     def __init__(self):
-        self.daq = driver.DAQ()
+        self.ports = Ports()
 
-    def open(self):
-        self.daq.open()
+    def open_daq(self):
+        self.ports.daq.open()
+
+    def open_laser(self):
+        self.ports.laser.open()
+
+    def open_tec(self):
+        self.ports.tec.open()
 
     def close(self):
-        self.daq.close()
+        for port in self.ports:
+            if port.is_open():
+                port.close()
 
     def find_device(self):
-        self.daq.find_port()
-
-    @property
-    def ref_signal(self):
-        return self.daq.package_data.ref_signal.get(block=True)
-
-    @property
-    def dc_coupled(self):
-        return self.daq.package_data.dc_coupled.get(block=True)
-
-    @property
-    def ac_coupled(self):
-        return self.daq.package_data.ac_coupled.get(block=True)
+        for port in self.ports:
+            try:
+                port.find_port()
+            except hardware.driver.SerialError:
+                return port.device_name
 
 
-class Measurement:
+class DAQMeasurement:
     """
-    Functor which process income driver data (DAQ, Laser, ...) and saves it to an internally buffer.
+    Functor which process income DAQ data and saves it to an internally buffer.
     Processing incoming data is optional.
     """
-    def __init__(self, device: driver.DAQ, buffers: list[Buffer]):
+    def __init__(self, device: hardware.driver.DAQ):
         self.device = device
-        self.buffers = buffers
         self.threads = {}
         self.running = False
-        self.signals = Signals()
+        self.calculation = Calculation()
 
-    def __call__(self, calculation):
+    def __call__(self):
         if not self.running:
+            if not self.device.is_open():
+                self.device.open()
             self.device.running.set()
-            if calculation is not None:
-                self.threads["Calculation"] = threading.Thread(target=calculation, daemon=True)
+            self.threads["Calculation"] = threading.Thread(target=self.calculation, daemon=True)
             self.threads["Device"] = threading.Thread(target=self.device, daemon=True)
             for name, thread in self.threads:
                 thread.start()
             self.running ^= True
+            Signals.daq_running.emit()
         else:
             self.device.running.clear()
-            if calculation is not None:
-                calculation.running.clear()
-            for buffer in self.buffers:
-                buffer.clear()
+            self.calculation.running.clear()
+            self.calculation.pti_buffer.clear()
+            self.calculation.characterisation_buffer.clear()
             self.running ^= True
+            Signals.daq_running.emit()
+
+
+def _process__data(file_path: str, headers: list[str]) -> pd.DataFrame:
+    if not file_path:
+        raise FileNotFoundError("No file path given")
+    delimiter = find_delimiter(file_path)
+    try:
+        data = pd.read_csv(file_path, delimiter=delimiter, skiprows=[1], index_col="Time")
+    except ValueError:  # Data isn't saved with any index
+        data = pd.read_csv(file_path, delimiter=delimiter, skiprows=[1])
+    for header in headers:
+        for header_data in data.columns:
+            if header == header_data:
+                break
+            else:
+                raise KeyError(f"Header {header} not found in file")
+    return data
+
+
+def process_dc_data(dc_file_path: str):
+    headers = ["DC CH1", "DC CH2", "DC CH3"]
+    data = _process__data(dc_file_path, headers)
+    Signals.inversion.emit(data)
+
+
+def process_inversion_data(inversion_file_path: str):
+    headers = ["Interferometric Phase", "Sensitivity", "PTI Signal", "PTI Signal 60 s Mean"]
+    data = _process__data(inversion_file_path, headers)
+    Signals.inversion.emit(data)
+
+
+def process_characterization_data(characterization_file_path: str):
+    headers = [f"Amplitudes CH{i}" for i in range(3)]
+    headers += [f"Output Phases CH{i}" for i in range(3)]
+    headers += [f"Offsets CH{i}" for i in range(3)]
+    data = _process__data(characterization_file_path, headers)
+    Signals.characterization.emit(data)

@@ -1,11 +1,12 @@
 import abc
-from typing import NamedTuple
+from typing import NamedTuple, TypeVar, Mapping
+from collections.abc import Sequence
 
 import pyqtgraph as pg
 from PySide6 import QtWidgets, QtCore
 
 import model
-from dataclasses import dataclass
+import controller
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -16,7 +17,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.sheet = None
         self.tab_bar = QtWidgets.QTabWidget(self)
         self.setCentralWidget(self.tab_bar)
-        self.tabs = Tab(Home(controller), DAQ(controller), LaserDriver(controller), DC(),
+        self.tabs = Tab(Home(self.controller), DAQ(), LaserDriver(self.controller), DC(),
                         Amplitudes(), OutputPhases(), InterferometricPhase(), Sensitivity(), PTISignal())
         self.tabs.home.settings.setModel(model.SettingsTable())
         for tab in self.tabs:
@@ -100,7 +101,7 @@ class Home(_Tab, CreateButton):
         self.settings = SettingsView(parent=self.frames["Setting"])
         self.frames["Setting"].layout().addWidget(self.settings, 0, 0)
         self.frames["Log"].layout().addWidget(self.logging_window)
-        self._init_buttons(controller)
+        self._init_buttons()
 
     def _init_frames(self):
         self.create_frame(title="Log", x_position=0, y_position=1)
@@ -109,8 +110,7 @@ class Home(_Tab, CreateButton):
         self.create_frame(title="Plot Data", x_position=2, y_position=0)
         self.create_frame(title="Drivers", x_position=3, y_position=0)
 
-    def _init_buttons(self, controller):
-        assert (controller is not None)
+    def _init_buttons(self):
         # SettingsTable buttons
         sub_layout = QtWidgets.QWidget()
         self.frames["Setting"].layout().addWidget(sub_layout)
@@ -124,7 +124,7 @@ class Home(_Tab, CreateButton):
         sub_layout = QtWidgets.QWidget()
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
         self.frames["Offline Processing"].layout().addWidget(sub_layout)
-        self.create_button(master=sub_layout, title="Decimation", slot=controller.calculate_decimation)
+        self.create_button(master=sub_layout, title="Decimation", slot=controller.ca)
         self.create_button(master=sub_layout, title="Inversion", slot=controller.calculate_inversion)
         self.create_button(master=sub_layout, title="Characterisation", slot=controller.calculate_characterisation)
 
@@ -265,6 +265,9 @@ class _MatplotlibColors:
     GREEN = "#118011"
 
 
+T = TypeVar("T")
+
+
 class _Plotting(pg.PlotWidget):
     def __init__(self):
         pg.PlotWidget.__init__(self)
@@ -277,7 +280,7 @@ class _Plotting(pg.PlotWidget):
         self.curves = self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE))
 
     @abc.abstractmethod
-    def update_data(self, data: model.Buffer):
+    def update_data(self, data: model.Buffer | Sequence[T]):
         ...
 
 
@@ -293,9 +296,12 @@ class DC(_Plotting):
         self.layout().addWidget(self.window)
         model.Signals.inversion.connect(self.update_data)
 
-    def update_data(self, data: model.PTIBuffer):
+    def update_data(self, data: model.PTIBuffer | Sequence[T]):
         for channel in range(3):
-            self.curves[channel].setData(data.time, data.dc_values[channel])
+            try:
+                self.curves[channel].setData(data.time, data.dc_values[channel])
+            except TypeError:
+                self.curves[channel].setData(len(data), data)
 
 
 class Amplitudes(_Plotting):
@@ -310,9 +316,12 @@ class Amplitudes(_Plotting):
         self.layout().addWidget(self.window)
         model.Signals.characterization.connect(self.update_data)
 
-    def update_data(self, data: model.CharacterisationBuffer):
+    def update_data(self, data: model.CharacterisationBuffer | Sequence[T]):
         for channel in range(3):
-            self.curves[channel].setData(data.time, data.amplitudes[channel])
+            try:
+                self.curves[channel].setData(data.time, data.amplitudes[channel])
+            except TypeError:
+                self.curves[channel].setData(len(data), data)
 
 
 class OutputPhases(_Plotting):
@@ -326,9 +335,12 @@ class OutputPhases(_Plotting):
         self.layout().addWidget(self.window)
         model.Signals.characterization.connect(self.update_data)
 
-    def update_data(self, data: model.CharacterisationBuffer):
+    def update_data(self, data: model.CharacterisationBuffer | Sequence[T]):
         for channel in range(2):
-            self.curves[channel].setData(data.time, data.amplitudes[channel])
+            try:
+                self.curves[channel].setData(data.time, data.amplitudes[channel])
+            except TypeError:
+                self.curves[channel].setData(len(data), data)
 
 
 class InterferometricPhase(_Plotting):
@@ -341,9 +353,12 @@ class InterferometricPhase(_Plotting):
         self.layout().addWidget(self.plot.window)
         model.Signals.inversion.connect(self.update_data)
 
-    def update_data(self, data: model.PTIBuffer):
+    def update_data(self, data: model.PTIBuffer | Sequence[T]):
         for channel in range(2):
-            self.curves[channel].setData(data.time, data.interferometric_phase[channel])
+            try:
+                self.curves[channel].setData(data.time, data.interferometric_phase[channel])
+            except TypeError:
+                self.curves[channel].setData(len(data), data)
 
 
 class Sensitivity(_Plotting):
@@ -356,8 +371,11 @@ class Sensitivity(_Plotting):
         self.layout().addWidget(self.plot.window)
         model.Signals.inversion.connect(self.update_data)
 
-    def update_data(self, data: model.PTIBuffer):
-        self.curves.setData(data.time, data.sensitivity)
+    def update_data(self, data: model.PTIBuffer | Sequence[T]):
+        try:
+            self.curves.setData(data.time, data.sensitivity)
+        except TypeError:
+            self.curves.setData(len(data), data)
 
 
 class PTISignal(_Plotting):
@@ -371,9 +389,13 @@ class PTISignal(_Plotting):
         self.layout().addWidget(self.plot.window)
         model.Signals.inversion.connect(self.update_data)
 
-    def update_data(self, data: model.PTIBuffer):
-        self.curves["PTI Signal"].setData(data.time, data.pti_signal)
-        self.curves["PTI Signal Mean"].setData(data.time, data.pti_signal_mean)
+    def update_data(self, data: model.PTIBuffer | Mapping[str, Sequence[T]]):
+        try:
+            self.curves["PTI Signal"].setData(data.time, data.pti_signal)
+            self.curves["PTI Signal Mean"].setData(data.time, data.pti_signal_mean)
+        except TypeError:
+            for key, value in data.items():
+                self.curves[key].setData(len(data[key]), data[key])
 
 
 class Tab(NamedTuple):

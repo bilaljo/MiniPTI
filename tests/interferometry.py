@@ -1,10 +1,7 @@
-import minipti
-
-
 class InterferometerTest:
-    interferometry = minipti.interferometry.Interferometer(settings_path="../examples/sample_configs/settings.csv")
+    interferometry = src.minipti.interferometry.Interferometer(settings_path="../examples/sample_configs/settings.csv")
     interferometry.init_settings()
-    characterisation = minipti.interferometry.Characterization(interferometry=interferometry)
+    characterisation = src.minipti.interferometry.Characterization(interferometry=interferometry)
     interferometry.decimation_filepath = "../examples/sample_data/Decimation_Comercial.csv"
     data = pd.read_csv("../examples/sample_data/Decimation_Comercial.csv")
     dc_data = data[[f"DC CH{i}" for i in range(1, 4)]].to_numpy().T
