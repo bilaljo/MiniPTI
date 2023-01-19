@@ -129,7 +129,7 @@ class Signals(QtCore.QObject):
     inversion = QtCore.Signal()
     characterization = QtCore.Signal()
     settings_pti = QtCore.Signal()
-    logging_update = QtCore.Signal(arguments="log")
+    logging_update = QtCore.Signal()
     daq_running = QtCore.Signal()
 
     def __init__(self):

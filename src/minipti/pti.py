@@ -23,7 +23,7 @@ class Inversion:
     """
     MICRO_RAD = 1e6
 
-    def __init__(self, response_phases=None, sign=1, interferometry=None, settings_path="configs/settings.csv"):
+    def __init__(self, response_phases=None, sign=1, interferometry=None, settings_path="minipti/configs/settings.csv"):
         super().__init__()
         self.response_phases = response_phases
         self.pti_signal = None  # type: float | np.array

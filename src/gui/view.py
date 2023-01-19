@@ -5,25 +5,58 @@ from collections.abc import Sequence
 import pyqtgraph as pg
 from PySide6 import QtWidgets, QtCore
 
-import model
-import controller
+from gui import model
+from gui import controller
 
 
 class MainWindow(QtWidgets.QMainWindow):
-    def __init__(self, controller):
+    def __init__(self, main_controller: controller.MainApplication):
         QtWidgets.QMainWindow.__init__(self)
         self.setWindowTitle("Passepartout")
-        self.controller = controller
+        self.controller = main_controller
+        self.driver_model = main_controller.driver_model
         self.sheet = None
         self.tab_bar = QtWidgets.QTabWidget(self)
         self.setCentralWidget(self.tab_bar)
-        self.tabs = Tab(Home(self.controller), DAQ(), LaserDriver(self.controller), DC(),
-                        Amplitudes(), OutputPhases(), InterferometricPhase(), Sensitivity(), PTISignal())
-        self.tabs.home.settings.setModel(model.SettingsTable())
-        for tab in self.tabs:
-            self.tab_bar.addTab(tab, tab.name)
+        self.tabs: None | Tab = None
+        self._init_tabs()
+        self.tabs.home.settings.setModel(self.controller.settings_model)
         self.resize(900, 600)
         self.show()
+
+    def _init_tabs(self):
+        self.tabs = Tab(home=Home(controller.Home(self.controller, self)), daq=DAQ(), laser=LaserDriver(), tec=None,
+                        dc=QtWidgets.QTabWidget(), amplitudes=QtWidgets.QTabWidget(),
+                        output_phases=QtWidgets.QTabWidget(), sensitivity=QtWidgets.QTabWidget(),
+                        interferometric_phase=QtWidgets.QTabWidget(),  pti_signal=QtWidgets.QTabWidget())
+        self.tab_bar.addTab(self.tabs.home, "Home")
+        self.tab_bar.addTab(self.tabs.daq, "Valves")
+        self.tab_bar.addTab(self.tabs.laser, "Laser")
+        self.tab_bar.addTab(self.tabs.tec, "Tec")
+        # DC Plot
+        self.tabs.dc.setLayout(QtWidgets.QHBoxLayout())
+        self.tabs.dc.layout().addWidget(DC().window)
+        self.tab_bar.addTab(self.tabs.dc, "DC Signals")
+        # Amplitudes Plot
+        self.tabs.amplitudes.setLayout(QtWidgets.QHBoxLayout())
+        self.tabs.amplitudes.layout().addWidget(Amplitudes().window)
+        self.tab_bar.addTab(self.tabs.amplitudes, "Amplitudes")
+        # Output Phases Plot
+        self.tabs.output_phases.setLayout(QtWidgets.QHBoxLayout())
+        self.tabs.output_phases.layout().addWidget(OutputPhases().window)
+        self.tab_bar.addTab(self.tabs.output_phases, "Output Phases")
+        # Interferometric Phase Plot
+        self.tabs.interferometric_phase.setLayout(QtWidgets.QHBoxLayout())
+        self.tabs.interferometric_phase.layout().addWidget(InterferometricPhase().window)
+        self.tab_bar.addTab(self.tabs.interferometric_phase, "Interferometric Phase")
+        # Sensitivty Plot
+        self.tabs.sensitivity.setLayout(QtWidgets.QHBoxLayout())
+        self.tabs.sensitivity.layout().addWidget(Sensitivity().window)
+        self.tab_bar.addTab(self.tabs.sensitivity, "Sensitivity")
+        # PTI Signal Plot
+        self.tabs.pti_signal.setLayout(QtWidgets.QHBoxLayout())
+        self.tabs.pti_signal.layout().addWidget(PTISignal().window)
+        self.tab_bar.addTab(self.tabs.pti_signal, "PTI Signal")
 
     def closeEvent(self, close_event):
         close = QtWidgets.QMessageBox.question(self, "QUIT", "Are you sure you want to close?",
@@ -31,7 +64,8 @@ class MainWindow(QtWidgets.QMainWindow):
                                                | QtWidgets.QMessageBox.StandardButton.No)
         if close == QtWidgets.QMessageBox.StandardButton.Yes:
             close_event.accept()
-            self.model.daq.close()
+            for port in self.driver_model.ports:
+                port.close()
             self.controller.close()
         else:
             close_event.ignore()
@@ -75,7 +109,7 @@ class CreateButton:
         master.layout().addWidget(self.buttons[title])
 
     @abc.abstractmethod
-    def _init_buttons(self, controller): ...
+    def _init_buttons(self): ...
 
 
 class SettingsView(QtWidgets.QTableView):
@@ -92,11 +126,13 @@ class SettingsView(QtWidgets.QTableView):
 
 
 class Home(_Tab, CreateButton):
-    def __init__(self, controller, name="Home"):
+    def __init__(self, home_controller, name="Home"):
         _Tab.__init__(self, name=name)
         CreateButton.__init__(self)
+        self.controller = home_controller
         self.logging_window = QtWidgets.QLabel()
-        model.Signals.logging_update.connect(self.logging_update)
+        self.signals = model.Signals()
+        self.signals.logging_update.connect(self.logging_update)
         self._init_frames()
         self.settings = SettingsView(parent=self.frames["Setting"])
         self.frames["Setting"].layout().addWidget(self.settings, 0, 0)
@@ -115,33 +151,33 @@ class Home(_Tab, CreateButton):
         sub_layout = QtWidgets.QWidget()
         self.frames["Setting"].layout().addWidget(sub_layout)
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
-        self.create_button(master=sub_layout, title="Save SettingsTable", slot=controller.save_settings)
-        self.create_button(master=sub_layout, title="Load SettingsTable", slot=controller.load_settings)
+        self.create_button(master=sub_layout, title="Save SettingsTable", slot=self.controller.save_settings)
+        self.create_button(master=sub_layout, title="Load SettingsTable", slot=self.controller.load_settings)
         # TODO: Implement autosave slot
-        self.create_button(master=sub_layout, title="Auto Save", slot=controller.load_settings)
+        self.create_button(master=sub_layout, title="Auto Save", slot=self.controller.load_settings)
 
         # Offline Processing buttons
         sub_layout = QtWidgets.QWidget()
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
         self.frames["Offline Processing"].layout().addWidget(sub_layout)
-        self.create_button(master=sub_layout, title="Decimation", slot=controller.ca)
-        self.create_button(master=sub_layout, title="Inversion", slot=controller.calculate_inversion)
-        self.create_button(master=sub_layout, title="Characterisation", slot=controller.calculate_characterisation)
+        self.create_button(master=sub_layout, title="Decimation", slot=self.controller.calculate_decimation)
+        self.create_button(master=sub_layout, title="Inversion", slot=self.controller.calculate_inversion)
+        self.create_button(master=sub_layout, title="Characterisation", slot=self.controller.calculate_characterisation)
 
         # Plotting buttons
         sub_layout = QtWidgets.QWidget(parent=self.frames["Plot Data"])
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
         self.frames["Plot Data"].layout().addWidget(sub_layout)
-        self.create_button(master=sub_layout, title="Decimation", slot=controller.plot_dc)
-        self.create_button(master=sub_layout, title="Inversion", slot=controller.plot_inversion)
-        self.create_button(master=sub_layout, title="Characterisation", slot=controller.plot_characterisation)
+        self.create_button(master=sub_layout, title="Decimation", slot=self.controller.plot_dc)
+        self.create_button(master=sub_layout, title="Inversion", slot=self.controller.plot_inversion)
+        self.create_button(master=sub_layout, title="Characterisation", slot=self.controller.plot_characterisation)
 
         # Driver buttons
         sub_layout = QtWidgets.QWidget(parent=self.frames["Drivers"])
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
         self.frames["Drivers"].layout().addWidget(sub_layout)
-        self.create_button(master=sub_layout, title="Scan Ports", slot=controller.find_devices)
-        self.create_button(master=sub_layout, title="Connect Devices", slot=controller.connect_devices)
+        self.create_button(master=sub_layout, title="Scan Ports", slot=self.controller.find_devices)
+        self.create_button(master=sub_layout, title="Connect Devices", slot=self.controller.connect_daq)
 
     def logging_update(self, log):
         self.logging_window.setText("".join(log))
@@ -171,18 +207,18 @@ class Slider(QtWidgets.QWidget):
 
 
 class DAQ(_Tab, CreateButton):
-    def __init__(self, controller, name="DAQ"):
+    def __init__(self, daq_controller=None, name="DAQ"):
         _Tab.__init__(self, name)
         CreateButton.__init__(self)
         self.port_box = QtWidgets.QLabel()
         self.connected_box = QtWidgets.QLabel()
         self._init_frames()
-        self._init_buttons(controller)
+        self._init_buttons()
 
     def _init_frames(self):
         self.create_frame(title="Valves", x_position=2, y_position=0)
 
-    def _init_buttons(self, controller):
+    def _init_buttons(self):
         self.frames["Valves"].layout().addWidget(QtWidgets.QLabel("Valve 1"))
         self.frames["Valves"].layout().addWidget(Slider())
         self.frames["Valves"].layout().addWidget(QtWidgets.QLabel("Valve 2"))
@@ -190,7 +226,7 @@ class DAQ(_Tab, CreateButton):
 
 
 class LaserDriver(_Tab, CreateButton):
-    def __init__(self, controller, name="Laser Driver"):
+    def __init__(self, laser_controller=None, name="Laser Driver"):
         _Tab.__init__(self, name)
         CreateButton.__init__(self)
         self.plot = _Plotting()
@@ -210,7 +246,7 @@ class LaserDriver(_Tab, CreateButton):
         self.layout().addWidget(self.tab_bar)
         self._init_frames()
         # self._init_laser_plot()
-        self._init_buttons(controller)
+        self._init_buttons()
 
     def _init_frames(self):
         pass
@@ -222,7 +258,7 @@ class LaserDriver(_Tab, CreateButton):
         plot.showGrid(x=True, y=True)
         self.frames["Plot"].layout().addWidget(self.plot.window)
 
-    def _init_buttons(self, controller):
+    def _init_buttons(self):
         voltage_frame = QtWidgets.QGroupBox()
         voltage_frame.setTitle("Driver Voltage")
         voltage_frame.setLayout(QtWidgets.QHBoxLayout())
@@ -278,6 +314,9 @@ class _Plotting(pg.PlotWidget):
         self.window = pg.GraphicsLayoutWidget()
         self.plot = self.window.addPlot()
         self.curves = self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE))
+        self.signals = model.Signals()
+        self.plot.showGrid(x=True, y=True)
+        self.plot.addLegend()
 
     @abc.abstractmethod
     def update_data(self, data: model.Buffer | Sequence[T]):
@@ -287,14 +326,13 @@ class _Plotting(pg.PlotWidget):
 class DC(_Plotting):
     def __init__(self):
         _Plotting.__init__(self)
-        self.curves = [self.plot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="DC CH1"),
-                       self.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="DC CH2"),
-                       self.plot(pen=pg.mkPen(_MatplotlibColors.GREEN), name="DC CH3")]
+        self.curves = [self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="DC CH1"),
+                       self.plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="DC CH2"),
+                       self.plot.plot(pen=pg.mkPen(_MatplotlibColors.GREEN), name="DC CH3")]
         self.setLabel(axis="bottom", text="Time [s]")
         self.setLabel(axis="left", text="Intensity [V]")
-        self.showGrid(x=True, y=True)
-        self.layout().addWidget(self.window)
-        model.Signals.inversion.connect(self.update_data)
+        self.plot.addLegend()
+        self.signals.inversion.connect(self.update_data)
 
     def update_data(self, data: model.PTIBuffer | Sequence[T]):
         for channel in range(3):
@@ -307,14 +345,14 @@ class DC(_Plotting):
 class Amplitudes(_Plotting):
     def __init__(self):
         _Plotting.__init__(self)
-        self.curves = [self.plot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="Amplitude CH1"),
-                       self.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="Amplitude CH2"),
-                       self.plot(pen=pg.mkPen(_MatplotlibColors.GREEN), name="Amplitude CH3")]
+        self.curves = [self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="Amplitude CH1"),
+                       self.plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="Amplitude CH2"),
+                       self.plot.plot(pen=pg.mkPen(_MatplotlibColors.GREEN), name="Amplitude CH3")]
         self.setLabel(axis="bottom", text="Time [s]")
         self.setLabel(axis="left", text="Amplitude [V]")
         self.showGrid(x=True, y=True)
-        self.layout().addWidget(self.window)
-        model.Signals.characterization.connect(self.update_data)
+        self.plot.addLegend()
+        self.signals.characterization.connect(self.update_data)
 
     def update_data(self, data: model.CharacterisationBuffer | Sequence[T]):
         for channel in range(3):
@@ -327,13 +365,13 @@ class Amplitudes(_Plotting):
 class OutputPhases(_Plotting):
     def __init__(self):
         _Plotting.__init__(self)
-        self.curves = [self.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="Output Phase CH2"),
-                       self.plot(pen=pg.mkPen(_MatplotlibColors.GREEN), name="Output Phase CH3")]
+        self.curves = [self.plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="Output Phase CH2"),
+                       self.plot.plot(pen=pg.mkPen(_MatplotlibColors.GREEN), name="Output Phase CH3")]
         self.setLabel(axis="bottom", text="Time [s]")
         self.setLabel(axis="left", text="Output Phase [deg]")
         self.showGrid(x=True, y=True)
-        self.layout().addWidget(self.window)
-        model.Signals.characterization.connect(self.update_data)
+        self.plot.addLegend()
+        self.signals.characterization.connect(self.update_data)
 
     def update_data(self, data: model.CharacterisationBuffer | Sequence[T]):
         for channel in range(2):
@@ -346,12 +384,11 @@ class OutputPhases(_Plotting):
 class InterferometricPhase(_Plotting):
     def __init__(self):
         _Plotting.__init__(self)
-        self.curves = self.plot(pen=pg.mkPen(_MatplotlibColors.BLUE))
+        self.curves = self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE))
         self.setLabel(axis="bottom", text="Time [s]")
         self.setLabel(axis="left", text="Interferometric Phase [rad]")
         self.showGrid(x=True, y=True)
-        self.layout().addWidget(self.plot.window)
-        model.Signals.inversion.connect(self.update_data)
+        self.signals.inversion.connect(self.update_data)
 
     def update_data(self, data: model.PTIBuffer | Sequence[T]):
         for channel in range(2):
@@ -364,12 +401,11 @@ class InterferometricPhase(_Plotting):
 class Sensitivity(_Plotting):
     def __init__(self):
         _Plotting.__init__(self)
-        self.curves = self.plot(pen=pg.mkPen(_MatplotlibColors.BLUE))
+        self.curves = self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE))
         self.setLabel(axis="bottom", text="Time [s]")
         self.setLabel(axis="left", text="Sensitivity [1/rad]")
         self.showGrid(x=True, y=True)
-        self.layout().addWidget(self.plot.window)
-        model.Signals.inversion.connect(self.update_data)
+        self.signals.inversion.connect(self.update_data)
 
     def update_data(self, data: model.PTIBuffer | Sequence[T]):
         try:
@@ -381,13 +417,12 @@ class Sensitivity(_Plotting):
 class PTISignal(_Plotting):
     def __init__(self):
         _Plotting.__init__(self)
-        self.curves = {"PTI Signal": self.scatterPlot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="1 s", size=6),
-                       "PTI Signal Mean": self.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="60 s Mean")}
+        self.curves = {"PTI Signal": self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="1 s", size=6),
+                       "PTI Signal Mean": self.plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="60 s Mean")}
         self.setLabel(axis="bottom", text="Time [s]")
         self.setLabel(axis="left", text="PTI Signal [µrad]")
-        self.showGrid(x=True, y=True)
-        self.layout().addWidget(self.plot.window)
-        model.Signals.inversion.connect(self.update_data)
+        self.plot.addLegend()
+        self.signals.inversion.connect(self.update_data)
 
     def update_data(self, data: model.PTIBuffer | Mapping[str, Sequence[T]]):
         try:
@@ -401,10 +436,11 @@ class PTISignal(_Plotting):
 class Tab(NamedTuple):
     home: Home
     daq: DAQ
-    laser_driver: LaserDriver
-    dc: DC
-    amplitudes: Amplitudes
-    output_phases: OutputPhases
-    interferometric_phase: InterferometricPhase
-    sensitivity: Sensitivity
-    pti_signal: PTISignal
+    laser: LaserDriver | None  # Not implemented
+    tec: None  # Not implemented
+    dc: QtWidgets.QTabWidget
+    amplitudes: QtWidgets.QTabWidget
+    output_phases: QtWidgets.QTabWidget
+    interferometric_phase: QtWidgets.QTabWidget
+    sensitivity: QtWidgets.QTabWidget
+    pti_signal: QtWidgets.QTabWidget

@@ -9,6 +9,7 @@ import time
 from collections import deque
 from dataclasses import dataclass
 from enum import Enum
+from typing import Sequence
 
 from PySide6 import QtSerialPort, QtCore
 from fastcrc import crc16
@@ -166,9 +167,9 @@ class SerialDevice(QtCore.QObject):
 
 @dataclass
 class DAQData:
-    ref_signal: queue.Queue | deque | list
-    ac_coupled: queue.Queue | deque | list
-    dc_coupled: queue.Queue | deque | list
+    ref_signal: queue.Queue | deque | Sequence
+    ac_coupled: queue.Queue | deque | Sequence
+    dc_coupled: queue.Queue | deque | Sequence
 
 
 class DAQ(SerialDevice):
