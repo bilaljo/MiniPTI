@@ -15,7 +15,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setWindowTitle("Passepartout")
         self.controller = main_controller
         self.driver_model = main_controller.driver_model
-        self.sheet = None
         self.tab_bar = QtWidgets.QTabWidget(self)
         self.setCentralWidget(self.tab_bar)
         self.tabs: None | Tab = None
@@ -131,8 +130,7 @@ class Home(_Tab, CreateButton):
         CreateButton.__init__(self)
         self.controller = home_controller
         self.logging_window = QtWidgets.QLabel()
-        self.signals = model.Signals()
-        self.signals.logging_update.connect(self.logging_update)
+        model.signals.logging_update.connect(self.logging_update)
         self._init_frames()
         self.settings = SettingsView(parent=self.frames["Setting"])
         self.frames["Setting"].layout().addWidget(self.settings, 0, 0)
@@ -151,8 +149,8 @@ class Home(_Tab, CreateButton):
         sub_layout = QtWidgets.QWidget()
         self.frames["Setting"].layout().addWidget(sub_layout)
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
-        self.create_button(master=sub_layout, title="Save SettingsTable", slot=self.controller.save_settings)
-        self.create_button(master=sub_layout, title="Load SettingsTable", slot=self.controller.load_settings)
+        self.create_button(master=sub_layout, title="Save Settings", slot=self.controller.save_settings)
+        self.create_button(master=sub_layout, title="Load Settings", slot=self.controller.load_settings)
         # TODO: Implement autosave slot
         self.create_button(master=sub_layout, title="Auto Save", slot=self.controller.load_settings)
 
@@ -226,7 +224,7 @@ class DAQ(_Tab, CreateButton):
 
 
 class LaserDriver(_Tab, CreateButton):
-    def __init__(self, laser_controller=None, name="Laser Driver"):
+    def __init__(self, name="Laser Driver"):
         _Tab.__init__(self, name)
         CreateButton.__init__(self)
         self.plot = _Plotting()
@@ -314,7 +312,6 @@ class _Plotting(pg.PlotWidget):
         self.window = pg.GraphicsLayoutWidget()
         self.plot = self.window.addPlot()
         self.curves = self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE))
-        self.signals = model.Signals()
         self.plot.showGrid(x=True, y=True)
         self.plot.addLegend()
 
@@ -332,7 +329,7 @@ class DC(_Plotting):
         self.setLabel(axis="bottom", text="Time [s]")
         self.setLabel(axis="left", text="Intensity [V]")
         self.plot.addLegend()
-        self.signals.inversion.connect(self.update_data)
+        model.signals.inversion.connect(self.update_data)
 
     def update_data(self, data: model.PTIBuffer | Sequence[T]):
         for channel in range(3):
@@ -352,7 +349,7 @@ class Amplitudes(_Plotting):
         self.setLabel(axis="left", text="Amplitude [V]")
         self.showGrid(x=True, y=True)
         self.plot.addLegend()
-        self.signals.characterization.connect(self.update_data)
+        model.signals.characterization.connect(self.update_data)
 
     def update_data(self, data: model.CharacterisationBuffer | Sequence[T]):
         for channel in range(3):
@@ -371,7 +368,7 @@ class OutputPhases(_Plotting):
         self.setLabel(axis="left", text="Output Phase [deg]")
         self.showGrid(x=True, y=True)
         self.plot.addLegend()
-        self.signals.characterization.connect(self.update_data)
+        model.signals.characterization.connect(self.update_data)
 
     def update_data(self, data: model.CharacterisationBuffer | Sequence[T]):
         for channel in range(2):
@@ -388,7 +385,7 @@ class InterferometricPhase(_Plotting):
         self.setLabel(axis="bottom", text="Time [s]")
         self.setLabel(axis="left", text="Interferometric Phase [rad]")
         self.showGrid(x=True, y=True)
-        self.signals.inversion.connect(self.update_data)
+        model.signals.inversion.connect(self.update_data)
 
     def update_data(self, data: model.PTIBuffer | Sequence[T]):
         for channel in range(2):
@@ -405,7 +402,7 @@ class Sensitivity(_Plotting):
         self.setLabel(axis="bottom", text="Time [s]")
         self.setLabel(axis="left", text="Sensitivity [1/rad]")
         self.showGrid(x=True, y=True)
-        self.signals.inversion.connect(self.update_data)
+        model.signals.inversion.connect(self.update_data)
 
     def update_data(self, data: model.PTIBuffer | Sequence[T]):
         try:
@@ -422,7 +419,7 @@ class PTISignal(_Plotting):
         self.setLabel(axis="bottom", text="Time [s]")
         self.setLabel(axis="left", text="PTI Signal [µrad]")
         self.plot.addLegend()
-        self.signals.inversion.connect(self.update_data)
+        model.signals.inversion.connect(self.update_data)
 
     def update_data(self, data: model.PTIBuffer | Mapping[str, Sequence[T]]):
         try:

@@ -13,9 +13,11 @@ class MainApplication(QtWidgets.QApplication):
         QtWidgets.QApplication.__init__(self, argv)
         self.driver_model = model.Driver()
         self.settings_model = model.SettingsTable()
+        self.logging_model = model.Logging()
         self.view = view.MainWindow(self)
         threading.excepthook = self.thread_exception
         self.driver_model.find_device()
+        self.settings_model.setup_settings_file()
 
     def close(self):
         self.driver_model.close()
@@ -33,7 +35,6 @@ class MainApplication(QtWidgets.QApplication):
 class Home:
     def __init__(self, main_controller: MainApplication, parent):
         self.view = parent
-        self.settings_model = model.SettingsTable()
         self.calculation_model = model.Calculation()
         self.main_controller = main_controller
         self.daq_model = model.DAQMeasurement(device=main_controller.driver_model.ports.daq)
@@ -44,14 +45,14 @@ class Home:
         return file_path[0]
 
     def save_settings(self):
-        self.settings_model.save_settings()
+        self.main_controller.settings_model.save()
 
     def load_settings(self):
         file_path = QtWidgets.QFileDialog.getOpenFileName(self.view, caption="Load SettingsTable",
                                                           filter="All Files (*);; CSV File (*.csv);; TXT File (*.txt")
         if file_path:
-            self.settings_model.file_path = file_path[0]  # The actual file path
-            self.settings_model.load_settings()
+            self.main_controller.settings_model.file_path = file_path[0]  # The actual file path
+            self.main_controller.settings_model.load()
 
     def calculate_decimation(self):
         decimation_file_path = self.get_file_path("Decimation")

@@ -25,7 +25,7 @@ class SettingsTable(QtCore.QAbstractTableModel):
     def __init__(self):
         QtCore.QAbstractTableModel.__init__(self)
         self._data = pd.DataFrame(columns=SettingsTable.HEADERS, index=SettingsTable.INDEX)
-        self._file_path = "../minipti/configs/settings.csv"
+        self._file_path = "minipti/configs/settings.csv"
         self._observer_callbacks = []
 
     def rowCount(self, parent=None):
@@ -37,7 +37,7 @@ class SettingsTable(QtCore.QAbstractTableModel):
     def data(self, index, role: int = ...):
         if index.isValid():
             if role == QtCore.Qt.DisplayRole or role == QtCore.Qt.EditRole:
-                value = self._data.values[index.row()][index.column()]
+                value = self._data.at[SettingsTable.INDEX[index.row()], SettingsTable.HEADERS[index.column()]]
                 return str(round(value, SettingsTable.SIGNIFICANT_VALUES))
 
     def flags(self, index):
@@ -46,7 +46,7 @@ class SettingsTable(QtCore.QAbstractTableModel):
     def setData(self, index, value, role: int = ...):
         if index.isValid():
             if role == QtCore.Qt.EditRole:
-                self._data.at[SettingsTable.INDEX[index.row()], SettingsTable.HEADERS[index.column()]] = value
+                self._data.at[SettingsTable.INDEX[index.row()], SettingsTable.HEADERS[index.column()]] = float(value)
                 return True
 
     def headerData(self, section, orientation, role=QtCore.Qt.DisplayRole):
@@ -63,11 +63,6 @@ class SettingsTable(QtCore.QAbstractTableModel):
     @table_data.setter
     def table_data(self, data):
         self._data = data
-        for observer in self._observer_callbacks:
-            observer(self.table_data.values.tolist())
-
-    def update_data(self, data):
-        self._data = pd.DataFrame(data, columns=SettingsTable.HEADERS, index=SettingsTable.INDEX)
 
     @property
     def file_path(self):
@@ -77,13 +72,6 @@ class SettingsTable(QtCore.QAbstractTableModel):
     def file_path(self, file_path: str):
         if os.path.exists(file_path):
             self._file_path = file_path
-
-    @property
-    def observer_callbacks(self):
-        return self._observer_callbacks
-
-    def add_observer(self, callback: typing.Callable):
-        self._observer_callbacks.append(callback)
 
     def save(self):
         self._data.to_csv(self.file_path, index_label="Setting", index=True)
@@ -103,33 +91,25 @@ class SettingsTable(QtCore.QAbstractTableModel):
         inversion.load_response_phase()
 
     def setup_settings_file(self):
-        if not os.path.exists("../minipti/configs/settings.csv"):  # If no settings found, a new empty file is created.
+        if not os.path.exists("minipti/configs/settings.csv"):  # If no settings found, a new empty file is created.
             self.save()
         else:
             try:
-                settings = pd.read_csv("../minipti/configs/settings.csv", index_col="Setting")
+                settings = pd.read_csv("minipti/configs/settings.csv", index_col="Setting")
             except FileNotFoundError:
                 self.save()
             else:
                 if list(settings.columns) != SettingsTable.HEADERS or list(settings.index) != SettingsTable.INDEX:
                     self.save()  # The file is in any way broken.
-
-    def load_settings(self):
-        try:
-            self.load()
-        except (ValueError, PermissionError) as e:
-            logging.error(f"Could not load settings. Got \"{e}\".")
-            return
-
-    def save_settings(self):
-        self.save()
+                else:
+                    self.table_data = settings
 
 
 class Signals(QtCore.QObject):
     inversion = QtCore.Signal()
     characterization = QtCore.Signal()
     settings_pti = QtCore.Signal()
-    logging_update = QtCore.Signal()
+    logging_update = QtCore.Signal(deque)
     daq_running = QtCore.Signal()
 
     def __init__(self):
@@ -147,7 +127,7 @@ class Logging(logging.Handler):
 
     def emit(self, record: logging.LogRecord):
         self.logging_messages.append(self.format(record))
-        Signals.logging_update.emit(self.logging_messages)
+        signals.logging_update.emit(self.logging_messages)
 
 
 def find_delimiter(file_path: str):
@@ -428,3 +408,6 @@ def process_characterization_data(characterization_file_path: str):
     headers += [f"Offsets CH{i}" for i in range(3)]
     data = _process__data(characterization_file_path, headers)
     Signals.characterization.emit(data)
+
+
+signals = Signals()
