@@ -7,6 +7,8 @@ import os
 import threading
 from collections import deque
 import typing
+from collections.abc import Iterable
+from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
@@ -103,17 +105,6 @@ class SettingsTable(QtCore.QAbstractTableModel):
                     self.save()  # The file is in any way broken.
                 else:
                     self.table_data = settings
-
-
-class Signals(QtCore.QObject):
-    inversion = QtCore.Signal()
-    characterization = QtCore.Signal()
-    settings_pti = QtCore.Signal()
-    logging_update = QtCore.Signal(deque)
-    daq_running = QtCore.Signal()
-
-    def __init__(self):
-        QtCore.QObject.__init__(self)
 
 
 class Logging(logging.Handler):
@@ -236,6 +227,22 @@ class CharacterisationBuffer(Buffer):
         self.time.append(interferometry_data.characterization.time_stamp)
 
 
+@dataclass(init=False, frozen=True)
+class Signals(QtCore.QObject):
+    decimation = QtCore.Signal(pd.DataFrame)
+    decimation_live = QtCore.Signal(Buffer)
+    inversion = QtCore.Signal(pd.DataFrame)
+    inversion_live = QtCore.Signal(Buffer)
+    characterization = QtCore.Signal(pd.DataFrame)
+    characterization_live = QtCore.Signal(Buffer)
+    settings_pti = QtCore.Signal()
+    logging_update = QtCore.Signal(deque)
+    daq_running = QtCore.Signal()
+
+    def __init__(self):
+        QtCore.QObject.__init__(self)
+
+
 class Calculation:
     MEAN_INTERVAL = 60
 
@@ -257,7 +264,7 @@ class Calculation:
             while self.running.is_set() and self.driver.ports.daq.is_open():
                 self.interferometry.characterization()
                 self.characterisation_buffer.append(self.interferometry)
-                Signals.characterization.emit(self.characterisation_buffer)
+                signals.characterization.emit(self.characterisation_buffer)
 
         def calculate_inversion():
             while self.running.is_set() and self.driver.ports.daq.is_open():
@@ -267,6 +274,7 @@ class Calculation:
                 self.pti.decimation()
                 self.pti.inversion.lock_in = self.pti.decimation.lock_in  # Note that this copies a reference
                 self.pti.inversion.dc_signals = self.pti.decimation.dc_signals
+                signals.decimation_live.emit(self.pti_buffer)
                 self.pti.inversion()
                 self.interferometry.characterization.add_phase(self.interferometry.interferometer.phase)
                 self.dc_signals.append(copy.deepcopy(self.pti.decimation.dc_signals))
@@ -276,9 +284,9 @@ class Calculation:
                         self.interferometry.characterization.tracking_phase)
                     self.interferometry.characterization.event.set()
                     self.dc_signals = []
-                    Signals.characterization.emit()
+                    Signals.characterization_live.emit(self.characterisation_buffer)
                 self.pti_buffer.append(self.pti, self.interferometry.interferometer)
-                Signals.inversion.emit(self.pti_buffer)
+                signals.inversion_live.emit(self.pti_buffer)
 
         characterization_thread = threading.Thread(target=calculate_characterization)
         inversion_thread = threading.Thread(target=calculate_inversion)
@@ -306,19 +314,17 @@ class Calculation:
         self.interferometry.interferometer.decimation_filepath = inversion_path
         self.interferometry.interferometer.settings_path = settings_path
         self.pti.inversion()
-        Signals.inversion.emit({"PTI Signal": self.pti.inversion.pti_signal,
-                                "PTI Signal 60 s Mean": running_average(self.pti.inversion.pti_signal, mean_size=60)})
 
 
 class Ports(typing.NamedTuple):
-    daq = hardware.driver.DAQ()
-    laser = hardware.driver.Laser()
-    tec = hardware.driver.Tec()
+    daq: hardware.driver.DAQ
+    laser: hardware.driver.Laser
+    tec: hardware.driver.Tec
 
 
 class Driver:
     def __init__(self):
-        self.ports = Ports()
+        self.ports = Ports(daq=hardware.driver.DAQ(), laser=hardware.driver.Laser(), tec=hardware.driver.Tec())
 
     def open_daq(self):
         self.ports.daq.open()
@@ -339,7 +345,7 @@ class Driver:
             try:
                 port.find_port()
             except hardware.driver.SerialError:
-                return port.device_name
+                continue  # Check still the other devices for connection
 
 
 class DAQMeasurement:
@@ -363,14 +369,14 @@ class DAQMeasurement:
             for name, thread in self.threads:
                 thread.start()
             self.running ^= True
-            Signals.daq_running.emit()
+            signals.daq_running.emit()
         else:
             self.device.running.clear()
             self.calculation.running.clear()
             self.calculation.pti_buffer.clear()
             self.calculation.characterisation_buffer.clear()
             self.running ^= True
-            Signals.daq_running.emit()
+            signals.daq_running.emit()
 
 
 def _process__data(file_path: str, headers: list[str]) -> pd.DataFrame:
@@ -385,21 +391,21 @@ def _process__data(file_path: str, headers: list[str]) -> pd.DataFrame:
         for header_data in data.columns:
             if header == header_data:
                 break
-            else:
-                raise KeyError(f"Header {header} not found in file")
+        else:
+            raise KeyError(f"Header {header} not found in file")
     return data
 
 
 def process_dc_data(dc_file_path: str):
     headers = ["DC CH1", "DC CH2", "DC CH3"]
     data = _process__data(dc_file_path, headers)
-    Signals.inversion.emit(data)
+    signals.decimation.emit(data)
 
 
 def process_inversion_data(inversion_file_path: str):
-    headers = ["Interferometric Phase", "Sensitivity", "PTI Signal", "PTI Signal 60 s Mean"]
+    headers = ["Interferometric Phase", "Sensitivity", "PTI Signal"]
     data = _process__data(inversion_file_path, headers)
-    Signals.inversion.emit(data)
+    signals.inversion.emit(data)
 
 
 def process_characterization_data(characterization_file_path: str):
@@ -407,7 +413,8 @@ def process_characterization_data(characterization_file_path: str):
     headers += [f"Output Phases CH{i}" for i in range(3)]
     headers += [f"Offsets CH{i}" for i in range(3)]
     data = _process__data(characterization_file_path, headers)
-    Signals.characterization.emit(data)
+    data["PTI Signal 60 s Mean"] = running_average(data["PTI Signal"], mean_size=60)
+    signals.characterization.emit(data)
 
 
 signals = Signals()

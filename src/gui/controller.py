@@ -65,7 +65,7 @@ class Home:
         if not inversion_path:
             return
         threading.Thread(target=self.calculation_model.calculate_inversion,
-                         args=[self.settings_model.file_path, inversion_path]).start()
+                         args=[self.main_controller.settings_model.file_path, inversion_path]).start()
 
     def calculate_characterisation(self):
         characterisation_path = self.get_file_path("Characterisation")
@@ -77,7 +77,8 @@ class Home:
                                                       | QtWidgets.QMessageBox.StandardButton.No)
         use_settings = use_settings == QtWidgets.QMessageBox.StandardButton.Yes
         threading.Thread(target=self.calculation_model.calculate_characterisation,
-                         args=[characterisation_path, use_settings, self.settings_model.file_path]).start()
+                         args=[characterisation_path, use_settings,
+                               self.main_controller.settings_model.file_path]).start()
 
     def plot_inversion(self):
         try:

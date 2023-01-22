@@ -1,7 +1,9 @@
 import abc
+import typing
 from typing import NamedTuple, TypeVar, Mapping
 from collections.abc import Sequence
 
+import pandas as pd
 import pyqtgraph as pg
 from PySide6 import QtWidgets, QtCore
 
@@ -10,6 +12,9 @@ from gui import controller
 
 
 class MainWindow(QtWidgets.QMainWindow):
+    HORZITONAL_SIZE = 1000
+    VERTICAL_SIZE = 600
+
     def __init__(self, main_controller: controller.MainApplication):
         QtWidgets.QMainWindow.__init__(self)
         self.setWindowTitle("Passepartout")
@@ -18,9 +23,15 @@ class MainWindow(QtWidgets.QMainWindow):
         self.tab_bar = QtWidgets.QTabWidget(self)
         self.setCentralWidget(self.tab_bar)
         self.tabs: None | Tab = None
+        self.dc = DC()
+        self.amplitudes = Amplitudes()
+        self.output_phases = OutputPhases()
+        self.interferometric_phase = InterferometricPhase()
+        self.sensitivity = Sensitivity()
+        self.pti_signal = PTISignal()
         self._init_tabs()
         self.tabs.home.settings.setModel(self.controller.settings_model)
-        self.resize(900, 600)
+        self.resize(MainWindow.HORZITONAL_SIZE, MainWindow.VERTICAL_SIZE)
         self.show()
 
     def _init_tabs(self):
@@ -34,7 +45,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.tab_bar.addTab(self.tabs.tec, "Tec")
         # DC Plot
         self.tabs.dc.setLayout(QtWidgets.QHBoxLayout())
-        self.tabs.dc.layout().addWidget(DC().window)
+        self.tabs.dc.layout().addWidget(self.dc.window)
         self.tab_bar.addTab(self.tabs.dc, "DC Signals")
         # Amplitudes Plot
         self.tabs.amplitudes.setLayout(QtWidgets.QHBoxLayout())
@@ -42,19 +53,19 @@ class MainWindow(QtWidgets.QMainWindow):
         self.tab_bar.addTab(self.tabs.amplitudes, "Amplitudes")
         # Output Phases Plot
         self.tabs.output_phases.setLayout(QtWidgets.QHBoxLayout())
-        self.tabs.output_phases.layout().addWidget(OutputPhases().window)
+        self.tabs.output_phases.layout().addWidget(self.output_phases.window)
         self.tab_bar.addTab(self.tabs.output_phases, "Output Phases")
         # Interferometric Phase Plot
         self.tabs.interferometric_phase.setLayout(QtWidgets.QHBoxLayout())
-        self.tabs.interferometric_phase.layout().addWidget(InterferometricPhase().window)
+        self.tabs.interferometric_phase.layout().addWidget(self.interferometric_phase.window)
         self.tab_bar.addTab(self.tabs.interferometric_phase, "Interferometric Phase")
         # Sensitivty Plot
         self.tabs.sensitivity.setLayout(QtWidgets.QHBoxLayout())
-        self.tabs.sensitivity.layout().addWidget(Sensitivity().window)
+        self.tabs.sensitivity.layout().addWidget(self.sensitivity.window)
         self.tab_bar.addTab(self.tabs.sensitivity, "Sensitivity")
         # PTI Signal Plot
         self.tabs.pti_signal.setLayout(QtWidgets.QHBoxLayout())
-        self.tabs.pti_signal.layout().addWidget(PTISignal().window)
+        self.tabs.pti_signal.layout().addWidget(self.pti_signal.window)
         self.tab_bar.addTab(self.tabs.pti_signal, "PTI Signal")
 
     def closeEvent(self, close_event):
@@ -299,9 +310,6 @@ class _MatplotlibColors:
     GREEN = "#118011"
 
 
-T = TypeVar("T")
-
-
 class _Plotting(pg.PlotWidget):
     def __init__(self):
         pg.PlotWidget.__init__(self)
@@ -316,7 +324,11 @@ class _Plotting(pg.PlotWidget):
         self.plot.addLegend()
 
     @abc.abstractmethod
-    def update_data(self, data: model.Buffer | Sequence[T]):
+    def update_data(self, data: pd.DataFrame):
+        ...
+
+    @abc.abstractmethod
+    def update_data_live(self, data: model.Buffer):
         ...
 
 
@@ -329,14 +341,16 @@ class DC(_Plotting):
         self.setLabel(axis="bottom", text="Time [s]")
         self.setLabel(axis="left", text="Intensity [V]")
         self.plot.addLegend()
-        model.signals.inversion.connect(self.update_data)
+        model.signals.decimation.connect(self.update_data)
+        model.signals.decimation_live.connect(self.update_data)
 
-    def update_data(self, data: model.PTIBuffer | Sequence[T]):
+    def update_data(self, data: model.PTIBuffer | pd.DataFrame):
         for channel in range(3):
-            try:
-                self.curves[channel].setData(data.time, data.dc_values[channel])
-            except TypeError:
-                self.curves[channel].setData(len(data), data)
+            self.curves[channel].setData(data[f"DC CH{channel + 1}"])
+
+    def update_data_live(self, data: model.PTIBuffer):
+        for channel in range(3):
+            self.curves[channel].setData(data.dc_values[channel])
 
 
 class Amplitudes(_Plotting):
@@ -350,13 +364,15 @@ class Amplitudes(_Plotting):
         self.showGrid(x=True, y=True)
         self.plot.addLegend()
         model.signals.characterization.connect(self.update_data)
+        model.signals.characterization_live.connect(self.update_data_live)
 
-    def update_data(self, data: model.CharacterisationBuffer | Sequence[T]):
+    def update_data(self, data: pd.DataFrame):
         for channel in range(3):
-            try:
-                self.curves[channel].setData(data.time, data.amplitudes[channel])
-            except TypeError:
-                self.curves[channel].setData(len(data), data)
+            self.curves[channel].setData(data[f"Amplitudes CH{channel + 1}"])
+
+    def update_data_live(self, data: model.CharacterisationBuffer):
+        for channel in range(3):
+            self.curves[channel].setData(data.time, data.amplitudes[channel])
 
 
 class OutputPhases(_Plotting):
@@ -369,13 +385,15 @@ class OutputPhases(_Plotting):
         self.showGrid(x=True, y=True)
         self.plot.addLegend()
         model.signals.characterization.connect(self.update_data)
+        model.signals.characterization_live.connect(self.update_data_live)
 
-    def update_data(self, data: model.CharacterisationBuffer | Sequence[T]):
+    def update_data(self, data: pd.DataFrame):
+        for channel in range(1, 3):
+            self.curves[channel].setData(data[f"Output Phases CH {channel + 1}"])
+
+    def update_data_live(self, data: model.CharacterisationBuffer):
         for channel in range(2):
-            try:
-                self.curves[channel].setData(data.time, data.amplitudes[channel])
-            except TypeError:
-                self.curves[channel].setData(len(data), data)
+            self.curves[channel].setData(data.time, data.output_phases)
 
 
 class InterferometricPhase(_Plotting):
@@ -386,13 +404,13 @@ class InterferometricPhase(_Plotting):
         self.setLabel(axis="left", text="Interferometric Phase [rad]")
         self.showGrid(x=True, y=True)
         model.signals.inversion.connect(self.update_data)
+        model.signals.inversion_live.connect(self.update_data_live)
 
-    def update_data(self, data: model.PTIBuffer | Sequence[T]):
-        for channel in range(2):
-            try:
-                self.curves[channel].setData(data.time, data.interferometric_phase[channel])
-            except TypeError:
-                self.curves[channel].setData(len(data), data)
+    def update_data(self, data: pd.DataFrame):
+        self.curves.setData(data["Interferometric Phase"])
+
+    def update_data_live(self, data: model.PTIBuffer):
+        self.curves.setData(data.time, data.interferometric_phase)
 
 
 class Sensitivity(_Plotting):
@@ -403,12 +421,13 @@ class Sensitivity(_Plotting):
         self.setLabel(axis="left", text="Sensitivity [1/rad]")
         self.showGrid(x=True, y=True)
         model.signals.inversion.connect(self.update_data)
+        model.signals.inversion_live.connect(self.update_data_live)
 
-    def update_data(self, data: model.PTIBuffer | Sequence[T]):
-        try:
-            self.curves.setData(data.time, data.sensitivity)
-        except TypeError:
-            self.curves.setData(len(data), data)
+    def update_data(self, data: pd.DataFrame):
+        self.curves.setData(data.time, data.sensitivity)
+
+    def update_data_live(self, data: model.PTIBuffer):
+        self.curves.setData(data.time, data.sensitivity)
 
 
 class PTISignal(_Plotting):
@@ -420,14 +439,15 @@ class PTISignal(_Plotting):
         self.setLabel(axis="left", text="PTI Signal [µrad]")
         self.plot.addLegend()
         model.signals.inversion.connect(self.update_data)
+        model.signals.inversion_live.connect(self.update_data)
 
-    def update_data(self, data: model.PTIBuffer | Mapping[str, Sequence[T]]):
-        try:
-            self.curves["PTI Signal"].setData(data.time, data.pti_signal)
-            self.curves["PTI Signal Mean"].setData(data.time, data.pti_signal_mean)
-        except TypeError:
-            for key, value in data.items():
-                self.curves[key].setData(len(data[key]), data[key])
+    def update_data(self, data: pd.DataFrame):
+        self.curves["PTI Signal"].setData(data["PTI Signal"])
+        self.curves["PTI Signal Mean"].setData(data["PTI Signal 60 s Mean"])
+
+    def update_data_live(self, data: model.PTIBuffer):
+        self.curves["PTI Signal"].setData(data.time, data.pti_signal)
+        self.curves["PTI Signal Mean"].setData(data.time, data.pti_signal_mean)
 
 
 class Tab(NamedTuple):
