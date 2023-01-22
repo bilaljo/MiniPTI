@@ -145,12 +145,12 @@ class Interferometer:
 
 class Characterization:
     """
-    Provided an API for the characterization of an interferometer as described in [1].
+    Provided an API for the characterization_live of an interferometer as described in [1].
     [1]:
     """
     MAX_ITERATIONS = 30
 
-    def __init__(self, step_size=100, interferometry=None, signals=None, use_settings=True):
+    def __init__(self, step_size=100, interferometry=None, use_settings=True):
         self.interferometry = interferometry
         self.tracking_phase = []
         self._phases = []
@@ -280,7 +280,7 @@ class Characterization:
                 self.signals = dc_signals
                 self.phases = self.interferometry.phase
                 self.characterise_interferometer()
-                logging.info(msg=self.interferometry)
+                logging.info(f"Current estimation:\n".join(str(self.interferometry)))
             else:
                 logging.info("Final values:\n".join(str(self.interferometry)))
         else:
