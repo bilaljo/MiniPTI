@@ -110,8 +110,21 @@ class Home:
 
 
 class Laser:
-    def __init__(self):
-        raise NotImplementedError("Will be implemented in version 1.2.0")
+    def __init__(self, laser_view):
+        self.laser_view = laser_view
+        self.model = model.Laser()
+
+    def update_driver_voltage(self, bits):
+        self.model.driver_bits = bits
+
+    def update_configuration(self):
+        self.model.update_configuration()
+
+    def mode_dac1(self, i):
+        return self.model.mode_dac1(i)
+
+    def mode_dac2(self, i):
+        return self.model.mode_dac1(i)
 
 
 class Tec:

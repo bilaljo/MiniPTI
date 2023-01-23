@@ -33,7 +33,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.show()
 
     def _init_tabs(self):
-        self.tabs = Tab(home=Home(controller.Home(self.controller, self)), daq=DAQ(), laser=LaserDriver(), tec=None,
+        self.tabs = Tab(home=Home(controller.Home(self.controller, self)), daq=DAQ(), laser=PumpLaser(), tec=None,
                         dc=QtWidgets.QTabWidget(), amplitudes=QtWidgets.QTabWidget(),
                         output_phases=QtWidgets.QTabWidget(), sensitivity=QtWidgets.QTabWidget(),
                         interferometric_phase=QtWidgets.QTabWidget(),  pti_signal=QtWidgets.QTabWidget())
@@ -94,7 +94,7 @@ class _Tab(QtWidgets.QTabWidget):
     def __init__(self, name="_Tab"):
         QtWidgets.QTabWidget.__init__(self)
         self.name = name
-        self.frames = {}  # type: Mapping[str, QtWidgets.QGroupBox]
+        self.frames = {}  # type: dict[str, QtWidgets.QGroupBox]
         self.setLayout(QtWidgets.QGridLayout())
 
     def create_frame(self, title, x_position, y_position, master=None):
@@ -109,7 +109,7 @@ class _Tab(QtWidgets.QTabWidget):
 
 class CreateButton:
     def __init__(self):
-        self.buttons = {}
+        self.buttons = {}  # type: Mapping[str, QtWidgets.QPushButton]
 
     def create_button(self, master, title, slot):
         self.buttons[title] = QtWidgets.QPushButton(master, text=title)
@@ -200,7 +200,7 @@ class Home(_Tab, CreateButton):
 
 
 class Slider(QtWidgets.QWidget):
-    def __init__(self, calculator=lambda x: x, minimum=0, maximum=100, unit="%"):
+    def __init__(self, minimum=0, maximum=100, unit="%"):
         QtWidgets.QWidget.__init__(self)
         self.slider = QtWidgets.QSlider()
         self.setLayout(QtWidgets.QHBoxLayout())
@@ -211,15 +211,10 @@ class Slider(QtWidgets.QWidget):
         self.layout().addWidget(self.slider_value)
         self.slider.setMinimum(minimum)
         self.slider.setMaximum(maximum)
-        self.slider.valueChanged.connect(self.update_value)
-        self.calulcate_value = calculator
-        self.slider_value.setText(f"0 {unit}")
+        self.unit = unit
 
-    def calulcate_value(self):
-        return self.slider.value()
-
-    def update_value(self):
-        self.slider_value.setText(f"{round(self.slider.value() / ((1 << 16) - 1) * 100, 2)} %")
+    def update_value(self, value):
+        self.slider_value.setText(f"{round(value, 2)}" + self.unit)
 
 
 class DAQ(_Tab, CreateButton):
@@ -241,54 +236,37 @@ class DAQ(_Tab, CreateButton):
         self.frames["Valves"].layout().addWidget(Slider())
 
 
-class LaserDriver(_Tab, CreateButton):
+class PumpLaser(_Tab, CreateButton):
+    MIN_DRIVER_BIT = 0
+    MAX_DRIVER_BIT = 127
+
     def __init__(self, name="Laser Driver"):
         _Tab.__init__(self, name)
         CreateButton.__init__(self)
-        self.plot = _Plotting()
-        self.tab_bar = QtWidgets.QTabWidget()
-        self.config_tab = QtWidgets.QTabWidget()
-        self.plot_tab = QtWidgets.QTabWidget()
+        self.driver_model = model.Driver()
         self.probe_laser_tab = QtWidgets.QTabWidget()
-        self.config_tab.setLayout(QtWidgets.QGridLayout())
-        self.probe_laser_tab.setLayout(QtWidgets.QGridLayout())
-        self.plot_tab.setLayout(QtWidgets.QGridLayout())
-        self.tab_bar.addTab(self.config_tab, "Pump Laser")
-        self.tab_bar.addTab(self.plot_tab, "Probe Laser")
-        self.tab_bar.addTab(self.probe_laser_tab, "Plots")
-        self.driver_voltage_slider = Slider(minimum=0, maximum=3, unit="V")
+        self.setLayout(QtWidgets.QGridLayout())
+        self.laser_controller = controller.Laser(self)
+        self.driver_voltage_slider = Slider(minimum=PumpLaser.MIN_DRIVER_BIT, maximum=PumpLaser.MAX_DRIVER_BIT,
+                                            unit="V")
+        model.signals.laser_voltage.connect(self.driver_voltage_slider.update_value)
+        self.driver_voltage_slider.slider.valueChanged.connect(self.laser_controller.update_driver_voltage)
         self.dac_slider = [Slider(minimum=0, maximum=3, unit="V"), Slider(minimum=0, maximum=3, unit="V")]
-        self.mode_matrix = [[QtWidgets.QComboBox() for i in range(3)], [QtWidgets.QComboBox() for i in range(3)]]
-        self.layout().addWidget(self.tab_bar)
+        self.mode_matrix = [[QtWidgets.QComboBox() for _ in range(3)], [QtWidgets.QComboBox() for _ in range(3)]]
         self._init_frames()
-        # self._init_laser_plot()
+        self.frames["Driver Voltage"].layout().addWidget(self.driver_voltage_slider)
         self._init_buttons()
 
     def _init_frames(self):
-        pass
-        # self.create_frame(master=self.config_tab, title="Pump Laser", x_position=0, y_position=0)
-        # self.create_frame(master=self.config_tab, title="Probe Laser", x_position=1, y_position=0)
-
-    def _init_laser_plot(self):
-        plot = self.plot.window.addPlot()
-        plot.showGrid(x=True, y=True)
-        self.frames["Plot"].layout().addWidget(self.plot.window)
+        self.create_frame(master=self, title="Driver Voltage", x_position=0, y_position=0)
+        for i in range(1, 3):
+            self.create_frame(master=self, title=f"DAC {i}", x_position=i, y_position=0)
 
     def _init_buttons(self):
-        voltage_frame = QtWidgets.QGroupBox()
-        voltage_frame.setTitle("Driver Voltage")
-        voltage_frame.setLayout(QtWidgets.QHBoxLayout())
-        voltage_frame.layout().addWidget(Slider(minimum=0, maximum=3, unit="V"))
-        self.config_tab.layout().addWidget(voltage_frame, 0, 0)
-
-        dac_outer_frame = QtWidgets.QWidget()
-        dac_inner_frames = [QtWidgets.QGroupBox() for _ in range(2)]
-        self.config_tab.layout().addWidget(dac_outer_frame, 1, 0)
+        dac_inner_frames = [QtWidgets.QGroupBox() for _ in range(2)]  # For slider and button-matrices
         for j in range(2):
-            dac_outer_frame.setLayout(QtWidgets.QVBoxLayout())
+            self.frames[f"DAC {j + 1}"].setLayout(QtWidgets.QVBoxLayout())
             dac_inner_frames[j].setLayout(QtWidgets.QHBoxLayout())
-            dac_inner_frames[j].setTitle(f"DAC {j + 1}")
-            dac_outer_frame.layout().addWidget(dac_inner_frames[j])
             dac_inner_frames[j].layout().addWidget(self.dac_slider[j])
             for i in range(3):
                 sub_frames = [QtWidgets.QWidget() for _ in range(3)]
@@ -297,18 +275,20 @@ class LaserDriver(_Tab, CreateButton):
                 self.mode_matrix[j][i].addItem("Disabled")
                 self.mode_matrix[j][i].addItem("Pulsed Mode")
                 self.mode_matrix[j][i].addItem("Continuous Wave")
+                if j == 0:
+                    self.mode_matrix[j][i].currentIndexChanged.connect(self.laser_controller.mode_dac1(i))
+                else:
+                    self.mode_matrix[j][i].currentIndexChanged.connect(self.laser_controller.mode_dac2(i))
                 sub_frames[i].layout().addWidget(QtWidgets.QLabel(f"Channel {i + 1}"))
                 sub_frames[i].layout().addWidget(self.mode_matrix[j][i])
+            self.frames[f"DAC {j + 1}"].layout().addWidget(dac_inner_frames[j])
 
         config = QtWidgets.QWidget()
         config.setLayout(QtWidgets.QHBoxLayout())
-        config.layout().addWidget(QtWidgets.QPushButton("Save Configuration"))
-        choice_config = QtWidgets.QComboBox()
-        choice_config.addItem("Config 1")
-        choice_config.addItem("Config 2")
-        config.layout().addWidget(choice_config)
-        config.layout().addWidget(QtWidgets.QPushButton("Apply Configuration"))
-        self.config_tab.layout().addWidget(config, 2, 0)
+        self.create_button(master=config, title="Save Configuration", slot=self.laser_controller.update_configuration)
+        self.create_button(master=config, title="Load Configuration", slot=self.laser_controller.update_configuration)
+        self.create_button(master=config, title="Apply Configuration", slot=self.laser_controller.update_configuration)
+        self.layout().addWidget(config, 3, 0)
 
 
 class _MatplotlibColors:
@@ -351,7 +331,7 @@ class DC(_Plotting):
         model.signals.decimation.connect(self.update_data)
         model.signals.decimation_live.connect(self.update_data)
 
-    def update_data(self, data: model.PTIBuffer | pd.DataFrame):
+    def update_data(self, data: pd.DataFrame):
         for channel in range(3):
             self.curves[channel].setData(data[f"DC CH{channel + 1}"])
 
@@ -460,7 +440,7 @@ class PTISignal(_Plotting):
 class Tab(NamedTuple):
     home: Home
     daq: DAQ
-    laser: LaserDriver | None  # Not implemented
+    laser: PumpLaser | None  # Not implemented
     tec: None  # Not implemented
     dc: QtWidgets.QTabWidget
     amplitudes: QtWidgets.QTabWidget

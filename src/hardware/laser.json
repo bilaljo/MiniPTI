@@ -1,0 +1,29 @@
+{
+  "bit_value": 20,
+  "DAC_1": {
+    "bit_value": 0,
+    "continuous_wave": [
+      true,
+      false,
+      false
+    ],
+    "pulsed_mode": [
+      false,
+      true,
+      false
+    ]
+  },
+  "DAC_2": {
+    "bit_value": 0,
+    "continuous_wave": [
+      false,
+      false,
+      false
+    ],
+    "pulsed_mode": [
+      false,
+      false,
+      false
+    ]
+  }
+}

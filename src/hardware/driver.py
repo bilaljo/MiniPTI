@@ -30,8 +30,6 @@ class Patterns:
     The third bytes stands for the required Information (I for ID, V for version). \n is the termination symbol.
     """
     HARDWARE_ID = re.compile(b"(GHI[0-9a-fA-F]{4}\n)", flags=re.MULTILINE)
-    FIRMWARE_VERSION = re.compile(b"(GFW[0-9a-fA-F]{4}\n)", flags=re.MULTILINE)
-    HARDWARE_VERSION = re.compile(b"(GHW[0-9a-fA-F]{4}\n)", flags=re.MULTILINE)
     ERROR = re.compile(b"(ERR[0-9a-fA-F]{4}\n)", flags=re.MULTILINE)
     HEX_VALUE = re.compile(b"[0-9a-fA-F]{4}", flags=re.MULTILINE)
 
@@ -42,8 +40,6 @@ class SerialError(Exception):
 
 class Command:
     HARDWARE_ID = b"GHI0000\n"
-    FIRMWARE_VERSION = b"GFW0000\n"
-    HARDWARE_VERSION = b"GWW0000\n"
 
 
 class SerialDevice(QtCore.QObject):
@@ -358,8 +354,8 @@ class Laser(SerialDevice):
     HARDWARE_ID = b"0002"
     NAME = "Laser"
 
-    RESISTOR = 2.2e3
-    DIGITAL_POT = 1e3
+    RESISTOR = 2.2e4
+    DIGITAL_POT = 1e4
     NUMBER_OF_STEPS = 128
     PRE_RESISTOR = 1.6e3
 
@@ -378,12 +374,15 @@ class Laser(SerialDevice):
         if not self.device.isOpen():
             self.device.open(QtSerialPort.QSerialPort.ReadWrite)
 
-    def set_pump_voltage(self, voltage):
+    @staticmethod
+    def bit_to_voltage(bits):
         # 0.8 is an interpolation constant without any practical meaning.
-        voltage_bytes = int((0.8 * Laser.RESISTOR / (voltage - 0.8) - Laser.PRE_RESISTOR) * (Laser.NUMBER_OF_STEPS
-                                                                                             / Laser.DIGITAL_POT))
-        hex_bytes = f"{voltage_bytes:0{SerialDevice.NUMBER_OF_HEX_BYTES}x}".encode()
-        self.device.write(b"SHV" + hex_bytes + b"\n")
+        return 0.8 * Laser.RESISTOR / (bits * Laser.DIGITAL_POT / Laser.NUMBER_OF_STEPS
+                                       + Laser.PRE_RESISTOR) + 0.8
+        # voltage_bytes = int((0.8 * Laser.RESISTOR / (voltage - 0.8) - Laser.PRE_RESISTOR) * (Laser.NUMBER_OF_STEPS
+        #                                                                                      / Laser.DIGITAL_POT))
+        # hex_bytes = f"{voltage_bytes:0{SerialDevice.NUMBER_OF_HEX_BYTES}x}".encode()
+        # self.device.write(b"SHV" + hex_bytes + b"\n")
 
     def set_static_current(self, current):
         self.check_open()

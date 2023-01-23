@@ -5,3 +5,4 @@ scipy
 PySide6
 pyqtgraph
 pyserial
+dacite

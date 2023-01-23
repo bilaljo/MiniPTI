@@ -1,15 +1,17 @@
 import abc
 import copy
 import csv
+import dataclasses
 import itertools
+import json
 import logging
 import os
 import threading
 from collections import deque
 import typing
-from collections.abc import Iterable
 from dataclasses import dataclass
 
+import dacite
 import numpy as np
 import pandas as pd
 from PySide6 import QtCore
@@ -238,6 +240,7 @@ class Signals(QtCore.QObject):
     settings_pti = QtCore.Signal()
     logging_update = QtCore.Signal(deque)
     daq_running = QtCore.Signal()
+    laser_voltage = QtCore.Signal(float)
 
     def __init__(self):
         QtCore.QObject.__init__(self)
@@ -415,6 +418,81 @@ def process_characterization_data(characterization_file_path: str):
     data = _process__data(characterization_file_path, headers)
     data["PTI Signal 60 s Mean"] = running_average(data["PTI Signal"], mean_size=60)
     signals.characterization.emit(data)
+
+
+@dataclass
+class DAC:
+    bit_value: int
+    continuous_wave: typing.Annotated[list[bool], 3]
+    pulsed_mode: typing.Annotated[list[bool], 3]
+
+
+@dataclass
+class PumpLaser:
+    bit_value: int
+    DAC_1: DAC
+    DAC_2: DAC
+
+
+class Laser:
+    def __init__(self, config_path="hardware/laser.json"):
+        self._driver_bits = 0
+        self.config_path = config_path
+        self.configuration = None  # type: None | PumpLaser
+        self.load_config()
+
+    def load_config(self):
+        with open(self.config_path) as config:
+            self.configuration = dacite.from_dict(PumpLaser, json.load(config))
+
+    @property
+    def driver_bits(self):
+        return self._driver_bits
+
+    @driver_bits.setter
+    def driver_bits(self, bits):
+        self._driver_bits = bits
+        self._update_laser_driver_voltage()
+
+    def _update_laser_driver_voltage(self):
+        self.configuration.bit_value = self._driver_bits
+        voltage = hardware.driver.Laser.bit_to_voltage(hardware.driver.Laser.NUMBER_OF_STEPS - self._driver_bits)
+        signals.laser_voltage.emit(voltage)
+
+    @staticmethod
+    def process_mode_index(index):
+        continoues_wave = False
+        pulsed_mode = False
+        match index:
+            case 0:
+                continoues_wave = False
+                pulsed_mode = False
+            case 1:
+                continoues_wave = True
+                pulsed_mode = False
+            case 2:
+                continoues_wave = False
+                pulsed_mode = True
+        return continoues_wave, pulsed_mode
+
+    def mode_dac1(self, i):
+        def update(index):
+            continoues_wave, pulsed_mode = Laser.process_mode_index(index)
+            self.configuration.DAC_1.continuous_wave[i] = continoues_wave
+            self.configuration.DAC_1.pulsed_mode[i] = pulsed_mode
+        return update
+
+    def mode_dac2(self, i):
+        def update(index):
+            continoues_wave, pulsed_mode = Laser.process_mode_index(index)
+            self.configuration.DAC_2.continuous_wave[i] = continoues_wave
+            self.configuration.DAC_2.pulsed_mode[i] = pulsed_mode
+        return update
+
+    def update_configuration(self):
+        with open(self.config_path, "w") as configuration:
+            print(self.configuration)
+            configuration.write(json.dumps(dataclasses.asdict(self.configuration), indent=2))
 
 
 signals = Signals()
