@@ -139,14 +139,15 @@ class SerialDevice(QtCore.QObject):
             else:
                 device.close()
         else:
-            logging.error(f"Could not connect with {self.device_name}")
-            raise SerialError("Could not found {self.device_name}")
+            logging.error(f"Could not find {self.device_name}")
+            raise SerialError("Could not find {self.device_name}")
 
     def open(self):
         if self.device.portName():
             logging.info(f"Connected with {self.device_name}")
             self.device.open(QtSerialPort.QSerialPort.ReadWrite)
         else:
+            logging.error(f"Could not connect with {self.device_name}")
             raise SerialError(f"Could not connect with {self.device_name}")
 
     def is_open(self):

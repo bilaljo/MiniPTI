@@ -1,7 +1,5 @@
 import abc
-import typing
-from typing import NamedTuple, TypeVar, Mapping
-from collections.abc import Sequence
+from typing import NamedTuple,  Mapping
 
 import pandas as pd
 import pyqtgraph as pg
@@ -96,7 +94,7 @@ class _Tab(QtWidgets.QTabWidget):
     def __init__(self, name="_Tab"):
         QtWidgets.QTabWidget.__init__(self)
         self.name = name
-        self.frames = {}
+        self.frames = {}  # type: Mapping[str, QtWidgets.QGroupBox]
         self.setLayout(QtWidgets.QGridLayout())
 
     def create_frame(self, title, x_position, y_position, master=None):
@@ -154,6 +152,7 @@ class Home(_Tab, CreateButton):
         self.create_frame(title="Offline Processing", x_position=1, y_position=0)
         self.create_frame(title="Plot Data", x_position=2, y_position=0)
         self.create_frame(title="Drivers", x_position=3, y_position=0)
+        self.create_frame(title="Measurement", x_position=1, y_position=1)
 
     def _init_buttons(self):
         # SettingsTable buttons
@@ -186,7 +185,15 @@ class Home(_Tab, CreateButton):
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
         self.frames["Drivers"].layout().addWidget(sub_layout)
         self.create_button(master=sub_layout, title="Scan Ports", slot=self.controller.find_devices)
-        self.create_button(master=sub_layout, title="Connect Devices", slot=self.controller.connect_daq)
+        self.create_button(master=sub_layout, title="Connect Devices", slot=self.controller.connect_devices)
+
+        # Measurement Buttons
+        sub_layout = QtWidgets.QWidget(parent=self.frames["Measurement"])
+        sub_layout.setLayout(QtWidgets.QVBoxLayout())
+        self.frames["Measurement"].layout().addWidget(sub_layout)
+        self.create_button(master=sub_layout, title="Enable Modulation", slot=self.controller.find_devices)
+        self.create_button(master=sub_layout, title="Start Pump Laser", slot=self.controller.connect_devices)
+        self.create_button(master=sub_layout, title="Run Measurement", slot=self.controller.connect_devices)
 
     def logging_update(self, log):
         self.logging_window.setText("".join(log))
@@ -216,7 +223,7 @@ class Slider(QtWidgets.QWidget):
 
 
 class DAQ(_Tab, CreateButton):
-    def __init__(self, daq_controller=None, name="DAQ"):
+    def __init__(self, name="DAQ"):
         _Tab.__init__(self, name)
         CreateButton.__init__(self)
         self.port_box = QtWidgets.QLabel()

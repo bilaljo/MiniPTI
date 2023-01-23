@@ -99,30 +99,14 @@ class Home:
             QtWidgets.QMessageBox.critical(self.view, "Plotting Error", "Invalid data given. Could not plot.")
 
     def find_devices(self):
-        if device := self.main_controller.driver_model.find_device() is not None:
-            logging.error(f"Could not find {device}")
-            QtWidgets.QMessageBox.warning(self.view, "Driver Error", f"Could not find {device}")
+        self.main_controller.driver_model.find_device()
 
-    def connect_daq(self):
-        try:
-            self.main_controller.driver_model.open_daq()
-        except hardware.driver.SerialError:
-            QtWidgets.QMessageBox.warning(self.view, "Driver Error", f"Could not connect with DAQ")
-            logging.error("Could not connect with DAQ")
-
-    def connect_laser(self):
-        try:
-            self.main_controller.driver_model.open_laser()
-        except hardware.driver.SerialError:
-            QtWidgets.QMessageBox.warning(self.view, "Driver Error", "Could not connect with Laser")
-            logging.error("Could not connect with Laser")
-
-    def connect_tec(self):
-        try:
-            self.main_controller.driver_model.open_tec()
-        except hardware.driver.SerialError:
-            QtWidgets.QMessageBox.warning(self.view, "Driver Error", "Could not connect with Tec")
-            logging.error("Could not connect with Tec")
+    def connect_devices(self):
+        for port in self.main_controller.driver_model.ports:
+            try:
+                port.open()
+            except hardware.driver.SerialError:
+                continue
 
 
 class Laser:
