@@ -117,6 +117,12 @@ class Laser:
     def update_driver_voltage(self, bits):
         self.model.driver_bits = bits
 
+    def update_current_dac1(self, bits):
+        self.model.current_bits_dac_1 = bits
+
+    def update_current_dac2(self, bits):
+        self.model.current_bits_dac_2 = bits
+
     def update_configuration(self):
         self.model.update_configuration()
 
@@ -124,7 +130,14 @@ class Laser:
         return self.model.mode_dac1(i)
 
     def mode_dac2(self, i):
-        return self.model.mode_dac1(i)
+        return self.model.mode_dac2(i)
+
+    def load_config(self):
+        self.model.load_config()
+
+    @property
+    def pump_laser(self):
+        return self.model.configuration
 
 
 class Tec:

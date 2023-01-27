@@ -2,6 +2,7 @@ import abc
 import copy
 import csv
 import dataclasses
+import enum
 import itertools
 import json
 import logging
@@ -17,6 +18,7 @@ import pandas as pd
 from PySide6 import QtCore
 from scipy import ndimage
 
+import json_parser
 from minipti import interferometry, pti
 import hardware
 
@@ -241,6 +243,8 @@ class Signals(QtCore.QObject):
     logging_update = QtCore.Signal(deque)
     daq_running = QtCore.Signal()
     laser_voltage = QtCore.Signal(float)
+    current_dac1 = QtCore.Signal(float)
+    current_dac2 = QtCore.Signal(float)
 
     def __init__(self):
         QtCore.QObject.__init__(self)
@@ -421,6 +425,12 @@ def process_characterization_data(characterization_file_path: str):
 
 
 
+class Mode(enum.IntEnum):
+    DISABLED = 0
+    PULSED = 1
+    CONTINUOUS_WAVE = 2
+
+
 class Laser:
     def __init__(self, config_path="hardware/laser.json"):
         self._driver_bits = 0
@@ -431,55 +441,72 @@ class Laser:
     def load_config(self):
         with open(self.config_path) as config:
             self.configuration = dacite.from_dict(PumpLaser, json.load(config))
+            self.driver_bits = self.configuration.bit_value
 
     @property
     def driver_bits(self):
-        return self._driver_bits
+        return self.configuration.bit_value
 
     @driver_bits.setter
     def driver_bits(self, bits):
-        self._driver_bits = bits
-        self._update_laser_driver_voltage()
-
-    def _update_laser_driver_voltage(self):
-        self.configuration.bit_value = self._driver_bits
-        voltage = hardware.driver.Laser.bit_to_voltage(hardware.driver.Laser.NUMBER_OF_STEPS - self._driver_bits)
+        self.configuration.bit_value = bits
+        # With increasing the slider decreases its value but the voltage should increase - hence we subtract the bits.
+        voltage = hardware.driver.Laser.bit_to_voltage(hardware.driver.Laser.NUMBER_OF_STEPS - bits)
         signals.laser_voltage.emit(voltage)
+
+    @property
+    def current_bits_dac_1(self):
+        return self.configuration.DAC_1.bit_value
+
+    @current_bits_dac_1.setter
+    def current_bits_dac_1(self, bits):
+        self.configuration.DAC_1.bit_value = bits
+        current = hardware.driver.Laser.bit_to_current(bits)
+        signals.current_dac1.emit(current)
+
+    @property
+    def current_bits_dac_2(self):
+        return self.configuration.DAC_1.bit_value
+
+    @current_bits_dac_2.setter
+    def current_bits_dac_2(self, bits):
+        self.configuration.DAC_2.bit_value = bits
+        current = hardware.driver.Laser.bit_to_current(bits)
+        signals.current_dac2.emit(current)
 
     @staticmethod
     def process_mode_index(index):
-        continoues_wave = False
+        continuous_wave = False
         pulsed_mode = False
         match index:
-            case 0:
-                continoues_wave = False
+            case Mode.DISABLED:
+                continuous_wave = False
                 pulsed_mode = False
-            case 1:
-                continoues_wave = True
+            case Mode.CONTINUOUS_WAVE:
+                continuous_wave = True
                 pulsed_mode = False
-            case 2:
-                continoues_wave = False
+            case Mode.PULSED:
+                continuous_wave = False
                 pulsed_mode = True
-        return continoues_wave, pulsed_mode
+        return continuous_wave, pulsed_mode
 
     def mode_dac1(self, i):
         def update(index):
-            continoues_wave, pulsed_mode = Laser.process_mode_index(index)
-            self.configuration.DAC_1.continuous_wave[i] = continoues_wave
+            continuous_wave, pulsed_mode = Laser.process_mode_index(index)
+            self.configuration.DAC_1.continuous_wave[i] = continuous_wave
             self.configuration.DAC_1.pulsed_mode[i] = pulsed_mode
         return update
 
     def mode_dac2(self, i):
         def update(index):
-            continoues_wave, pulsed_mode = Laser.process_mode_index(index)
-            self.configuration.DAC_2.continuous_wave[i] = continoues_wave
+            continuous_wave, pulsed_mode = Laser.process_mode_index(index)
+            self.configuration.DAC_2.continuous_wave[i] = continuous_wave
             self.configuration.DAC_2.pulsed_mode[i] = pulsed_mode
         return update
 
     def update_configuration(self):
         with open(self.config_path, "w") as configuration:
-            print(self.configuration)
-            configuration.write(json.dumps(dataclasses.asdict(self.configuration), indent=2))
+            configuration.write(json_parser.to_json(dataclasses.asdict(self.configuration)) + "\n")
 
 
 signals = Signals()

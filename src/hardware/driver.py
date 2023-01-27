@@ -376,8 +376,10 @@ class Laser(SerialDevice):
 
     RESISTOR = 2.2e4
     DIGITAL_POT = 1e4
-    NUMBER_OF_STEPS = 128
-    PRE_RESISTOR = 1.6e3
+    NUMBER_OF_STEPS = 1 << 7
+    PRE_RESISTOR = 1.6e3    
+    MAX_CURRENT_BITS = (1 << 12) - 1
+
     ContinouesWaveRegister = [1 << 8, 1 << 10, 1 << 12, 1 << 14, 1 << 0,  1 << 2]
     ModulatedModeRegister = [1 << 9, 1 << 11, 1 << 13, 1 << 15, 1 << 1, 1 << 3]
 
@@ -414,6 +416,10 @@ class Laser(SerialDevice):
         # 0.8 is an interpolation constant without any practical meaning.
         return 0.8 * Laser.RESISTOR / (bits * Laser.DIGITAL_POT / Laser.NUMBER_OF_STEPS
                                        + Laser.PRE_RESISTOR) + 0.8
+
+    @staticmethod
+    def bit_to_current(bits):
+        return bits / Laser.MAX_CURRENT_BITS * Laser.MAX_CURRENT_mA
 
     def set_static_current(self, current):
         self.check_open()

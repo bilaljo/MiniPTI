@@ -10,7 +10,7 @@ from gui import controller
 
 
 class MainWindow(QtWidgets.QMainWindow):
-    HORZITONAL_SIZE = 1000
+    HORIZONTAL_SIZE = 1000
     VERTICAL_SIZE = 600
 
     def __init__(self, main_controller: controller.MainApplication):
@@ -29,7 +29,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.pti_signal = PTISignal()
         self._init_tabs()
         self.tabs.home.settings.setModel(self.controller.settings_model)
-        self.resize(MainWindow.HORZITONAL_SIZE, MainWindow.VERTICAL_SIZE)
+        self.resize(MainWindow.HORIZONTAL_SIZE, MainWindow.VERTICAL_SIZE)
         self.show()
 
     def _init_tabs(self):
@@ -57,7 +57,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.tabs.interferometric_phase.setLayout(QtWidgets.QHBoxLayout())
         self.tabs.interferometric_phase.layout().addWidget(self.interferometric_phase.window)
         self.tab_bar.addTab(self.tabs.interferometric_phase, "Interferometric Phase")
-        # Sensitivty Plot
+        # Sensitivity Plot
         self.tabs.sensitivity.setLayout(QtWidgets.QHBoxLayout())
         self.tabs.sensitivity.layout().addWidget(self.sensitivity.window)
         self.tab_bar.addTab(self.tabs.sensitivity, "Sensitivity")
@@ -238,36 +238,66 @@ class DAQ(_Tab, CreateButton):
 
 class PumpLaser(_Tab, CreateButton):
     MIN_DRIVER_BIT = 0
-    MAX_DRIVER_BIT = 127
+    MAX_DRIVER_BIT = (1 << 7) - 1
+    MIN_CURRENT = 0
+    MAX_CURRENT = (1 << 12) - 1
 
     def __init__(self, name="Laser Driver"):
         _Tab.__init__(self, name)
         CreateButton.__init__(self)
         self.driver_model = model.Driver()
-        self.probe_laser_tab = QtWidgets.QTabWidget()
         self.setLayout(QtWidgets.QGridLayout())
         self.laser_controller = controller.Laser(self)
-        self.driver_voltage_slider = Slider(minimum=PumpLaser.MIN_DRIVER_BIT, maximum=PumpLaser.MAX_DRIVER_BIT,
-                                            unit="V")
-        model.signals.laser_voltage.connect(self.driver_voltage_slider.update_value)
-        self.driver_voltage_slider.slider.valueChanged.connect(self.laser_controller.update_driver_voltage)
-        self.dac_slider = [Slider(minimum=0, maximum=3, unit="V"), Slider(minimum=0, maximum=3, unit="V")]
+        self.driver_voltage = Slider(minimum=PumpLaser.MIN_DRIVER_BIT, maximum=PumpLaser.MAX_DRIVER_BIT,
+                                     unit="V")
+        model.signals.laser_voltage.connect(self.driver_voltage.update_value)
+        self.driver_voltage.slider.valueChanged.connect(self.laser_controller.update_driver_voltage)
+        self.current = [Slider(minimum=PumpLaser.MIN_CURRENT, maximum=PumpLaser.MAX_CURRENT, unit="mA"),
+                        Slider(minimum=PumpLaser.MIN_CURRENT, maximum=PumpLaser.MAX_CURRENT, unit="mA")]
+        model.signals.current_dac1.connect(self.current[0].update_value)
+        model.signals.current_dac2.connect(self.current[1].update_value)
+        self.current[0].slider.valueChanged.connect(self.laser_controller.update_current_dac1)
+        self.current[1].slider.valueChanged.connect(self.laser_controller.update_current_dac2)
         self.mode_matrix = [[QtWidgets.QComboBox() for _ in range(3)], [QtWidgets.QComboBox() for _ in range(3)]]
         self._init_frames()
-        self.frames["Driver Voltage"].layout().addWidget(self.driver_voltage_slider)
+        self.frames["Driver Voltage"].layout().addWidget(self.driver_voltage)
         self._init_buttons()
+        self.laser_controller.load_config()
+        self._init_voltage_configuration()
+        self._init_current_configuration()
+
+    def _init_voltage_configuration(self):
+        self.driver_voltage.slider.setValue(self.laser_controller.pump_laser.bit_value)
+
+    def _init_current_configuration(self):
+        for i in range(3):
+            if self.laser_controller.model.configuration.DAC_1.continuous_wave[i]:
+                self.mode_matrix[0][i].setCurrentIndex(model.Mode.CONTINUOUS_WAVE)
+            elif self.laser_controller.model.configuration.DAC_1.pulsed_mode[i]:
+                self.mode_matrix[0][i].setCurrentIndex(model.Mode.PULSED)
+            else:
+                self.mode_matrix[0][i].setCurrentIndex(model.Mode.DISABLED)
+        for i in range(3):
+            if self.laser_controller.model.configuration.DAC_2.continuous_wave[i]:
+                self.mode_matrix[1][i].setCurrentIndex(model.Mode.CONTINUOUS_WAVE)
+            elif self.laser_controller.model.configuration.DAC_2.pulsed_mode[i]:
+                self.mode_matrix[1][i].setCurrentIndex(model.Mode.PULSED)
+            else:
+                self.mode_matrix[1][i].setCurrentIndex(model.Mode.DISABLED)
+        self.current[0].slider.setValue(self.laser_controller.pump_laser.DAC_1.bit_value)
+        self.current[1].slider.setValue(self.laser_controller.pump_laser.DAC_2.bit_value)
 
     def _init_frames(self):
         self.create_frame(master=self, title="Driver Voltage", x_position=0, y_position=0)
         for i in range(1, 3):
-            self.create_frame(master=self, title=f"DAC {i}", x_position=i, y_position=0)
+            self.create_frame(master=self, title=f"Current {i}", x_position=i, y_position=0)
 
     def _init_buttons(self):
         dac_inner_frames = [QtWidgets.QGroupBox() for _ in range(2)]  # For slider and button-matrices
         for j in range(2):
-            self.frames[f"DAC {j + 1}"].setLayout(QtWidgets.QVBoxLayout())
+            self.frames[f"Current {j + 1}"].setLayout(QtWidgets.QVBoxLayout())
             dac_inner_frames[j].setLayout(QtWidgets.QHBoxLayout())
-            dac_inner_frames[j].layout().addWidget(self.dac_slider[j])
+            dac_inner_frames[j].layout().addWidget(self.current[j])
             for i in range(3):
                 sub_frames = [QtWidgets.QWidget() for _ in range(3)]
                 sub_frames[i].setLayout(QtWidgets.QVBoxLayout())
@@ -281,7 +311,7 @@ class PumpLaser(_Tab, CreateButton):
                     self.mode_matrix[j][i].currentIndexChanged.connect(self.laser_controller.mode_dac2(i))
                 sub_frames[i].layout().addWidget(QtWidgets.QLabel(f"Channel {i + 1}"))
                 sub_frames[i].layout().addWidget(self.mode_matrix[j][i])
-            self.frames[f"DAC {j + 1}"].layout().addWidget(dac_inner_frames[j])
+            self.frames[f"Current {j + 1}"].layout().addWidget(dac_inner_frames[j])
 
         config = QtWidgets.QWidget()
         config.setLayout(QtWidgets.QHBoxLayout())
