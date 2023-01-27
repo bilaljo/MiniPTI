@@ -420,19 +420,6 @@ def process_characterization_data(characterization_file_path: str):
     signals.characterization.emit(data)
 
 
-@dataclass
-class DAC:
-    bit_value: int
-    continuous_wave: typing.Annotated[list[bool], 3]
-    pulsed_mode: typing.Annotated[list[bool], 3]
-
-
-@dataclass
-class PumpLaser:
-    bit_value: int
-    DAC_1: DAC
-    DAC_2: DAC
-
 
 class Laser:
     def __init__(self, config_path="hardware/laser.json"):

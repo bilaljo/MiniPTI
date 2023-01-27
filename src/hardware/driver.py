@@ -1,16 +1,18 @@
 import abc
-import collections
 import itertools
+import json
 import logging
 import queue
 import re
 import threading
 import time
+import typing
 from collections import deque
 from dataclasses import dataclass
 from enum import Enum
 from typing import Sequence
 
+import dacite
 from PySide6 import QtSerialPort, QtCore
 from fastcrc import crc16
 import serial
@@ -32,6 +34,28 @@ class Patterns:
     HARDWARE_ID = re.compile(b"(GHI[0-9a-fA-F]{4}\n)", flags=re.MULTILINE)
     ERROR = re.compile(b"(ERR[0-9a-fA-F]{4}\n)", flags=re.MULTILINE)
     HEX_VALUE = re.compile(b"[0-9a-fA-F]{4}", flags=re.MULTILINE)
+
+
+@dataclass
+class DAC:
+    bit_value: int
+    continuous_wave: typing.Annotated[list[bool], 3]
+    pulsed_mode: typing.Annotated[list[bool], 3]
+
+
+@dataclass
+class PumpLaser:
+    bit_value: int
+    DAC_1: DAC
+    DAC_2: DAC
+
+
+@dataclass
+class ProbeLaser:
+    power: int
+    constant_current: bool
+    constant_light: bool
+    photo_diode_gain: int
 
 
 class SerialError(Exception):
@@ -78,12 +102,6 @@ class SerialDevice(QtCore.QObject):
         if hardware_id is not None:
             hardware_id = hardware_id.group()
             return Patterns.HEX_VALUE.search(hardware_id).group()
-
-    def get_hardware_version(self):
-        return Patterns.HEX_VALUE.search(Patterns.HARDWARE_VERSION.search(self.received_data.get())).group()
-
-    def get_firmware_version(self):
-        return Patterns.HEX_VALUE.search(Patterns.FIRMWARE_VERSION.search(self.received_data.get())).group()
 
     def command_error_handing(self, received):
         if Patterns.ERROR.search(received) is not None:
@@ -154,12 +172,14 @@ class SerialDevice(QtCore.QObject):
             self.device.close()
 
     def __receive(self):
-        try:
+        print(self.device.readAll().toStdString())
+        """try:
             self.received_data.put(bytes(self.device.readAll()), block=False)
         except queue.Full:
             logging.error(f"Buffer queue of device {self.device_name} is full")
             logging.info("Removed one item")
             self.received_data.get()  # Remove the oldest item since the queue is full
+        """
 
 
 @dataclass
@@ -358,9 +378,21 @@ class Laser(SerialDevice):
     DIGITAL_POT = 1e4
     NUMBER_OF_STEPS = 128
     PRE_RESISTOR = 1.6e3
+    ContinouesWaveRegister = [1 << 8, 1 << 10, 1 << 12, 1 << 14, 1 << 0,  1 << 2]
+    ModulatedModeRegister = [1 << 9, 1 << 11, 1 << 13, 1 << 15, 1 << 1, 1 << 3]
 
     def __init__(self):
         SerialDevice.__init__(self)
+        self.pump_laser = None  # type: None | PumpLaser
+        self.probe_laser = None  # type: None | ProbeLaser
+        self.config_path = "laser.json"
+        # self.device.readyRead.connect(self.__receive)
+
+    def load_configs(self):
+        with open(self.config_path) as config:
+            loaded_config = json.load(config)
+            self.pump_laser = dacite.from_dict(PumpLaser, loaded_config["Pump Laser"])
+            self.probe_laser = dacite.from_dict(ProbeLaser, loaded_config["Probe Laser"])
 
     @property
     def device_id(self):
@@ -374,15 +406,14 @@ class Laser(SerialDevice):
         if not self.device.isOpen():
             self.device.open(QtSerialPort.QSerialPort.ReadWrite)
 
+    def __receive(self):
+        print(self.device.readAll())
+
     @staticmethod
     def bit_to_voltage(bits):
         # 0.8 is an interpolation constant without any practical meaning.
         return 0.8 * Laser.RESISTOR / (bits * Laser.DIGITAL_POT / Laser.NUMBER_OF_STEPS
                                        + Laser.PRE_RESISTOR) + 0.8
-        # voltage_bytes = int((0.8 * Laser.RESISTOR / (voltage - 0.8) - Laser.PRE_RESISTOR) * (Laser.NUMBER_OF_STEPS
-        #                                                                                      / Laser.DIGITAL_POT))
-        # hex_bytes = f"{voltage_bytes:0{SerialDevice.NUMBER_OF_HEX_BYTES}x}".encode()
-        # self.device.write(b"SHV" + hex_bytes + b"\n")
 
     def set_static_current(self, current):
         self.check_open()
@@ -391,6 +422,70 @@ class Laser(SerialDevice):
     def set_modulated_current(self, current):
         self.check_open()
         self.device.write(b"SC4" + bytes(current) + b"\n")
+
+    def set_driver_voltage(self):
+        voltage_hex = f"{self.pump_laser.bit_value:0{SerialDevice.NUMBER_OF_HEX_BYTES}x}".encode()
+        self.device.write(b"SHV" + voltage_hex + SerialDevice.TERMINATION_SYMBOL)
+
+    def set_dac_1(self):
+        dac_1_hex = f"{self.pump_laser.DAC_1.bit_value:0{SerialDevice.NUMBER_OF_HEX_BYTES}x}".encode()
+        self.device.write(b"SC3" + dac_1_hex + SerialDevice.TERMINATION_SYMBOL)
+
+    def set_dac_2(self):
+        dac_2_hex = f"{self.pump_laser.DAC_2.bit_value:0{SerialDevice.NUMBER_OF_HEX_BYTES}x}".encode()
+        self.device.write(b"SC4" + dac_2_hex + SerialDevice.TERMINATION_SYMBOL)
+        self.device.waitForBytesWritten()
+
+    def set_dac_matrix(self):
+        matrix = 0
+        for i in range(len(self.pump_laser.DAC_1.continuous_wave)):
+            if self.pump_laser.DAC_1.continuous_wave[i]:
+                matrix |= Laser.ContinouesWaveRegister[i]
+            elif self.pump_laser.DAC_1.pulsed_mode[i]:
+                matrix |= Laser.ModulatedModeRegister[i]
+            if self.pump_laser.DAC_2.continuous_wave[i]:
+                matrix |= Laser.ContinouesWaveRegister[i]
+            elif self.pump_laser.DAC_2.pulsed_mode[i]:
+                matrix |= Laser.ModulatedModeRegister[i]
+        matrix_hex = f"{matrix:0{SerialDevice.NUMBER_OF_HEX_BYTES}x}".encode()
+        self.device.write(b"SC1" + matrix_hex + SerialDevice.TERMINATION_SYMBOL)
+        self.device.waitForBytesWritten()
+
+    def enable_channels(self):
+        self.device.write(b"SHE0001" + SerialDevice.TERMINATION_SYMBOL)
+        self.device.waitForBytesWritten()
+
+    def set_probe_laser_power(self):
+        power_hex = f"{self.probe_laser.power:0{SerialDevice.NUMBER_OF_HEX_BYTES}x}".encode()
+        self.device.write(b"SLS" + power_hex + Laser.TERMINATION_SYMBOL)
+        self.device.waitForBytesWritten()
+
+    def set_probe_laser_mode(self):
+        if self.probe_laser.constant_light:
+            self.device.write(b"SLM0001" + Laser.TERMINATION_SYMBOL)
+        else:
+            self.device.write(b"SLM0002" + Laser.TERMINATION_SYMBOL)
+
+    def init_laser(self):
+        self.device.write(b"CHI0000" + Laser.TERMINATION_SYMBOL)
+        self.device.write(b"CLI0000" + Laser.TERMINATION_SYMBOL)
+
+    def enable_lasers(self):
+        self.device.write(b"SHE0001" + Laser.TERMINATION_SYMBOL)
+        self.device.waitForBytesWritten()
+        self.device.write(b"SLE0001" + Laser.TERMINATION_SYMBOL)
+        self.device.waitForBytesWritten()
+
+    def apply_configuration(self):
+        # Probe Laser
+        self.set_probe_laser_power()
+        self.set_probe_laser_mode()
+        # Pump Laser
+        self.set_driver_voltage()
+        self.set_dac_1()
+        self.set_dac_2()
+        self.set_dac_matrix()
+        self.enable_lasers()
 
 
 class Tec(SerialDevice):
@@ -407,3 +502,13 @@ class Tec(SerialDevice):
     @property
     def device_name(self):
         return Tec.NAME
+
+
+if __name__ == "__main__":
+    laser = Laser()
+    laser.find_port()
+    laser.open()
+    laser.init_laser()
+    #laser.load_configs()
+    #laser.apply_configuration()
+    laser.device.waitForReadyRead()
