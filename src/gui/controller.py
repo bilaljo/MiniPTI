@@ -137,7 +137,7 @@ class Laser:
 
     @property
     def pump_laser(self):
-        return self.model.configuration
+        return self.model.configuration.pump_laser
 
 
 class Tec:

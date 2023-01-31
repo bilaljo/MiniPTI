@@ -200,7 +200,7 @@ class Home(_Tab, CreateButton):
 
 
 class Slider(QtWidgets.QWidget):
-    def __init__(self, minimum=0, maximum=100, unit="%"):
+    def __init__(self, minimum=0, maximum=100, unit="%", floating_number=True):
         QtWidgets.QWidget.__init__(self)
         self.slider = QtWidgets.QSlider()
         self.setLayout(QtWidgets.QHBoxLayout())
@@ -212,9 +212,13 @@ class Slider(QtWidgets.QWidget):
         self.slider.setMinimum(minimum)
         self.slider.setMaximum(maximum)
         self.unit = unit
+        self.floating_number = floating_number
 
     def update_value(self, value):
-        self.slider_value.setText(f"{round(value, 2)}" + self.unit)
+        if self.floating_number:
+            self.slider_value.setText(f"{round(value, 2)} " + self.unit)
+        else:
+            self.slider_value.setText(f"{value} " + self.unit)
 
 
 class DAQ(_Tab, CreateButton):
@@ -252,8 +256,10 @@ class PumpLaser(_Tab, CreateButton):
                                      unit="V")
         model.signals.laser_voltage.connect(self.driver_voltage.update_value)
         self.driver_voltage.slider.valueChanged.connect(self.laser_controller.update_driver_voltage)
-        self.current = [Slider(minimum=PumpLaser.MIN_CURRENT, maximum=PumpLaser.MAX_CURRENT, unit="mA"),
-                        Slider(minimum=PumpLaser.MIN_CURRENT, maximum=PumpLaser.MAX_CURRENT, unit="mA")]
+        self.current = [Slider(minimum=PumpLaser.MIN_CURRENT, maximum=PumpLaser.MAX_CURRENT, unit="Bit",
+                               floating_number=False),
+                        Slider(minimum=PumpLaser.MIN_CURRENT, maximum=PumpLaser.MAX_CURRENT, unit="Bit",
+                               floating_number=False)]
         model.signals.current_dac1.connect(self.current[0].update_value)
         model.signals.current_dac2.connect(self.current[1].update_value)
         self.current[0].slider.valueChanged.connect(self.laser_controller.update_current_dac1)
@@ -271,16 +277,16 @@ class PumpLaser(_Tab, CreateButton):
 
     def _init_current_configuration(self):
         for i in range(3):
-            if self.laser_controller.model.configuration.DAC_1.continuous_wave[i]:
+            if self.laser_controller.pump_laser.DAC_1.continuous_wave[i]:
                 self.mode_matrix[0][i].setCurrentIndex(model.Mode.CONTINUOUS_WAVE)
-            elif self.laser_controller.model.configuration.DAC_1.pulsed_mode[i]:
+            elif self.laser_controller.pump_laser.DAC_1.pulsed_mode[i]:
                 self.mode_matrix[0][i].setCurrentIndex(model.Mode.PULSED)
             else:
                 self.mode_matrix[0][i].setCurrentIndex(model.Mode.DISABLED)
         for i in range(3):
-            if self.laser_controller.model.configuration.DAC_2.continuous_wave[i]:
+            if self.laser_controller.pump_laser.DAC_2.continuous_wave[i]:
                 self.mode_matrix[1][i].setCurrentIndex(model.Mode.CONTINUOUS_WAVE)
-            elif self.laser_controller.model.configuration.DAC_2.pulsed_mode[i]:
+            elif self.laser_controller.pump_laser.DAC_2.pulsed_mode[i]:
                 self.mode_matrix[1][i].setCurrentIndex(model.Mode.PULSED)
             else:
                 self.mode_matrix[1][i].setCurrentIndex(model.Mode.DISABLED)

@@ -243,8 +243,8 @@ class Signals(QtCore.QObject):
     logging_update = QtCore.Signal(deque)
     daq_running = QtCore.Signal()
     laser_voltage = QtCore.Signal(float)
-    current_dac1 = QtCore.Signal(float)
-    current_dac2 = QtCore.Signal(float)
+    current_dac1 = QtCore.Signal(int)
+    current_dac2 = QtCore.Signal(int)
 
     def __init__(self):
         QtCore.QObject.__init__(self)
@@ -424,28 +424,34 @@ def process_characterization_data(characterization_file_path: str):
     signals.characterization.emit(data)
 
 
-
 class Mode(enum.IntEnum):
     DISABLED = 0
     PULSED = 1
     CONTINUOUS_WAVE = 2
 
 
+@dataclass
+class Configuration:
+    pump_laser: hardware.driver.PumpLaser | None = None
+    probe_laser: hardware.driver.ProbeLaser | None = None
+
+
 class Laser:
     def __init__(self, config_path="hardware/laser.json"):
         self._driver_bits = 0
         self.config_path = config_path
-        self.configuration = None  # type: None | PumpLaser
+        self.configuration = Configuration()
         self.load_config()
 
     def load_config(self):
         with open(self.config_path) as config:
-            self.configuration = dacite.from_dict(PumpLaser, json.load(config))
-            self.driver_bits = self.configuration.bit_value
+            loaded_config = json.load(config)
+            self.configuration.pump_laser = dacite.from_dict(hardware.driver.PumpLaser, loaded_config["pump_laser"])
+            self.configuration.probe_laser = dacite.from_dict(hardware.driver.ProbeLaser, loaded_config["probe_laser"])
 
     @property
     def driver_bits(self):
-        return self.configuration.bit_value
+        return self.configuration.pump_laser.bit_value
 
     @driver_bits.setter
     def driver_bits(self, bits):
@@ -456,23 +462,21 @@ class Laser:
 
     @property
     def current_bits_dac_1(self):
-        return self.configuration.DAC_1.bit_value
+        return self.configuration.pump_laser.DAC_1.bit_value
 
     @current_bits_dac_1.setter
     def current_bits_dac_1(self, bits):
-        self.configuration.DAC_1.bit_value = bits
-        current = hardware.driver.Laser.bit_to_current(bits)
-        signals.current_dac1.emit(current)
+        self.configuration.pump_laser.DAC_1.bit_value = bits
+        signals.current_dac1.emit(bits)
 
     @property
     def current_bits_dac_2(self):
-        return self.configuration.DAC_1.bit_value
+        return self.configuration.pump_laser.DAC_1.bit_value
 
     @current_bits_dac_2.setter
     def current_bits_dac_2(self, bits):
-        self.configuration.DAC_2.bit_value = bits
-        current = hardware.driver.Laser.bit_to_current(bits)
-        signals.current_dac2.emit(current)
+        self.configuration.pump_laser.DAC_2.bit_value = bits
+        signals.current_dac2.emit(bits)
 
     @staticmethod
     def process_mode_index(index):
@@ -493,15 +497,15 @@ class Laser:
     def mode_dac1(self, i):
         def update(index):
             continuous_wave, pulsed_mode = Laser.process_mode_index(index)
-            self.configuration.DAC_1.continuous_wave[i] = continuous_wave
-            self.configuration.DAC_1.pulsed_mode[i] = pulsed_mode
+            self.configuration.pump_laser.DAC_1.continuous_wave[i] = continuous_wave
+            self.configuration.pump_laser.DAC_1.pulsed_mode[i] = pulsed_mode
         return update
 
     def mode_dac2(self, i):
         def update(index):
             continuous_wave, pulsed_mode = Laser.process_mode_index(index)
-            self.configuration.DAC_2.continuous_wave[i] = continuous_wave
-            self.configuration.DAC_2.pulsed_mode[i] = pulsed_mode
+            self.configuration.pump_laser.DAC_2.continuous_wave[i] = continuous_wave
+            self.configuration.pump_laser.DAC_2.pulsed_mode[i] = pulsed_mode
         return update
 
     def update_configuration(self):
