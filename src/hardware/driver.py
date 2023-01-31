@@ -115,6 +115,11 @@ class SerialDevice(QtCore.QObject):
                 case Error.UNKNOWN_COMMAND:
                     raise SerialError(f"Unknown command from {self.device}")
 
+    def write(self, message):
+        self.device.write(message + SerialDevice.TERMINATION_SYMBOL)
+        if not self.device.flush():
+            logging.error(f"Could not write {message} to {self.port}")
+
     def __enter__(self):
         self.find_port()
 
@@ -404,10 +409,6 @@ class Laser(SerialDevice):
     def device_name(self):
         return Laser.NAME
 
-    def check_open(self):
-        if not self.device.isOpen():
-            self.device.open(QtSerialPort.QSerialPort.ReadWrite)
-
     def __receive(self):
         print(self.device.readAll())
 
@@ -417,30 +418,23 @@ class Laser(SerialDevice):
         return 0.8 * Laser.RESISTOR / (bits * Laser.DIGITAL_POT / Laser.NUMBER_OF_STEPS
                                        + Laser.PRE_RESISTOR) + 0.8
 
-    @staticmethod
-    def bit_to_current(bits):
-        return bits / Laser.MAX_CURRENT_BITS * Laser.MAX_CURRENT_mA
-
     def set_static_current(self, current):
-        self.check_open()
-        self.device.write(b"SC3" + bytes(current) + b"\n")
+        self.write(b"SC3" + bytes(current))
 
     def set_modulated_current(self, current):
-        self.check_open()
-        self.device.write(b"SC4" + bytes(current) + b"\n")
+        self.write(b"SC4" + bytes(current))
 
     def set_driver_voltage(self):
         voltage_hex = f"{self.pump_laser.bit_value:0{SerialDevice.NUMBER_OF_HEX_BYTES}x}".encode()
-        self.device.write(b"SHV" + voltage_hex + SerialDevice.TERMINATION_SYMBOL)
+        self.write(b"SHV" + voltage_hex)
 
     def set_dac_1(self):
         dac_1_hex = f"{self.pump_laser.DAC_1.bit_value:0{SerialDevice.NUMBER_OF_HEX_BYTES}x}".encode()
-        self.device.write(b"SC3" + dac_1_hex + SerialDevice.TERMINATION_SYMBOL)
+        self.write(b"SC3" + dac_1_hex)
 
     def set_dac_2(self):
         dac_2_hex = f"{self.pump_laser.DAC_2.bit_value:0{SerialDevice.NUMBER_OF_HEX_BYTES}x}".encode()
-        self.device.write(b"SC4" + dac_2_hex + SerialDevice.TERMINATION_SYMBOL)
-        self.device.waitForBytesWritten()
+        self.write(b"SC4" + dac_2_hex)
 
     def set_dac_matrix(self):
         matrix = 0
@@ -454,33 +448,28 @@ class Laser(SerialDevice):
             elif self.pump_laser.DAC_2.pulsed_mode[i]:
                 matrix |= Laser.ModulatedModeRegister[i]
         matrix_hex = f"{matrix:0{SerialDevice.NUMBER_OF_HEX_BYTES}x}".encode()
-        self.device.write(b"SC1" + matrix_hex + SerialDevice.TERMINATION_SYMBOL)
-        self.device.waitForBytesWritten()
+        self.write(b"SC1" + matrix_hex)
 
     def enable_channels(self):
-        self.device.write(b"SHE0001" + SerialDevice.TERMINATION_SYMBOL)
-        self.device.waitForBytesWritten()
+        self.write(b"SHE0001")
 
     def set_probe_laser_power(self):
         power_hex = f"{self.probe_laser.power:0{SerialDevice.NUMBER_OF_HEX_BYTES}x}".encode()
-        self.device.write(b"SLS" + power_hex + Laser.TERMINATION_SYMBOL)
-        self.device.waitForBytesWritten()
+        self.write(b"SLS" + power_hex)
 
     def set_probe_laser_mode(self):
         if self.probe_laser.constant_light:
-            self.device.write(b"SLM0001" + Laser.TERMINATION_SYMBOL)
+            self.write(b"SLM0001")
         else:
-            self.device.write(b"SLM0002" + Laser.TERMINATION_SYMBOL)
+            self.write(b"SLM0002")
 
     def init_laser(self):
-        self.device.write(b"CHI0000" + Laser.TERMINATION_SYMBOL)
-        self.device.write(b"CLI0000" + Laser.TERMINATION_SYMBOL)
+        self.write(b"CHI0000")
+        self.write(b"CLI0000")
 
     def enable_lasers(self):
-        self.device.write(b"SHE0001" + Laser.TERMINATION_SYMBOL)
-        self.device.waitForBytesWritten()
-        self.device.write(b"SLE0001" + Laser.TERMINATION_SYMBOL)
-        self.device.waitForBytesWritten()
+        self.write(b"SHE0001")
+        self.write(b"SLE0001")
 
     def apply_configuration(self):
         # Probe Laser
