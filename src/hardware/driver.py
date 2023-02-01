@@ -1,20 +1,12 @@
 import abc
-import itertools
-import json
 import logging
 import queue
 import re
-import threading
 import time
-import typing
-from collections import deque
 from dataclasses import dataclass
 from enum import Enum
-from typing import Sequence
 
-import dacite
 from PySide6 import QtSerialPort, QtCore
-from fastcrc import crc16
 import serial
 
 
@@ -36,28 +28,6 @@ class Patterns:
     HEX_VALUE = re.compile(b"[0-9a-fA-F]{4}", flags=re.MULTILINE)
 
 
-@dataclass
-class DAC:
-    bit_value: int
-    continuous_wave: typing.Annotated[list[bool], 3]
-    pulsed_mode: typing.Annotated[list[bool], 3]
-
-
-@dataclass
-class PumpLaser:
-    bit_value: int
-    DAC_1: DAC
-    DAC_2: DAC
-
-
-@dataclass
-class ProbeLaser:
-    power: int
-    constant_current: bool
-    constant_light: bool
-    photo_diode_gain: int
-
-
 class SerialError(Exception):
     pass
 
@@ -66,7 +36,7 @@ class Command:
     HARDWARE_ID = b"GHI0000\n"
 
 
-class SerialDevice(QtCore.QObject):
+class Serial(QtCore.QObject):
     QUEUE_SIZE = 15
     WAIT_TIME = 50  # ms
 
@@ -78,7 +48,8 @@ class SerialDevice(QtCore.QObject):
         self.port = None
         self.device = QtSerialPort.QSerialPort()
         self.device.readyRead.connect(self.__receive)
-        self.received_data = queue.Queue(maxsize=SerialDevice.QUEUE_SIZE)
+        self.received_data = queue.Queue(maxsize=Serial.QUEUE_SIZE)
+        self.connected = False
 
     @property
     @abc.abstractmethod
@@ -92,7 +63,7 @@ class SerialDevice(QtCore.QObject):
 
     def __repr__(self):
         class_name = self.__class__.__name__
-        representation = f"{class_name}(termination_symbol={SerialDevice.TERMINATION_SYMBOL}," \
+        representation = f"{class_name}(termination_symbol={Serial.TERMINATION_SYMBOL}," \
                          f" device_id={self.device_id}"
         representation += f"port={self.port}, device={self.device}, received_data={self.received_data})"
         return representation
@@ -116,15 +87,24 @@ class SerialDevice(QtCore.QObject):
                     raise SerialError(f"Unknown command from {self.device}")
 
     def write(self, message):
-        self.device.write(message + SerialDevice.TERMINATION_SYMBOL)
-        if not self.device.flush():
-            logging.error(f"Could not write {message} to {self.port}")
+        if self.connected:
+            self.device.write(message + Serial.TERMINATION_SYMBOL)
+            if not self.device.flush():
+                logging.error(f"Could not write {message} to {self.port}")
+                return False
+            return True
+        else:
+            return False
 
     def __enter__(self):
         self.find_port()
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
+
+    @abc.abstractmethod
+    def encode_data(self):
+        ...
 
     def find_port(self):
         """
@@ -133,8 +113,8 @@ class SerialDevice(QtCore.QObject):
         """
         for port in QtSerialPort.QSerialPortInfo.availablePorts():
             try:
-                device = serial.Serial(port=port.portName(), write_timeout=SerialDevice.WAIT_TIME,
-                                       timeout=SerialDevice.WAIT_TIME)
+                device = serial.Serial(port=port.portName(), write_timeout=Serial.WAIT_TIME,
+                                       timeout=Serial.WAIT_TIME)
             except serial.SerialException:
                 continue
             if not device.is_open:
@@ -145,7 +125,7 @@ class SerialDevice(QtCore.QObject):
             start_time = time.time() * 1000
             current_time = start_time
             device.write(Command.HARDWARE_ID)
-            while current_time < start_time + SerialDevice.WAIT_TIME:
+            while current_time < start_time + Serial.WAIT_TIME:
                 received_bytes += device.read(device.inWaiting())
                 current_time = time.time() * 1000
             self.received_data.put(received_bytes)
@@ -165,6 +145,7 @@ class SerialDevice(QtCore.QObject):
         if self.device.portName():
             logging.info(f"Connected with {self.device_name}")
             self.device.open(QtSerialPort.QSerialPort.ReadWrite)
+            self.connected = True
         else:
             logging.error(f"Could not connect with {self.device_name}")
             raise SerialError(f"Could not connect with {self.device_name}")
@@ -175,335 +156,13 @@ class SerialDevice(QtCore.QObject):
     def close(self):
         if self.device.isOpen():
             self.device.close()
+            self.connected = False
 
     def __receive(self):
         print(self.device.readAll().toStdString())
-        """try:
+        try:
             self.received_data.put(bytes(self.device.readAll()), block=False)
         except queue.Full:
             logging.error(f"Buffer queue of device {self.device_name} is full")
             logging.info("Removed one item")
             self.received_data.get()  # Remove the oldest item since the queue is full
-        """
-
-
-@dataclass
-class DAQData:
-    ref_signal: queue.Queue | deque | Sequence
-    ac_coupled: queue.Queue | deque | Sequence
-    dc_coupled: queue.Queue | deque | Sequence
-
-
-class DAQ(SerialDevice):
-    """
-    This class provides an interface for receiving data from the serial port of a USB connected DAQ system.
-    The data is accordingly to a defined protocol encoded and build into a packages of samples.
-    """
-    PACKAGE_SIZE_START_INDEX = 2
-    PACKAGE_SIZE_END_INDEX = 10
-    CRC_START_INDEX = 4
-    PACKAGE_SIZE = 4110
-    WORD_SIZE = 32
-
-    ID = b"0001"
-    NAME = "DAQ"
-
-    WAIT_TIME_TIMEOUT = 100e-3  # 100 ms
-    WAIT_TIME_DATA = 10e-3  # 10 ms
-
-    CHANNELS = 3
-    REF_PERIOD = 100
-    NUMBER_OF_SAMPLES = 8000
-
-    def __init__(self):
-        SerialDevice.__init__(self)
-        self.package_data = DAQData(queue.Queue(maxsize=DAQ.QUEUE_SIZE), queue.Queue(maxsize=DAQ.QUEUE_SIZE),
-                                    queue.Queue(maxsize=DAQ.QUEUE_SIZE))
-        self.buffers = DAQData(deque(), [deque(), deque(), deque()], [deque(), deque(), deque()])
-        self.buffers.dc_coupled = [deque(), deque(), deque()]
-        self.buffer = b""
-        self.running = threading.Event()
-        self.sample_numbers = deque(maxlen=2)
-        self.receive_daq = None
-        self.encode_daq = None
-        self.synchronize = True
-        self.ready = False
-
-    @property
-    def device_id(self):
-        return DAQ.ID
-
-    @property
-    def device_name(self):
-        return DAQ.NAME
-
-    @property
-    def ref_signal(self):
-        return self.package_data.ref_signal.get(block=True)
-
-    @property
-    def dc_coupled(self):
-        return self.package_data.dc_coupled.get(block=True)
-
-    @property
-    def ac_coupled(self):
-        return self.package_data.ac_coupled.get(block=True)
-
-    def __call__(self):
-        self.running.set()
-        self.__reset()
-        try:
-            while self.running.is_set():
-                self.__encode_data()
-                if len(self.buffers.ref_signal) >= DAQ.NUMBER_OF_SAMPLES:
-                    self.__build_sample_package()
-        finally:
-            self.close()
-
-    @staticmethod
-    def __binary_to_2_complement(byte, byte_length):
-        if byte & (1 << (byte_length - 1)):
-            return byte - 2 ** byte_length
-        return byte
-
-    @staticmethod
-    def __encode(raw_data):
-        """
-        A block of data has the following structure:
-        Ref, DC 1, DC 2, DC 3, DC, 4 AC 1, AC 2, AC 3, AC 4
-        These byte words are 4 bytes wide and hex decimal decoded. These big byte word of size 32 repeats periodically.
-        It starts with below the first 10 bytes (meta information) and ends before the last 4 bytes (crc checksum).
-        """
-        raw_data = raw_data[DAQ.PACKAGE_SIZE_END_INDEX:DAQ.PACKAGE_SIZE - DAQ.CRC_START_INDEX]
-        ref = []
-        ac = [[], [], []]
-        dc = [[], [], [], []]
-        for i in range(0, len(raw_data), DAQ.WORD_SIZE):
-            ref.append(int(raw_data[i:i + 4], 16))
-            # AC signed
-            ac_value = DAQ.__binary_to_2_complement(int(raw_data[i + 4:i + 8], base=16), 16)
-            ac[0].append(ac_value)
-            ac_value = DAQ.__binary_to_2_complement(int(raw_data[i + 8:i + 12], base=16), 16)
-            ac[1].append(ac_value)
-            ac_value = DAQ.__binary_to_2_complement(int(raw_data[i + 12:i + 16], base=16), 16)
-            ac[2].append(ac_value)
-            # DC unsigned
-            dc[0].append(int(raw_data[i + 16:i + 20], base=16))
-            dc[1].append(int(raw_data[i + 20:i + 24], base=16))
-            dc[2].append(int(raw_data[i + 24:i + 28], base=16))
-            dc[3].append(int(raw_data[i + 28:i + 32], base=16))
-        return ref, ac, dc
-
-    def __reset(self):
-        self.synchronize = True
-        self.buffer = b""
-        self.buffers.ref_signal = deque()
-        self.buffers.dc_coupled = [deque(), deque(), deque()]
-        self.buffers.ac_coupled = [deque(), deque(), deque()]
-
-    def __encode_data(self):
-        """
-        The data is encoded according to the following protocol:
-            - The first two bytes describes the send command
-            - Byte 2 up to 10 describe the package number of the send package
-            - Byte 10 to 32 contain the data as period sequence of blocks in hex decimal
-            - The last 4 bytes represent a CRC checksum in hex decimal
-        """
-        self.buffer += self.received_data.get(block=True)
-        if len(self.buffer) >= DAQ.PACKAGE_SIZE + len(DAQ.TERMINATION_SYMBOL):
-            splitted_data = self.buffer.split(DAQ.TERMINATION_SYMBOL)
-            self.buffer = b""
-            for data in splitted_data:
-                if len(data) != DAQ.PACKAGE_SIZE:  # Broken package with missing beginning
-                    continue
-                crc_calculated = crc16.arc(data[:-DAQ.CRC_START_INDEX])
-                crc_received = int(data[-DAQ.CRC_START_INDEX:], base=16)
-                if crc_calculated != crc_received:  # Corrupted data
-                    logging.error(f"CRC value isn't equal to transmitted. Got {crc_received} "
-                                  f"instead of {crc_calculated}.")
-                    self.synchronize = True  # The data is not trustful, and it should be waited for new
-                    self.sample_numbers.popleft()
-                    self.sample_numbers.popleft()
-                    self.__reset()
-                    continue
-                self.sample_numbers.append(data[DAQ.PACKAGE_SIZE_START_INDEX:DAQ.PACKAGE_SIZE_END_INDEX])
-                if len(self.sample_numbers) > 1:
-                    package_difference = int(self.sample_numbers[1], base=16) - int(self.sample_numbers[0], base=16)
-                    if package_difference != 1:
-                        logging.error(f"Missing {package_difference} packages.")
-                        logging.info("Start resynchronisation.")
-                        self.sample_numbers.popleft()
-                        self.__reset()
-                ref_signal, ac_coupled, dc_coupled = DAQ.__encode(data)
-                self.synchronize = False
-                if self.synchronize:
-                    while sum(itertools.islice(ref_signal, DAQ.REF_PERIOD // 2)):
-                        ref_signal.pop(0)
-                        for channel in range(DAQ.CHANNELS):
-                            ac_coupled[channel].pop(0)
-                            dc_coupled[channel].pop(0)
-                    if len(ref_signal) < DAQ.REF_PERIOD // 2:
-                        continue
-                    self.synchronize = False
-                else:
-                    self.buffers.ref_signal.extend(ref_signal)
-                    for channel in range(DAQ.CHANNELS):
-                        self.buffers.dc_coupled[channel].extend(dc_coupled[channel])
-                        self.buffers.ac_coupled[channel].extend(ac_coupled[channel])
-            if splitted_data[-1]:  # Data without termination symbol
-                self.buffer = splitted_data[-1]
-
-    def __build_sample_package(self):
-        """
-        Creates a package of samples that represents approximately 1 s data. It contains 8000 samples.
-        """
-        if len(self.buffers.ref_signal) >= DAQ.NUMBER_OF_SAMPLES:
-            if sum(itertools.islice(self.buffers.ref_signal, DAQ.REF_PERIOD // 2)):
-                logging.error("Phase shift in reference signal detected.")
-                logging.info("Start resynchronisation for next package.")
-                self.sample_numbers.popleft()
-                self.synchronize = True
-                return
-            self.package_data.ref_signal.put([self.buffers.ref_signal.popleft() for _ in range(DAQ.NUMBER_OF_SAMPLES)])
-            dc_package = [[], [], []]
-            ac_package = [[], [], []]
-            for _ in itertools.repeat(None, DAQ.NUMBER_OF_SAMPLES):
-                for channel in range(DAQ.CHANNELS):
-                    dc_package[channel].append(self.buffers.dc_coupled[channel].popleft())
-                    ac_package[channel].append(self.buffers.ac_coupled[channel].popleft())
-            self.package_data.dc_coupled.put(dc_package)
-            self.package_data.ac_coupled.put(ac_package)
-
-
-class Laser(SerialDevice):
-    HARDWARE_ID = b"0002"
-    NAME = "Laser"
-
-    RESISTOR = 2.2e4
-    DIGITAL_POT = 1e4
-    NUMBER_OF_STEPS = 1 << 7
-    PRE_RESISTOR = 1.6e3    
-    MAX_CURRENT_BITS = (1 << 12) - 1
-
-    ContinouesWaveRegister = [1 << 8, 1 << 10, 1 << 12, 1 << 14, 1 << 0,  1 << 2]
-    ModulatedModeRegister = [1 << 9, 1 << 11, 1 << 13, 1 << 15, 1 << 1, 1 << 3]
-
-    def __init__(self):
-        SerialDevice.__init__(self)
-        self.pump_laser = None  # type: None | PumpLaser
-        self.probe_laser = None  # type: None | ProbeLaser
-        self.config_path = "laser.json"
-        # self.device.readyRead.connect(self.__receive)
-
-    def load_configs(self):
-        with open(self.config_path) as config:
-            loaded_config = json.load(config)
-            self.pump_laser = dacite.from_dict(PumpLaser, loaded_config["Pump Laser"])
-            self.probe_laser = dacite.from_dict(ProbeLaser, loaded_config["Probe Laser"])
-
-    @property
-    def device_id(self):
-        return Laser.HARDWARE_ID
-
-    @property
-    def device_name(self):
-        return Laser.NAME
-
-    def __receive(self):
-        print(self.device.readAll())
-
-    @staticmethod
-    def bit_to_voltage(bits):
-        # 0.8 is an interpolation constant without any practical meaning.
-        return 0.8 * Laser.RESISTOR / (bits * Laser.DIGITAL_POT / Laser.NUMBER_OF_STEPS
-                                       + Laser.PRE_RESISTOR) + 0.8
-
-    def set_static_current(self, current):
-        self.write(b"SC3" + bytes(current))
-
-    def set_modulated_current(self, current):
-        self.write(b"SC4" + bytes(current))
-
-    def set_driver_voltage(self):
-        voltage_hex = f"{self.pump_laser.bit_value:0{SerialDevice.NUMBER_OF_HEX_BYTES}x}".encode()
-        self.write(b"SHV" + voltage_hex)
-
-    def set_dac_1(self):
-        dac_1_hex = f"{self.pump_laser.DAC_1.bit_value:0{SerialDevice.NUMBER_OF_HEX_BYTES}x}".encode()
-        self.write(b"SC3" + dac_1_hex)
-
-    def set_dac_2(self):
-        dac_2_hex = f"{self.pump_laser.DAC_2.bit_value:0{SerialDevice.NUMBER_OF_HEX_BYTES}x}".encode()
-        self.write(b"SC4" + dac_2_hex)
-
-    def set_dac_matrix(self):
-        matrix = 0
-        for i in range(len(self.pump_laser.DAC_1.continuous_wave)):
-            if self.pump_laser.DAC_1.continuous_wave[i]:
-                matrix |= Laser.ContinouesWaveRegister[i]
-            elif self.pump_laser.DAC_1.pulsed_mode[i]:
-                matrix |= Laser.ModulatedModeRegister[i]
-            if self.pump_laser.DAC_2.continuous_wave[i]:
-                matrix |= Laser.ContinouesWaveRegister[i]
-            elif self.pump_laser.DAC_2.pulsed_mode[i]:
-                matrix |= Laser.ModulatedModeRegister[i]
-        matrix_hex = f"{matrix:0{SerialDevice.NUMBER_OF_HEX_BYTES}x}".encode()
-        self.write(b"SC1" + matrix_hex)
-
-    def enable_channels(self):
-        self.write(b"SHE0001")
-
-    def set_probe_laser_power(self):
-        power_hex = f"{self.probe_laser.power:0{SerialDevice.NUMBER_OF_HEX_BYTES}x}".encode()
-        self.write(b"SLS" + power_hex)
-
-    def set_probe_laser_mode(self):
-        if self.probe_laser.constant_light:
-            self.write(b"SLM0001")
-        else:
-            self.write(b"SLM0002")
-
-    def init_laser(self):
-        self.write(b"CHI0000")
-        self.write(b"CLI0000")
-
-    def enable_lasers(self):
-        self.write(b"SHE0001")
-        self.write(b"SLE0001")
-
-    def apply_configuration(self):
-        # Probe Laser
-        self.set_probe_laser_power()
-        self.set_probe_laser_mode()
-        # Pump Laser
-        self.set_driver_voltage()
-        self.set_dac_1()
-        self.set_dac_2()
-        self.set_dac_matrix()
-        self.enable_lasers()
-
-
-class Tec(SerialDevice):
-    HARDWARE_ID = b"0003"
-    NAME = "Tec"
-
-    def __init__(self):
-        SerialDevice.__init__(self)
-
-    @property
-    def device_id(self):
-        return Tec.HARDWARE_ID
-
-    @property
-    def device_name(self):
-        return Tec.NAME
-
-
-if __name__ == "__main__":
-    laser = Laser()
-    laser.find_port()
-    laser.open()
-    laser.init_laser()
-    #laser.load_configs()
-    #laser.apply_configuration()
-    laser.device.waitForReadyRead()

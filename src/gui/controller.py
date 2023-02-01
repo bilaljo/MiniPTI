@@ -1,5 +1,5 @@
-import logging
 import threading
+import typing
 
 from PySide6 import QtWidgets
 
@@ -110,9 +110,9 @@ class Home:
 
 
 class Laser:
-    def __init__(self, laser_view):
+    def __init__(self, laser_port, laser_view):
         self.laser_view = laser_view
-        self.model = model.Laser()
+        self.model = model.Laser(laser_port)
 
     def update_driver_voltage(self, bits):
         self.model.driver_bits = bits
@@ -123,14 +123,20 @@ class Laser:
     def update_current_dac2(self, bits):
         self.model.current_bits_dac_2 = bits
 
+    def update_current_probe_laser(self, bits):
+        self.model.current_bits_probe_laser = bits
+
     def update_configuration(self):
         self.model.update_configuration()
 
-    def mode_dac1(self, i):
+    def mode_dac1(self, i) -> typing.Callable:
         return self.model.mode_dac1(i)
 
-    def mode_dac2(self, i):
+    def mode_dac2(self, i) -> typing.Callable:
         return self.model.mode_dac2(i)
+
+    def update_photo_gain(self, value):
+        self.model.photo_diode_gain = value + 1
 
     def load_config(self):
         self.model.load_config()
@@ -139,7 +145,11 @@ class Laser:
     def pump_laser(self):
         return self.model.configuration.pump_laser
 
+    @property
+    def probe_laser(self):
+        return self.model.configuration.probe_laser
+
 
 class Tec:
     def __init__(self):
-        raise NotImplementedError("Will be implemented in version 1.2.0")
+        raise NotImplementedError("Will be implemented in version 1.1.0")
