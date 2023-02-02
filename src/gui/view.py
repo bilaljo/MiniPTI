@@ -22,6 +22,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.tab_bar = QtWidgets.QTabWidget(self)
         self.setCentralWidget(self.tab_bar)
         self.tabs: None | Tab = None
+        self.current_pump_laser = PumpLaserCurrent()
+        self.current_probe_laser = ProbeLaserCurrent()
         self.dc = DC()
         self.amplitudes = Amplitudes()
         self.output_phases = OutputPhases()
@@ -33,25 +35,23 @@ class MainWindow(QtWidgets.QMainWindow):
         self.resize(MainWindow.HORIZONTAL_SIZE, MainWindow.VERTICAL_SIZE)
         self.show()
 
-    @staticmethod
-    def _init_pump_laser_tab():
+    def _init_pump_laser_tab(self):
         pump_laser_tab = QtWidgets.QTabWidget()
         pump_laser_tab.setLayout(QtWidgets.QHBoxLayout())
         pump_laser_tab.layout().addWidget(PumpLaser())
-        pump_laser_tab.layout().addWidget(PumpLaserCurrent())
+        pump_laser_tab.layout().addWidget(self.current_pump_laser.window)
         return pump_laser_tab
 
-    @staticmethod
-    def _init_probe_laser_tab():
+    def _init_probe_laser_tab(self):
         probe_laser_tab = QtWidgets.QTabWidget()
         probe_laser_tab.setLayout(QtWidgets.QHBoxLayout())
         probe_laser_tab.layout().addWidget(ProbeLaser())
-        probe_laser_tab.layout().addWidget(ProbeLaserCurrent())
+        probe_laser_tab.layout().addWidget(self.current_probe_laser.window)
         return probe_laser_tab
 
     def _init_tabs(self):
         self.tabs = Tab(home=Home(controller.Home(self.controller, self)), daq=DAQ(),
-                        pump_laser=MainWindow._init_pump_laser_tab(), probe_laser=MainWindow._init_probe_laser_tab(),
+                        pump_laser=self._init_pump_laser_tab(), probe_laser=self._init_probe_laser_tab(),
                         tec=None,
                         dc=QtWidgets.QTabWidget(), amplitudes=QtWidgets.QTabWidget(),
                         output_phases=QtWidgets.QTabWidget(), sensitivity=QtWidgets.QTabWidget(),
@@ -97,17 +97,6 @@ class MainWindow(QtWidgets.QMainWindow):
             self.controller.close()
         else:
             close_event.ignore()
-
-
-class Plotting:
-    def button_checked(self, frame, button):
-        return self.buttons[frame][button].isChecked()
-
-    def toggle_button(self, state, frame, button):
-        if state:
-            self.buttons[frame][button].setStyleSheet("background-color : lightgreen")
-        else:
-            self.buttons[frame][button].setStyleSheet("background-color : light gray")
 
 
 class _Tab(QtWidgets.QTabWidget):
@@ -212,7 +201,7 @@ class Home(_Tab, CreateButton):
         sub_layout.setLayout(QtWidgets.QVBoxLayout())
         self.frames["Measurement"].layout().addWidget(sub_layout)
         self.create_button(master=sub_layout, title="Enable Modulation", slot=self.controller.find_devices)
-        self.create_button(master=sub_layout, title="Start Pump Laser", slot=self.controller.connect_devices)
+        self.create_button(master=sub_layout, title="Start Pump Laser", slot=self.controller.enable_laser)
         self.create_button(master=sub_layout, title="Run Measurement", slot=self.controller.connect_devices)
 
     def logging_update(self, log):
@@ -270,7 +259,7 @@ class PumpLaser(_Tab, CreateButton):
         CreateButton.__init__(self)
         self.driver_model = model.Driver()
         self.setLayout(QtWidgets.QGridLayout())
-        self.laser_controller = controller.Laser(self.driver_model.ports.laser, self)
+        self.laser_controller = controller.Laser(self.driver_model.ports.laser)
         self.current_display = QtWidgets.QLabel("0 mA")
         self.voltage_display = QtWidgets.QLabel("0 V")
         self.driver_voltage = Slider(minimum=PumpLaser.MIN_DRIVER_BIT, maximum=PumpLaser.MAX_DRIVER_BIT,
@@ -363,7 +352,7 @@ class ProbeLaser(_Tab, CreateButton):
         self.current_slider = Slider(minimum=ProbeLaser.MIN_CURRENT_BIT, maximum=ProbeLaser.MAX_CURRENT_BIT,
                                      unit="mA")
         self.driver_model = model.Driver()
-        self.laser_controller = controller.Laser(self.driver_model.ports.laser, self)
+        self.laser_controller = controller.Laser(self.driver_model.ports.laser)
         self.laser_mode = QtWidgets.QComboBox()
         self.photo_gain = QtWidgets.QComboBox()
         self._init_frames()

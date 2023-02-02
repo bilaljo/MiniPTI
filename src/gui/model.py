@@ -239,6 +239,7 @@ class LaserBuffer(Buffer):
         self.probe_laser_current = deque(maxlen=Buffer.QUEUE_SIZE)
 
     def append(self, laser_data: hardware.laser.Data):
+        self.time.append(next(self.time_counter) / 10)
         self.pump_laser_current.append(laser_data.pump_laser_current)
         self.pump_laser_voltage.append(laser_data.pump_laser_voltage)
         self.probe_laser_current.append(laser_data.probe_laser_current)
@@ -358,8 +359,7 @@ class Driver:
 
     def close(self):
         for port in self.ports:
-            if port.is_open():
-                port.close()
+            port.close()
 
     def find_device(self):
         for port in self.ports:
@@ -465,6 +465,12 @@ class Laser:
             self.configuration.pump_laser = dacite.from_dict(hardware.laser.PumpLaser, loaded_config["pump_laser"])
             self.configuration.probe_laser = dacite.from_dict(hardware.laser.ProbeLaser, loaded_config["probe_laser"])
 
+    def enable_lasers(self):
+        self.laser_port.open()
+        self.laser_port.init_laser()
+        self.laser_port.apply_configuration()
+        self.laser_port.enable_lasers()
+
     @property
     def driver_bits(self):
         return self.configuration.pump_laser.bit_value
@@ -554,7 +560,7 @@ class Laser:
 
     def process_measured_data(self):
         def incoming_data():
-            while self.laser_port.running:
+            while True:#self.laser_port.running:
                 received_data = self.laser_port.laser_data.get(block=True)
                 self.laser_buffer.append(received_data)
                 signals.laser_data.emit(self.laser_buffer)

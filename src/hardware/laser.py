@@ -41,7 +41,6 @@ class Data:
     probe_laser_current = 0
 
 
-@dataclass
 class DriverStateMachine(StateMachine):
     disconnected = State("Disconnected", initial=True)
     connected = State("Connected")
@@ -58,8 +57,8 @@ class DriverStateMachine(StateMachine):
 class Driver(hardware.driver.Serial):
     HARDWARE_ID = b"0002"
     NAME = "Laser"
-    DELIMITER = b"\t"
-    DATA_START = b"L"
+    DELIMITER = "\t"
+    DATA_START = "L"
     START_MEASURED_DATA = 1
     END_MEASURED_DATA = 4
 
@@ -80,8 +79,8 @@ class Driver(hardware.driver.Serial):
         self.config_path = "hardware/configs/laser.json"
         self.laser_data = queue.Queue(maxsize=Driver.QUEUE_SIZE)
         self.running = threading.Event()
-        self.laser_data_thread = threading.Thread(target=self.process_received_data)
-        self.laser_machine = DriverStateMachine
+        self.laser_machine = DriverStateMachine()
+        self.laser_machine.connect()
         self.load_configs()
 
     def load_configs(self):
@@ -92,9 +91,7 @@ class Driver(hardware.driver.Serial):
 
     def open(self):
         super().open()
-        self.laser_machine.connected()
-        self.running.set()
-        self.laser_data_thread.start()
+        self.laser_machine.connect()
 
     def close(self):
         super().close()
@@ -164,32 +161,37 @@ class Driver(hardware.driver.Serial):
             self.write(b"SLM0002")
 
     def init_laser(self):
-        if self.write(b"CHI0000") and self.write(b"CLI0000"):
-            self.laser_machine.initialize()
+        self.write(b"CHI0000")
+        self.write(b"CLI0000")
+        self.laser_machine.initialize()
 
     def enable_lasers(self):
-        if self.write(b"SHE0001") and self.write(b"SLE0001"):
-            self.laser_machine.enable()
+        self.write(b"SHE0001")
+        self.write(b"SLE0001")
+        self.laser_machine.enable()
 
     def disable_laser(self):
-        if self.write(b"SHE0000") and self.write(b"SLE0000"):
-            self.laser_machine.disable()
+        self.write(b"SHE0000")
+        self.write(b"SLE0000")
+        self.laser_machine.disable()
 
     def set_photo_gain(self):
         phot_gain_hex = f"{self.probe_laser.photo_diode_gain:0{hardware.driver.Serial.NUMBER_OF_HEX_BYTES}x}".encode()
         self.write(b"SLS00" + phot_gain_hex)
 
-    def encode_data(self):
-        received_data = self.received_data.get(block=True)
+    def _encode_data(self, received_data):
         for received in received_data.split(Driver.TERMINATION_SYMBOL):
-            match received:
+            if not received:
+                continue
+            encoded_data = received.decode()
+            match encoded_data[0]:
                 case "N":
-                    logging.error(f"Invalid command {received}")
+                    logging.error(f"Invalid command {encoded_data}")
                 case "S" | "C":
-                    logging.info(f"Command {received} successfully applied")
+                    logging.info(f"Command {encoded_data} successfully applied")
                 case "L":
-                    measured_data = received.split(Driver.DELIMITER)[Driver.START_MEASURED_DATA:
-                                                                     Driver.END_MEASURED_DATA]
+                    measured_data = encoded_data.split(Driver.DELIMITER)[Driver.START_MEASURED_DATA:
+                                                                         Driver.END_MEASURED_DATA]
                     laser_data = Data()
                     laser_data.pump_laser_voltage = float(measured_data[0])
                     laser_data.pump_laser_current = float(measured_data[1])
@@ -197,10 +199,6 @@ class Driver(hardware.driver.Serial):
                     self.laser_data.put(copy.deepcopy(laser_data))
                 case _:  # Broken data frame without header char
                     continue
-
-    def process_received_data(self):
-        while self.running:
-            self.encode_data()
 
     def apply_configuration(self):
         # Probe Driver

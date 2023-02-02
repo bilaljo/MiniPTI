@@ -15,7 +15,7 @@ class MainApplication(QtWidgets.QApplication):
         self.settings_model = model.SettingsTable()
         self.logging_model = model.Logging()
         self.view = view.MainWindow(self)
-        threading.excepthook = self.thread_exception
+        # threading.excepthook = self.thread_exception
         self.driver_model.find_device()
         self.settings_model.setup_settings_file()
 
@@ -37,7 +37,7 @@ class Home:
         self.view = parent
         self.calculation_model = model.Calculation()
         self.main_controller = main_controller
-        self.daq_model = model.DAQMeasurement(device=main_controller.driver_model.ports.daq)
+        self.laser_controler = Laser(main_controller.driver_model.ports.laser)
 
     def get_file_path(self, dialog_name):
         file_path = QtWidgets.QFileDialog.getOpenFileName(self.view, caption=dialog_name,
@@ -108,10 +108,13 @@ class Home:
             except hardware.driver.SerialError:
                 continue
 
+    def enable_laser(self):
+        self.laser_controler.model.enable_lasers()
+        self.laser_controler.model.process_measured_data()
+
 
 class Laser:
-    def __init__(self, laser_port, laser_view):
-        self.laser_view = laser_view
+    def __init__(self, laser_port):
         self.model = model.Laser(laser_port)
 
     def update_driver_voltage(self, bits):
