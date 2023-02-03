@@ -141,6 +141,18 @@ class Laser:
     def update_photo_gain(self, value):
         self.model.photo_diode_gain = value + 1
 
+    def update_probe_laser_mode(self, index):
+        match index:
+            case view.ProbeLaser.CONSTANT_LIGHT:
+                self.model.configuration.probe_laser.constant_light = True
+                self.model.configuration.probe_laser.constant_current = False
+            case view.ProbeLaser.CONSTANT_LIGHT:
+                self.model.configuration.probe_laser.constant_light = False
+                self.model.configuration.probe_laser.constant_current = True
+            case _:
+                self.model.configuration.probe_laser.constant_light = False
+                self.model.configuration.probe_laser.constant_light = True
+
     def load_config(self):
         self.model.load_config()
 

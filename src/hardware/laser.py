@@ -28,7 +28,7 @@ class PumpLaser:
 
 @dataclass
 class ProbeLaser:
-    power: int
+    current_bits: int
     constant_current: bool
     constant_light: bool
     photo_diode_gain: int
@@ -70,6 +70,7 @@ class Driver(hardware.driver.Serial):
     ContinuesWaveRegister = [1 << 8, 1 << 10, 1 << 12, 1 << 14, 1 << 0, 1 << 2]
     ModulatedModeRegister = [1 << 9, 1 << 11, 1 << 13, 1 << 15, 1 << 1, 1 << 3]
 
+    # Probe Laser
     CURRENT_BITS = (1 << 8) - 1
 
     def __init__(self):
@@ -78,7 +79,6 @@ class Driver(hardware.driver.Serial):
         self.probe_laser = None  # type: None | ProbeLaser
         self.config_path = "hardware/configs/laser.json"
         self.laser_data = queue.Queue(maxsize=Driver.QUEUE_SIZE)
-        self.running = threading.Event()
         self.laser_machine = DriverStateMachine()
         self.laser_machine.connect()
         self.load_configs()
@@ -93,10 +93,6 @@ class Driver(hardware.driver.Serial):
         super().open()
         self.laser_machine.connect()
 
-    def close(self):
-        super().close()
-        self.running.clear()
-
     @property
     def device_id(self):
         return Driver.HARDWARE_ID
@@ -107,7 +103,7 @@ class Driver(hardware.driver.Serial):
 
     @staticmethod
     def bit_to_voltage(bits):
-        # 0.8 is an interpolation constant without any practical meaning.
+        # Values and formula is given by hardware
         return 0.8 * Driver.RESISTOR / (bits * Driver.DIGITAL_POT / Driver.NUMBER_OF_STEPS + Driver.PRE_RESISTOR) + 0.8
 
     @staticmethod
@@ -150,9 +146,12 @@ class Driver(hardware.driver.Serial):
     def enable_channels(self):
         self.write(b"SHE0001")
 
-    def set_probe_laser_power(self):
-        power_hex = f"{self.probe_laser.power:0{hardware.driver.Serial.NUMBER_OF_HEX_BYTES}x}".encode()
-        self.write(b"SLS" + power_hex)
+    def disable_channels(self):
+        self.write(b"SHE0000")
+
+    def set_probe_laser_current(self):
+        power_current = f"{self.probe_laser.current_bits:0{hardware.driver.Serial.NUMBER_OF_HEX_BYTES}x}".encode()
+        self.write(b"SLS" + power_current)
 
     def set_probe_laser_mode(self):
         if self.probe_laser.constant_light:
@@ -177,7 +176,7 @@ class Driver(hardware.driver.Serial):
 
     def set_photo_gain(self):
         phot_gain_hex = f"{self.probe_laser.photo_diode_gain:0{hardware.driver.Serial.NUMBER_OF_HEX_BYTES}x}".encode()
-        self.write(b"SLS00" + phot_gain_hex)
+        self.write(b"SLS" + phot_gain_hex)
 
     def _encode_data(self, received_data):
         for received in received_data.split(Driver.TERMINATION_SYMBOL):
@@ -202,7 +201,7 @@ class Driver(hardware.driver.Serial):
 
     def apply_configuration(self):
         # Probe Driver
-        self.set_probe_laser_power()
+        self.set_probe_laser_current()
         self.set_probe_laser_mode()
         # Pump Driver
         self.set_driver_voltage()

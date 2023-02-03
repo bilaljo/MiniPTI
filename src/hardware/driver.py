@@ -118,7 +118,7 @@ class Serial:
 
     def write(self, message: bytes | bytearray):
         if self.connected:
-            self.transport.write(message)
+            self.transport.write(message + Serial.TERMINATION_SYMBOL)
 
     def __enter__(self):
         self.find_port()

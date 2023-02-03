@@ -13,9 +13,9 @@
         }
     },
     "probe_laser": {
-        "power": 102,
-        "constant_current": true,
-        "constant_light": false,
-        "photo_diode_gain": 1
+        "current_bits": 102,
+        "constant_current": false,
+        "constant_light": true,
+        "photo_diode_gain": 3
     }
 }

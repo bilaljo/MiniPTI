@@ -504,14 +504,14 @@ class Laser:
 
     @property
     def current_bits_probe_laser(self):
-        return self.configuration.probe_laser.power
+        return self.configuration.probe_laser.current_bits
 
     @current_bits_probe_laser.setter
     def current_bits_probe_laser(self, bits):
-        self.configuration.probe_laser.power = bits
+        self.configuration.probe_laser.current_bits = bits
         current = hardware.laser.Driver.bit_to_current(hardware.laser.Driver.CURRENT_BITS - bits)
         signals.current_probe_laser.emit(current)
-        self.laser_port.set_probe_laser_power()
+        self.laser_port.set_probe_laser_current()
 
     @property
     def photo_diode_gain(self):
