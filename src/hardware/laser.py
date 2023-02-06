@@ -8,7 +8,6 @@ from typing import Annotated
 
 import dacite
 from statemachine import StateMachine, State
-from multipledispatch import dispatch
 
 import hardware.driver
 
@@ -42,7 +41,7 @@ class PumpLaser:
 @dataclass
 class ProbeLaser:
     max_current_mA: float
-    _current_bits: int
+    current_bits: int
     constant_current: bool
     constant_light: bool
     photo_diode_gain: int
@@ -54,25 +53,7 @@ class ProbeLaser:
 
     @staticmethod
     def current_to_bit(bits):
-        return -5.335 * bits + 260.4
-
-    @property
-    def current_bits(self) -> float:
-        return ProbeLaser.bit_to_current(self._current_bits)
-
-    @current_bits.setter
-    @dispatch(int)
-    def current_bits(self, current: int) -> None:
-        if ProbeLaser.bit_to_current(current) > self.max_current_mA:
-            logging.error(f"Current of {current} exceeds maximum allowed value of {self.max_current_mA}")
-        self._current_bits = min(ProbeLaser.current_to_bit(self.max_current_mA), current)
-
-    @current_bits.setter
-    @dispatch(float)
-    def current_bits(self, current: float) -> None:
-        if current > self.max_current_mA:
-            logging.error(f"Current of {current} exceeds maximum allowed value of {self.max_current_mA}")
-        self._current_bits = ProbeLaser.current_to_bit(min(self.max_current_mA, current))
+        return int(-5.335 * bits + 260.4)
 
 
 @dataclass
@@ -115,8 +96,8 @@ class Driver(hardware.driver.Serial):
         self.probe_laser = None  # type: None | ProbeLaser
         self.config_path = "hardware/configs/laser.json"
         self.laser_data = queue.Queue(maxsize=Driver.QUEUE_SIZE)
-        self.running = threading.Event()
         self.laser_machine = DriverStateMachine
+        self.command_succed = False
         self.load_configs()
 
     def load_configs(self):
@@ -177,7 +158,14 @@ class Driver(hardware.driver.Serial):
         self.write(b"SHE0001")
 
     def set_probe_laser_current(self):
-        current_hex = f"{self.probe_laser.current_bits:0{hardware.driver.Serial.NUMBER_OF_HEX_BYTES}x}".encode()
+        current_mA = ProbeLaser.bit_to_current(self.probe_laser.current_bits)
+        if current_mA > self.probe_laser.max_current_mA:
+            logging.error(f"Current exceeds maximum current of {self.probe_laser.max_current_mA} mA")
+            logging.info(f"Setting it to maximum value of {self.probe_laser.max_current_mA} mA")
+            current = ProbeLaser.current_to_bit(self.probe_laser.max_current_mA)
+        else:
+            current = self.probe_laser.current_bits
+        current_hex = f"{current:0{hardware.driver.Serial.NUMBER_OF_HEX_BYTES}x}".encode()
         self.write(b"SLS" + current_hex)
 
     def set_probe_laser_mode(self):
@@ -215,12 +203,13 @@ class Driver(hardware.driver.Serial):
                     logging.error(f"Invalid command {encoded_data}")
                 case "S" | "C":
                     logging.debug(f"Command {encoded_data} successfully applied")
+                    self.command_succed = True
                 case "L":
                     measured_data = encoded_data.split("\t")[Driver.START_MEASURED_DATA:
                                                              Driver.END_MEASURED_DATA]
                     laser_data = Data()
-                    laser_data.pump_laser_voltage = float(measured_data[0])
-                    laser_data.pump_laser_current = float(measured_data[1])
+                    laser_data.pump_laser_current = float(measured_data[0])
+                    laser_data.pump_laser_voltage = float(measured_data[1])
                     laser_data.probe_laser_current = float(measured_data[2])
                     self.laser_data.put(copy.deepcopy(laser_data))
                 case _:  # Broken data frame without header char

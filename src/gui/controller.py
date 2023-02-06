@@ -1,3 +1,4 @@
+import logging
 import threading
 import typing
 
@@ -34,8 +35,8 @@ class MainApplication(QtWidgets.QApplication):
 
 
 class Hardware:
-    def __init__(self, driver_model: model.Hardware):
-        self.hardware_model = driver_model
+    def __init__(self, hardware_model: model.Hardware):
+        self.hardware_model = hardware_model
 
     def update_driver_voltage(self, bits):
         self.hardware_model.laser.driver_bits = bits
@@ -72,6 +73,12 @@ class Hardware:
             case _:
                 self.hardware_model.laser.probe_laser.constant_light = False
                 self.hardware_model.laser.probe_laser.constant_light = True
+
+    def update_max_current_probe_laser(self, max_current):
+        try:
+            self.probe_laser.max_current_mA = float(max_current)
+        except ValueError:
+            logging.error("Could not apply new value. Invalid symbols encountered.")
 
     def load_config(self):
         self.hardware_model.laser.load_config()

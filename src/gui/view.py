@@ -36,25 +36,29 @@ class MainWindow(QtWidgets.QMainWindow):
         self.resize(MainWindow.HORIZONTAL_SIZE, MainWindow.VERTICAL_SIZE)
         self.show()
 
-    def _init_pump_laser_tab(self):
+    def _init_pump_laser_tab(self) -> QtWidgets.QTabWidget:
         pump_laser_tab = QtWidgets.QTabWidget()
         pump_laser_tab.setLayout(QtWidgets.QHBoxLayout())
         pump_laser_tab.layout().addWidget(PumpLaser(self.hardware_model, self.hardware_controller))
         pump_laser_tab.layout().addWidget(self.current_pump_laser.window)
         return pump_laser_tab
 
-    def _init_probe_laser_tab(self):
+    def _init_probe_laser_tab(self) -> QtWidgets.QTabWidget:
         probe_laser_tab = QtWidgets.QTabWidget()
         probe_laser_tab.setLayout(QtWidgets.QHBoxLayout())
         probe_laser_tab.layout().addWidget(ProbeLaser(self.hardware_model, self.hardware_controller))
         probe_laser_tab.layout().addWidget(self.current_probe_laser.window)
         return probe_laser_tab
 
+    def _init_tec_tab(self) -> QtWidgets.QTabWidget:
+        tec_tab = QtWidgets.QTabWidget()
+        tec_tab.setLayout(QtWidgets.QHBoxLayout())
+        return tec_tab
+
     def _init_tabs(self):
         self.tabs = Tab(home=Home(controller.Home(self.hardware_controller, self.main_controller, self)), daq=DAQ(),
                         pump_laser=self._init_pump_laser_tab(), probe_laser=self._init_probe_laser_tab(),
-                        tec=None,
-                        dc=QtWidgets.QTabWidget(), amplitudes=QtWidgets.QTabWidget(),
+                        tec=self._init_tec_tab(), dc=QtWidgets.QTabWidget(), amplitudes=QtWidgets.QTabWidget(),
                         output_phases=QtWidgets.QTabWidget(), sensitivity=QtWidgets.QTabWidget(),
                         interferometric_phase=QtWidgets.QTabWidget(), pti_signal=QtWidgets.QTabWidget())
         self.tab_bar.addTab(self.tabs.home, "Home")
@@ -127,7 +131,8 @@ class CreateButton:
         master.layout().addWidget(self.buttons[title])
 
     @abc.abstractmethod
-    def _init_buttons(self): ...
+    def _init_buttons(self):
+        ...
 
 
 class SettingsView(QtWidgets.QTableView):
@@ -260,8 +265,8 @@ class PumpLaser(QtWidgets.QWidget, CreateButton):
         QtWidgets.QWidget.__init__(self)
         CreateButton.__init__(self)
         self.hardware_model = hardware_model
-        self.setLayout(QtWidgets.QGridLayout())
         self.hardware_controller = hardware_controller
+        self.setLayout(QtWidgets.QGridLayout())
         self.current_display = QtWidgets.QLabel("0 mA")
         self.voltage_display = QtWidgets.QLabel("0 V")
         self.driver_voltage = Slider(minimum=PumpLaser.MIN_DRIVER_BIT, maximum=PumpLaser.MAX_DRIVER_BIT,
@@ -315,11 +320,11 @@ class PumpLaser(QtWidgets.QWidget, CreateButton):
         self.current[1].slider.setValue(self.hardware_controller.pump_laser.DAC_2.bit_value)
 
     def _init_frames(self):
-        self.create_frame(master=self, title="Measured Values", x_position=0, y_position=0)
-        self.create_frame(master=self, title="Driver Voltage", x_position=1, y_position=0)
+        self.create_frame(master=self, title="Measured Values", x_position=1, y_position=0)
+        self.create_frame(master=self, title="Driver Voltage", x_position=2, y_position=0)
         for i in range(1, 3):
-            self.create_frame(master=self, title=f"Current {i}", x_position=i + 1, y_position=0)
-        self.create_frame(master=self, title="Configuration", x_position=4, y_position=0)
+            self.create_frame(master=self, title=f"Current {i}", x_position=i + 2, y_position=0)
+        self.create_frame(master=self, title="Configuration", x_position=5, y_position=0)
 
     def _init_buttons(self):
         dac_inner_frames = [QtWidgets.QWidget() for _ in range(2)]  # For slider and button-matrices
@@ -380,15 +385,19 @@ class ProbeLaser(QtWidgets.QWidget, CreateButton):
         self._init_current_mode_configuration()
         self.frames["Measured Values"].layout().addWidget(self.current_display)
         self.max_current_display = QtWidgets.QLineEdit()
-        self.max_current_display.setText("40")
-        self.frames["Maximum Current"].setLayout(QtWidgets.QHBoxLayout())
-        self.frames["Maximum Current"].layout().addWidget(self.max_current_display)
-        self.frames["Maximum Current"].layout().addWidget(QtWidgets.QLabel("mA"))
+        self.max_current_display.returnPressed.connect(self.max_current_changed)
+        self.max_current_display.setText(str(self.hardware_controller.probe_laser.max_current_mA))
+        self.frames["Maximum Current"].setLayout(QtWidgets.QGridLayout())
+        self.frames["Maximum Current"].layout().addWidget(self.max_current_display, 0, 0)
+        self.frames["Maximum Current"].layout().addWidget(QtWidgets.QLabel("mA"), 0, 1)
         model.signals.laser_data_display.connect(self.update_current)
 
-    @QtCore.Slot()
+    @QtCore.Slot(hardware.laser.Data)
     def update_current(self, value: hardware.laser.Data):
         self.current_display.setText(str(value.probe_laser_current) + " mA")
+
+    def max_current_changed(self):
+        return self.hardware_controller.update_max_current_probe_laser(self.max_current_display.text())
 
     def _init_frames(self):
         self.create_frame(title="Maximum Current", x_position=0, y_position=0)
@@ -640,7 +649,7 @@ class Tab(NamedTuple):
     daq: DAQ
     pump_laser: QtWidgets.QTabWidget
     probe_laser: QtWidgets.QTabWidget
-    tec: None  # Not implemented
+    tec: QtWidgets.QTabWidget
     dc: QtWidgets.QTabWidget
     amplitudes: QtWidgets.QTabWidget
     output_phases: QtWidgets.QTabWidget

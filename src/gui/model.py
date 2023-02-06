@@ -361,6 +361,7 @@ class Hardware:
     def close(self):
         for port in self.ports:
             port.close()
+        self.laser.running.clear()
 
     def find_device(self):
         for port in self.ports:
@@ -450,6 +451,7 @@ class Laser:
         self._driver_bits = 0
         self.config_path = config_path
         self.driver = laser_driver
+        self.running = threading.Event()
         self.laser_buffer = LaserBuffer()
         self.load_config()
 
@@ -471,8 +473,8 @@ class Laser:
     @driver_bits.setter
     def driver_bits(self, bits):
         # With increasing the slider decreases its value but the voltage should increase - hence we subtract the bits.
-        self.driver.pump_laser.bit_value = hardware.laser.Driver.NUMBER_OF_STEPS - bits
-        voltage = hardware.laser.Driver.bit_to_voltage(hardware.laser.Driver.NUMBER_OF_STEPS - bits)
+        self.driver.pump_laser.bit_value = hardware.laser.PumpLaser.NUMBER_OF_STEPS - bits
+        voltage = hardware.laser.PumpLaser.bit_to_voltage(hardware.laser.PumpLaser.NUMBER_OF_STEPS - bits)
         signals.laser_voltage.emit(voltage)
         self.driver.set_driver_voltage()
 
@@ -504,7 +506,7 @@ class Laser:
     def current_bits_probe_laser(self, bits):
         # With increasing the slider decreases its value but the voltage should increase - hence we subtract the bits.
         self.driver.probe_laser.current_bits = hardware.laser.Driver.CURRENT_BITS - bits
-        current = hardware.laser.Driver.bit_to_current(hardware.laser.Driver.CURRENT_BITS - bits)
+        current = hardware.laser.ProbeLaser.bit_to_current(hardware.laser.Driver.CURRENT_BITS - bits)
         signals.current_probe_laser.emit(current)
         self.driver.set_probe_laser_current()
 
@@ -557,12 +559,12 @@ class Laser:
 
     def process_measured_data(self):
         def incoming_data():
-            while self.driver.running:
+            while self.running:
                 received_data = self.driver.laser_data.get(block=True)
                 self.laser_buffer.append(received_data)
                 signals.laser_data.emit(self.laser_buffer)
                 signals.laser_data_display.emit(received_data)
-        threading.Thread(target=incoming_data).start()
+        threading.Thread(target=incoming_data, daemon=True).start()
 
 
 signals = Signals()
