@@ -11,10 +11,11 @@ from gui import view
 class MainApplication(QtWidgets.QApplication):
     def __init__(self, argv=""):
         QtWidgets.QApplication.__init__(self, argv)
-        self.driver_model = model.Driver()
+        self.driver_model = model.Hardware()
         self.settings_model = model.SettingsTable()
         self.logging_model = model.Logging()
-        self.view = view.MainWindow(self)
+        self.driver_controller = Hardware(self.driver_model)
+        self.view = view.MainWindow(self, self.driver_controller)
         # threading.excepthook = self.thread_exception
         self.driver_model.find_device()
         self.settings_model.setup_settings_file()
@@ -32,12 +33,64 @@ class MainApplication(QtWidgets.QApplication):
             QtWidgets.QMessageBox.critical(self.view, "Error", f"{args.exc_type} error occurred.")
 
 
+class Hardware:
+    def __init__(self, driver_model: model.Hardware):
+        self.hardware_model = driver_model
+
+    def update_driver_voltage(self, bits):
+        self.hardware_model.laser.driver_bits = bits
+
+    def update_current_dac1(self, bits):
+        self.hardware_model.laser.current_bits_dac_1 = bits
+
+    def update_current_dac2(self, bits):
+        self.hardware_model.laser.current_bits_dac_2 = bits
+
+    def update_current_probe_laser(self, bits):
+        self.hardware_model.laser.current_bits_probe_laser = bits
+
+    def update_configuration(self):
+        self.hardware_model.laser.update_configuration()
+
+    def mode_dac1(self, i) -> typing.Callable:
+        return self.hardware_model.laser.mode_dac1(i)
+
+    def mode_dac2(self, i) -> typing.Callable:
+        return self.hardware_model.laser.mode_dac2(i)
+
+    def update_photo_gain(self, value):
+        self.hardware_model.laser.photo_diode_gain = value + 1
+
+    def update_probe_laser_mode(self, index):
+        match index:
+            case view.ProbeLaser.CONSTANT_LIGHT:
+                self.hardware_model.laser.probe_laser.constant_light = True
+                self.hardware_model.laser.probe_laser.constant_current = False
+            case view.ProbeLaser.CONSTANT_LIGHT:
+                self.hardware_model.laser.probe_laser.constant_light = False
+                self.hardware_model.laser.probe_laser.constant_current = True
+            case _:
+                self.hardware_model.laser.probe_laser.constant_light = False
+                self.hardware_model.laser.probe_laser.constant_light = True
+
+    def load_config(self):
+        self.hardware_model.laser.load_config()
+
+    @property
+    def pump_laser(self):
+        return self.hardware_model.laser.driver.pump_laser
+
+    @property
+    def probe_laser(self):
+        return self.hardware_model.laser.driver.probe_laser
+
+
 class Home:
-    def __init__(self, main_controller: MainApplication, parent):
+    def __init__(self, driver_controller: Hardware, main_controller: MainApplication, parent):
         self.view = parent
         self.calculation_model = model.Calculation()
         self.main_controller = main_controller
-        self.laser_controler = Laser(main_controller.driver_model.ports.laser)
+        self.driver_controller = driver_controller
 
     def get_file_path(self, dialog_name):
         file_path = QtWidgets.QFileDialog.getOpenFileName(self.view, caption=dialog_name,
@@ -109,62 +162,6 @@ class Home:
                 continue
 
     def enable_laser(self):
-        self.laser_controler.model.enable_lasers()
-        self.laser_controler.model.process_measured_data()
-
-
-class Laser:
-    def __init__(self, laser_port):
-        self.model = model.Laser(laser_port)
-
-    def update_driver_voltage(self, bits):
-        self.model.driver_bits = bits
-
-    def update_current_dac1(self, bits):
-        self.model.current_bits_dac_1 = bits
-
-    def update_current_dac2(self, bits):
-        self.model.current_bits_dac_2 = bits
-
-    def update_current_probe_laser(self, bits):
-        self.model.current_bits_probe_laser = bits
-
-    def update_configuration(self):
-        self.model.update_configuration()
-
-    def mode_dac1(self, i) -> typing.Callable:
-        return self.model.mode_dac1(i)
-
-    def mode_dac2(self, i) -> typing.Callable:
-        return self.model.mode_dac2(i)
-
-    def update_photo_gain(self, value):
-        self.model.photo_diode_gain = value + 1
-
-    def update_probe_laser_mode(self, index):
-        match index:
-            case view.ProbeLaser.CONSTANT_LIGHT:
-                self.model.configuration.probe_laser.constant_light = True
-                self.model.configuration.probe_laser.constant_current = False
-            case view.ProbeLaser.CONSTANT_LIGHT:
-                self.model.configuration.probe_laser.constant_light = False
-                self.model.configuration.probe_laser.constant_current = True
-            case _:
-                self.model.configuration.probe_laser.constant_light = False
-                self.model.configuration.probe_laser.constant_light = True
-
-    def load_config(self):
-        self.model.load_config()
-
-    @property
-    def pump_laser(self):
-        return self.model.configuration.pump_laser
-
-    @property
-    def probe_laser(self):
-        return self.model.configuration.probe_laser
-
-
-class Tec:
-    def __init__(self):
-        raise NotImplementedError("Will be implemented in version 1.1.0")
+        self.driver_controller.hardware_model.open_laser()
+        self.driver_controller.hardware_model.laser.enable_lasers()
+        self.driver_controller.hardware_model.laser.process_measured_data()

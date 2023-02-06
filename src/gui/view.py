@@ -14,11 +14,12 @@ class MainWindow(QtWidgets.QMainWindow):
     HORIZONTAL_SIZE = 1200
     VERTICAL_SIZE = 800
 
-    def __init__(self, main_controller: controller.MainApplication):
+    def __init__(self, main_controller: controller.MainApplication, driver_controller: controller.Hardware):
         QtWidgets.QMainWindow.__init__(self)
         self.setWindowTitle("Passepartout")
-        self.controller = main_controller
-        self.driver_model = main_controller.driver_model
+        self.main_controller = main_controller
+        self.hardware_controller = driver_controller
+        self.hardware_model = driver_controller.hardware_model
         self.tab_bar = QtWidgets.QTabWidget(self)
         self.setCentralWidget(self.tab_bar)
         self.tabs: None | Tab = None
@@ -31,31 +32,31 @@ class MainWindow(QtWidgets.QMainWindow):
         self.sensitivity = Sensitivity()
         self.pti_signal = PTISignal()
         self._init_tabs()
-        self.tabs.home.settings.setModel(self.controller.settings_model)
+        self.tabs.home.settings.setModel(self.main_controller.settings_model)
         self.resize(MainWindow.HORIZONTAL_SIZE, MainWindow.VERTICAL_SIZE)
         self.show()
 
     def _init_pump_laser_tab(self):
         pump_laser_tab = QtWidgets.QTabWidget()
         pump_laser_tab.setLayout(QtWidgets.QHBoxLayout())
-        pump_laser_tab.layout().addWidget(PumpLaser())
+        pump_laser_tab.layout().addWidget(PumpLaser(self.hardware_model, self.hardware_controller))
         pump_laser_tab.layout().addWidget(self.current_pump_laser.window)
         return pump_laser_tab
 
     def _init_probe_laser_tab(self):
         probe_laser_tab = QtWidgets.QTabWidget()
         probe_laser_tab.setLayout(QtWidgets.QHBoxLayout())
-        probe_laser_tab.layout().addWidget(ProbeLaser())
+        probe_laser_tab.layout().addWidget(ProbeLaser(self.hardware_model, self.hardware_controller))
         probe_laser_tab.layout().addWidget(self.current_probe_laser.window)
         return probe_laser_tab
 
     def _init_tabs(self):
-        self.tabs = Tab(home=Home(controller.Home(self.controller, self)), daq=DAQ(),
+        self.tabs = Tab(home=Home(controller.Home(self.hardware_controller, self.main_controller, self)), daq=DAQ(),
                         pump_laser=self._init_pump_laser_tab(), probe_laser=self._init_probe_laser_tab(),
                         tec=None,
                         dc=QtWidgets.QTabWidget(), amplitudes=QtWidgets.QTabWidget(),
                         output_phases=QtWidgets.QTabWidget(), sensitivity=QtWidgets.QTabWidget(),
-                        interferometric_phase=QtWidgets.QTabWidget(),  pti_signal=QtWidgets.QTabWidget())
+                        interferometric_phase=QtWidgets.QTabWidget(), pti_signal=QtWidgets.QTabWidget())
         self.tab_bar.addTab(self.tabs.home, "Home")
         self.tab_bar.addTab(self.tabs.daq, "Valves")
         self.tab_bar.addTab(self.tabs.pump_laser, "Pump Laser")
@@ -92,9 +93,9 @@ class MainWindow(QtWidgets.QMainWindow):
                                                | QtWidgets.QMessageBox.StandardButton.No)
         if close == QtWidgets.QMessageBox.StandardButton.Yes:
             close_event.accept()
-            for port in self.driver_model.ports:
+            for port in self.hardware_model.ports:
                 port.close()
-            self.controller.close()
+            self.main_controller.close()
         else:
             close_event.ignore()
 
@@ -254,13 +255,13 @@ class PumpLaser(QtWidgets.QWidget, CreateButton):
     MIN_CURRENT = 0
     MAX_CURRENT = (1 << 12) - 1
 
-    def __init__(self):
+    def __init__(self, hardware_model: model.Hardware, hardware_controller: controller.Hardware):
         self.frames = {}
         QtWidgets.QWidget.__init__(self)
         CreateButton.__init__(self)
-        self.driver_model = model.Driver()
+        self.hardware_model = hardware_model
         self.setLayout(QtWidgets.QGridLayout())
-        self.laser_controller = controller.Laser(self.driver_model.ports.laser)
+        self.hardware_controller = hardware_controller
         self.current_display = QtWidgets.QLabel("0 mA")
         self.voltage_display = QtWidgets.QLabel("0 V")
         self.driver_voltage = Slider(minimum=PumpLaser.MIN_DRIVER_BIT, maximum=PumpLaser.MAX_DRIVER_BIT,
@@ -286,32 +287,32 @@ class PumpLaser(QtWidgets.QWidget, CreateButton):
 
     def _init_voltage_configuration(self):
         model.signals.laser_voltage.connect(self.driver_voltage.update_value)
-        self.driver_voltage.slider.valueChanged.connect(self.laser_controller.update_driver_voltage)
-        self.driver_voltage.slider.setValue(self.laser_controller.pump_laser.bit_value)
+        self.driver_voltage.slider.valueChanged.connect(self.hardware_controller.update_driver_voltage)
+        self.driver_voltage.slider.setValue(self.hardware_controller.pump_laser.bit_value)
 
     def _init_current_configuration(self):
-        self.current[0].slider.valueChanged.connect(self.laser_controller.update_current_dac1)
-        self.current[1].slider.valueChanged.connect(self.laser_controller.update_current_dac2)
+        self.current[0].slider.valueChanged.connect(self.hardware_controller.update_current_dac1)
+        self.current[1].slider.valueChanged.connect(self.hardware_controller.update_current_dac2)
         model.signals.current_dac1.connect(self.current[0].update_value)
         model.signals.current_dac2.connect(self.current[1].update_value)
         for i in range(3):
-            self.mode_matrix[0][i].currentIndexChanged.connect(self.laser_controller.mode_dac1(i))
-            if self.laser_controller.pump_laser.DAC_1.continuous_wave[i]:
+            self.mode_matrix[0][i].currentIndexChanged.connect(self.hardware_controller.mode_dac1(i))
+            if self.hardware_controller.pump_laser.DAC_1.continuous_wave[i]:
                 self.mode_matrix[0][i].setCurrentIndex(model.Mode.CONTINUOUS_WAVE)
-            elif self.laser_controller.pump_laser.DAC_1.pulsed_mode[i]:
+            elif self.hardware_controller.pump_laser.DAC_1.pulsed_mode[i]:
                 self.mode_matrix[0][i].setCurrentIndex(model.Mode.PULSED)
             else:
                 self.mode_matrix[0][i].setCurrentIndex(model.Mode.DISABLED)
         for i in range(3):
-            self.mode_matrix[1][i].currentIndexChanged.connect(self.laser_controller.mode_dac2(i))
-            if self.laser_controller.pump_laser.DAC_2.continuous_wave[i]:
+            self.mode_matrix[1][i].currentIndexChanged.connect(self.hardware_controller.mode_dac2(i))
+            if self.hardware_controller.pump_laser.DAC_2.continuous_wave[i]:
                 self.mode_matrix[1][i].setCurrentIndex(model.Mode.CONTINUOUS_WAVE)
-            elif self.laser_controller.pump_laser.DAC_2.pulsed_mode[i]:
+            elif self.hardware_controller.pump_laser.DAC_2.pulsed_mode[i]:
                 self.mode_matrix[1][i].setCurrentIndex(model.Mode.PULSED)
             else:
                 self.mode_matrix[1][i].setCurrentIndex(model.Mode.DISABLED)
-        self.current[0].slider.setValue(self.laser_controller.pump_laser.DAC_1.bit_value)
-        self.current[1].slider.setValue(self.laser_controller.pump_laser.DAC_2.bit_value)
+        self.current[0].slider.setValue(self.hardware_controller.pump_laser.DAC_1.bit_value)
+        self.current[1].slider.setValue(self.hardware_controller.pump_laser.DAC_2.bit_value)
 
     def _init_frames(self):
         self.create_frame(master=self, title="Measured Values", x_position=0, y_position=0)
@@ -338,9 +339,9 @@ class PumpLaser(QtWidgets.QWidget, CreateButton):
 
         config = QtWidgets.QWidget()
         config.setLayout(QtWidgets.QHBoxLayout())
-        self.create_button(master=config, title="Save Configuration", slot=self.laser_controller.update_configuration)
-        self.create_button(master=config, title="Load Configuration", slot=self.laser_controller.update_configuration)
-        self.create_button(master=config, title="Apply Configuration", slot=self.laser_controller.update_configuration)
+        self.create_button(master=config, title="Save Configuration", slot=self.hardware_controller.update_configuration)
+        self.create_button(master=config, title="Load Configuration", slot=self.hardware_controller.update_configuration)
+        self.create_button(master=config, title="Apply Configuration", slot=self.hardware_controller.update_configuration)
         self.frames["Configuration"].layout().addWidget(config, 4, 0)
 
     def create_frame(self, title, x_position, y_position, master=None):
@@ -359,7 +360,7 @@ class ProbeLaser(QtWidgets.QWidget, CreateButton):
     CONSTANT_CURRENT = 0
     CONSTANT_LIGHT = 1
 
-    def __init__(self):
+    def __init__(self, hardware_model: model.Hardware, hardware_controller: controller.Hardware):
         self.frames = {}
         QtWidgets.QWidget.__init__(self)
         CreateButton.__init__(self)
@@ -367,8 +368,8 @@ class ProbeLaser(QtWidgets.QWidget, CreateButton):
         self.setLayout(QtWidgets.QGridLayout())
         self.current_slider = Slider(minimum=ProbeLaser.MIN_CURRENT_BIT, maximum=ProbeLaser.MAX_CURRENT_BIT,
                                      unit="mA")
-        self.driver_model = model.Driver()
-        self.laser_controller = controller.Laser(self.driver_model.ports.laser)
+        self.hardware_model = hardware_model
+        self.hardware_controller = hardware_controller
         self.laser_mode = QtWidgets.QComboBox()
         self.photo_gain = QtWidgets.QComboBox()
         self.current_display = QtWidgets.QLabel("0 mA")
@@ -378,6 +379,11 @@ class ProbeLaser(QtWidgets.QWidget, CreateButton):
         self._init_photo_gain_configuration()
         self._init_current_mode_configuration()
         self.frames["Measured Values"].layout().addWidget(self.current_display)
+        self.max_current_display = QtWidgets.QLineEdit()
+        self.max_current_display.setText("40")
+        self.frames["Maximum Current"].setLayout(QtWidgets.QHBoxLayout())
+        self.frames["Maximum Current"].layout().addWidget(self.max_current_display)
+        self.frames["Maximum Current"].layout().addWidget(QtWidgets.QLabel("mA"))
         model.signals.laser_data_display.connect(self.update_current)
 
     @QtCore.Slot()
@@ -385,23 +391,24 @@ class ProbeLaser(QtWidgets.QWidget, CreateButton):
         self.current_display.setText(str(value.probe_laser_current) + " mA")
 
     def _init_frames(self):
-        self.create_frame(title="Measured Values", x_position=0, y_position=0)
-        self.create_frame(title="Current", x_position=1, y_position=0)
-        self.create_frame(title="Mode", x_position=2, y_position=0)
-        self.create_frame(title="Photo Diode Gain", x_position=3, y_position=0)
-        self.create_frame(title="Configuration", x_position=4, y_position=0)
+        self.create_frame(title="Maximum Current", x_position=0, y_position=0)
+        self.create_frame(title="Measured Values", x_position=1, y_position=0)
+        self.create_frame(title="Current", x_position=2, y_position=0)
+        self.create_frame(title="Mode", x_position=3, y_position=0)
+        self.create_frame(title="Photo Diode Gain", x_position=4, y_position=0)
+        self.create_frame(title="Configuration", x_position=5, y_position=0)
 
     def _init_slider(self):
         self.frames["Current"].layout().addWidget(self.current_slider)
-        self.current_slider.slider.valueChanged.connect(self.laser_controller.update_current_probe_laser)
+        self.current_slider.slider.valueChanged.connect(self.hardware_controller.update_current_probe_laser)
         model.signals.current_probe_laser.connect(self.current_slider.update_value)
-        self.current_slider.slider.setValue(self.laser_controller.probe_laser.current_bits)
+        self.current_slider.slider.setValue(self.hardware_controller.probe_laser.current_bits)
 
     def _init_buttons(self):
         sub_layout = QtWidgets.QWidget()
         sub_layout.setLayout(QtWidgets.QVBoxLayout())
-        self.laser_mode.addItem("Constant Current")
         self.laser_mode.addItem("Constant Light")
+        self.laser_mode.addItem("Constant Current")
         sub_layout.layout().addWidget(self.laser_mode)
         self.frames["Mode"].layout().addWidget(sub_layout)
         sub_layout = QtWidgets.QWidget()
@@ -414,26 +421,26 @@ class ProbeLaser(QtWidgets.QWidget, CreateButton):
         self.frames["Photo Diode Gain"].layout().addWidget(sub_layout)
         config = QtWidgets.QWidget()
         config.setLayout(QtWidgets.QHBoxLayout())
-        self.create_button(master=config, title="Save Configuration", slot=self.laser_controller.update_configuration)
-        self.create_button(master=config, title="Load Configuration", slot=self.laser_controller.update_configuration)
-        self.create_button(master=config, title="Apply Configuration", slot=self.laser_controller.update_configuration)
+        self.create_button(master=config, title="Save Configuration", slot=self.hardware_controller.update_configuration)
+        self.create_button(master=config, title="Load Configuration", slot=self.hardware_controller.update_configuration)
+        self.create_button(master=config, title="Apply Configuration", slot=self.hardware_controller.update_configuration)
         self.frames["Configuration"].layout().addWidget(config, 3, 0)
 
     def _init_photo_gain_configuration(self):
-        photo_gain = self.laser_controller.probe_laser.photo_diode_gain
+        photo_gain = self.hardware_controller.probe_laser.photo_diode_gain
         if not isinstance(photo_gain, int) or not 1 <= photo_gain <= 4:
             photo_gain = 1
         self.photo_gain.setCurrentIndex(photo_gain - 1)
-        self.photo_gain.currentIndexChanged.connect(self.laser_controller.update_photo_gain)
+        self.photo_gain.currentIndexChanged.connect(self.hardware_controller.update_photo_gain)
 
     def _init_current_mode_configuration(self):
-        if self.laser_controller.probe_laser.constant_current:
+        if self.hardware_controller.probe_laser.constant_current:
             self.laser_mode.setCurrentIndex(ProbeLaser.CONSTANT_CURRENT)
-        elif self.laser_controller.probe_laser.constant_light:
+        elif self.hardware_controller.probe_laser.constant_light:
             self.laser_mode.setCurrentIndex(ProbeLaser.CONSTANT_LIGHT)
         else:
             self.laser_mode.setCurrentIndex(ProbeLaser.CONSTANT_CURRENT)
-        self.laser_mode.currentIndexChanged.connect(self.laser_controller.update_probe_laser_mode)
+        self.laser_mode.currentIndexChanged.connect(self.hardware_controller.update_probe_laser_mode)
 
     def create_frame(self, title, x_position, y_position, master=None):
         self.frames[title] = QtWidgets.QGroupBox()
@@ -479,9 +486,8 @@ class DC(_Plotting):
         self.curves = [self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="DC CH1"),
                        self.plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="DC CH2"),
                        self.plot.plot(pen=pg.mkPen(_MatplotlibColors.GREEN), name="DC CH3")]
-        self.setLabel(axis="bottom", text="Time [s]")
-        self.setLabel(axis="left", text="Intensity [V]")
-        self.plot.addLegend()
+        self.plot.setLabel(axis="bottom", text="Time [s]")
+        self.plot.setLabel(axis="left", text="Intensity [V]")
         model.signals.decimation.connect(self.update_data)
         model.signals.decimation_live.connect(self.update_data)
 
@@ -500,10 +506,8 @@ class Amplitudes(_Plotting):
         self.curves = [self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="Amplitude CH1"),
                        self.plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="Amplitude CH2"),
                        self.plot.plot(pen=pg.mkPen(_MatplotlibColors.GREEN), name="Amplitude CH3")]
-        self.setLabel(axis="bottom", text="Time [s]")
-        self.setLabel(axis="left", text="Amplitude [V]")
-        self.showGrid(x=True, y=True)
-        self.plot.addLegend()
+        self.plot.setLabel(axis="bottom", text="Time [s]")
+        self.plot.setLabel(axis="left", text="Amplitude [V]")
         model.signals.characterization.connect(self.update_data)
         model.signals.characterization_live.connect(self.update_data_live)
 
@@ -521,10 +525,8 @@ class OutputPhases(_Plotting):
         _Plotting.__init__(self)
         self.curves = [self.plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="Output Phase CH2"),
                        self.plot.plot(pen=pg.mkPen(_MatplotlibColors.GREEN), name="Output Phase CH3")]
-        self.setLabel(axis="bottom", text="Time [s]")
-        self.setLabel(axis="left", text="Output Phase [deg]")
-        self.showGrid(x=True, y=True)
-        self.plot.addLegend()
+        self.plot.setLabel(axis="bottom", text="Time [s]")
+        self.plot.setLabel(axis="left", text="Output Phase [deg]")
         model.signals.characterization.connect(self.update_data)
         model.signals.characterization_live.connect(self.update_data_live)
 
@@ -541,9 +543,8 @@ class InterferometricPhase(_Plotting):
     def __init__(self):
         _Plotting.__init__(self)
         self.curves = self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE))
-        self.setLabel(axis="bottom", text="Time [s]")
-        self.setLabel(axis="left", text="Interferometric Phase [rad]")
-        self.showGrid(x=True, y=True)
+        self.plot.setLabel(axis="bottom", text="Time [s]")
+        self.plot.setLabel(axis="left", text="Interferometric Phase [rad]")
         model.signals.inversion.connect(self.update_data)
         model.signals.inversion_live.connect(self.update_data_live)
 
@@ -558,9 +559,8 @@ class Sensitivity(_Plotting):
     def __init__(self):
         _Plotting.__init__(self)
         self.curves = self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE))
-        self.setLabel(axis="bottom", text="Time [s]")
-        self.setLabel(axis="left", text="Sensitivity [1/rad]")
-        self.showGrid(x=True, y=True)
+        self.plot.setLabel(axis="bottom", text="Time [s]")
+        self.plot.setLabel(axis="left", text="Sensitivity [1/rad]")
         model.signals.inversion.connect(self.update_data)
         model.signals.inversion_live.connect(self.update_data_live)
 
@@ -576,9 +576,8 @@ class PTISignal(_Plotting):
         _Plotting.__init__(self)
         self.curves = {"PTI Signal": self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="1 s", size=6),
                        "PTI Signal Mean": self.plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="60 s Mean")}
-        self.setLabel(axis="bottom", text="Time [s]")
-        self.setLabel(axis="left", text="PTI Signal [µrad]")
-        self.plot.addLegend()
+        self.plot.setLabel(axis="bottom", text="Time [s]")
+        self.plot.setLabel(axis="left", text="PTI Signal [µrad]")
         model.signals.inversion.connect(self.update_data)
         model.signals.inversion_live.connect(self.update_data)
 
@@ -595,9 +594,8 @@ class PumpLaserCurrent(_Plotting):
     def __init__(self):
         _Plotting.__init__(self)
         self.curves = self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE))
-        self.setLabel(axis="bottom", text="Time [s]")
-        self.setLabel(axis="left", text="Current [mA]")
-        self.showGrid(x=True, y=True)
+        self.plot.setLabel(axis="bottom", text="Time [s]")
+        self.plot.setLabel(axis="left", text="Current [mA]")
         model.signals.laser_data.connect(self.update_data_live)
 
     def update_data(self, data: pd.DataFrame):
@@ -611,9 +609,8 @@ class PumpLaserVoltage(_Plotting):
     def __init__(self):
         _Plotting.__init__(self)
         self.curves = self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE))
-        self.setLabel(axis="bottom", text="Time [s]")
-        self.setLabel(axis="left", text="Voltage [V]")
-        self.showGrid(x=True, y=True)
+        self.plot.setLabel(axis="bottom", text="Time [s]")
+        self.plot.setLabel(axis="left", text="Voltage [V]")
         model.signals.laser_data.connect(self.update_data_live)
 
     def update_data(self, data: pd.DataFrame):
@@ -627,9 +624,8 @@ class ProbeLaserCurrent(_Plotting):
     def __init__(self):
         _Plotting.__init__(self)
         self.curves = self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE))
-        self.setLabel(axis="bottom", text="Time [s]")
-        self.setLabel(axis="left", text="Current [mA]")
-        self.showGrid(x=True, y=True)
+        self.plot.setLabel(axis="bottom", text="Time [s]")
+        self.plot.setLabel(axis="left", text="Current [mA]")
         model.signals.laser_data.connect(self.update_data_live)
 
     def update_data(self, data: pd.DataFrame):

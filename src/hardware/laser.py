@@ -8,6 +8,7 @@ from typing import Annotated
 
 import dacite
 from statemachine import StateMachine, State
+from multipledispatch import dispatch
 
 import hardware.driver
 
@@ -21,17 +22,57 @@ class DAC:
 
 @dataclass
 class PumpLaser:
+    RESISTOR = 2.2e4
+    DIGITAL_POT = 1e4
+    NUMBER_OF_STEPS = 1 << 7
+    PRE_RESISTOR = 1.6e3
+
+    max_current_mA: float
     bit_value: int
     DAC_1: DAC
     DAC_2: DAC
 
+    @staticmethod
+    def bit_to_voltage(bits):
+        # 0.8 is an interpolation constant without any practical meaning.
+        return 0.8 * PumpLaser.RESISTOR / (bits * PumpLaser.DIGITAL_POT / PumpLaser.NUMBER_OF_STEPS
+                                           + PumpLaser.PRE_RESISTOR) + 0.8
+
 
 @dataclass
 class ProbeLaser:
-    current_bits: int
+    max_current_mA: float
+    _current_bits: int
     constant_current: bool
     constant_light: bool
     photo_diode_gain: int
+
+    @staticmethod
+    def bit_to_current(bits):
+        # Values and formula is given by hardware
+        return (bits - 260.4) / (-5.335)
+
+    @staticmethod
+    def current_to_bit(bits):
+        return -5.335 * bits + 260.4
+
+    @property
+    def current_bits(self) -> float:
+        return ProbeLaser.bit_to_current(self._current_bits)
+
+    @current_bits.setter
+    @dispatch(int)
+    def current_bits(self, current: int) -> None:
+        if ProbeLaser.bit_to_current(current) > self.max_current_mA:
+            logging.error(f"Current of {current} exceeds maximum allowed value of {self.max_current_mA}")
+        self._current_bits = min(ProbeLaser.current_to_bit(self.max_current_mA), current)
+
+    @current_bits.setter
+    @dispatch(float)
+    def current_bits(self, current: float) -> None:
+        if current > self.max_current_mA:
+            logging.error(f"Current of {current} exceeds maximum allowed value of {self.max_current_mA}")
+        self._current_bits = ProbeLaser.current_to_bit(min(self.max_current_mA, current))
 
 
 @dataclass
@@ -57,20 +98,15 @@ class DriverStateMachine(StateMachine):
 class Driver(hardware.driver.Serial):
     HARDWARE_ID = b"0002"
     NAME = "Laser"
-    DELIMITER = "\t"
-    DATA_START = "L"
+    DELIMITER = b"\t"
+    DATA_START = b"L"
     START_MEASURED_DATA = 1
     END_MEASURED_DATA = 4
 
     # Pump Laser
-    RESISTOR = 2.2e4
-    DIGITAL_POT = 1e4
-    NUMBER_OF_STEPS = 1 << 7
-    PRE_RESISTOR = 1.6e3
     ContinuesWaveRegister = [1 << 8, 1 << 10, 1 << 12, 1 << 14, 1 << 0, 1 << 2]
     ModulatedModeRegister = [1 << 9, 1 << 11, 1 << 13, 1 << 15, 1 << 1, 1 << 3]
 
-    # Probe Laser
     CURRENT_BITS = (1 << 8) - 1
 
     def __init__(self):
@@ -79,19 +115,23 @@ class Driver(hardware.driver.Serial):
         self.probe_laser = None  # type: None | ProbeLaser
         self.config_path = "hardware/configs/laser.json"
         self.laser_data = queue.Queue(maxsize=Driver.QUEUE_SIZE)
-        self.laser_machine = DriverStateMachine()
-        self.laser_machine.connect()
+        self.running = threading.Event()
+        self.laser_machine = DriverStateMachine
         self.load_configs()
 
     def load_configs(self):
         with open(self.config_path) as config:
             loaded_config = json.load(config)
-            self.pump_laser = dacite.from_dict(PumpLaser, loaded_config["pump_laser"])
-            self.probe_laser = dacite.from_dict(ProbeLaser, loaded_config["probe_laser"])
+            self.pump_laser = dacite.from_dict(PumpLaser, loaded_config["Pump Laser"])
+            self.probe_laser = dacite.from_dict(ProbeLaser, loaded_config["Probe Laser"])
 
     def open(self):
         super().open()
-        self.laser_machine.connect()
+#        self.laser_machine.connected()
+
+    def close(self):
+        super().close()
+        self.running.clear()
 
     @property
     def device_id(self):
@@ -100,16 +140,6 @@ class Driver(hardware.driver.Serial):
     @property
     def device_name(self):
         return Driver.NAME
-
-    @staticmethod
-    def bit_to_voltage(bits):
-        # Values and formula is given by hardware
-        return 0.8 * Driver.RESISTOR / (bits * Driver.DIGITAL_POT / Driver.NUMBER_OF_STEPS + Driver.PRE_RESISTOR) + 0.8
-
-    @staticmethod
-    def bit_to_current(bits):
-        # Values and formula is given by hardware
-        return (bits - 260.4) / (-5.335)
 
     def set_static_current(self, current):
         self.write(b"SC3" + bytes(current))
@@ -146,12 +176,9 @@ class Driver(hardware.driver.Serial):
     def enable_channels(self):
         self.write(b"SHE0001")
 
-    def disable_channels(self):
-        self.write(b"SHE0000")
-
     def set_probe_laser_current(self):
-        power_current = f"{self.probe_laser.current_bits:0{hardware.driver.Serial.NUMBER_OF_HEX_BYTES}x}".encode()
-        self.write(b"SLS" + power_current)
+        current_hex = f"{self.probe_laser.current_bits:0{hardware.driver.Serial.NUMBER_OF_HEX_BYTES}x}".encode()
+        self.write(b"SLS" + current_hex)
 
     def set_probe_laser_mode(self):
         if self.probe_laser.constant_light:
@@ -160,25 +187,25 @@ class Driver(hardware.driver.Serial):
             self.write(b"SLM0002")
 
     def init_laser(self):
-        self.write(b"CHI0000")
-        self.write(b"CLI0000")
-        self.laser_machine.initialize()
+        if self.write(b"CHI0001") and self.write(b"CLI0001"):
+   #         self.laser_machine.initialize()
+            pass
 
     def enable_lasers(self):
-        self.write(b"SHE0001")
-        self.write(b"SLE0001")
-        self.laser_machine.enable()
+        if self.write(b"SHE0001") and self.write(b"SLE0001"):
+          #  self.laser_machine.enable()
+            pass
 
     def disable_laser(self):
-        self.write(b"SHE0000")
-        self.write(b"SLE0000")
-        self.laser_machine.disable()
+        if self.write(b"SHE0000") and self.write(b"SLE0000"):
+            self.laser_machine.disable()
 
     def set_photo_gain(self):
         phot_gain_hex = f"{self.probe_laser.photo_diode_gain:0{hardware.driver.Serial.NUMBER_OF_HEX_BYTES}x}".encode()
-        self.write(b"SLS" + phot_gain_hex)
+        self.write(b"SLS00" + phot_gain_hex)
 
-    def _encode_data(self, received_data):
+    def _encode_data(self):
+        received_data = self.received_data.get(block=True)
         for received in received_data.split(Driver.TERMINATION_SYMBOL):
             if not received:
                 continue
@@ -187,10 +214,10 @@ class Driver(hardware.driver.Serial):
                 case "N":
                     logging.error(f"Invalid command {encoded_data}")
                 case "S" | "C":
-                    logging.info(f"Command {encoded_data} successfully applied")
+                    logging.debug(f"Command {encoded_data} successfully applied")
                 case "L":
-                    measured_data = encoded_data.split(Driver.DELIMITER)[Driver.START_MEASURED_DATA:
-                                                                         Driver.END_MEASURED_DATA]
+                    measured_data = encoded_data.split("\t")[Driver.START_MEASURED_DATA:
+                                                             Driver.END_MEASURED_DATA]
                     laser_data = Data()
                     laser_data.pump_laser_voltage = float(measured_data[0])
                     laser_data.pump_laser_current = float(measured_data[1])

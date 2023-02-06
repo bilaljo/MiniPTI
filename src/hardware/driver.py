@@ -1,39 +1,14 @@
 import abc
-import threading
 import logging
 import queue
 import re
+import threading
 import time
 from dataclasses import dataclass
 from enum import Enum
 
-import asyncio
-import serial_asyncio
 import serial
 from serial.tools import list_ports
-
-
-class OutputProtocol(asyncio.Protocol):
-    def __init__(self):
-        asyncio.Protocol.__init__(self)
-        self.received_data = queue.Queue()
-        self.transport = None  # type: None | asyncio.Transport
-
-    def connection_made(self, transport: asyncio.Transport) -> None:
-        self.transport = transport
-
-    def data_received(self, data: bytes) -> None:
-        self.received_data.put(data)
-
-    def write_data(self, data: bytes) -> None:
-        self.transport.write(data)
-
-    def connection_lost(self, exc: Exception | None) -> None:
-        if exc:
-            logging.error(f"Connection closed, caused by {exc}")
-        else:
-            logging.info("Connection closed")
-        self.transport.close()
 
 
 class Error(Enum):
@@ -70,13 +45,10 @@ class Serial:
     NUMBER_OF_HEX_BYTES = 4
 
     def __init__(self):
-        self.port = None
-        self.received_data = asyncio.Queue(maxsize=Serial.QUEUE_SIZE)
+        self.device = serial.Serial()
+        self.received_data = queue.Queue(maxsize=Serial.QUEUE_SIZE)
         self.connected = False
-        self.serial_thread = None  # type: None | threading.Thread
-        self.event_loop = asyncio.get_event_loop()
-        self.protocol = None  # type: None | OutputProtocol
-        self.transport = None  # type: None | asyncio.Transport
+        self.running = threading.Event()
 
     @property
     @abc.abstractmethod
@@ -92,14 +64,11 @@ class Serial:
         class_name = self.__class__.__name__
         representation = f"{class_name}(termination_symbol={Serial.TERMINATION_SYMBOL}," \
                          f" device_id={self.device_id}"
-        representation += f"port={self.port}, device={self.device_name}, received_data={self.received_data})"
+        representation += f"device={self.device}, received_data={self.received_data})"
         return representation
 
-    def get_hardware_id(self, received_data=None):
-        if received_data is not None:
-            hardware_id = Patterns.HARDWARE_ID.search(received_data)
-        else:
-            hardware_id = Patterns.HARDWARE_ID.search(self.received_data.get())
+    def get_hardware_id(self):
+        hardware_id = Patterns.HARDWARE_ID.search(self.received_data.get())
         if hardware_id is not None:
             hardware_id = hardware_id.group()
             return Patterns.HEX_VALUE.search(hardware_id).group()
@@ -108,33 +77,31 @@ class Serial:
         if Patterns.ERROR.search(received) is not None:
             match Patterns.HEX_VALUE.search(Patterns.ERROR.search(received).group()).group():
                 case Error.COMMAND:
-                    raise SerialError(f"Packet length != 7 characters ('\n' excluded) from {self.device_name}")
+                    raise SerialError(f"Packet length != 7 characters ('\n' excluded) from {self.device}")
                 case Error.PARAMETER:
-                    raise SerialError(f"Error converting the hex parameter from {self.device_name}")
+                    raise SerialError(f"Error converting the hex parameter from {self.device}")
                 case Error.COMMAND:
-                    raise SerialError(f"Request consists of an unknown/invalid command from {self.device_name}")
+                    raise SerialError(f"Request consists of an unknown/invalid command from {self.device}")
                 case Error.UNKNOWN_COMMAND:
-                    raise SerialError(f"Unknown command from {self.device_name}")
+                    raise SerialError(f"Unknown command from {self.device}")
 
-    def write(self, message: bytes | bytearray):
+    def write(self, message):
         if self.connected:
-            self.transport.write(message + Serial.TERMINATION_SYMBOL)
+            self.device.write(message + Serial.TERMINATION_SYMBOL)
+            time.sleep(.1)
+            return True
+        else:
+            return False
 
     def __enter__(self):
         self.find_port()
-        self.open()
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
 
     @abc.abstractmethod
-    def _encode_data(self, received_data):
+    def _encode_data(self):
         ...
-
-    async def encode(self):
-        while True:
-            received_data = await self.received_data.get()
-            self._encode_data(received_data)
 
     def find_port(self):
         """
@@ -158,10 +125,11 @@ class Serial:
             while current_time < start_time + Serial.WAIT_TIME:
                 received_bytes += device.read(device.inWaiting())
                 current_time = time.time() * 1000
-            if self.get_hardware_id(received_bytes) == self.device_id:
+            self.received_data.put(received_bytes)
+            if self.get_hardware_id() == self.device_id:
                 device.close()
-                self.port = port
-                logging.info(f"Found {self.device_name} at {self.port}")
+                self.device.port = port.device
+                logging.info(f"Found {self.device_name} at {self.device.port}")
                 break
             else:
                 device.close()
@@ -170,22 +138,37 @@ class Serial:
             raise SerialError("Could not find {self.device_name}")
 
     def open(self):
-        if self.port:
+        if self.device.port:
             logging.info(f"Connected with {self.device_name}")
-
-            async def main():
-                receiver = serial_asyncio.create_serial_connection(self.event_loop, OutputProtocol, self.port)
-                encoder = self.event_loop.create_task(self.encode())
-                await receiver
-                await encoder
+            self.device.open()
+            self.running.set()
             self.connected = True
-            self.transport, self.protocol = self.event_loop.run_until_complete(main())
-            self.serial_thread = threading.Thread(target=self.event_loop.run_forever)
-            self.serial_thread.start()
+            threading.Thread(target=self.receive).start()
+            threading.Thread(target=self.encode).start()
         else:
             logging.error(f"Could not connect with {self.device_name}")
             raise SerialError(f"Could not connect with {self.device_name}")
 
+    def is_open(self):
+        return self.device.is_open()
+
     def close(self):
-        if self.transport is not None:
-            self.transport.close()
+        if self.device.is_open:
+            self.device.close()
+            self.connected = False
+
+    def receive(self):
+        while self.running:
+            try:
+                if bytes_to_read := self.device.in_waiting:
+                    self.received_data.put(bytes(self.device.read(bytes_to_read)), block=False)
+            except queue.Full:
+                logging.error(f"Buffer queue of device {self.device_name} is full")
+                logging.info("Removed one item")
+                self.received_data.get()  # Remove the oldest item since the queue is full
+            except serial.SerialException:
+                break
+
+    def encode(self):
+        while self.running:
+            self._encode_data()
