@@ -9,6 +9,8 @@ from enum import Enum
 
 import serial
 from serial.tools import list_ports
+import clr
+import System.IO.Ports
 
 
 class Error(Enum):
@@ -49,6 +51,7 @@ class Serial:
         self.received_data = queue.Queue(maxsize=Serial.QUEUE_SIZE)
         self.connected = False
         self.running = threading.Event()
+        self.serial_port = System.IO.Ports.SerialPort()
 
     @property
     @abc.abstractmethod
@@ -140,34 +143,27 @@ class Serial:
     def open(self):
         if self.device.port:
             logging.info(f"Connected with {self.device_name}")
-            self.device.open()
+            self.serial_port = System.IO.Ports.SerialPort(self.device.port)
+            self.serial_port += System.IO.Ports.SerialDataReceivedEventHandler(self.receive)
+            self.serial_port.open()
             self.running.set()
             self.connected = True
-            threading.Thread(target=self.receive).start()
             threading.Thread(target=self.encode).start()
         else:
             logging.error(f"Could not connect with {self.device_name}")
             raise SerialError(f"Could not connect with {self.device_name}")
 
     def is_open(self):
-        return self.device.is_open()
+        pass
 
     def close(self):
         if self.device.is_open:
-            self.device.close()
+            self.serial_port.close()
             self.connected = False
 
-    def receive(self):
-        while self.running:
-            try:
-                if bytes_to_read := self.device.in_waiting:
-                    self.received_data.put(bytes(self.device.read(bytes_to_read)), block=False)
-            except queue.Full:
-                logging.error(f"Buffer queue of device {self.device_name} is full")
-                logging.info("Removed one item")
-                self.received_data.get()  # Remove the oldest item since the queue is full
-            except serial.SerialException:
-                break
+    def receive(self, sender: System.IO.Ports.SerialPort, e: System.IO.Ports.SerialDataReceivedEventArgs):
+        serial_port = sender
+        self.received_data.put(serial_port.ReadExisting())
 
     def encode(self):
         while self.running:

@@ -7,4 +7,4 @@ pyqtgraph
 pyserial
 dacite
 python-statemachine
-multipledispatch
+pythonnet
