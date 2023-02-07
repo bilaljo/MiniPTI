@@ -2,9 +2,13 @@ import copy
 import json
 import logging
 import queue
-import threading
 from dataclasses import dataclass
 from typing import Annotated
+import platform
+if platform.system() == "nt":
+    pass
+else:
+    import signal
 
 import dacite
 from statemachine import StateMachine, State
@@ -202,8 +206,12 @@ class Driver(hardware.driver.Serial):
                 case "N":
                     logging.error(f"Invalid command {encoded_data}")
                 case "S" | "C":
-                    logging.debug(f"Command {encoded_data} successfully applied")
-                    self.command_succed = True
+                    if encoded_data != self.last_written_message:
+                        logging.error(f"Received message {encoded_data} message,"
+                                      f" expteced {self.last_written_message}")
+                    else:
+                        logging.debug(f"Command {encoded_data} successfully applied")
+                    self.ready_write.set()
                 case "L":
                     measured_data = encoded_data.split("\t")[Driver.START_MEASURED_DATA:
                                                              Driver.END_MEASURED_DATA]

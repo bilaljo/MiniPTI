@@ -49,6 +49,9 @@ class Serial:
         self.received_data = queue.Queue(maxsize=Serial.QUEUE_SIZE)
         self.connected = False
         self.running = threading.Event()
+        self.write_buffer = queue.Queue()
+        self.ready_write = threading.Event()
+        self.last_written_message = b""
 
     @property
     @abc.abstractmethod
@@ -86,12 +89,14 @@ class Serial:
                     raise SerialError(f"Unknown command from {self.device}")
 
     def write(self, message):
-        if self.connected:
-            self.device.write(message + Serial.TERMINATION_SYMBOL)
-            time.sleep(.1)
-            return True
-        else:
-            return False
+        self.last_written_message = message
+        self.write_buffer.put(message, block=False)
+
+    def _write(self):
+        while self.connected:
+            if self.ready_write.wait() and self.write_buffer.not_empty:
+                self.device.write(self.write_buffer.get() + Serial.TERMINATION_SYMBOL)
+                self.ready_write.clear()
 
     def __enter__(self):
         self.find_port()
@@ -143,6 +148,7 @@ class Serial:
             self.device.open()
             self.running.set()
             self.connected = True
+            threading.Thread(target=self._write).start()
             threading.Thread(target=self.receive).start()
             threading.Thread(target=self.encode).start()
         else:
