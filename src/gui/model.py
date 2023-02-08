@@ -559,7 +559,7 @@ class Laser:
 
     def process_measured_data(self):
         def incoming_data():
-            while self.running:
+            while self.driver.connected.is_set():
                 received_data = self.driver.laser_data.get(block=True)
                 self.laser_buffer.append(received_data)
                 signals.laser_data.emit(self.laser_buffer)

@@ -116,7 +116,7 @@ class Driver(hardware.driver.Serial):
 
     def close(self):
         super().close()
-        self.running.clear()
+        self.connected.clear()
 
     @property
     def device_id(self):

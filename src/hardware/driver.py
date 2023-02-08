@@ -49,10 +49,9 @@ class Serial:
     def __init__(self):
         self.device = serial.Serial()
         self.received_data = queue.Queue(maxsize=Serial.QUEUE_SIZE)
-        self.connected = False
-        self.running = threading.Event()
+        self.connected = threading.Event()
         self.serial_port = System.IO.Ports.SerialPort()
-        self.write_buffer = queue.Queue()
+        self._write_buffer = queue.Queue()
         self.ready_write = threading.Event()
         self.last_written_message = b""
 
@@ -93,12 +92,12 @@ class Serial:
 
     def write(self, message):
         self.last_written_message = message
-        self.write_buffer.put(message, block=False)
+        self._write_buffer.put(message, block=False)
 
     def _write(self):
-        while self.connected:
-            if self.ready_write.wait() and self.write_buffer.not_empty:
-                self.device.write(self.write_buffer.get() + Serial.TERMINATION_SYMBOL)
+        while self.connected.is_set():
+            if self.ready_write.wait():
+                self.serial_port.WriteLine(self._write_buffer.get(block=True))
                 self.ready_write.clear()
 
     def __enter__(self):
@@ -151,7 +150,7 @@ class Serial:
             self.serial_port = System.IO.Ports.SerialPort(self.device.port)
             self.serial_port += System.IO.Ports.SerialDataReceivedEventHandler(self.receive)
             self.serial_port.open()
-            self.running.set()
+            self.connected.set()
             self.connected = True
             threading.Thread(target=self._write).start()
             threading.Thread(target=self.encode).start()
@@ -165,12 +164,11 @@ class Serial:
     def close(self):
         if self.device.is_open:
             self.serial_port.close()
-            self.connected = False
+            self.connected.clear()
 
-    def receive(self, sender: System.IO.Ports.SerialPort, e: System.IO.Ports.SerialDataReceivedEventArgs):
-        serial_port = sender
-        self.received_data.put(serial_port.ReadExisting())
+    def receive(self, sender: System.IO.Ports.SerialPort, args: System.IO.Ports.SerialDataReceivedEventArgs):
+        self.received_data.put(sender.ReadExisting())
 
     def encode(self):
-        while self.running:
+        while self.connected.is_set():
             self._encode_data()

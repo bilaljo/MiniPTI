@@ -85,10 +85,10 @@ class Driver(hardware.driver.Serial):
             self.close()
 
     @staticmethod
-    def __binary_to_2_complement(byte, byte_length):
-        if byte & (1 << (byte_length - 1)):
-            return byte - 2 ** byte_length
-        return byte
+    def __binary_to_2_complement(number, byte_length):
+        if number & (1 << (byte_length - 1)):
+            return number - 2 ** byte_length
+        return number
 
     @staticmethod
     def __encode(raw_data):
@@ -159,7 +159,6 @@ class Driver(hardware.driver.Serial):
                         self.sample_numbers.popleft()
                         self.__reset()
                 ref_signal, ac_coupled, dc_coupled = Driver.__encode(data)
-                self.synchronize = False
                 if self.synchronize:
                     while sum(itertools.islice(ref_signal, Driver.REF_PERIOD // 2)):
                         ref_signal.pop(0)
