@@ -286,7 +286,7 @@ class PumpLaser(QtWidgets.QWidget, CreateButton):
         model.signals.laser_data_display.connect(self.update_current_voltage)
 
     @QtCore.Slot()
-    def update_current_voltage(self, value: hardware.laser.Data):
+    def update_current_voltage(self, value: hardware.laser.LaserData):
         self.current_display.setText(str(value.pump_laser_current) + " mA")
         self.voltage_display.setText(str(value.pump_laser_voltage) + " V")
 
@@ -392,8 +392,8 @@ class ProbeLaser(QtWidgets.QWidget, CreateButton):
         self.frames["Maximum Current"].layout().addWidget(QtWidgets.QLabel("mA"), 0, 1)
         model.signals.laser_data_display.connect(self.update_current)
 
-    @QtCore.Slot(hardware.laser.Data)
-    def update_current(self, value: hardware.laser.Data):
+    @QtCore.Slot(hardware.laser.LaserData)
+    def update_current(self, value: hardware.laser.LaserData):
         self.current_display.setText(str(value.probe_laser_current) + " mA")
 
     def max_current_changed(self):

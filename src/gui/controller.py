@@ -165,7 +165,7 @@ class Home:
         for port in self.main_controller.driver_model.ports:
             try:
                 port.open()
-            except hardware.driver.SerialError:
+            except hardware.serial.SerialError:
                 continue
 
     def enable_laser(self):

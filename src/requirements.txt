@@ -4,7 +4,6 @@ pandas
 scipy
 PySide6
 pyqtgraph
-pyserial
 dacite
 python-statemachine
 pythonnet

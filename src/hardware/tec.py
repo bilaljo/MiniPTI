@@ -1,12 +1,18 @@
 import hardware
+from dataclasses import dataclass
 
 
-class Driver(hardware.driver.Serial):
+@dataclass
+class Data:
+    pass
+
+
+class Driver(hardware.serial.Driver):
     HARDWARE_ID = b"0003"
     NAME = "Tec"
 
     def __init__(self):
-        hardware.driver.Serial.__init__(self)
+        hardware.serial.Driver.__init__(self)
 
     @property
     def device_id(self):
@@ -16,5 +22,6 @@ class Driver(hardware.driver.Serial):
     def device_name(self):
         return Driver.NAME
 
-    def encode_data(self):
-        pass
+    @property
+    def end_data_frame(self) -> int:
+        return 0

@@ -4,7 +4,7 @@ import gui
 
 
 def main():
-    logging.basicConfig(level=logging.INFO, format='%(levelname)s %(asctime)s: %(message)s', filename="pti.log",
+    logging.basicConfig(level=logging.DEBUG, format='%(levelname)s %(asctime)s: %(message)s', filename="pti.log",
                         filemode="a")
     app = gui.controller.MainApplication(argv=[])
     logging.info("Started Program")

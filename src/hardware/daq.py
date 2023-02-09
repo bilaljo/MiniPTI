@@ -8,7 +8,7 @@ from typing import Sequence
 
 from fastcrc import crc16
 
-import hardware.driver
+import hardware.serial
 
 
 @dataclass
@@ -18,7 +18,7 @@ class Data:
     dc_coupled: queue.Queue | deque | Sequence
 
 
-class Driver(hardware.driver.Serial):
+class Driver(hardware.serial.Driver):
     """
     This class provides an interface for receiving data from the serial port of a USB connected DAQ system.
     The data is accordingly to a defined protocol encoded and build into a packages of samples.
@@ -40,7 +40,7 @@ class Driver(hardware.driver.Serial):
     NUMBER_OF_SAMPLES = 8000
 
     def __init__(self):
-        hardware.driver.Serial.__init__(self)
+        hardware.serial.Driver.__init__(self)
         self.package_data = Data(queue.Queue(maxsize=Driver.QUEUE_SIZE), queue.Queue(maxsize=Driver.QUEUE_SIZE),
                                  queue.Queue(maxsize=Driver.QUEUE_SIZE))
         self.buffers = Data(deque(), [deque(), deque(), deque()], [deque(), deque(), deque()])

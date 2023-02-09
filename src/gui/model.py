@@ -238,7 +238,7 @@ class LaserBuffer(Buffer):
         self.pump_laser_current = deque(maxlen=Buffer.QUEUE_SIZE)
         self.probe_laser_current = deque(maxlen=Buffer.QUEUE_SIZE)
 
-    def append(self, laser_data: hardware.laser.Data):
+    def append(self, laser_data: hardware.laser.LaserData):
         self.time.append(next(self.time_counter) / 10)
         self.pump_laser_current.append(laser_data.pump_laser_current)
         self.pump_laser_voltage.append(laser_data.pump_laser_voltage)
@@ -260,7 +260,7 @@ class Signals(QtCore.QObject):
     current_dac1 = QtCore.Signal(int)
     current_dac2 = QtCore.Signal(int)
     laser_data = QtCore.Signal(Buffer)
-    laser_data_display = QtCore.Signal(hardware.laser.Data)
+    laser_data_display = QtCore.Signal(hardware.laser.LaserData)
     current_probe_laser = QtCore.Signal(float)
 
     def __init__(self):
@@ -349,25 +349,24 @@ class Hardware:
         self.ports = Ports(daq=hardware.daq.Driver(), laser=hardware.laser.Driver(), tec=hardware.tec.Driver())
         self.laser = Laser(self.ports.laser)
 
-    def open_daq(self):
+    def open_daq(self) -> None:
         self.ports.daq.open()
 
-    def open_laser(self):
+    def open_laser(self) -> None:
         self.ports.laser.open()
 
-    def open_tec(self):
+    def open_tec(self) -> None:
         self.ports.tec.open()
 
-    def close(self):
+    def close(self) -> None:
         for port in self.ports:
             port.close()
-        self.laser.running.clear()
 
-    def find_device(self):
+    def find_device(self) -> None:
         for port in self.ports:
             try:
                 port.find_port()
-            except hardware.driver.SerialError:
+            except hardware.serial.SerialError:
                 continue  # Check still the other devices for connection
 
 
@@ -451,7 +450,6 @@ class Laser:
         self._driver_bits = 0
         self.config_path = config_path
         self.driver = laser_driver
-        self.running = threading.Event()
         self.laser_buffer = LaserBuffer()
         self.load_config()
 
@@ -560,7 +558,7 @@ class Laser:
     def process_measured_data(self):
         def incoming_data():
             while self.driver.connected.is_set():
-                received_data = self.driver.laser_data.get(block=True)
+                received_data = self.driver.data.get(block=True)
                 self.laser_buffer.append(received_data)
                 signals.laser_data.emit(self.laser_buffer)
                 signals.laser_data_display.emit(received_data)
