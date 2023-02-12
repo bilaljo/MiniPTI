@@ -6,18 +6,17 @@ import re
 import threading
 from dataclasses import dataclass
 from enum import Enum
-import io
 import os
+
 import platform
 if platform.system() == "Windows":
     import clr
     import System.IO.Ports
 else:
-    import termios
     import signal
 
 from statemachine import StateMachine, State
-from serial.tools import list_ports_posix
+from serial.tools import list_ports
 
 
 @dataclass
@@ -51,9 +50,14 @@ class Patterns:
     The first bytes stand for get (G) the second byte for the required thing (H for Hardware, F for Firmware etc.).
     The third bytes stands for the required Information (I for ID, V for version). \n is the termination symbol.
     """
-    HARDWARE_ID = re.compile("GHI[0-9a-fA-F]{4}", flags=re.MULTILINE)
-    ERROR = re.compile("ERR[0-9a-fA-F]{4}", flags=re.MULTILINE)
-    HEX_VALUE = re.compile("[0-9a-fA-F]{4}", flags=re.MULTILINE)
+    if platform.system() == "Windows":
+        HARDWARE_ID = re.compile("GHI[0-9a-fA-F]{4}", flags=re.MULTILINE)
+        ERROR = re.compile("ERR[0-9a-fA-F]{4}", flags=re.MULTILINE)
+        HEX_VALUE = re.compile("[0-9a-fA-F]{4}", flags=re.MULTILINE)
+    else:
+        HARDWARE_ID = re.compile(b"GHI[0-9a-fA-F]{4}", flags=re.MULTILINE)
+        ERROR = re.compile(b"ERR[0-9a-fA-F]{4}", flags=re.MULTILINE)
+        HEX_VALUE = re.compile(b"[0-9a-fA-F]{4}", flags=re.MULTILINE)
 
 
 class SerialError(Exception):
@@ -61,14 +65,20 @@ class SerialError(Exception):
 
 
 class Command:
-    HARDWARE_ID = "GHI0000"
+    if platform.system() == "Windows":
+        HARDWARE_ID = "GHI0000"
+    else:
+        HARDWARE_ID = b"GHI0000"
 
 
 class Driver:
     QUEUE_SIZE = 15
-    WAIT_TIME = 50
+    MAX_RESPONSE_TIME = 50e-3  # 50 ms response time
 
-    TERMINATION_SYMBOL = "\n"
+    if platform.system() == "Windows":
+        TERMINATION_SYMBOL = "\n"
+    else:
+        TERMINATION_SYMBOL = b"\n"
     NUMBER_OF_HEX_BYTES = 4
     START_DATA_FRAME = 1  # First symbol is the header
 
@@ -78,7 +88,8 @@ class Driver:
         if platform.system() == "Windows":
             self.serial_port = System.IO.Ports.SerialPort()
         else:
-            self.receive_signal = signal.signal(signal.SIGIO, self.receive)
+            signal.signal(signal.SIGIO, self.receive)
+            self.file_descriptor = -1
             self.device = None
         self.port_name = ""
         self._write_buffer = queue.Queue()
@@ -112,8 +123,22 @@ class Driver:
                 raise SerialError("Could not find {self.device_name}")
     else:
         def find_port(self) -> None:
-            for port in list_ports_posix.comports():
-                self.device = os.open(path=port, flags=os.O_RDWR | os.O_NOCTTY | os.O_SYNC)
+            for port in list_ports.comports():
+                self.file_descriptor = os.open(path=port.device, flags=os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
+                if self.file_descriptor == -1 or not os.isatty(self.file_descriptor):
+                    continue
+                os.write(self.file_descriptor, Command.HARDWARE_ID + Driver.TERMINATION_SYMBOL)
+                hardware_id = self.get_hardware_id()
+                if hardware_id is not None and hardware_id == self.device_id:
+                    self.port_name = port
+                    logging.info(f"Found {self.device_name} at {self.port_name}")
+                    os.close(self.file_descriptor)
+                else:
+                    os.close(self.file_descriptor)
+                    self.file_descriptor = -1  # Reset it since we found no valid one
+            else:
+                logging.error(f"Could not find {self.device_name}")
+                raise SerialError("Could not find {self.device_name}")
 
     def open(self) -> None:
         if self.port_name:
@@ -151,13 +176,14 @@ class Driver:
                          f" device_id={self.device_id}, portname={self.port_name}, received_data={self.received_data})"
         return representation
 
-    def get_hardware_id(self) -> str:
-        hardware_id = Patterns.HARDWARE_ID.search(self.received_data.get())
+    def get_hardware_id(self) -> str | None:
+        try:
+            hardware_id = Patterns.HARDWARE_ID.search(self.received_data.get(timeout=Driver.MAX_RESPONSE_TIME))
+        except queue.Empty:
+            return
         if hardware_id is not None:
             hardware_id = hardware_id.group()
             return Patterns.HEX_VALUE.search(hardware_id).group()
-        else:
-            self.get_hardware_id()
 
     def command_error_handing(self, received: bytes | bytearray) -> None:
         if Patterns.ERROR.search(received) is not None:
@@ -174,27 +200,45 @@ class Driver:
     def write(self, message: str) -> None:
         self._write_buffer.put(message, block=False)
 
-    def _write(self) -> None:
-        while self.connected.is_set():
-            if self.ready_write.wait():
-                self.last_written_message = self._write_buffer.get(block=True)
-                self.serial_port.WriteLine(self.last_written_message)
-                self.ready_write.clear()
+    if platform.system() == "Windows":
+        def _write(self) -> None:
+            while self.connected.is_set():
+                if self.ready_write.wait(timeout=Driver.MAX_RESPONSE_TIME):
+                    self.last_written_message = self._write_buffer.get(block=True)
+                    self.serial_port.WriteLine(self.last_written_message)
+                    self.ready_write.clear()
+    else:
+        def _write(self) -> None:
+            while self.connected.is_set():
+                if self.ready_write.wait(timeout=Driver.MAX_RESPONSE_TIME):
+                    self.last_written_message = self._write_buffer.get(block=True)
+                    os.write(self.file_descriptor, self.last_written_message)
+                    self.ready_write.clear()
 
-    def is_open(self) -> bool:
-        return self.serial_port.IsOpen
+    if platform.system() == "Windows":
+        def is_open(self) -> bool:
+            return self.serial_port.IsOpen
+    else:
+        def is_open(self) -> bool:
+            return self.file_descriptor != -1
 
-    def close(self) -> None:
-        if self.serial_port.IsOpen:
-            self.connected.clear()
-            self.serial_port.Close()
+    if platform.system() == "Windows":
+        def close(self) -> None:
+            if self.serial_port.IsOpen:
+                self.connected.clear()
+                self.serial_port.Close()
+    else:
+        def close(self) -> None:
+            if self.file_descriptor != -1:
+                os.close(self.file_descriptor)
 
     if platform.system() == "Windows":
         def receive(self, sender: System.IO.Ports.SerialPort, arg: System.IO.Ports.SerialDataReceivedEventArgs) -> None:
             self.received_data.put(sender.ReadExisting())
     else:
-        def receive(self, status: int) -> None:
-            self.received_data.put()
+        def receive(self, signum, frame) -> None:
+            buffer_size = os.stat(self.file_descriptor).st_size
+            self.received_data.put(os.read(self.file_descriptor, buffer_size))
 
     @abc.abstractmethod
     def _extract_data(self, data: list[str]) -> Data:
