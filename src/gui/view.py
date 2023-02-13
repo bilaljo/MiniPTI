@@ -60,7 +60,8 @@ class MainWindow(QtWidgets.QMainWindow):
                         pump_laser=self._init_pump_laser_tab(), probe_laser=self._init_probe_laser_tab(),
                         tec=self._init_tec_tab(), dc=QtWidgets.QTabWidget(), amplitudes=QtWidgets.QTabWidget(),
                         output_phases=QtWidgets.QTabWidget(), sensitivity=QtWidgets.QTabWidget(),
-                        interferometric_phase=QtWidgets.QTabWidget(), pti_signal=QtWidgets.QTabWidget())
+                        interferometric_phase=QtWidgets.QTabWidget(), pti_signal=QtWidgets.QTabWidget(),
+                        aerosol_concentration=QtWidgets.QTabWidget())
         self.tab_bar.addTab(self.tabs.home, "Home")
         self.tab_bar.addTab(self.tabs.daq, "Valves")
         self.tab_bar.addTab(self.tabs.pump_laser, "Pump Laser")
@@ -90,6 +91,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.tabs.pti_signal.setLayout(QtWidgets.QHBoxLayout())
         self.tabs.pti_signal.layout().addWidget(self.pti_signal.window)
         self.tab_bar.addTab(self.tabs.pti_signal, "PTI Signal")
+        self.tabs.pti_signal.setLayout(QtWidgets.QHBoxLayout())
+        self.tabs.pti_signal.layout().addWidget(self.pti_signal.window)
+        self.tab_bar.addTab(self.tabs.pti_signal, "Aersole Concentration")
 
     def closeEvent(self, close_event):
         close = QtWidgets.QMessageBox.question(self, "QUIT", "Are you sure you want to close?",
@@ -166,8 +170,8 @@ class Home(_Tab, CreateButton):
         self.create_frame(title="Setting", x_position=0, y_position=0)
         self.create_frame(title="Offline Processing", x_position=1, y_position=0)
         self.create_frame(title="Plot Data", x_position=2, y_position=0)
-        self.create_frame(title="Drivers", x_position=3, y_position=0)
-        self.create_frame(title="Measurement", x_position=1, y_position=1)
+        self.create_frame(title="Drivers", x_position=1, y_position=1)
+        self.create_frame(title="Measurement", x_position=4, y_position=0)
 
     def _init_buttons(self):
         # SettingsTable buttons
@@ -177,6 +181,8 @@ class Home(_Tab, CreateButton):
         self.create_button(master=sub_layout, title="Save Settings", slot=self.controller.save_settings)
         self.create_button(master=sub_layout, title="Load Settings", slot=self.controller.load_settings)
         # TODO: Implement autosave slot
+        self.create_button(master=sub_layout, title="Auto Save", slot=self.controller.load_settings)
+        sub_layout.layout().addWidget(QtWidgets.QLabel("10.5"))
         self.create_button(master=sub_layout, title="Auto Save", slot=self.controller.load_settings)
 
         # Offline Processing buttons
@@ -204,10 +210,11 @@ class Home(_Tab, CreateButton):
 
         # Measurement Buttons
         sub_layout = QtWidgets.QWidget(parent=self.frames["Measurement"])
-        sub_layout.setLayout(QtWidgets.QVBoxLayout())
+        sub_layout.setLayout(QtWidgets.QHBoxLayout())
         self.frames["Measurement"].layout().addWidget(sub_layout)
         self.create_button(master=sub_layout, title="Enable Modulation", slot=self.controller.find_devices)
-        self.create_button(master=sub_layout, title="Start Pump Laser", slot=self.controller.enable_laser)
+        self.create_button(master=sub_layout, title="Enable Tec", slot=self.controller.find_devices)
+        self.create_button(master=sub_layout, title="Enable Probe Laser", slot=self.controller.enable_laser)
         self.create_button(master=sub_layout, title="Run Measurement", slot=self.controller.connect_devices)
 
     def logging_update(self, log):
@@ -656,3 +663,4 @@ class Tab(NamedTuple):
     interferometric_phase: QtWidgets.QTabWidget
     sensitivity: QtWidgets.QTabWidget
     pti_signal: QtWidgets.QTabWidget
+    aerosol_concentration: QtWidgets.QTabWidget
