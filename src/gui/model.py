@@ -33,6 +33,11 @@ class SettingsTable(QtCore.QAbstractTableModel):
         self._data = pd.DataFrame(columns=SettingsTable.HEADERS, index=SettingsTable.INDEX)
         self._file_path = "minipti/configs/settings.csv"
         self._observer_callbacks = []
+        signals.settings.connect(self.update_settings)
+
+    @QtCore.Slot(interferometry.Interferometer)
+    def update_settings(self, interferometer: interferometry.Interferometer) -> None:
+        self.update_settings_parameters(interferometer)
 
     def rowCount(self, parent=None):
         return self._data.shape[0]
@@ -90,7 +95,7 @@ class SettingsTable(QtCore.QAbstractTableModel):
         self.table_data.loc["Amplitude [V]"] = interferometer.amplitudes
         self.table_data.loc["Offset [V]"] = interferometer.offsets
 
-    def update_settings(self, interferometer: interferometry.Interferometer, inversion: pti.Inversion):
+    def update_settings_paths(self, interferometer: interferometry.Interferometer, inversion: pti.Inversion):
         interferometer.settings_path = self.file_path
         inversion.settings_path = self.file_path
         interferometer.init_settings()
@@ -262,6 +267,7 @@ class Signals(QtCore.QObject):
     laser_data = QtCore.Signal(Buffer)
     laser_data_display = QtCore.Signal(hardware.laser.LaserData)
     current_probe_laser = QtCore.Signal(float)
+    settings = QtCore.Signal(pd.DataFrame)
 
     def __init__(self):
         QtCore.QObject.__init__(self)
@@ -279,6 +285,7 @@ class Calculation:
         self.pti_signal_mean_queue = deque(maxlen=60)
         self.current_time = 0
         self.interferometry = Interferometry(interferometry.Interferometer(), interferometry.Characterization())
+        self.interferometry.characterization.interferometry = self.interferometry.interferometer
         self.pti = PTI(pti.Decimation(), pti.Inversion(interferometry=self.interferometry.interferometer))
         self.driver = Hardware()
         self.running = threading.Event()
@@ -326,16 +333,17 @@ class Calculation:
         self.interferometry.interferometer.decimation_filepath = dc_file_path
         self.interferometry.interferometer.settings_path = settings_path
         self.interferometry.characterization.use_settings = use_settings
-        self.interferometry.characterization()
+        self.interferometry.characterization(live=False)
+        signals.settings.emit(self.interferometry.interferometer)
 
     def calculate_decimation(self, decimation_path: str):
         self.pti.decimation.file_path = decimation_path
-        self.pti.decimation()
+        self.pti.decimation(live=False)
 
     def calculate_inversion(self, settings_path: str, inversion_path: str):
         self.interferometry.interferometer.decimation_filepath = inversion_path
         self.interferometry.interferometer.settings_path = settings_path
-        self.pti.inversion()
+        self.pti.inversion(live=False)
 
 
 class Ports(typing.NamedTuple):
@@ -354,6 +362,19 @@ class Hardware:
 
     def open_laser(self) -> None:
         self.ports.laser.open()
+        self.laser.process_measured_data()
+
+    def enable_probe_laser(self) -> None:
+        self.laser.enable_probe_laser()
+
+    def enable_pump_laser(self) -> None:
+        self.laser.enable_pump_laser()
+
+    def disable_probe_laser(self) -> None:
+        self.laser.disable_probe_laser()
+
+    def disable_pump_laser(self) -> None:
+        self.laser.disable_pump_laser()
 
     def open_tec(self) -> None:
         self.ports.tec.open()
@@ -377,19 +398,12 @@ class DAQMeasurement:
     """
     def __init__(self, device: hardware.daq.Driver):
         self.device = device
-        self.threads = {}
         self.running = False
         self.calculation = Calculation()
 
     def __call__(self):
         if not self.running:
-            if not self.device.is_open():
-                self.device.open()
-            self.device.running.set()
-            self.threads["Calculation"] = threading.Thread(target=self.calculation.live_calculation, daemon=True)
-            self.threads["Device"] = threading.Thread(target=self.device, daemon=True)
-            for name, thread in self.threads:
-                thread.start()
+            threading.Thread(target=self.calculation.live_calculation, daemon=True).start()
             self.running ^= True
             signals.daq_running.emit()
         else:
@@ -419,23 +433,27 @@ def _process__data(file_path: str, headers: list[str]) -> pd.DataFrame:
 
 
 def process_dc_data(dc_file_path: str):
-    headers = ["DC CH1", "DC CH2", "DC CH3"]
-    data = _process__data(dc_file_path, headers)
+    headers = [f"DC CH{i}" for i in range(1, 4)]
+    try:
+        data = _process__data(dc_file_path, headers)
+    except KeyError:
+        headers = [f"PD{i}" for i in range(1, 4)]
+        data = _process__data(dc_file_path, headers)
     signals.decimation.emit(data)
 
 
 def process_inversion_data(inversion_file_path: str):
     headers = ["Interferometric Phase", "Sensitivity", "PTI Signal"]
     data = _process__data(inversion_file_path, headers)
+    data["PTI Signal 60 s Mean"] = running_average(data["PTI Signal"], mean_size=60)
     signals.inversion.emit(data)
 
 
 def process_characterization_data(characterization_file_path: str):
-    headers = [f"Amplitudes CH{i}" for i in range(3)]
-    headers += [f"Output Phases CH{i}" for i in range(3)]
-    headers += [f"Offsets CH{i}" for i in range(3)]
+    headers = [f"Amplitude CH{i}" for i in range(1, 4)]
+    headers += [f"Output Phase CH{i}" for i in range(1, 4)]
+    headers += [f"Offset CH{i}" for i in range(1, 4)]
     data = _process__data(characterization_file_path, headers)
-    data["PTI Signal 60 s Mean"] = running_average(data["PTI Signal"], mean_size=60)
     signals.characterization.emit(data)
 
 
@@ -459,10 +477,17 @@ class Laser:
             self.driver.pump_laser = dacite.from_dict(hardware.laser.PumpLaser, loaded_config["Pump Laser"])
             self.driver.probe_laser = dacite.from_dict(hardware.laser.ProbeLaser, loaded_config["Probe Laser"])
 
-    def enable_lasers(self):
-        self.driver.init_laser()
-        self.driver.apply_configuration()
-        self.driver.enable_lasers()
+    def enable_probe_laser(self):
+        self.driver.enable_probe_laser()
+
+    def enable_pump_laser(self):
+        self.driver.enable_pump_laser()
+
+    def disable_probe_laser(self):
+        self.driver.disable_probe_laser()
+
+    def disable_pump_laser(self):
+        self.driver.disable_pump_laser()
 
     @property
     def driver_bits(self):

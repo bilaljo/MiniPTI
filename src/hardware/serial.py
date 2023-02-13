@@ -10,8 +10,7 @@ import os
 
 import platform
 if platform.system() == "Windows":
-    import clr
-    import System.IO.Ports
+    import win32file
 else:
     import signal
 
@@ -28,13 +27,11 @@ class DriverStateMachine(StateMachine):
     disconnected = State("Disconnected", initial=True)
     connected = State("Connected")
     disabled = State("Disabled")
-    initialized = State("Init")
     enabled = State("Enabled")
 
     connect = disconnected.to(connected)
-    initialize = connected.to(initialized)
-    enable = initialized.to(enabled) | disabled.to(enabled)
-    disable = enabled.to(disabled) | connected.to(connected)
+    enable = connected.to(enabled) | disabled.to(enabled)
+    disable = connected.to(disabled) | enabled.to(disabled)
 
 
 class Error(Enum):
@@ -73,7 +70,7 @@ class Command:
 
 class Driver:
     QUEUE_SIZE = 15
-    MAX_RESPONSE_TIME = 50e-3  # 50 ms response time
+    MAX_RESPONSE_TIME = 500e-3  # 50 ms response time
 
     if platform.system() == "Windows":
         TERMINATION_SYMBOL = "\n"
@@ -86,7 +83,7 @@ class Driver:
         self.received_data = queue.Queue(maxsize=Driver.QUEUE_SIZE)
         self.connected = threading.Event()
         if platform.system() == "Windows":
-            self.serial_port = System.IO.Ports.SerialPort()
+            self.serial_port = None
         else:
             signal.signal(signal.SIGIO, self.receive)
             self.file_descriptor = -1
@@ -101,15 +98,18 @@ class Driver:
 
     if platform.system() == "Windows":
         def find_port(self) -> None:
-            ports = System.IO.Ports.SerialPort.GetPortNames()
+            ports = []
+            #ports = System.IO.Ports.SerialPort.GetPortNames()
             for port in ports:
-                serialport = System.IO.Ports.SerialPort(port)
-                serialport.ReadTimeout = 500
-                serialport.DataReceived += System.IO.Ports.SerialDataReceivedEventHandler(self.receive)
-                try:
-                    serialport.Open()
-                except System.UnauthorizedAccessException:
-                    continue
+                serialport = win32file.CreateFile(f"\\\\.\\{port}",
+                                                  win32file.GENERIC_READ | win32file.GENERIC_WRITE,
+                                                  0,
+                                                  0,
+                                                  win32file.OPEN_EXISTING,
+                                                  win32file.FILE_FLAG_OVERLAPPED,
+                                                  0
+                                                  )
+                #serialport.DataReceived += System.IO.Ports.SerialDataReceivedEventHandler(self.receive)
                 serialport.WriteLine(Command.HARDWARE_ID)
                 if self.get_hardware_id() == self.device_id:
                     self.port_name = port
@@ -140,20 +140,23 @@ class Driver:
                 logging.error(f"Could not find {self.device_name}")
                 raise SerialError("Could not find {self.device_name}")
 
-    def open(self) -> None:
+    def open(self) -> bool:
         if self.port_name:
             logging.info(f"Connected with {self.device_name}")
-            self.serial_port = System.IO.Ports.SerialPort()
+            #self.serial_port = System.IO.Ports.SerialPort()
             self.serial_port.PortName = self.port_name
-            self.serial_port.DataReceived += System.IO.Ports.SerialDataReceivedEventHandler(self.receive)
+            #self.serial_port.DataReceived += System.IO.Ports.SerialDataReceivedEventHandler(self.receive)
             self.serial_port.Open()
             self.connected.set()
             self.state_machine.connect()
-            threading.Thread(target=self._write, daemon=True).start()
-            threading.Thread(target=self.encode, daemon=True).start()
+            return True
         else:
             logging.error(f"Could not connect with {self.device_name}")
-            raise SerialError(f"Could not connect with {self.device_name}")
+            return False
+
+    def run(self) -> None:
+        threading.Thread(target=self._write, daemon=True).start()
+        threading.Thread(target=self.encode, daemon=True).start()
 
     @property
     @abc.abstractmethod
@@ -212,7 +215,7 @@ class Driver:
             while self.connected.is_set():
                 if self.ready_write.wait(timeout=Driver.MAX_RESPONSE_TIME):
                     self.last_written_message = self._write_buffer.get(block=True)
-                    os.write(self.file_descriptor, self.last_written_message)
+                    os.write(self.file_descriptor, self.last_written_message + b"\n")
                     self.ready_write.clear()
 
     if platform.system() == "Windows":
@@ -233,14 +236,13 @@ class Driver:
                 os.close(self.file_descriptor)
 
     if platform.system() == "Windows":
-        def receive(self, sender: System.IO.Ports.SerialPort, arg: System.IO.Ports.SerialDataReceivedEventArgs) -> None:
+        def receive(self, sender) -> None:
             self.received_data.put(sender.ReadExisting())
     else:
         def receive(self, signum, frame) -> None:
             buffer_size = os.stat(self.file_descriptor).st_size
             self.received_data.put(os.read(self.file_descriptor, buffer_size))
 
-    @abc.abstractmethod
     def _extract_data(self, data: list[str]) -> Data:
         ...
 

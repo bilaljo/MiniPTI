@@ -98,6 +98,10 @@ class Home:
         self.calculation_model = model.Calculation()
         self.main_controller = main_controller
         self.driver_controller = driver_controller
+        self.pump_laser_enabled = False
+        self.probe_laser_enabled = False
+        self.daq_enabled = False
+        self.daq_measurement = model.DAQMeasurement(self.driver_controller.hardware_model.ports.daq)
 
     def get_file_path(self, dialog_name):
         file_path = QtWidgets.QFileDialog.getOpenFileName(self.view, caption=dialog_name,
@@ -162,13 +166,38 @@ class Home:
         self.main_controller.driver_model.find_device()
 
     def connect_devices(self):
-        for port in self.main_controller.driver_model.ports:
-            try:
-                port.open()
-            except hardware.serial.SerialError:
-                continue
-
-    def enable_laser(self):
         self.driver_controller.hardware_model.open_laser()
-        self.driver_controller.hardware_model.laser.enable_lasers()
-        self.driver_controller.hardware_model.laser.process_measured_data()
+        self.driver_controller.hardware_model.open_daq()
+
+    def enable_probe_laser(self):
+        if not self.probe_laser_enabled:
+            self.driver_controller.hardware_model.enable_probe_laser()
+            view.toggle_button(True, self.view.tabs.home.buttons["Enable Probe Laser"])
+            self.probe_laser_enabled = True
+        else:
+            view.toggle_button(False, self.view.tabs.home.buttons["Enable Probe Laser"])
+            self.driver_controller.hardware_model.disable_probe_laser()
+            self.probe_laser_enabled = False
+
+    def enable_pump_laser(self):
+        if not self.pump_laser_enabled:
+            self.driver_controller.hardware_model.enable_pump_laser()
+            self.driver_controller.hardware_model.ports.laser.run()
+            view.toggle_button(True, self.view.tabs.home.buttons["Enable Pump Laser"])
+            self.pump_laser_enabled = True
+        else:
+            view.toggle_button(False, self.view.tabs.home.buttons["Enable Pump Laser"])
+            self.driver_controller.hardware_model.disable_pump_laser()
+            self.pump_laser_enabled = False
+
+    def run_measurement(self) -> None:
+        if not self.daq_enabled:
+            self.driver_controller.hardware_model.ports.daq.run()
+            self.daq_measurement()
+            view.toggle_button(True, self.view.tabs.home.buttons["Run Measurement"])
+            self.daq_enabled = True
+        else:
+            view.toggle_button(False, self.view.tabs.home.buttons["Run Measurement"])
+            self.daq_measurement()
+            self.daq_enabled = False
+

@@ -38,13 +38,16 @@ class Interferometer:
         return representation
 
     def __str__(self):
-        output_phase_str = "Output Phases [deg]:"
-        amplitude_str = "Amplitudes [V]:"
-        offset_str = "Offsets [V]:"
-        for i in range(3):
-            output_phase_str.join(f"CH {i + 1}: {np.rad2deg(round(self.output_phases[i])), 2}\n")
-            amplitude_str.join(f"CH {i + 1}: {round(self.amplitudes[i]), 2}\n")
-            offset_str.join(f"CH {i + 1}: {round(self.offsets[i]), 2}\n")
+        output_phase_str = "Output Phases [deg]:\n"
+        amplitude_str = "Amplitudes [V]:\n"
+        offset_str = "Offsets [V]:\n"
+        for i in range(2):
+            output_phase_str += f"CH {i + 1}: {round(np.rad2deg(self.output_phases[i]), 2)},"
+            amplitude_str += f"CH {i + 1}: {round(self.amplitudes[i], 2)},"
+            offset_str += f"CH {i + 1}: {round(self.offsets[i], 2)},"
+        output_phase_str += f"CH3: {round(np.rad2deg(self.output_phases[2]), 2)}, "
+        amplitude_str += f"CH3: {round(self.amplitudes[2], 2)},"
+        offset_str += f"CH3: {round(self.offsets[2], 2)},"
         return amplitude_str + "\n" + offset_str + "\n" + output_phase_str
 
     @property
@@ -140,7 +143,7 @@ class Interferometer:
         if len(intensities) == 3:  # Only one Sample of 3 Values
             self.phase = self._calculate_phase(intensities)[0]
         else:
-            self.phase = np.fromiter(map(self._calculate_phase, intensities), dtype=np.float)
+            self.phase = np.fromiter(map(self._calculate_phase, intensities), dtype=float)
 
 
 class Characterization:
@@ -167,6 +170,7 @@ class Characterization:
         self.init_online = True
         self._parameters_changed = False  # Toggles if it changes
         self.observers = []
+        self.signals = []
 
     def __call__(self, live=True):
         if live:
@@ -179,25 +183,6 @@ class Characterization:
         representation = f"{class_name}(signals={self.signals}, use_settings={self.use_settings}," \
                          f" step_size={self.step_size}, characterised_data={self.characterised_data})"
         return representation
-
-    @property
-    def signals(self):
-        return self.signals
-
-    @signals.setter
-    def signals(self, signals):
-        self.interferometry.error_handing_intensity(signals)
-        try:
-            if signals.shape[1] == 3:
-                self.signals = signals.T
-            else:
-                self.signals = signals
-        except AttributeError:
-            signals = np.array(signals)
-            if signals.shape[1] == 3:
-                self.signals = signals.T
-            else:
-                self.signals = signals
 
     @property
     def occurred_phases(self):
@@ -277,12 +262,12 @@ class Characterization:
                     self.interferometry.calculate_phase(dc_signals)
                 except ValueError:
                     self.interferometry.calculate_phase(dc_signals.T)
-                self.signals = dc_signals
+                self.signals = dc_signals.T
                 self.phases = self.interferometry.phase
                 self.characterise_interferometer()
-                logging.info(f"Current estimation:\n".join(str(self.interferometry)))
+                logging.info(f"Current estimation:\n" + str(self.interferometry))
             else:
-                logging.info("Final values:\n".join(str(self.interferometry)))
+                logging.info("Final values:\n" + str(self.interferometry))
         else:
             self.characterise_interferometer()
 
@@ -294,7 +279,10 @@ class Characterization:
 
     def _calculate_offline(self):
         data = self.interferometry.read_decimation()
-        dc_signals = data[[f"DC CH{i}" for i in range(1, 4)]].to_numpy()
+        try:
+            dc_signals = data[[f"DC CH{i}" for i in range(1, 4)]].to_numpy()
+        except KeyError:  # DC is the common header but PD (Photo Diode) is also allowed
+            dc_signals = data[[f"PD{i}" for i in range(1, 4)]].to_numpy()
         self.clear()
         last_index = 0
         if self.use_settings:
@@ -318,7 +306,11 @@ class Characterization:
                 last_index = i + 1
                 self.characterised_data["Time Stamp"].append(i)
                 self.clear()
-        pd.DataFrame(self.characterised_data).to_csv("data/Characterisation.csv", index=False)
+        try:
+            pd.DataFrame(self.characterised_data).to_csv("data/Characterisation.csv", index=False)
+        except OSError:
+            os.mkdir("data")
+            pd.DataFrame(self.characterised_data).to_csv("data/Characterisation.csv", index=False)
         logging.info("Characterization finished")
 
     def _calculate_online(self):

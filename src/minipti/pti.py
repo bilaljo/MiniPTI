@@ -84,7 +84,10 @@ class Inversion:
 
     def _calculate_offline(self):
         data = self.interferometry.read_decimation()
-        dc_signals = data[[f"DC CH{i}" for i in range(1, 4)]].to_numpy()
+        try:
+            dc_signals = data[[f"DC CH{i}" for i in range(1, 4)]].to_numpy()
+        except KeyError:  # DC is the common header but PD (Photo Diode) is also allowed
+            dc_signals = data[[f"PD{i}" for i in range(1, 4)]].to_numpy()
         ac_signals = None
         ac_phases = None
         try:

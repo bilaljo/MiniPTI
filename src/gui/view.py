@@ -73,7 +73,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.tab_bar.addTab(self.tabs.dc, "DC Signals")
         # Amplitudes Plot
         self.tabs.amplitudes.setLayout(QtWidgets.QHBoxLayout())
-        self.tabs.amplitudes.layout().addWidget(Amplitudes().window)
+        self.tabs.amplitudes.layout().addWidget(self.amplitudes.window)
         self.tab_bar.addTab(self.tabs.amplitudes, "Amplitudes")
         # Output Phases Plot
         self.tabs.output_phases.setLayout(QtWidgets.QHBoxLayout())
@@ -152,6 +152,13 @@ class SettingsView(QtWidgets.QTableView):
         self.resizeRowsToContents()
 
 
+def toggle_button(checked, button: QtWidgets.QPushButton):
+    if checked:
+        button.setStyleSheet("background-color : lightgreen")
+    else:
+        button.setStyleSheet("background-color : light gray")
+
+
 class Home(_Tab, CreateButton):
     def __init__(self, home_controller, name="Home"):
         _Tab.__init__(self, name=name)
@@ -212,10 +219,10 @@ class Home(_Tab, CreateButton):
         sub_layout = QtWidgets.QWidget(parent=self.frames["Measurement"])
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
         self.frames["Measurement"].layout().addWidget(sub_layout)
-        self.create_button(master=sub_layout, title="Enable Modulation", slot=self.controller.find_devices)
+        self.create_button(master=sub_layout, title="Enable Pump Laser", slot=self.controller.enable_pump_laser)
         self.create_button(master=sub_layout, title="Enable Tec", slot=self.controller.find_devices)
-        self.create_button(master=sub_layout, title="Enable Probe Laser", slot=self.controller.enable_laser)
-        self.create_button(master=sub_layout, title="Run Measurement", slot=self.controller.connect_devices)
+        self.create_button(master=sub_layout, title="Enable Probe Laser", slot=self.controller.enable_probe_laser)
+        self.create_button(master=sub_layout, title="Run Measurement", slot=self.controller.run_measurement)
 
     def logging_update(self, log):
         self.logging_window.setText("".join(log))
@@ -509,7 +516,10 @@ class DC(_Plotting):
 
     def update_data(self, data: pd.DataFrame):
         for channel in range(3):
-            self.curves[channel].setData(data[f"DC CH{channel + 1}"])
+            try:
+                self.curves[channel].setData(data[f"DC CH{channel + 1}"])
+            except KeyError:
+                self.curves[channel].setData(data[f"PD{channel + 1}"])
 
     def update_data_live(self, data: model.PTIBuffer):
         for channel in range(3):
@@ -529,7 +539,7 @@ class Amplitudes(_Plotting):
 
     def update_data(self, data: pd.DataFrame):
         for channel in range(3):
-            self.curves[channel].setData(data[f"Amplitudes CH{channel + 1}"])
+            self.curves[channel].setData(data[f"Amplitude CH{channel + 1}"])
 
     def update_data_live(self, data: model.CharacterisationBuffer):
         for channel in range(3):
@@ -547,8 +557,8 @@ class OutputPhases(_Plotting):
         model.signals.characterization_live.connect(self.update_data_live)
 
     def update_data(self, data: pd.DataFrame):
-        for channel in range(1, 3):
-            self.curves[channel].setData(data[f"Output Phases CH {channel + 1}"])
+        for channel in range(2):
+            self.curves[channel].setData(data[f"Output Phase CH{channel + 2}"])
 
     def update_data_live(self, data: model.CharacterisationBuffer):
         for channel in range(2):

@@ -72,9 +72,11 @@ class Driver(hardware.serial.Driver):
     START_MEASURED_DATA = 1
     END_MEASURED_DATA = 4
 
+    CHANNELS = 3
+
     # Pump Laser
-    ContinuesWaveRegister = [1 << 8, 1 << 10, 1 << 12, 1 << 14, 1 << 0, 1 << 2]
-    ModulatedModeRegister = [1 << 9, 1 << 11, 1 << 13, 1 << 15, 1 << 1, 1 << 3]
+    DAC_1_REGISTER = [1 << 8, 1 << 9, 1 << 10, 1 << 11, 1 << 12, 1 << 13]
+    DAC_2_REGISTER = [1 << 14, 1 << 15, 1 << 0, 1 << 1, 1 << 2, 1 << 3]
 
     CURRENT_BITS = (1 << 8) - 1
 
@@ -83,11 +85,23 @@ class Driver(hardware.serial.Driver):
         self.pump_laser = None  # type: None | PumpLaser
         self.probe_laser = None  # type: None | ProbeLaser
         self.config_path = "hardware/configs/laser.json"
+        self.pump_laser_state_machine = hardware.serial.DriverStateMachine()
+        self.probe_laser_state_machine = hardware.serial.DriverStateMachine()
+        self.probe_laser_initialized = False
+        self.pump_laser_initialized = False
         self.load_configs()
 
-    def open(self) -> None:
-        super().open()
-        self.disable_laser()  # If laser was configured as enabled we disable it for safety
+    def open(self) -> bool:
+        if super().open():
+            self.probe_laser_state_machine.connect()
+            self.pump_laser_state_machine.connect()
+            self.init_pump_laser()
+            self.init_probe_laser()
+            # If laser was configured as enabled we disable it for safety
+            self.disable_pump_laser()
+            self.disable_probe_laser()
+            return True
+        return False
 
     def load_configs(self) -> None:
         with open(self.config_path) as config:
@@ -107,12 +121,6 @@ class Driver(hardware.serial.Driver):
     def end_data_frame(self) -> int:
         return 4
 
-    def set_static_current(self, current: str) -> None:
-        self.write("SC3" + current)
-
-    def set_modulated_current(self, current: str) -> None:
-        self.write("SC4" + current)
-
     def set_driver_voltage(self) -> None:
         voltage_hex = f"{self.pump_laser.bit_value:0{hardware.serial.Driver.NUMBER_OF_HEX_BYTES}X}"
         self.write("SHV" + voltage_hex)
@@ -127,15 +135,15 @@ class Driver(hardware.serial.Driver):
 
     def set_dac_matrix(self) -> None:
         matrix = 0
-        for i in range(len(self.pump_laser.DAC_1.continuous_wave)):
+        for i in range(Driver.CHANNELS):
             if self.pump_laser.DAC_1.continuous_wave[i]:
-                matrix |= Driver.ContinuesWaveRegister[i]
+                matrix |= Driver.DAC_1_REGISTER[2 * i]
             elif self.pump_laser.DAC_1.pulsed_mode[i]:
-                matrix |= Driver.ModulatedModeRegister[i]
+                matrix |= Driver.DAC_1_REGISTER[2 * i + 1]
             if self.pump_laser.DAC_2.continuous_wave[i]:
-                matrix |= Driver.ContinuesWaveRegister[i]
+                matrix |= Driver.DAC_2_REGISTER[2 * i]
             elif self.pump_laser.DAC_2.pulsed_mode[i]:
-                matrix |= Driver.ModulatedModeRegister[i]
+                matrix |= Driver.DAC_2_REGISTER[2 * i + 1]
         matrix_hex = f"{matrix:0{hardware.serial.Driver.NUMBER_OF_HEX_BYTES}X}"
         self.write("SC1" + matrix_hex)
 
@@ -154,27 +162,45 @@ class Driver(hardware.serial.Driver):
         self.write("SLS" + current_hex)
 
     def set_probe_laser_mode(self) -> None:
-        return
-        # A bug in the firmware causes that sending of the command results in no response
+        # WARNING: The firmware of the laser driver has a bug. This command does nothing
         if self.probe_laser.constant_light:
             self.write("SLM0002")
         else:
             self.write("SLM0001")
 
-    def init_laser(self) -> None:
+    def init_pump_laser(self) -> None:
         self.write("CHI0001")
+        self.pump_laser_initialized = True
+
+    def init_probe_laser(self) -> None:
         self.write("CLI0001")
-        self.state_machine.initialize()
+        self.probe_laser_initialized = True
 
-    def enable_lasers(self) -> None:
-        self.write("SHE0001")
-        self.write("SLE0001")
-        self.state_machine.enable()
+    def enable_pump_laser(self) -> None:
+        if self.pump_laser_initialized:
+            self.write("SHE0001")
+        else:
+            self.init_pump_laser()
+            self.pump_laser_initialized = True
+            self.write("SHE0001")
+        self.pump_laser_state_machine.enable()
 
-    def disable_laser(self) -> None:
+    def enable_probe_laser(self):
+        if self.probe_laser_initialized:
+            self.write("SLE0001")
+        else:
+            self.init_probe_laser()
+            self.probe_laser_initialized = True
+            self.write("SLE0001")
+        self.probe_laser_state_machine.enable()
+
+    def disable_pump_laser(self) -> None:
         self.write("SHE0000")
+        self.pump_laser_state_machine.disable()
+
+    def disable_probe_laser(self) -> None:
         self.write("SLE0000")
-        self.state_machine.disable()
+        self.probe_laser_state_machine.disable()
 
     def set_photo_gain(self) -> None:
         phot_gain_hex = f"{self.probe_laser.photo_diode_gain:0{hardware.serial.Driver.NUMBER_OF_HEX_BYTES}X}"
