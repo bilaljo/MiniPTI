@@ -91,9 +91,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.tabs.pti_signal.setLayout(QtWidgets.QHBoxLayout())
         self.tabs.pti_signal.layout().addWidget(self.pti_signal.window)
         self.tab_bar.addTab(self.tabs.pti_signal, "PTI Signal")
-        self.tabs.pti_signal.setLayout(QtWidgets.QHBoxLayout())
-        self.tabs.pti_signal.layout().addWidget(self.pti_signal.window)
-        self.tab_bar.addTab(self.tabs.pti_signal, "Aersole Concentration")
 
     def closeEvent(self, close_event):
         close = QtWidgets.QMessageBox.question(self, "QUIT", "Are you sure you want to close?",
@@ -178,6 +175,7 @@ class Home(_Tab, CreateButton):
         self.create_frame(title="Offline Processing", x_position=1, y_position=0)
         self.create_frame(title="Plot Data", x_position=2, y_position=0)
         self.create_frame(title="Drivers", x_position=1, y_position=1)
+        self.create_frame(title="File Path", x_position=2, y_position=1)
         self.create_frame(title="Measurement", x_position=4, y_position=0)
 
     def _init_buttons(self):
@@ -188,8 +186,6 @@ class Home(_Tab, CreateButton):
         self.create_button(master=sub_layout, title="Save Settings", slot=self.controller.save_settings)
         self.create_button(master=sub_layout, title="Load Settings", slot=self.controller.load_settings)
         # TODO: Implement autosave slot
-        self.create_button(master=sub_layout, title="Auto Save", slot=self.controller.load_settings)
-        sub_layout.layout().addWidget(QtWidgets.QLabel("10.5"))
         self.create_button(master=sub_layout, title="Auto Save", slot=self.controller.load_settings)
 
         # Offline Processing buttons
@@ -214,6 +210,13 @@ class Home(_Tab, CreateButton):
         self.frames["Drivers"].layout().addWidget(sub_layout)
         self.create_button(master=sub_layout, title="Scan Ports", slot=self.controller.find_devices)
         self.create_button(master=sub_layout, title="Connect Devices", slot=self.controller.connect_devices)
+
+        # Output File Location
+        sub_layout = QtWidgets.QWidget(parent=self.frames["File Path"])
+        sub_layout.setLayout(QtWidgets.QHBoxLayout())
+        self.frames["File Path"].layout().addWidget(sub_layout)
+        self.create_button(master=sub_layout, title="Destination Folder", slot=QtWidgets.QFileDialog.getOpenFileUrl)
+       # sub_layout.layout().addWidget(QtWidgets.QLineEdit())
 
         # Measurement Buttons
         sub_layout = QtWidgets.QWidget(parent=self.frames["Measurement"])
@@ -591,7 +594,7 @@ class Sensitivity(_Plotting):
         model.signals.inversion_live.connect(self.update_data_live)
 
     def update_data(self, data: pd.DataFrame):
-        self.curves.setData(data.time, data.sensitivity)
+        self.curves.setData(data["Sensitivity"])
 
     def update_data_live(self, data: model.PTIBuffer):
         self.curves.setData(data.time, data.sensitivity)
@@ -608,8 +611,11 @@ class PTISignal(_Plotting):
         model.signals.inversion_live.connect(self.update_data)
 
     def update_data(self, data: pd.DataFrame):
-        self.curves["PTI Signal"].setData(data["PTI Signal"])
-        self.curves["PTI Signal Mean"].setData(data["PTI Signal 60 s Mean"])
+        try:
+            self.curves["PTI Signal"].setData(data["PTI Signal"])
+            self.curves["PTI Signal Mean"].setData(data["PTI Signal 60 s Mean"])
+        except KeyError:
+            pass
 
     def update_data_live(self, data: model.PTIBuffer):
         self.curves["PTI Signal"].setData(data.time, data.pti_signal)

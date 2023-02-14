@@ -98,7 +98,7 @@ class SettingsTable(QtCore.QAbstractTableModel):
     def update_settings_paths(self, interferometer: interferometry.Interferometer, inversion: pti.Inversion):
         interferometer.settings_path = self.file_path
         inversion.settings_path = self.file_path
-        interferometer.init_settings()
+        interferometer.load_settings()
         inversion.load_response_phase()
 
     def setup_settings_file(self):
@@ -343,6 +343,7 @@ class Calculation:
     def calculate_inversion(self, settings_path: str, inversion_path: str):
         self.interferometry.interferometer.decimation_filepath = inversion_path
         self.interferometry.interferometer.settings_path = settings_path
+        self.interferometry.interferometer.load_settings()
         self.pti.inversion(live=False)
 
 
@@ -443,9 +444,13 @@ def process_dc_data(dc_file_path: str):
 
 
 def process_inversion_data(inversion_file_path: str):
-    headers = ["Interferometric Phase", "Sensitivity", "PTI Signal"]
-    data = _process__data(inversion_file_path, headers)
-    data["PTI Signal 60 s Mean"] = running_average(data["PTI Signal"], mean_size=60)
+    try:
+        headers = ["Interferometric Phase", "Sensitivity", "PTI Signal"]
+        data = _process__data(inversion_file_path, headers)
+        data["PTI Signal 60 s Mean"] = running_average(data["PTI Signal"], mean_size=60)
+    except KeyError:
+        headers = ["Interferometric Phase", "Sensitivity"]
+        data = _process__data(inversion_file_path, headers)
     signals.inversion.emit(data)
 
 

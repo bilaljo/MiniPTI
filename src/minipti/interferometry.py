@@ -20,7 +20,7 @@ class Interferometer:
         self._offsets = offsets
         self._locks = {"Output Phases": threading.Lock(), "Amplitudes": threading.Lock(), "Offsets": threading.Lock()}
 
-    def init_settings(self):
+    def load_settings(self):
         settings = pd.read_csv(self.settings_path, index_col="Setting")
         self.output_phases = np.deg2rad(settings.loc["Output Phases [deg]"].to_numpy())
         self.amplitudes = settings.loc["Amplitude [V]"].to_numpy()

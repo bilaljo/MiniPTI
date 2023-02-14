@@ -22,16 +22,22 @@ class Inversion:
          interferometer for aerosol measurements
     """
     MICRO_RAD = 1e6
+    LOCK_IN_HEADERS = [([f"X{i}" for i in range(1, 4)], [f"Y{i}" for i in range(1, 4)]),
+                       ([f"x{i}" for i in range(1, 4)], [f"y{i}" for i in range(1, 4)]),
+                       ([f"Lock in Amplitude {i}" for i in range(1, 4)], [f"Lock in Phase{i}" for i in range(1, 4)]),
+                       ([f"AC CH{i}" for i in range(1, 4)], [f"AC Phase CH{i}" for i in range(1, 4)])]
+    DC_HEADERS = [[f"PD{i}" for i in range(1, 4)],
+                  [f"DC CH{i}" for i in range(1, 4)]]
 
     def __init__(self, response_phases=None, sign=1, interferometry=None, settings_path="minipti/configs/settings.csv"):
         super().__init__()
         self.response_phases = response_phases
         self.pti_signal = None  # type: float | np.array
-        self.sensitivity = None
+        self.sensitivity = None  # type: float | np.array
         self.decimation_file_delimiter = ","
         self.dc_signals = np.empty(shape=3)
         self.settings_path = settings_path
-        self.lock_in = LockIn
+        self.lock_in = LockIn(np.empty(shape=3), np.empty(shape=3))
         self.init_header = True
         self.sign = sign  # Makes the pti signal positive if it isn't
         self.interferometry = interferometry
@@ -52,10 +58,6 @@ class Inversion:
         self.response_phases = np.deg2rad(settings.loc["Response Phases [deg]"].to_numpy())
 
     def calculate_pti_signal(self):
-        """
-        Implements the algorithm for the interferometric phase from [1], Signal analysis and retrieval of PTI signal,
-        equation 18.
-        """
         try:
             pti_signal = np.zeros(shape=(len(self.interferometry.phase)))
             weight = np.zeros(shape=(len(self.interferometry.phase)))
@@ -83,38 +85,48 @@ class Inversion:
         self.sensitivity = slopes / np.sum(self.interferometry.offsets)
 
     def _calculate_offline(self):
+        if not os.path.exists("data"):
+            os.mkdir("data")
         data = self.interferometry.read_decimation()
-        try:
-            dc_signals = data[[f"DC CH{i}" for i in range(1, 4)]].to_numpy()
-        except KeyError:  # DC is the common header but PD (Photo Diode) is also allowed
-            dc_signals = data[[f"PD{i}" for i in range(1, 4)]].to_numpy()
-        ac_signals = None
-        ac_phases = None
-        try:
-            ac_signals = np.sqrt(np.array(data[[f"X CH{i}" for i in range(1, 4)]]) ** 2
-                                 + np.array(data[[f"Y CH{i}" for i in range(1, 4)]]) ** 2).T
-            ac_phases = np.arctan2(np.array(data[[f"Y CH{i}" for i in range(1, 4)]]),
-                                   np.array(data[[f"X CH{i}" for i in range(1, 4)]])).T
-        except KeyError:
+        for header in Inversion.DC_HEADERS:
             try:
-                ac_signals = data[[f"Lock In Amplitude CH{i}" for i in range(1, 4)]].to_numpy().T
-                ac_phases = data[[f"Lock In Phase CH{i}" for i in range(1, 4)]].to_numpy().T
+                dc_signals = data[header].to_numpy()
+                break
             except KeyError:
-                pass
+                continue
+        else:
+            raise KeyError("Invalid key for DC values given")
+        for lock_in_header_1, lock_in_header_2 in Inversion.LOCK_IN_HEADERS:
+            try:
+                # If it uses the X, Y notation we need to calculate amplitudes and phases first
+                if lock_in_header_1[0].casefold == "x1":
+                    self.lock_in.amplitude = np.sqrt(data[lock_in_header_1] ** 2
+                                                     + data[lock_in_header_1] ** 2).to_numpy().T
+                    self.lock_in.phase = np.arctan2(data[lock_in_header_2], data[lock_in_header_1]).to_numpy().T
+                    pti_measurement = True
+                    break
+                # Otherwise the phases and amplitudes are already calculated
+                else:
+                    self.lock_in.amplitude = data[lock_in_header_1].to_numpy().T
+                    self.lock_in.phase = data[lock_in_header_2].to_numpy().T
+                    pti_measurement = True
+                    break
+            except KeyError:
+                continue
+        else:
+            pti_measurement = False
         self.interferometry.calculate_phase(dc_signals)
         self.calculate_sensitivity()
-        if ac_signals is not None:
-            self.lock_in.amplitude = ac_signals
-            self.lock_in.phase = ac_phases
+        if pti_measurement:
             self.calculate_pti_signal()
-        if ac_signals is not None:
+        if pti_measurement:
             pd.DataFrame({"Interferometric Phase": "rad", "Sensitivity": "1/rad", "PTI Signal": "µrad"},
                          index=["s"]).to_csv("data/PTI_Inversion.csv", index_label="Time")
             pd.DataFrame({"Interferometric Phase": self.interferometry.phase, "Sensitivity": self.sensitivity,
                           "PTI Signal": self.pti_signal}).to_csv(f"data/PTI_Inversion.csv", mode="a", header=False)
         else:
             pd.DataFrame({"Interferometric Phase": "rad", "Sensitivity": "1/rad."}, index=["s"]).to_csv(
-                "data/PTI_Inversion.csv", index_label="Time")
+                          "data/PTI_Inversion.csv", index_label="Time")
             pd.DataFrame({"Interferometric Phase": self.interferometry.phase, "Sensitivity": self.sensitivity}
                          ).to_csv("data/PTI_Inversion.csv", header=False, mode="a", index_label="Time")
         logging.info("PTI Inversion calculated.")
