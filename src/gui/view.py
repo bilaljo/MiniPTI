@@ -20,6 +20,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.main_controller = main_controller
         self.hardware_controller = driver_controller
         self.hardware_model = driver_controller.hardware_model
+        self.menu_bar = QtWidgets.QMenuBar(self)
+        self.setMenuBar(self.menu_bar)
+        self._init_menubar()
         self.tab_bar = QtWidgets.QTabWidget(self)
         self.setCentralWidget(self.tab_bar)
         self.tabs: None | Tab = None
@@ -35,6 +38,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.tabs.home.settings.setModel(self.main_controller.settings_model)
         self.resize(MainWindow.HORIZONTAL_SIZE, MainWindow.VERTICAL_SIZE)
         self.show()
+
+    def _init_menubar(self):
+        file_menu = QtWidgets.QMenu("&File", self)
+        self.menu_bar.addMenu(file_menu)
+        file_menu = QtWidgets.QMenu("&Settings", self)
+        self.menu_bar.addMenu(file_menu)
 
     def _init_pump_laser_tab(self) -> QtWidgets.QTabWidget:
         pump_laser_tab = QtWidgets.QTabWidget()

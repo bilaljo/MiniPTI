@@ -70,7 +70,7 @@ class Command:
 
 class Driver:
     QUEUE_SIZE = 15
-    MAX_RESPONSE_TIME = 500e-3  # 50 ms response time
+    MAX_RESPONSE_TIME = 50e-3  # 50 ms response time
 
     if platform.system() == "Windows":
         TERMINATION_SYMBOL = "\n"
