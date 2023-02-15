@@ -4,6 +4,7 @@ from typing import NamedTuple,  Mapping
 import pandas as pd
 import pyqtgraph as pg
 from PySide6 import QtWidgets, QtCore
+from PySide6.QtGui import QAction
 
 import hardware.laser
 from gui import model
@@ -20,9 +21,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.main_controller = main_controller
         self.hardware_controller = driver_controller
         self.hardware_model = driver_controller.hardware_model
-        self.menu_bar = QtWidgets.QMenuBar(self)
-        self.setMenuBar(self.menu_bar)
-        self._init_menubar()
         self.tab_bar = QtWidgets.QTabWidget(self)
         self.setCentralWidget(self.tab_bar)
         self.tabs: None | Tab = None
@@ -38,12 +36,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.tabs.home.settings.setModel(self.main_controller.settings_model)
         self.resize(MainWindow.HORIZONTAL_SIZE, MainWindow.VERTICAL_SIZE)
         self.show()
-
-    def _init_menubar(self):
-        file_menu = QtWidgets.QMenu("&File", self)
-        self.menu_bar.addMenu(file_menu)
-        file_menu = QtWidgets.QMenu("&Settings", self)
-        self.menu_bar.addMenu(file_menu)
 
     def _init_pump_laser_tab(self) -> QtWidgets.QTabWidget:
         pump_laser_tab = QtWidgets.QTabWidget()
@@ -541,9 +533,15 @@ class DC(_Plotting):
 class Amplitudes(_Plotting):
     def __init__(self):
         _Plotting.__init__(self)
-        self.curves = [self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="Amplitude CH1"),
-                       self.plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="Amplitude CH2"),
-                       self.plot.plot(pen=pg.mkPen(_MatplotlibColors.GREEN), name="Amplitude CH3")]
+        self.curves = [self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.BLUE),
+                                             brush=pg.mkBrush(_MatplotlibColors.BLUE),
+                                             name="Amplitude CH1"),
+                       self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.ORANGE),
+                                             brush=pg.mkBrush(_MatplotlibColors.ORANGE),
+                                             name="Amplitude CH2"),
+                       self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.GREEN),
+                                             brush=pg.mkBrush(_MatplotlibColors.GREEN),
+                                             name="Amplitude CH3")]
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="Amplitude [V]")
         model.signals.characterization.connect(self.update_data)
@@ -561,8 +559,10 @@ class Amplitudes(_Plotting):
 class OutputPhases(_Plotting):
     def __init__(self):
         _Plotting.__init__(self)
-        self.curves = [self.plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="Output Phase CH2"),
-                       self.plot.plot(pen=pg.mkPen(_MatplotlibColors.GREEN), name="Output Phase CH3")]
+        self.curves = [self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="Output Phase CH2",
+                                             brush=pg.mkBrush(_MatplotlibColors.ORANGE)),
+                       self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.GREEN), name="Output Phase CH3",
+                                             brush=pg.mkBrush(_MatplotlibColors.GREEN))]
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="Output Phase [deg]")
         model.signals.characterization.connect(self.update_data)

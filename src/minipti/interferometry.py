@@ -255,6 +255,7 @@ class Characterization:
         self.interferometry.offsets = offsets
 
     def iterate_characterization(self, dc_signals):
+        self.signals = dc_signals.T
         if not self.use_settings:
             logging.info("Start iteration...")
             for i in range(Characterization.MAX_ITERATIONS):
@@ -262,7 +263,6 @@ class Characterization:
                     self.interferometry.calculate_phase(dc_signals)
                 except ValueError:
                     self.interferometry.calculate_phase(dc_signals.T)
-                self.signals = dc_signals.T
                 self.phases = self.interferometry.phase
                 self.characterise_interferometer()
                 logging.info(f"Current estimation:\n" + str(self.interferometry))
@@ -306,6 +306,9 @@ class Characterization:
                 last_index = i + 1
                 self.characterised_data["Time Stamp"].append(i)
                 self.clear()
+        if last_index == 0:
+            logging.error("Not enough values for characterization")
+            return
         try:
             pd.DataFrame(self.characterised_data).to_csv("data/Characterisation.csv", index=False)
         except OSError:

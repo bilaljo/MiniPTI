@@ -103,6 +103,9 @@ class Home:
         self.daq_enabled = False
         self.daq_measurement = model.DAQMeasurement(self.driver_controller.hardware_model.ports.daq)
 
+    def set_file_prefix(self):
+        pass
+
     def get_file_path(self, dialog_name):
         file_path = QtWidgets.QFileDialog.getOpenFileName(self.view, caption=dialog_name,
                                                           filter="All Files (*);; CSV File (*.csv);; TXT File (*.txt")
