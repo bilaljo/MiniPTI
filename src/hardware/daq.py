@@ -107,7 +107,7 @@ class Driver(hardware.serial.Driver):
         self._encoded_buffer.dc_coupled = [deque(), deque(), deque()]
         self._encoded_buffer.ac_coupled = [deque(), deque(), deque()]
 
-    def _proccess_received(self):
+    def _encode_data(self):
         """
         The data is encoded according to the following protocol:
             - The first two bytes describes the send command
@@ -115,11 +115,15 @@ class Driver(hardware.serial.Driver):
             - Byte 10 to 32 contain the data as period sequence of blocks in hex decimal
             - The last 4 bytes represent a CRC checksum in hex decimal
         """
+        print("called")
         self._received_buffer += self.received_data.get(block=True)
+        print(self._received_buffer)
         if len(self._received_buffer) >= Driver._PACKAGE_SIZE + len(Driver.TERMINATION_SYMBOL):
             split_data = self._received_buffer.split(Driver.TERMINATION_SYMBOL)
             self._received_buffer = ""
             for data in split_data:
+                if data[0] == "G":
+                    self.ready_write.set()
                 if len(data) != Driver._PACKAGE_SIZE:  # Broken package with missing beginning
                     continue
                 crc_calculated = crc16.arc(data[:-Driver._CRC_START_INDEX].encode())

@@ -59,7 +59,7 @@ class Command:
 
 class Driver:
     _QUEUE_SIZE = 15
-    MAX_RESPONSE_TIME = 50e-3  # 50 ms response time
+    MAX_RESPONSE_TIME = 100e-3  # 50 ms response time
 
     TERMINATION_SYMBOL = "\n"
     _NUMBER_OF_HEX_BYTES = 4
@@ -89,10 +89,14 @@ class Driver:
                 serial_port = System.IO.Ports.SerialPort(port)
                 serial_port.DataReceived += System.IO.Ports.SerialDataReceivedEventHandler(self.receive)
                 try:
-                    serial_port.WriteLine(Command.HARDWARE_ID)
-                except System.InvalidOperationException:
+                    serial_port.Open()
+                except System.UnauthorizedAccessException:
                     continue
-                if self.get_hardware_id() == self.device_id:
+                serial_port.Write(Command.HARDWARE_ID + Driver.TERMINATION_SYMBOL)
+                hardware_id = self.get_hardware_id()
+                while hardware_id is None:
+                    hardware_id = self.get_hardware_id()
+                if hardware_id == self.device_id:
                     self.port_name = port
                     logging.info(f"Found {self.device_name} at {self.port_name}")
                     serial_port.Close()
@@ -135,12 +139,11 @@ class Driver:
             logging.error(f"Could not connect with {self.device_name}")
             return False
 
-    def _run(self) -> None:
+    def run(self) -> None:
         threading.Thread(target=self._write, daemon=True).start()
-        threading.Thread(target=self._encode, daemon=True).start()
+        threading.Thread(target=self._read, daemon=True).start()
 
-    def __call__(self, *args, **kwargs):
-        self._run()
+    def _read(self):
         try:
             self._process_data()
         finally:
@@ -164,7 +167,8 @@ class Driver:
 
     def get_hardware_id(self) -> str | None:
         try:
-            hardware_id = Patterns.HARDWARE_ID.search(self.received_data.get(timeout=Driver.MAX_RESPONSE_TIME))
+            received_data = self.received_data.get(timeout=Driver.MAX_RESPONSE_TIME)
+            hardware_id = Patterns.HARDWARE_ID.search(received_data)
         except queue.Empty:
             return
         if hardware_id is not None:
@@ -222,8 +226,11 @@ class Driver:
                 os.close(self.file_descriptor)
 
     if platform.system() == "Windows":
-        def receive(self, sender) -> None:
-            self.received_data.put(sender.ReadExisting())
+        def receive(self, sender, arg: System.IO.Ports.SerialDataReceivedEventArgs) -> None:
+            try:
+                self.received_data.put(sender.ReadExisting())
+            except System.InvalidOperationException:
+                return
     else:
         def receive(self, signum, frame) -> None:
             buffer_size = os.stat(self.file_descriptor).st_size

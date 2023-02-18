@@ -16,10 +16,10 @@ class _DAC:
 
 
 @dataclass
-class _PumpLaser:
+class PumpLaser:
     _RESISTOR = 2.2e4
     _DIGITAL_POT = 1e4
-    _NUMBER_OF_STEPS = 1 << 7
+    NUMBER_OF_STEPS = 1 << 7
     _PRE_RESISTOR = 1.6e3
 
     max_current_mA: float
@@ -30,12 +30,12 @@ class _PumpLaser:
     @staticmethod
     def bit_to_voltage(bits):
         # 0.8 is an interpolation constant without any practical meaning.
-        return 0.8 * _PumpLaser._RESISTOR / (bits * _PumpLaser._DIGITAL_POT / _PumpLaser._NUMBER_OF_STEPS
-                                             + _PumpLaser._PRE_RESISTOR) + 0.8
+        return 0.8 * PumpLaser._RESISTOR / (bits * PumpLaser._DIGITAL_POT / PumpLaser.NUMBER_OF_STEPS
+                                            + PumpLaser._PRE_RESISTOR) + 0.8
 
 
 @dataclass
-class _ProbeLaser:
+class ProbeLaser:
     max_current_mA: float
     current_bits: int
     constant_current: bool
@@ -73,23 +73,19 @@ class Driver(hardware.serial.Driver):
     _DAC_1_REGISTER = [1 << 8, 1 << 9, 1 << 10, 1 << 11, 1 << 12, 1 << 13]
     _DAC_2_REGISTER = [1 << 14, 1 << 15, 1 << 0, 1 << 1, 1 << 2, 1 << 3]
 
-    _CURRENT_BITS = (1 << 8) - 1
+    CURRENT_BITS = (1 << 8) - 1
 
     def __init__(self):
         hardware.serial.Driver.__init__(self)
-        self.pump_laser = None  # type: None | _PumpLaser
-        self.probe_laser = None  # type: None | _ProbeLaser
+        self.pump_laser = None  # type: None | PumpLaser
+        self.probe_laser = None  # type: None | ProbeLaser
         self.config_path = "hardware/configs/laser.json"
-        self.pump_laser_state_machine = hardware.serial.DriverStateMachine()
-        self.probe_laser_state_machine = hardware.serial.DriverStateMachine()
         self.probe_laser_initialized = False
         self.pump_laser_initialized = False
         self.load_configs()
 
     def open(self) -> bool:
         if super().open():
-            self.probe_laser_state_machine.connect()
-            self.pump_laser_state_machine.connect()
             self.init_pump_laser()
             self.init_probe_laser()
             # If laser was configured as enabled we disable it for safety
@@ -101,8 +97,8 @@ class Driver(hardware.serial.Driver):
     def load_configs(self) -> None:
         with open(self.config_path) as config:
             loaded_config = json.load(config)
-            self.pump_laser = dacite.from_dict(_PumpLaser, loaded_config["Pump Laser"])
-            self.probe_laser = dacite.from_dict(_ProbeLaser, loaded_config["Probe Laser"])
+            self.pump_laser = dacite.from_dict(PumpLaser, loaded_config["Pump Laser"])
+            self.probe_laser = dacite.from_dict(ProbeLaser, loaded_config["Probe Laser"])
 
     def _encode_data(self) -> None:
         received_data = self.received_data.get(block=True)  # type: str
@@ -177,11 +173,11 @@ class Driver(hardware.serial.Driver):
         self.write("SHE0001")
 
     def set_probe_laser_current(self) -> None:
-        current_mA = _ProbeLaser.bit_to_current(self.probe_laser.current_bits)
+        current_mA = ProbeLaser.bit_to_current(self.probe_laser.current_bits)
         if current_mA > self.probe_laser.max_current_mA:
             logging.error(f"Current exceeds maximum current of {self.probe_laser.max_current_mA} mA")
             logging.info(f"Setting it to maximum value of {self.probe_laser.max_current_mA} mA")
-            current = _ProbeLaser.current_to_bit(self.probe_laser.max_current_mA)
+            current = ProbeLaser.current_to_bit(self.probe_laser.max_current_mA)
         else:
             current = self.probe_laser.current_bits
         current_hex = f"{current:0{hardware.serial.Driver._NUMBER_OF_HEX_BYTES}X}"
@@ -209,7 +205,6 @@ class Driver(hardware.serial.Driver):
             self.init_pump_laser()
             self.pump_laser_initialized = True
             self.write("SHE0001")
-        self.pump_laser_state_machine.enable()
 
     def enable_probe_laser(self):
         if self.probe_laser_initialized:
@@ -218,15 +213,12 @@ class Driver(hardware.serial.Driver):
             self.init_probe_laser()
             self.probe_laser_initialized = True
             self.write("SLE0001")
-        self.probe_laser_state_machine.enable()
 
     def disable_pump_laser(self) -> None:
         self.write("SHE0000")
-        self.pump_laser_state_machine.disable()
 
     def disable_probe_laser(self) -> None:
         self.write("SLE0000")
-        self.probe_laser_state_machine.disable()
 
     def set_photo_gain(self) -> None:
         phot_gain_hex = f"{self.probe_laser.photo_diode_gain:0{hardware.serial.Driver._NUMBER_OF_HEX_BYTES}X}"

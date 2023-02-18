@@ -102,7 +102,6 @@ class Home:
         self.pump_laser_enabled = False
         self.probe_laser_enabled = False
         self.daq_enabled = False
-        self.daq_measurement = model.DAQMeasurement(self.driver_controller.hardware_model.ports.daq)
         self.last_file_path = os.getcwd()
 
     def set_destination_folder(self):
@@ -192,7 +191,7 @@ class Home:
     def enable_pump_laser(self):
         if not self.pump_laser_enabled:
             self.driver_controller.hardware_model.enable_pump_laser()
-            self.driver_controller.hardware_model.ports.laser._run()
+            self.driver_controller.hardware_model.ports.laser.run()
             view.toggle_button(True, self.view.tabs.home.buttons["Enable Pump Laser"])
             self.pump_laser_enabled = True
         else:
@@ -202,12 +201,10 @@ class Home:
 
     def run_measurement(self) -> None:
         if not self.daq_enabled:
-            self.driver_controller.hardware_model.ports.daq._run()
-            self.daq_measurement()
+            self.calculation_model.live_calculation()
             view.toggle_button(True, self.view.tabs.home.buttons["Run Measurement"])
             self.daq_enabled = True
         else:
             view.toggle_button(False, self.view.tabs.home.buttons["Run Measurement"])
-            self.daq_measurement()
             self.daq_enabled = False
 

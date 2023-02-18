@@ -206,7 +206,6 @@ class Decimation:
         self.lock_in = LockIn(np.empty(shape=3), np.empty(shape=3))
         self.ref = None
         self.save_raw_data = debug
-        self.number = 0
         self.in_phase = np.cos(2 * np.pi / Decimation.REF_PERIOD * np.arange(0, Decimation.SAMPLES))
         self.quadrature = np.sin(2 * np.pi / Decimation.REF_PERIOD * np.arange(0, Decimation.SAMPLES))
         self.destination_folder = "."
@@ -217,9 +216,10 @@ class Decimation:
         self.buffer_size = int(psutil.virtual_memory().total * Decimation.MEMORY_ALLOCATION_SIZE)
         self.buffer_size //= Decimation.DATA_BLOCK_SIZE
         self.buffer = np.empty(shape=(self.buffer_size, Decimation.CHANNELS, Decimation.SAMPLES))
-        self.actual_buffer_size = self.buffer_size
-        self.raw_data_index = itertools.count()
-        self.raw_data_file_index = itertools.count()
+        self._actual_buffer_size = self.buffer_size
+        self._raw_data_index = itertools.count()
+        self._raw_data_file_index = itertools.count()
+        self.flushed = False
 
     def save_to_buffer(self) -> None:
         """
@@ -227,25 +227,28 @@ class Decimation:
         operations we buffer this data with until 10 % of available RAM is allocated. If the program finishes before
         raw data is saved the data will be flushed out. Same if available RAM is too low.
         """
-        if self.raw_data_index == self.buffer_size:
+        self.flushed = False
+        current_data_frame = next(self._raw_data_index)
+        if current_data_frame + 1 == self.buffer_size:
             self.flush()
         elif psutil.virtual_memory().avaible < Decimation.MINIMUM_RAM:
-            self.actual_buffer_size = self.raw_data_index
+            self._actual_buffer_size = current_data_frame + 1
             self.flush()
         else:
-            current_data_frame = next(self.raw_data_index)
             for channel in range(3):
                 self.buffer[current_data_frame][channel][:] = self.dc_coupled[channel]
                 self.buffer[current_data_frame][channel + 3][:] = self.ac_coupled[channel]
             self.buffer[current_data_frame][Decimation.CHANNELS - 1][:] = self.ref
 
     def flush(self) -> None:
-        if self.actual_buffer_size < self.buffer_size:
+        if self._actual_buffer_size < self.buffer_size:
             # We had to flush earlier so the arrays needs to be smaller
-            self.buffer.resize((self.actual_buffer_size, Decimation.CHANNELS))
-        np.save(self.destination_folder + f"/raw_data_{next(self.raw_data_file_index)}", self.buffer)
-        if self.actual_buffer_size < self.buffer_size:
-            self.actual_buffer_size = self.buffer_size
+            self.buffer.resize((self._actual_buffer_size, Decimation.CHANNELS))
+        np.save(self.destination_folder + f"/raw_data_{next(self._raw_data_file_index)}", self.buffer)
+        self.flushed = True
+        self._raw_data_index = itertools.count()
+        if self._actual_buffer_size < self.buffer_size:
+            self._actual_buffer_size = self.buffer_size
             self.buffer.resize((self.buffer_size, Decimation.CHANNELS))
 
     def process_raw_data(self) -> None:
@@ -260,14 +263,7 @@ class Decimation:
         self.ac_coupled = ac_coupled
 
     def get_raw_data(self) -> str:
-        if self.file_path:
-            i = 0
-            with tarfile.open(self.file_path, "r") as tar:
-                try:
-                    tar.extract(f"raw_data_{i}.npz")
-                    yield f"raw_data_{i}.npz"
-                except KeyError:
-                    raise StopIteration
+        pass
 
     def calculate_dc(self) -> None:
         """
@@ -291,13 +287,6 @@ class Decimation:
         self.common_mode_noise_reduction()
         self.lock_in_amplifier()
         output_data = {}
-        if self.init_header:
-            for channel in range(3):
-                output_data[f"Lock In Amplitude CH{channel + 1}"] = "V"
-                output_data[f"Lock In Phase CH{channel + 1}"] = "deg"
-                output_data[f"DC CH{channel + 1}"] = "V"
-            pd.DataFrame(output_data, index=["s"]).to_csv("data/Decimation.csv", index_label="Time")
-            self.init_header = False
         for channel in range(3):
             output_data[f"Lock In Amplitude CH{channel + 1}"] = self.lock_in.amplitude[channel]
             output_data[f"Lock In Phase CH{channel + 1}"] = np.rad2deg(self.lock_in.phase[channel])
@@ -305,18 +294,25 @@ class Decimation:
         now = datetime.now()
         time_stamp = str(now.strftime("%Y-%m-%d %H:%M:%S"))
         try:
-            pd.DataFrame(output_data, index=[time_stamp]).to_csv("data/Decimation.csv", mode="a", index_label="Time",
-                                                                 header=not os.path.exists("data/Decimation.csv"))
+            pd.DataFrame(output_data, index=[time_stamp]).to_csv(f"{self.destination_folder}/Decimation.csv", mode="a",
+                                                                 index_label="Time", header=False)
         except PermissionError:
             logging.info(f"Could not write data. Missing values are: {str(output_data)[1:-1]} at {time_stamp}.")
 
     def __call__(self, live=True) -> None:
+        output_data = {}
+        for channel in range(3):
+            output_data[f"Lock In Amplitude CH{channel + 1}"] = "V"
+            output_data[f"Lock In Phase CH{channel + 1}"] = "deg"
+            output_data[f"DC CH{channel + 1}"] = "V"
+        pd.DataFrame(output_data, index=["s"]).to_csv(f"{self.destination_folder}/Decimation.csv", index_label="Time")
         if live:
             try:
                 self.process_raw_data()
                 self._calculate_decimation()
             finally:
-                self.flush()
+                if not self.flushed:  # There is some data still in buffer
+                    self.flush()
         else:
             for file in self.get_raw_data():
                 with np.load(file) as data:
