@@ -1,4 +1,5 @@
 import logging
+import os
 import threading
 import typing
 
@@ -102,13 +103,19 @@ class Home:
         self.probe_laser_enabled = False
         self.daq_enabled = False
         self.daq_measurement = model.DAQMeasurement(self.driver_controller.hardware_model.ports.daq)
+        self.last_file_path = os.getcwd()
 
-    def set_file_prefix(self):
-        pass
+    def set_destination_folder(self):
+        destination_folder = QtWidgets.QFileDialog.getExistingDirectory(self.view, "Destination Folder",
+                                                                        self.calculation_model.destination_folder)
+        if destination_folder:
+            self.calculation_model.destination_folder = destination_folder
 
     def get_file_path(self, dialog_name):
-        file_path = QtWidgets.QFileDialog.getOpenFileName(self.view, caption=dialog_name,
+        file_path = QtWidgets.QFileDialog.getOpenFileName(self.view, dir=self.last_file_path, caption=dialog_name,
                                                           filter="All Files (*);; CSV File (*.csv);; TXT File (*.txt")
+        if file_path[0]:
+            self.last_file_path = file_path[0]
         return file_path[0]
 
     def save_settings(self):
@@ -185,7 +192,7 @@ class Home:
     def enable_pump_laser(self):
         if not self.pump_laser_enabled:
             self.driver_controller.hardware_model.enable_pump_laser()
-            self.driver_controller.hardware_model.ports.laser.run()
+            self.driver_controller.hardware_model.ports.laser._run()
             view.toggle_button(True, self.view.tabs.home.buttons["Enable Pump Laser"])
             self.pump_laser_enabled = True
         else:
@@ -195,7 +202,7 @@ class Home:
 
     def run_measurement(self) -> None:
         if not self.daq_enabled:
-            self.driver_controller.hardware_model.ports.daq.run()
+            self.driver_controller.hardware_model.ports.daq._run()
             self.daq_measurement()
             view.toggle_button(True, self.view.tabs.home.buttons["Run Measurement"])
             self.daq_enabled = True

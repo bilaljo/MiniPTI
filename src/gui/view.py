@@ -1,10 +1,13 @@
 import abc
+import collections
+import copy
+import typing
+from dataclasses import dataclass
 from typing import NamedTuple,  Mapping
 
 import pandas as pd
 import pyqtgraph as pg
 from PySide6 import QtWidgets, QtCore
-from PySide6.QtGui import QAction
 
 import hardware.laser
 from gui import model
@@ -54,17 +57,18 @@ class MainWindow(QtWidgets.QMainWindow):
     def _init_tec_tab(self) -> QtWidgets.QTabWidget:
         tec_tab = QtWidgets.QTabWidget()
         tec_tab.setLayout(QtWidgets.QHBoxLayout())
+        tec_tab.layout().addWidget(Tec(self.hardware_model, self.hardware_controller))
+        tec_tab.layout().addWidget(self.current_probe_laser.window)
         return tec_tab
 
     def _init_tabs(self):
-        self.tabs = Tab(home=Home(controller.Home(self.hardware_controller, self.main_controller, self)), daq=DAQ(),
+        self.tabs = Tab(home=Home(controller.Home(self.hardware_controller, self.main_controller, self)),
                         pump_laser=self._init_pump_laser_tab(), probe_laser=self._init_probe_laser_tab(),
                         tec=self._init_tec_tab(), dc=QtWidgets.QTabWidget(), amplitudes=QtWidgets.QTabWidget(),
                         output_phases=QtWidgets.QTabWidget(), sensitivity=QtWidgets.QTabWidget(),
                         interferometric_phase=QtWidgets.QTabWidget(), pti_signal=QtWidgets.QTabWidget(),
                         aerosol_concentration=QtWidgets.QTabWidget())
         self.tab_bar.addTab(self.tabs.home, "Home")
-        self.tab_bar.addTab(self.tabs.daq, "Valves")
         self.tab_bar.addTab(self.tabs.pump_laser, "Pump Laser")
         self.tab_bar.addTab(self.tabs.probe_laser, "Probe Laser")
         self.tab_bar.addTab(self.tabs.tec, "Tec")
@@ -125,7 +129,7 @@ class _Tab(QtWidgets.QTabWidget):
 
 class CreateButton:
     def __init__(self):
-        self.buttons = {}  # type: Mapping[str, QtWidgets.QPushButton]
+        self.buttons = {}  # type: dict[str, QtWidgets.QPushButton]
 
     def create_button(self, master, title, slot):
         self.buttons[title] = QtWidgets.QPushButton(master, text=title)
@@ -158,7 +162,7 @@ def toggle_button(checked, button: QtWidgets.QPushButton):
 
 
 class Home(_Tab, CreateButton):
-    def __init__(self, home_controller, name="Home"):
+    def __init__(self, home_controller: controller.Home, name="Home"):
         _Tab.__init__(self, name=name)
         CreateButton.__init__(self)
         self.controller = home_controller
@@ -166,9 +170,14 @@ class Home(_Tab, CreateButton):
         model.signals.logging_update.connect(self.logging_update)
         self._init_frames()
         self.settings = SettingsView(parent=self.frames["Setting"])
-        self.frames["Setting"].layout().addWidget(self.settings, 0, 0)
+        self.frames["Setting"].layout().addWidget(self.settings)
         self.frames["Log"].layout().addWidget(self.logging_window)
+        self.destination_folder = QtWidgets.QLabel(self.controller.calculation_model.destination_folder)
+        model.signals.destination_folder_changed.connect(self.update_destination_folder)
         self._init_buttons()
+
+    def update_destination_folder(self):
+        self.destination_folder.setText(self.controller.calculation_model.destination_folder)
 
     def _init_frames(self):
         self.create_frame(title="Log", x_position=0, y_position=1)
@@ -186,8 +195,7 @@ class Home(_Tab, CreateButton):
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
         self.create_button(master=sub_layout, title="Save Settings", slot=self.controller.save_settings)
         self.create_button(master=sub_layout, title="Load Settings", slot=self.controller.load_settings)
-        # TODO: Implement autosave slot
-        self.create_button(master=sub_layout, title="Auto Save", slot=self.controller.load_settings)
+        sub_layout.layout().addWidget(QtWidgets.QCheckBox("Save Raw Data"))
 
         # Offline Processing buttons
         sub_layout = QtWidgets.QWidget()
@@ -214,10 +222,10 @@ class Home(_Tab, CreateButton):
 
         # Output File Location
         sub_layout = QtWidgets.QWidget(parent=self.frames["File Path"])
-        sub_layout.setLayout(QtWidgets.QHBoxLayout())
+        sub_layout.setLayout(QtWidgets.QVBoxLayout())
         self.frames["File Path"].layout().addWidget(sub_layout)
-        self.create_button(master=sub_layout, title="Destination Folder", slot=QtWidgets.QFileDialog.getOpenFileUrl)
-       # sub_layout.layout().addWidget(QtWidgets.QLineEdit())
+        self.create_button(master=sub_layout, title="Destination Folder", slot=self.controller.set_destination_folder)
+        sub_layout.layout().addWidget(self.destination_folder)
 
         # Measurement Buttons
         sub_layout = QtWidgets.QWidget(parent=self.frames["Measurement"])
@@ -228,9 +236,11 @@ class Home(_Tab, CreateButton):
         self.create_button(master=sub_layout, title="Enable Probe Laser", slot=self.controller.enable_probe_laser)
         self.create_button(master=sub_layout, title="Run Measurement", slot=self.controller.run_measurement)
 
-    def logging_update(self, log):
-        self.logging_window.setText("".join(log))
+    def logging_update(self, log_queue: collections.deque):
+        self.logging_window.setText("".join(log_queue))
 
+
+# logs += f''")
 
 class Slider(QtWidgets.QWidget):
     def __init__(self, minimum=0, maximum=100, unit="%", floating_number=True):
@@ -251,25 +261,6 @@ class Slider(QtWidgets.QWidget):
             self.slider_value.setText(f"{round(value, 2)} " + self.unit)
         else:
             self.slider_value.setText(f"{value} " + self.unit)
-
-
-class DAQ(_Tab, CreateButton):
-    def __init__(self, name="DAQ"):
-        _Tab.__init__(self, name)
-        CreateButton.__init__(self)
-        self.port_box = QtWidgets.QLabel()
-        self.connected_box = QtWidgets.QLabel()
-        self._init_frames()
-        self._init_buttons()
-
-    def _init_frames(self):
-        self.create_frame(title="Valves", x_position=2, y_position=0)
-
-    def _init_buttons(self):
-        self.frames["Valves"].layout().addWidget(QtWidgets.QLabel("Valve 1"))
-        self.frames["Valves"].layout().addWidget(Slider())
-        self.frames["Valves"].layout().addWidget(QtWidgets.QLabel("Valve 2"))
-        self.frames["Valves"].layout().addWidget(Slider())
 
 
 class PumpLaser(QtWidgets.QWidget, CreateButton):
@@ -479,6 +470,82 @@ class ProbeLaser(QtWidgets.QWidget, CreateButton):
             master.layout().addWidget(self.frames[title], x_position, y_position)
 
 
+class TecTextFields:
+    def __init__(self):
+        self.p_value = QtWidgets.QLineEdit()
+        self.i_value = [QtWidgets.QLineEdit(), QtWidgets.QLineEdit()]
+        self.d_value = QtWidgets.QLineEdit()
+        self.setpoint_temperatur = QtWidgets.QLineEdit()
+        self.loop_time = QtWidgets.QLineEdit()
+        self.reference_resistor = QtWidgets.QLineEdit()
+        self.max_power = QtWidgets.QLineEdit()
+
+
+class Tec(QtWidgets.QWidget, CreateButton):
+    def __init__(self, hardware_model: model.Hardware, hardware_controller: controller.Hardware):
+        self.frames = {}
+        QtWidgets.QWidget.__init__(self)
+        CreateButton.__init__(self)
+        self.frames = {}
+        self.setLayout(QtWidgets.QHBoxLayout())
+        self.hardware_model = hardware_model
+        self.hardware_controller = hardware_controller
+        self.text_fields = TecTextFields()
+        self._init_frames()
+        self._init_text_fields()
+
+    def _init_frames(self):
+        self.frames["System Parameters"] = QtWidgets.QGroupBox()
+        self.frames["System Parameters"].setTitle("System Parameters")
+        self.frames["System Parameters"].setLayout(QtWidgets.QGridLayout())
+
+        self.frames["PID Configuration"] = QtWidgets.QGroupBox()
+        self.frames["PID Configuration"].setTitle("PID Configuration")
+        self.frames["PID Configuration"].setLayout(QtWidgets.QGridLayout())
+
+        self.frames["System Settings"] = QtWidgets.QGroupBox()
+        self.frames["System Settings"].setTitle("System Settings")
+        self.frames["System Settings"].setLayout(QtWidgets.QGridLayout())
+
+        configuration_layout = QtWidgets.QWidget()
+        configuration_layout.setLayout(QtWidgets.QVBoxLayout())
+        paramter_layout = QtWidgets.QWidget()
+        paramter_layout.setLayout(QtWidgets.QHBoxLayout())
+        configuration_layout.layout().addWidget(self.frames["PID Configuration"])
+        configuration_layout.layout().addWidget(self.frames["System Settings"])
+        paramter_layout.layout().addWidget(self.frames["System Parameters"])
+        self.layout().addWidget(paramter_layout)
+        self.layout().addWidget(configuration_layout)
+
+    def _init_buttons(self):
+        pass
+
+    def _init_text_fields(self):
+        self.frames["PID Configuration"].layout().addWidget(QtWidgets.QLabel("P Value"), 0, 0)
+        self.frames["PID Configuration"].layout().addWidget(self.text_fields.p_value, 0, 1)
+
+        self.frames["PID Configuration"].layout().addWidget(QtWidgets.QLabel("I<sub>1</sub> Value"), 1, 0)
+        self.frames["PID Configuration"].layout().addWidget(self.text_fields.i_value[0], 1, 1)
+
+        self.frames["PID Configuration"].layout().addWidget(QtWidgets.QLabel("I<sub>2</sub> Value"), 2, 0)
+        self.frames["PID Configuration"].layout().addWidget(self.text_fields.i_value[1], 2, 1)
+
+        self.frames["PID Configuration"].layout().addWidget(QtWidgets.QLabel("D Value"), 3, 0)
+        self.frames["PID Configuration"].layout().addWidget(self.text_fields.d_value, 3, 1)
+
+        self.frames["System Settings"].layout().addWidget(QtWidgets.QLabel("Setpoint Temperatur"), 0, 0)
+        self.frames["System Settings"].layout().addWidget(self.text_fields.setpoint_temperatur, 0, 1)
+
+        self.frames["System Settings"].layout().addWidget(QtWidgets.QLabel("Loop Time"), 1, 0)
+        self.frames["System Settings"].layout().addWidget(self.text_fields.loop_time, 1, 1)
+
+        self.frames["System Settings"].layout().addWidget(QtWidgets.QLabel("Reference Resistor"), 2, 0)
+        self.frames["System Settings"].layout().addWidget(self.text_fields.reference_resistor, 2, 1)
+
+        self.frames["System Settings"].layout().addWidget(QtWidgets.QLabel("Max Power"), 3, 0)
+        self.frames["System Settings"].layout().addWidget(self.text_fields.max_power, 3, 1)
+
+
 class _MatplotlibColors:
     BLUE = "#045993"
     ORANGE = "#db6000"
@@ -574,7 +641,7 @@ class OutputPhases(_Plotting):
 
     def update_data_live(self, data: model.CharacterisationBuffer):
         for channel in range(2):
-            self.curves[channel].setData(data.time, data.output_phases)
+            self.curves[channel].setData(data.time, data.output_phases[channel])
 
 
 class InterferometricPhase(_Plotting):
@@ -596,17 +663,21 @@ class InterferometricPhase(_Plotting):
 class Sensitivity(_Plotting):
     def __init__(self):
         _Plotting.__init__(self)
-        self.curves = self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE))
+        self.curves = [self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE)),
+                       self.plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE)),
+                       self.plot.plot(pen=pg.mkPen(_MatplotlibColors.GREEN))]
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="Sensitivity [1/rad]")
         model.signals.inversion.connect(self.update_data)
         model.signals.inversion_live.connect(self.update_data_live)
 
     def update_data(self, data: pd.DataFrame):
-        self.curves.setData(data["Sensitivity"])
+        for channel in range(3):
+            self.curves[channel].setData(data[f"Sensitivity CH{channel + 1}"])
 
     def update_data_live(self, data: model.PTIBuffer):
-        self.curves.setData(data.time, data.sensitivity)
+        for channel in range(3):
+            self.curves[channel].setData(data.time, data.sensitivity[channel])
 
 
 class PTISignal(_Plotting):
@@ -678,7 +749,6 @@ class ProbeLaserCurrent(_Plotting):
 
 class Tab(NamedTuple):
     home: Home
-    daq: DAQ
     pump_laser: QtWidgets.QTabWidget
     probe_laser: QtWidgets.QTabWidget
     tec: QtWidgets.QTabWidget

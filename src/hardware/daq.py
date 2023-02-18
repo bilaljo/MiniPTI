@@ -23,35 +23,28 @@ class Driver(hardware.serial.Driver):
     This class provides an interface for receiving data from the serial port of a USB connected DAQ system.
     The data is accordingly to a defined protocol encoded and build into a packages of samples.
     """
-    PACKAGE_SIZE_START_INDEX = 2
-    PACKAGE_SIZE_END_INDEX = 10
-    CRC_START_INDEX = 4
-    PACKAGE_SIZE = 4110
-    WORD_SIZE = 32
+    _PACKAGE_SIZE_START_INDEX = 2
+    _PACKAGE_SIZE_END_INDEX = 10
+    _CRC_START_INDEX = 4
+    _PACKAGE_SIZE = 4110
+    _WORD_SIZE = 32
 
     ID = "0001"
     NAME = "DAQ"
 
-    WAIT_TIME_TIMEOUT = 100e-3  # 100 ms
-    WAIT_TIME_DATA = 10e-3  # 10 ms
-
-    CHANNELS = 3
+    _CHANNELS = 3
     REF_PERIOD = 100
     NUMBER_OF_SAMPLES = 8000
 
     def __init__(self):
         hardware.serial.Driver.__init__(self)
-        self.package_data = Data(queue.Queue(maxsize=Driver.QUEUE_SIZE), queue.Queue(maxsize=Driver.QUEUE_SIZE),
-                                 queue.Queue(maxsize=Driver.QUEUE_SIZE))
-        self.buffers = Data(deque(), [deque(), deque(), deque()], [deque(), deque(), deque()])
-        self.buffers.dc_coupled = [deque(), deque(), deque()]
-        self.buffer = ""
-        self.running = threading.Event()
-        self.sample_numbers = deque(maxlen=2)
-        self.receive_daq = None
-        self.encode_daq = None
-        self.synchronize = True
-        self.ready = False
+        self.connected = threading.Event()
+        self._package_data = Data(queue.Queue(maxsize=Driver._QUEUE_SIZE), queue.Queue(maxsize=Driver._QUEUE_SIZE),
+                                  queue.Queue(maxsize=Driver._QUEUE_SIZE))
+        self._encoded_buffer = Data(deque(), [deque(), deque(), deque()], [deque(), deque(), deque()])
+        self._received_buffer = ""
+        self._sample_numbers = deque(maxlen=2)
+        self._synchronize = True
 
     @property
     def device_id(self):
@@ -63,42 +56,42 @@ class Driver(hardware.serial.Driver):
 
     @property
     def ref_signal(self):
-        return self.package_data.ref_signal.get(block=True)
+        return self._package_data.ref_signal.get(block=True)
 
     @property
     def dc_coupled(self):
-        return self.package_data.dc_coupled.get(block=True)
+        return self._package_data.dc_coupled.get(block=True)
 
     @property
     def ac_coupled(self):
-        return self.package_data.ac_coupled.get(block=True)
+        return self._package_data.ac_coupled.get(block=True)
 
     @staticmethod
-    def __binary_to_2_complement(number, byte_length):
+    def _binary_to_2_complement(number, byte_length):
         if number & (1 << (byte_length - 1)):
-            return number - 2 ** byte_length
+            return number - (1 << byte_length)
         return number
 
     @staticmethod
-    def __encode(raw_data):
+    def _encode(raw_data):
         """
         A block of data has the following structure:
         Ref, DC 1, DC 2, DC 3, DC, 4 AC 1, AC 2, AC 3, AC 4
         These byte words are 4 bytes wide and hex decimal decoded. These big byte word of size 32 repeats periodically.
         It starts with below the first 10 bytes (meta information) and ends before the last 4 bytes (crc checksum).
         """
-        raw_data = raw_data[Driver.PACKAGE_SIZE_END_INDEX:Driver.PACKAGE_SIZE - Driver.CRC_START_INDEX]
+        raw_data = raw_data[Driver._PACKAGE_SIZE_END_INDEX:Driver._PACKAGE_SIZE - Driver._CRC_START_INDEX]
         ref = []
         ac = [[], [], []]
         dc = [[], [], [], []]
-        for i in range(0, len(raw_data), Driver.WORD_SIZE):
+        for i in range(0, len(raw_data), Driver._WORD_SIZE):
             ref.append(int(raw_data[i:i + 4], 16))
             # AC signed
-            ac_value = Driver.__binary_to_2_complement(int(raw_data[i + 4:i + 8], base=16), 16)
+            ac_value = Driver._binary_to_2_complement(int(raw_data[i + 4:i + 8], base=16), 16)
             ac[0].append(ac_value)
-            ac_value = Driver.__binary_to_2_complement(int(raw_data[i + 8:i + 12], base=16), 16)
+            ac_value = Driver._binary_to_2_complement(int(raw_data[i + 8:i + 12], base=16), 16)
             ac[1].append(ac_value)
-            ac_value = Driver.__binary_to_2_complement(int(raw_data[i + 12:i + 16], base=16), 16)
+            ac_value = Driver._binary_to_2_complement(int(raw_data[i + 12:i + 16], base=16), 16)
             ac[2].append(ac_value)
             # DC unsigned
             dc[0].append(int(raw_data[i + 16:i + 20], base=16))
@@ -107,14 +100,14 @@ class Driver(hardware.serial.Driver):
             dc[3].append(int(raw_data[i + 28:i + 32], base=16))
         return ref, ac, dc
 
-    def __reset(self):
-        self.synchronize = True
-        self.buffer = ""
-        self.buffers.ref_signal = deque()
-        self.buffers.dc_coupled = [deque(), deque(), deque()]
-        self.buffers.ac_coupled = [deque(), deque(), deque()]
+    def _reset(self):
+        self._synchronize = True
+        self._received_buffer = ""
+        self._encoded_buffer.ref_signal = deque()
+        self._encoded_buffer.dc_coupled = [deque(), deque(), deque()]
+        self._encoded_buffer.ac_coupled = [deque(), deque(), deque()]
 
-    def _encode_data(self):
+    def _proccess_received(self):
         """
         The data is encoded according to the following protocol:
             - The first two bytes describes the send command
@@ -122,81 +115,77 @@ class Driver(hardware.serial.Driver):
             - Byte 10 to 32 contain the data as period sequence of blocks in hex decimal
             - The last 4 bytes represent a CRC checksum in hex decimal
         """
-        self.buffer += self.received_data.get(block=True)
-        if len(self.buffer) >= Driver.PACKAGE_SIZE + len(Driver.TERMINATION_SYMBOL):
-            splitted_data = self.buffer.split(Driver.TERMINATION_SYMBOL)
-            self.buffer = ""
-            for data in splitted_data:
-                if len(data) != Driver.PACKAGE_SIZE:  # Broken package with missing beginning
+        self._received_buffer += self.received_data.get(block=True)
+        if len(self._received_buffer) >= Driver._PACKAGE_SIZE + len(Driver.TERMINATION_SYMBOL):
+            split_data = self._received_buffer.split(Driver.TERMINATION_SYMBOL)
+            self._received_buffer = ""
+            for data in split_data:
+                if len(data) != Driver._PACKAGE_SIZE:  # Broken package with missing beginning
                     continue
-                crc_calculated = crc16.arc(data[:-Driver.CRC_START_INDEX].encode())
-                crc_received = int(data[-Driver.CRC_START_INDEX:], base=16)
+                crc_calculated = crc16.arc(data[:-Driver._CRC_START_INDEX].encode())
+                crc_received = int(data[-Driver._CRC_START_INDEX:], base=16)
                 if crc_calculated != crc_received:  # Corrupted data
                     logging.error(f"CRC value isn't equal to transmitted. Got {crc_received} "
                                   f"instead of {crc_calculated}.")
-                    self.synchronize = True  # The data is not trustful, and it should be waited for new
-                    self.sample_numbers.popleft()
-                    self.sample_numbers.popleft()
-                    self.__reset()
+                    self._synchronize = True
+                    self._sample_numbers.popleft()
+                    self._sample_numbers.popleft()
+                    self._reset()  # The data is not trustful, and it should be waited for new
                     continue
-                self.sample_numbers.append(data[Driver.PACKAGE_SIZE_START_INDEX:Driver.PACKAGE_SIZE_END_INDEX])
-                if len(self.sample_numbers) > 1:
-                    package_difference = int(self.sample_numbers[1], base=16) - int(self.sample_numbers[0], base=16)
+                self._sample_numbers.append(data[Driver._PACKAGE_SIZE_START_INDEX:Driver._PACKAGE_SIZE_END_INDEX])
+                if len(self._sample_numbers) > 1:
+                    package_difference = int(self._sample_numbers[1], base=16) - int(self._sample_numbers[0], base=16)
                     if package_difference != 1:
                         logging.error(f"Missing {package_difference} packages.")
                         logging.info("Start resynchronisation.")
-                        self.sample_numbers.popleft()
-                        self.__reset()
-                ref_signal, ac_coupled, dc_coupled = Driver.__encode(data)
-                if self.synchronize:
+                        self._sample_numbers.popleft()
+                        self._reset()
+                ref_signal, ac_coupled, dc_coupled = Driver._encode(data)
+                if self._synchronize:
                     while sum(itertools.islice(ref_signal, Driver.REF_PERIOD // 2)):
                         ref_signal.pop(0)
-                        for channel in range(Driver.CHANNELS):
+                        for channel in range(Driver._CHANNELS):
                             ac_coupled[channel].pop(0)
                             dc_coupled[channel].pop(0)
                     if len(ref_signal) < Driver.REF_PERIOD // 2:
                         continue
-                    self.synchronize = False
+                    self._synchronize = False
                 else:
-                    self.buffers.ref_signal.extend(ref_signal)
-                    for channel in range(Driver.CHANNELS):
-                        self.buffers.dc_coupled[channel].extend(dc_coupled[channel])
-                        self.buffers.ac_coupled[channel].extend(ac_coupled[channel])
-            if splitted_data[-1]:  # Data without termination symbol
-                self.buffer = splitted_data[-1]
+                    self._encoded_buffer.ref_signal.extend(ref_signal)
+                    for channel in range(Driver._CHANNELS):
+                        self._encoded_buffer.dc_coupled[channel].extend(dc_coupled[channel])
+                        self._encoded_buffer.ac_coupled[channel].extend(ac_coupled[channel])
+            if split_data[-1]:  # Data without termination symbol
+                self._received_buffer = split_data[-1]
 
     def _build_sample_package(self):
         """
         Creates a package of samples that represents approximately 1 s data. It contains 8000 samples.
         """
-        if len(self.buffers.ref_signal) >= Driver.NUMBER_OF_SAMPLES:
-            if sum(itertools.islice(self.buffers.ref_signal, Driver.REF_PERIOD // 2)):
+        if len(self._encoded_buffer.ref_signal) >= Driver.NUMBER_OF_SAMPLES:
+            if sum(itertools.islice(self._encoded_buffer.ref_signal, Driver.REF_PERIOD // 2)):
                 logging.error("Phase shift in reference signal detected.")
                 logging.info("Start resynchronisation for next package.")
                 try:
-                    self.sample_numbers.popleft()
+                    self._sample_numbers.popleft()
                 except IndexError:
                     return
-                self.synchronize = True
+                self._synchronize = True
                 return
-            self.package_data.ref_signal.put([self.buffers.ref_signal.popleft() for _ in
-                                              range(Driver.NUMBER_OF_SAMPLES)])
+            self._package_data.ref_signal.put([self._encoded_buffer.ref_signal.popleft() for _ in
+                                               range(Driver.NUMBER_OF_SAMPLES)])
             dc_package = [[], [], []]
             ac_package = [[], [], []]
             for _ in itertools.repeat(None, Driver.NUMBER_OF_SAMPLES):
-                for channel in range(Driver.CHANNELS):
-                    dc_package[channel].append(self.buffers.dc_coupled[channel].popleft())
-                    ac_package[channel].append(self.buffers.ac_coupled[channel].popleft())
-            self.package_data.dc_coupled.put(dc_package)
-            self.package_data.ac_coupled.put(ac_package)
+                for channel in range(Driver._CHANNELS):
+                    dc_package[channel].append(self._encoded_buffer.dc_coupled[channel].popleft())
+                    ac_package[channel].append(self._encoded_buffer.ac_coupled[channel].popleft())
+            self._package_data.dc_coupled.put(dc_package)
+            self._package_data.ac_coupled.put(ac_package)
 
-    def encode(self) -> None:
-        self.running.set()
-        self.__reset()
-        try:
-            while self.running.is_set():
-                self._encode_data()
-                if len(self.buffers.ref_signal) >= Driver.NUMBER_OF_SAMPLES:
-                    self._build_sample_package()
-        finally:
-            self.close()
+    def _process_data(self) -> None:
+        self._reset()
+        while self.connected.is_set():
+            self._encode_data()
+            if len(self._encoded_buffer.ref_signal) >= Driver.NUMBER_OF_SAMPLES:
+                self._build_sample_package()

@@ -126,7 +126,18 @@ class Logging(logging.Handler):
         logging.getLogger().addHandler(self)
 
     def emit(self, record: logging.LogRecord):
-        self.logging_messages.append(self.format(record))
+        log = self.format(record)
+        if "ERROR" in log:
+            log = f"<p style='color:red'>{log}</p>"
+        elif "INFO" in log:
+            log = f"<p style='color:green'>{log}</p>"
+        elif "WARNING" in log:
+            log = f"<p style='color:orange'>{log}</p>"
+        elif "DEBUG" in log:
+            log = f"<p style='color:blue'>{log}</p>"
+        elif "CRITICAL" in log:
+            log = f"<b><p style='color:darkred'>{log}</p></b>"
+        self.logging_messages.append(log)
         signals.logging_update.emit(self.logging_messages)
 
 
@@ -203,7 +214,7 @@ class PTIBuffer(Buffer):
         Buffer.__init__(self)
         self.dc_values = [deque(maxlen=Buffer.QUEUE_SIZE) for _ in range(PTIBuffer.CHANNELS)]
         self.interferometric_phase = deque(maxlen=Buffer.QUEUE_SIZE)
-        self.sensitivity = deque(maxlen=Buffer.QUEUE_SIZE)
+        self.sensitivity = [deque(maxlen=Buffer.QUEUE_SIZE) for _ in range(PTIBuffer.CHANNELS)]
         self.pti_signal = deque(maxlen=Buffer.QUEUE_SIZE)
         self.pti_signal_mean = deque(maxlen=Buffer.QUEUE_SIZE)
         self._pti_signal_mean_queue = deque(maxlen=PTIBuffer.MEAN_SIZE)
@@ -211,8 +222,8 @@ class PTIBuffer(Buffer):
     def append(self, pti_data: PTI, interferometer: interferometry.Interferometer):
         for i in range(3):
             self.dc_values[i].append(pti_data.decimation.dc_signals[i])
+            self.sensitivity[i].append(pti_data.inversion.sensitivity[i])
         self.interferometric_phase.append(interferometer.phase)
-        self.sensitivity.append(pti_data.inversion.sensitivity)
         self.pti_signal.append(pti_data.inversion.pti_signal)
         self._pti_signal_mean_queue.append(pti_data.inversion.pti_signal)
         self._pti_signal_mean_queue.append(np.mean(self.pti_signal_mean))
@@ -268,6 +279,7 @@ class Signals(QtCore.QObject):
     laser_data_display = QtCore.Signal(hardware.laser.LaserData)
     current_probe_laser = QtCore.Signal(float)
     settings = QtCore.Signal(pd.DataFrame)
+    destination_folder_changed = QtCore.Signal(str)
 
     def __init__(self):
         QtCore.QObject.__init__(self)
@@ -286,9 +298,21 @@ class Calculation:
         self.current_time = 0
         self.interferometry = Interferometry(interferometry.Interferometer(), interferometry.Characterization())
         self.interferometry.characterization.interferometry = self.interferometry.interferometer
-        self.pti = PTI(pti.Decimation(), pti.Inversion(interferometry=self.interferometry.interferometer))
+        self.pti = PTI(pti.Decimation(), pti.Inversion(interferometer=self.interferometry.interferometer))
         self.driver = Hardware()
         self.running = threading.Event()
+        self._destination_folder = os.getcwd()
+
+    @property
+    def destination_folder(self):
+        return self._destination_folder
+
+    @destination_folder.setter
+    def destination_folder(self, folder):
+        self.interferometry.characterization.destination_folder = folder
+        self.pti.inversion.destination_folder = folder
+        self._destination_folder = folder
+        signals.destination_folder_changed.emit(folder)
 
     def live_calculation(self):
         self.pti.inversion.init_header = True
@@ -313,7 +337,7 @@ class Calculation:
                 self.pti.inversion()
                 self.interferometry.characterization.add_phase(self.interferometry.interferometer.phase)
                 self.dc_signals.append(copy.deepcopy(self.pti.decimation.dc_signals))
-                if self.interferometry.characterization.enough_values():
+                if self.interferometry.characterization.enough_values:
                     self.interferometry.characterization.signals = copy.deepcopy(self.dc_signals)
                     self.interferometry.characterization.phases = copy.deepcopy(
                         self.interferometry.characterization.tracking_phase)
@@ -388,7 +412,7 @@ class Hardware:
         for port in self.ports:
             try:
                 port.find_port()
-            except hardware.serial.SerialError:
+            except OSError:
                 continue  # Check still the other devices for connection
 
 
@@ -408,7 +432,7 @@ class DAQMeasurement:
             self.running ^= True
             signals.daq_running.emit()
         else:
-            self.device.running.clear()
+            self.device.connected.clear()
             self.calculation.running.clear()
             self.calculation.pti_buffer.clear()
             self.calculation.characterisation_buffer.clear()
@@ -445,11 +469,13 @@ def process_dc_data(dc_file_path: str):
 
 def process_inversion_data(inversion_file_path: str):
     try:
-        headers = ["Interferometric Phase", "Sensitivity", "PTI Signal"]
+        headers = ["Interferometric Phase", "Sensitivity CH1", "Sensitivity CH2", "Sensitivity CH3",
+                   "Total Sensitivity", "PTI Signal"]
         data = _process__data(inversion_file_path, headers)
         data["PTI Signal 60 s Mean"] = running_average(data["PTI Signal"], mean_size=60)
     except KeyError:
-        headers = ["Interferometric Phase", "Sensitivity"]
+        headers = ["Sensitivity CH1", "Sensitivity CH2", "Sensitivity CH3",
+                   "Total Sensitivity", "Interferometric Phase"]
         data = _process__data(inversion_file_path, headers)
     signals.inversion.emit(data)
 
@@ -479,8 +505,8 @@ class Laser:
     def load_config(self):
         with open(self.config_path) as config:
             loaded_config = json.load(config)
-            self.driver.pump_laser = dacite.from_dict(hardware.laser.PumpLaser, loaded_config["Pump Laser"])
-            self.driver.probe_laser = dacite.from_dict(hardware.laser.ProbeLaser, loaded_config["Probe Laser"])
+            self.driver.pump_laser = dacite.from_dict(hardware.laser._PumpLaser, loaded_config["Pump Laser"])
+            self.driver.probe_laser = dacite.from_dict(hardware.laser._ProbeLaser, loaded_config["Probe Laser"])
 
     def enable_probe_laser(self):
         self.driver.enable_probe_laser()
@@ -501,8 +527,8 @@ class Laser:
     @driver_bits.setter
     def driver_bits(self, bits):
         # With increasing the slider decreases its value but the voltage should increase - hence we subtract the bits.
-        self.driver.pump_laser.bit_value = hardware.laser.PumpLaser.NUMBER_OF_STEPS - bits
-        voltage = hardware.laser.PumpLaser.bit_to_voltage(hardware.laser.PumpLaser.NUMBER_OF_STEPS - bits)
+        self.driver.pump_laser.bit_value = hardware.laser._PumpLaser._NUMBER_OF_STEPS - bits
+        voltage = hardware.laser._PumpLaser.bit_to_voltage(hardware.laser._PumpLaser._NUMBER_OF_STEPS - bits)
         signals.laser_voltage.emit(voltage)
         self.driver.set_driver_voltage()
 
@@ -533,8 +559,8 @@ class Laser:
     @current_bits_probe_laser.setter
     def current_bits_probe_laser(self, bits):
         # With increasing the slider decreases its value but the voltage should increase - hence we subtract the bits.
-        self.driver.probe_laser.current_bits = hardware.laser.Driver.CURRENT_BITS - bits
-        current = hardware.laser.ProbeLaser.bit_to_current(hardware.laser.Driver.CURRENT_BITS - bits)
+        self.driver.probe_laser.current_bits = hardware.laser.Driver._CURRENT_BITS - bits
+        current = hardware.laser._ProbeLaser.bit_to_current(hardware.laser.Driver._CURRENT_BITS - bits)
         signals.current_probe_laser.emit(current)
         self.driver.set_probe_laser_current()
 
