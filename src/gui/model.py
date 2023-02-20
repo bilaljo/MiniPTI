@@ -215,6 +215,7 @@ class PTIBuffer(Buffer):
         self.dc_values = [deque(maxlen=Buffer.QUEUE_SIZE) for _ in range(PTIBuffer.CHANNELS)]
         self.interferometric_phase = deque(maxlen=Buffer.QUEUE_SIZE)
         self.sensitivity = [deque(maxlen=Buffer.QUEUE_SIZE) for _ in range(PTIBuffer.CHANNELS)]
+        self.symmetry = deque(maxlen=Buffer.QUEUE_SIZE)
         self.pti_signal = deque(maxlen=Buffer.QUEUE_SIZE)
         self.pti_signal_mean = deque(maxlen=Buffer.QUEUE_SIZE)
         self._pti_signal_mean_queue = deque(maxlen=PTIBuffer.MEAN_SIZE)
@@ -223,6 +224,7 @@ class PTIBuffer(Buffer):
         for i in range(3):
             self.dc_values[i].append(pti_data.decimation.dc_signals[i])
             self.sensitivity[i].append(pti_data.inversion.sensitivity[i])
+        self.symmetry.append(pti_data.inversion.symmetry)
         self.interferometric_phase.append(interferometer.phase)
         self.pti_signal.append(pti_data.inversion.pti_signal)
         self._pti_signal_mean_queue.append(pti_data.inversion.pti_signal)
@@ -235,15 +237,15 @@ class CharacterisationBuffer(Buffer):
 
     def __init__(self):
         Buffer.__init__(self)
-        self.output_phases = [deque(maxlen=Buffer.QUEUE_SIZE) for _ in range(self.CHANNELS)]
+        self.output_phases = [deque(maxlen=Buffer.QUEUE_SIZE) for _ in range(self.CHANNELS - 1)]
         # The number of channels for output phases is -1 because the first channel has always the phase 0 by definition.
-        self.amplitudes = [deque(maxlen=Buffer.QUEUE_SIZE) for _ in range(CharacterisationBuffer.CHANNELS - 1)]
+        self.amplitudes = [deque(maxlen=Buffer.QUEUE_SIZE) for _ in range(CharacterisationBuffer.CHANNELS)]
 
     def append(self, characterization: interferometry.Characterization, interferometer: interferometry.Interferometer):
         for i in range(3):
             self.amplitudes.append(interferometer.amplitudes[i])
         for i in range(2):
-            self.output_phases.append(interferometer.output_phases[i])
+            self.output_phases.append(interferometer.output_phases[i + 1])
         self.time.append(characterization.time_stamp)
 
 
@@ -275,6 +277,8 @@ class Signals(QtCore.QObject):
     laser_voltage = QtCore.Signal(float)
     current_dac1 = QtCore.Signal(int)
     current_dac2 = QtCore.Signal(int)
+    matrix_dac1 = QtCore.Signal(typing.Annotated[list[bool], 3])
+    matrix_dac2 = QtCore.Signal(typing.Annotated[list[bool], 3])
     laser_data = QtCore.Signal(Buffer)
     laser_data_display = QtCore.Signal(hardware.laser.LaserData)
     current_probe_laser = QtCore.Signal(float)
@@ -317,6 +321,7 @@ class Calculation:
         self.pti.inversion.init_header = True
         self.pti.decimation.init_header = True
         self.interferometry.characterization.init_online = True
+        self.interferometry.interferometer.load_settings()
         self.running.set()
 
         def calculate_characterization():
@@ -374,10 +379,11 @@ class Calculation:
 class DAQ:
     driver = hardware.daq.Driver()
 
-    @staticmethod
-    def open_daq():
-        DAQ.driver.open()
-        signals.daq_running.emit()
+    def __init__(self, daq_driver=None):
+        if daq_driver is not None:
+            self.driver = daq_driver
+        else:
+            self.driver = DAQ.driver
 
 
 class Laser:
@@ -390,70 +396,83 @@ class Laser:
         else:
             self.laser_buffer = Laser._buffer
         if laser_driver is not None:
-            self.laser_driver = laser_driver
+            self.driver = laser_driver
         else:
-            self.laser_driver = Laser.driver
+            self.driver = Laser.driver
         self.config_path = "hardware/configs/laser.json"
         self.load_configuration()
 
-    def load_configuration(self):
+    def open(self) -> None:
+        self.driver.open()
+        self.driver.run()
+
+    def load_configuration(self) -> None:
         with open(self.config_path) as config:
             loaded_config = json.load(config)
-            self.laser_driver.pump_laser = dacite.from_dict(hardware.laser.PumpLaser, loaded_config["Pump Laser"])
-            self.laser_driver.probe_laser = dacite.from_dict(hardware.laser.ProbeLaser, loaded_config["Probe Laser"])
+            self.driver.pump_laser = dacite.from_dict(hardware.laser.PumpLaser, loaded_config["Pump Laser"])
+            self.driver.probe_laser = dacite.from_dict(hardware.laser.ProbeLaser, loaded_config["Probe Laser"])
+
+    def save_configuration(self) -> None:
+        with open(self.config_path, "w") as configuration:
+            lasers = {"Pump Laser": dataclasses.asdict(self.driver.pump_laser),
+                      "Probe Laser": dataclasses.asdict(self.driver.probe_laser)}
+            configuration.write(json_parser.to_json(lasers) + "\n")
+
+    def apply_configuration(self) -> None:
+        self.driver.apply_configuration()
 
     @property
     def driver_bits(self):
-        return self.laser_driver.pump_laser.bit_value
+        return self.driver.pump_laser.bit_value
 
     @driver_bits.setter
     def driver_bits(self, bits):
         # With increasing the slider decreases its value but the voltage should increase - hence we subtract the bits.
-        self.laser_driver.pump_laser.bit_value = hardware.laser.PumpLaser.NUMBER_OF_STEPS - bits
+        self.driver.pump_laser.bit_value = hardware.laser.PumpLaser.NUMBER_OF_STEPS - bits
         voltage = hardware.laser.PumpLaser.bit_to_voltage(hardware.laser.PumpLaser.NUMBER_OF_STEPS - bits)
         signals.laser_voltage.emit(voltage)
-        self.laser_driver.set_driver_voltage()
+        self.driver.set_driver_voltage()
 
     @property
     def current_bits_dac_1(self):
-        return self.laser_driver.pump_laser.DAC_1.bit_value
+        return self.driver.pump_laser.DAC_1.bit_value
 
     @current_bits_dac_1.setter
     def current_bits_dac_1(self, bits):
-        self.laser_driver.pump_laser.DAC_1.bit_value = bits
+        self.driver.pump_laser.DAC_1.bit_value = bits
         signals.current_dac1.emit(bits)
-        self.laser_driver.set_dac_1()
+        self.driver.set_dac_1()
 
     @property
     def current_bits_dac_2(self):
-        return self.laser_driver.pump_laser.DAC_1.bit_value
+        return self.driver.pump_laser.DAC_2.bit_value
 
     @current_bits_dac_2.setter
     def current_bits_dac_2(self, bits):
-        self.laser_driver.pump_laser.DAC_2.bit_value = bits
+        self.driver.pump_laser.DAC_2.bit_value = bits
         signals.current_dac2.emit(bits)
-        self.laser_driver.set_dac_2()
+        self.driver.set_dac_2()
 
     @property
     def current_bits_probe_laser(self):
-        return self.laser_driver.probe_laser.current_bits
+        return self.driver.probe_laser.current_bits
 
     @current_bits_probe_laser.setter
     def current_bits_probe_laser(self, bits):
         # With increasing the slider decreases its value but the voltage should increase - hence we subtract the bits.
-        self.laser_driver.probe_laser.current_bits = hardware.laser.Driver.CURRENT_BITS - bits
+        self.driver.probe_laser.current_bits = hardware.laser.Driver.CURRENT_BITS - bits
         current = hardware.laser.ProbeLaser.bit_to_current(hardware.laser.Driver.CURRENT_BITS - bits)
         signals.current_probe_laser.emit(current)
-        self.laser_driver.set_probe_laser_current()
+        self.driver.set_probe_laser_current()
 
     @property
     def photo_diode_gain(self):
-        return self.laser_driver.probe_laser.photo_diode_gain
+        return self.driver.probe_laser.photo_diode_gain
 
     @photo_diode_gain.setter
     def photo_diode_gain(self, phot_diode_gain):
-        self.laser_driver.probe_laser.photo_diode_gain = phot_diode_gain
-        self.laser_driver.set_photo_gain()
+        self.driver.probe_laser.photo_diode_gain = phot_diode_gain
+        self.driver.set_photo_gain()
 
     @staticmethod
     def process_mode_index(index):
@@ -474,29 +493,31 @@ class Laser:
     def mode_dac1(self, i: int) -> typing.Callable[[int], None]:
         def update(index):
             continuous_wave, pulsed_mode = Laser.process_mode_index(index)
-            self.laser_driver.pump_laser.DAC_1.continuous_wave[i] = continuous_wave
-            self.laser_driver.pump_laser.DAC_1.pulsed_mode[i] = pulsed_mode
-            self.laser_driver.set_dac_matrix()
+            self.driver.pump_laser.DAC_1.continuous_wave[i] = continuous_wave
+            self.driver.pump_laser.DAC_1.pulsed_mode[i] = pulsed_mode
+            self.driver.set_dac_matrix()
         return update
 
     def mode_dac2(self, i: int) -> typing.Callable[[int], None]:
         def update(index):
             continuous_wave, pulsed_mode = Laser.process_mode_index(index)
-            self.laser_driver.pump_laser.DAC_2.continuous_wave[i] = continuous_wave
-            self.laser_driver.pump_laser.DAC_2.pulsed_mode[i] = pulsed_mode
-            self.laser_driver.set_dac_matrix()
+            self.driver.pump_laser.DAC_2.continuous_wave[i] = continuous_wave
+            self.driver.pump_laser.DAC_2.pulsed_mode[i] = pulsed_mode
+            self.driver.set_dac_matrix()
         return update
 
-    def save_configuration(self) -> None:
-        with open(self.config_path, "w") as configuration:
-            lasers = {"Pump Laser": dataclasses.asdict(self.laser_driver.pump_laser),
-                      "Probe Laser": dataclasses.asdict(self.laser_driver.probe_laser)}
-            configuration.write(json_parser.to_json(lasers) + "\n")
+    @property
+    def dac1_mode(self) -> tuple[typing.Annotated[list[bool], 3], typing.Annotated[list[bool], 3]]:
+        return self.driver.pump_laser.DAC_1.pulsed_mode, self.driver.pump_laser.DAC_1.continuous_wave
+
+    @property
+    def dac2_mode(self) -> tuple[typing.Annotated[list[bool], 3], typing.Annotated[list[bool], 3]]:
+        return self.driver.pump_laser.DAC_2.pulsed_mode, self.driver.pump_laser.DAC_2.continuous_wave
 
     def process_measured_data(self) -> None:
         def incoming_data():
-            while self.laser_driver.connected.is_set():
-                received_data = self.laser_driver.data.get(block=True)
+            while self.driver.connected.is_set():
+                received_data = self.driver.data.get(block=True)
                 self.laser_buffer.append(received_data)
                 signals.laser_data.emit(self.laser_buffer)
                 signals.laser_data_display.emit(received_data)

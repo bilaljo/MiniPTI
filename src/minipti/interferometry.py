@@ -14,7 +14,7 @@ class Interferometer:
     DC_HEADERS = [[f"PD{i}" for i in range(1, 4)],
                   [f"DC CH{i}" for i in range(1, 4)]]
 
-    def __init__(self, settings_path="configs/settings.csv", decimation_filepath="data/Decimation.csv",
+    def __init__(self, settings_path="minipti/configs/settings.csv", decimation_filepath="data/Decimation.csv",
                  output_phases=np.empty(shape=3), amplitudes=np.empty(shape=3), offsets=np.empty(shape=3)):
         self.settings_path = settings_path
         self.decimation_filepath = decimation_filepath

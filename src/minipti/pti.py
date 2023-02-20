@@ -32,12 +32,14 @@ class Inversion:
                        ([f"Lock in Amplitude {i}" for i in range(1, 4)], [f"Lock in Phase{i}" for i in range(1, 4)]),
                        ([f"AC CH{i}" for i in range(1, 4)], [f"AC Phase CH{i}" for i in range(1, 4)])]
 
+    SYMMETRIC_MINIMUM = 1.154 - 1  # We subtract 1 to shift the optimium to 1
+
     def __init__(self, response_phases=None, sign=1, interferometer=None, settings_path="minipti/configs/settings.csv"):
         super().__init__()
         self.response_phases = response_phases
-        self.pti_signal = None  # type: float | np.array
-        self.sensitivity = None  # type:  np.array
-        self.total_sensitivity = None  # type: float | np.array
+        self.pti_signal = 0  # type: float | np.array
+        self.sensitivity = 0  # type:  np.array
+        self.symmetry = 0  # type: float | np.array
         self.decimation_file_delimiter = ","
         self.dc_signals = np.empty(shape=3)
         self.settings_path = settings_path
@@ -51,12 +53,12 @@ class Inversion:
     def __repr__(self) -> str:
         class_name = self.__class__.__name__
         representation = f"{class_name}(response_phases={self.response_phases}, pti_signal={self.pti_signal}," \
-                         f"sensitivity={self.total_sensitivity}, lock_in={repr(self.lock_in)}"
+                         f"Symmetry={self.symmetry}, lock_in={repr(self.lock_in)}"
         return representation
 
     def __str__(self) -> str:
         return f"Interferometric Phase: {self.interferometer.phase}\n" \
-               f"Sensitivity: {self.total_sensitivity}\nPTI signal: {self.pti_signal}"
+               f"Symmetry: {self.symmetry}\nPTI signal: {self.pti_signal}"
 
     def load_response_phase(self) -> None:
         settings = pd.read_csv(self.settings_path, index_col="Setting")
@@ -84,18 +86,19 @@ class Inversion:
             demodulated_signal = self.lock_in.amplitude[channel] * np.cos(self.lock_in.phase[channel] - response_phase)
             pti_signal += demodulated_signal * sign * amplitude
             weight += amplitude * np.abs(np.sin(self.interferometer.phase - self.interferometer.output_phases[channel]))
-        self.pti_signal = -pti_signal / weight * Inversion.MICRO_RAD / 400
+        self.pti_signal = -pti_signal / weight * Inversion.MICRO_RAD
 
     def calculate_sensitivity(self) -> None:
         try:
             self.sensitivity = np.empty(shape=(3, len(self.interferometer.phase)))
         except TypeError:
-            self.sensitivity = np.empty(shape=(3, 1))
+            self.sensitivity = [0, 0, 0]
         for channel in range(3):
             amplitude = self.interferometer.amplitudes[channel]
             output_phase = self.interferometer.output_phases[channel]
             self.sensitivity[channel] = amplitude * np.abs(np.sin(self.interferometer.phase - output_phase))
-        self.total_sensitivity = np.sum(self.sensitivity, axis=0)
+        total_sensitivity = np.sum(self.sensitivity, axis=0)
+        self.symmetry = np.max(total_sensitivity) / np.min(total_sensitivity) - Inversion.SYMMETRIC_MINIMUM
 
     def _calculate_offline(self) -> None:
         data = self.interferometer.read_decimation()
@@ -139,7 +142,7 @@ class Inversion:
     def _prepare_data(self, pti_measurement) -> tuple[typing.Mapping[str, str], typing.Mapping[str, np.ndarray]]:
         units = {"Interferometric Phase": "rad", "Total Sensitivity": "V/rad",
                  "Sensitivity CH1": "V/rad", "Sensitivity CH2": "V/rad", "Sensitivity CH3": "V/rad"}
-        output_data = {"Interferometric Phase": self.interferometer.phase, "Total Sensitivity": self.total_sensitivity}
+        output_data = {"Interferometric Phase": self.interferometer.phase, "Symmetry": self.symmetry}
         for i in range(3):
             output_data[f"Sensitivity CH{i + 1}"] = self.sensitivity[i]
         if pti_measurement:
@@ -152,7 +155,9 @@ class Inversion:
         output_data = {}
         if self.init_header:
             output_data["Interferometric Phase"] = "rad"
-            output_data["Sensitivity"] = "1/rad"
+            for channel in range(1, 4):
+                output_data[f"Sensitivity CH{channel}"] = "V/rad"
+            output_data["Symmetry"] = "1"
             output_data["PTI Signal"] = "µrad"
             pd.DataFrame(output_data, index=["s"]).to_csv(f"{self.destination_folder}/PTI_Inversion.csv",
                                                           index_label="Time")
@@ -162,8 +167,9 @@ class Inversion:
         self.calculate_sensitivity()
         now = datetime.now()
         time_stamp = str(now.strftime("%Y-%m-%d %H:%M:%S"))
-        output_data = {"Interferometric Phase": self.interferometer.phase, "Sensitivity": self.sensitivity,
-                       "PTI Signal": self.pti_signal}
+        output_data = {"Interferometric Phase": self.interferometer.phase, "Sensitivity CH1": self.sensitivity[0],
+                       "Sensitivity CH2": self.sensitivity[1],  "Sensitivity CH3": self.sensitivity[2],
+                       "Symmetry": self.symmetry, "PTI Signal": self.pti_signal}
         try:
             pd.DataFrame(output_data, index=[time_stamp]).to_csv(f"{self.destination_folder}/PTI_Inversion.csv",
                                                                  mode="a", index_label="Time", header=False)
@@ -205,7 +211,7 @@ class Decimation:
         self.dc_signals = np.empty(shape=3)
         self.lock_in = LockIn(np.empty(shape=3), np.empty(shape=3))
         self.ref = None
-        self.save_raw_data = debug
+        self.save_raw_data = False
         self.in_phase = np.cos(2 * np.pi / Decimation.REF_PERIOD * np.arange(0, Decimation.SAMPLES))
         self.quadrature = np.sin(2 * np.pi / Decimation.REF_PERIOD * np.arange(0, Decimation.SAMPLES))
         self.destination_folder = "."
@@ -231,7 +237,7 @@ class Decimation:
         current_data_frame = next(self._raw_data_index)
         if current_data_frame + 1 == self.buffer_size:
             self.flush()
-        elif psutil.virtual_memory().avaible < Decimation.MINIMUM_RAM:
+        elif psutil.virtual_memory().available < Decimation.MINIMUM_RAM:
             self._actual_buffer_size = current_data_frame + 1
             self.flush()
         else:
@@ -300,12 +306,15 @@ class Decimation:
             logging.info(f"Could not write data. Missing values are: {str(output_data)[1:-1]} at {time_stamp}.")
 
     def __call__(self, live=True) -> None:
-        output_data = {}
-        for channel in range(3):
-            output_data[f"Lock In Amplitude CH{channel + 1}"] = "V"
-            output_data[f"Lock In Phase CH{channel + 1}"] = "deg"
-            output_data[f"DC CH{channel + 1}"] = "V"
-        pd.DataFrame(output_data, index=["s"]).to_csv(f"{self.destination_folder}/Decimation.csv", index_label="Time")
+        if self.init_header:
+            output_data = {}
+            for channel in range(3):
+                output_data[f"Lock In Amplitude CH{channel + 1}"] = "V"
+                output_data[f"Lock In Phase CH{channel + 1}"] = "deg"
+                output_data[f"DC CH{channel + 1}"] = "V"
+            pd.DataFrame(output_data, index=["s"]).to_csv(f"{self.destination_folder}/Decimation.csv",
+                                                          index_label="Time")
+            self.init_header = False
         if live:
             try:
                 self.process_raw_data()

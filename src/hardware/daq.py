@@ -29,7 +29,7 @@ class Driver(hardware.serial.Driver):
     _PACKAGE_SIZE = 4110
     _WORD_SIZE = 32
 
-    ID = "0001"
+    ID = b"0001"
     NAME = "DAQ"
 
     _CHANNELS = 3
@@ -47,7 +47,7 @@ class Driver(hardware.serial.Driver):
         self._synchronize = True
 
     @property
-    def device_id(self):
+    def device_id(self) -> bytes:
         return Driver.ID
 
     @property
@@ -115,15 +115,11 @@ class Driver(hardware.serial.Driver):
             - Byte 10 to 32 contain the data as period sequence of blocks in hex decimal
             - The last 4 bytes represent a CRC checksum in hex decimal
         """
-        print("called")
         self._received_buffer += self.received_data.get(block=True)
-        print(self._received_buffer)
-        if len(self._received_buffer) >= Driver._PACKAGE_SIZE + len(Driver.TERMINATION_SYMBOL):
-            split_data = self._received_buffer.split(Driver.TERMINATION_SYMBOL)
+        if len(self._received_buffer) >= Driver._PACKAGE_SIZE + len("\n"):
+            split_data = self._received_buffer.split("\n")
             self._received_buffer = ""
             for data in split_data:
-                if data[0] == "G":
-                    self.ready_write.set()
                 if len(data) != Driver._PACKAGE_SIZE:  # Broken package with missing beginning
                     continue
                 crc_calculated = crc16.arc(data[:-Driver._CRC_START_INDEX].encode())
@@ -146,19 +142,19 @@ class Driver(hardware.serial.Driver):
                         self._reset()
                 ref_signal, ac_coupled, dc_coupled = Driver._encode(data)
                 if self._synchronize:
-                    while sum(itertools.islice(ref_signal, Driver.REF_PERIOD // 2)):
+                    while sum(ref_signal[:Driver.REF_PERIOD // 2]):
                         ref_signal.pop(0)
                         for channel in range(Driver._CHANNELS):
                             ac_coupled[channel].pop(0)
                             dc_coupled[channel].pop(0)
+                        dc_coupled[3].pop(0)
                     if len(ref_signal) < Driver.REF_PERIOD // 2:
                         continue
                     self._synchronize = False
-                else:
-                    self._encoded_buffer.ref_signal.extend(ref_signal)
-                    for channel in range(Driver._CHANNELS):
-                        self._encoded_buffer.dc_coupled[channel].extend(dc_coupled[channel])
-                        self._encoded_buffer.ac_coupled[channel].extend(ac_coupled[channel])
+                self._encoded_buffer.ref_signal.extend(ref_signal)
+                for channel in range(Driver._CHANNELS):
+                    self._encoded_buffer.dc_coupled[channel].extend(dc_coupled[channel])
+                    self._encoded_buffer.ac_coupled[channel].extend(ac_coupled[channel])
             if split_data[-1]:  # Data without termination symbol
                 self._received_buffer = split_data[-1]
 
@@ -166,26 +162,16 @@ class Driver(hardware.serial.Driver):
         """
         Creates a package of samples that represents approximately 1 s data. It contains 8000 samples.
         """
-        if len(self._encoded_buffer.ref_signal) >= Driver.NUMBER_OF_SAMPLES:
-            if sum(itertools.islice(self._encoded_buffer.ref_signal, Driver.REF_PERIOD // 2)):
-                logging.error("Phase shift in reference signal detected.")
-                logging.info("Start resynchronisation for next package.")
-                try:
-                    self._sample_numbers.popleft()
-                except IndexError:
-                    return
-                self._synchronize = True
-                return
-            self._package_data.ref_signal.put([self._encoded_buffer.ref_signal.popleft() for _ in
-                                               range(Driver.NUMBER_OF_SAMPLES)])
-            dc_package = [[], [], []]
-            ac_package = [[], [], []]
-            for _ in itertools.repeat(None, Driver.NUMBER_OF_SAMPLES):
-                for channel in range(Driver._CHANNELS):
-                    dc_package[channel].append(self._encoded_buffer.dc_coupled[channel].popleft())
-                    ac_package[channel].append(self._encoded_buffer.ac_coupled[channel].popleft())
-            self._package_data.dc_coupled.put(dc_package)
-            self._package_data.ac_coupled.put(ac_package)
+        self._package_data.ref_signal.put([self._encoded_buffer.ref_signal.popleft()
+                                           for _ in range(Driver.NUMBER_OF_SAMPLES)])
+        dc_package = [[], [], []]
+        ac_package = [[], [], []]
+        for _ in itertools.repeat(None, Driver.NUMBER_OF_SAMPLES):
+            for channel in range(Driver._CHANNELS):
+                dc_package[channel].append(self._encoded_buffer.dc_coupled[channel].popleft())
+                ac_package[channel].append(self._encoded_buffer.ac_coupled[channel].popleft())
+        self._package_data.dc_coupled.put(dc_package)
+        self._package_data.ac_coupled.put(ac_package)
 
     def _process_data(self) -> None:
         self._reset()

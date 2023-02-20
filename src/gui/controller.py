@@ -5,7 +5,6 @@ import typing
 
 from PySide6 import QtWidgets
 
-import hardware
 from gui import model
 from gui import view
 
@@ -13,17 +12,11 @@ from gui import view
 class MainApplication(QtWidgets.QApplication):
     def __init__(self, argv=""):
         QtWidgets.QApplication.__init__(self, argv)
-        self.driver_model = model.Hardware()
-        self.settings_model = model.SettingsTable()
         self.logging_model = model.Logging()
-        self.driver_controller = Hardware(self.driver_model)
-        self.view = view.MainWindow(self, self.driver_controller)
+        self.view = view.MainWindow(self)
         # threading.excepthook = self.thread_exception
-        self.driver_model.find_device()
-        self.settings_model.setup_settings_file()
 
     def close(self):
-        self.driver_model.close()
         self.view.close()
 
     def thread_exception(self, args):
@@ -35,74 +28,19 @@ class MainApplication(QtWidgets.QApplication):
             QtWidgets.QMessageBox.critical(self.view, "Error", f"{args.exc_type} error occurred.")
 
 
-class Hardware:
-    def __init__(self, hardware_model: model.Hardware):
-        self.hardware_model = hardware_model
-
-    def update_driver_voltage(self, bits):
-        self.hardware_model.laser.driver_bits = bits
-
-    def update_current_dac1(self, bits):
-        self.hardware_model.laser.current_bits_dac_1 = bits
-
-    def update_current_dac2(self, bits):
-        self.hardware_model.laser.current_bits_dac_2 = bits
-
-    def update_current_probe_laser(self, bits):
-        self.hardware_model.laser.current_bits_probe_laser = bits
-
-    def update_configuration(self):
-        self.hardware_model.laser.update_configuration()
-
-    def mode_dac1(self, i) -> typing.Callable:
-        return self.hardware_model.laser.mode_dac1(i)
-
-    def mode_dac2(self, i) -> typing.Callable:
-        return self.hardware_model.laser.mode_dac2(i)
-
-    def update_photo_gain(self, value):
-        self.hardware_model.laser.photo_diode_gain = value + 1
-
-    def update_probe_laser_mode(self, index):
-        match index:
-            case view.ProbeLaser.CONSTANT_LIGHT:
-                self.hardware_model.laser.probe_laser.constant_light = True
-                self.hardware_model.laser.probe_laser.constant_current = False
-            case view.ProbeLaser.CONSTANT_LIGHT:
-                self.hardware_model.laser.probe_laser.constant_light = False
-                self.hardware_model.laser.probe_laser.constant_current = True
-            case _:
-                self.hardware_model.laser.probe_laser.constant_light = False
-                self.hardware_model.laser.probe_laser.constant_light = True
-
-    def update_max_current_probe_laser(self, max_current):
-        try:
-            self.probe_laser.max_current_mA = float(max_current)
-        except ValueError:
-            logging.error("Could not apply new value. Invalid symbols encountered.")
-
-    def load_config(self):
-        self.hardware_model.laser.load_config()
-
-    @property
-    def pump_laser(self):
-        return self.hardware_model.laser.driver.pump_laser
-
-    @property
-    def probe_laser(self):
-        return self.hardware_model.laser.driver.probe_laser
-
-
 class Home:
-    def __init__(self, driver_controller: Hardware, main_controller: MainApplication, parent):
+    def __init__(self, parent):
         self.view = parent
+        self.settings_model = model.SettingsTable()
         self.calculation_model = model.Calculation()
-        self.main_controller = main_controller
-        self.driver_controller = driver_controller
         self.pump_laser_enabled = False
         self.probe_laser_enabled = False
         self.daq_enabled = False
         self.last_file_path = os.getcwd()
+        self.settings_model.setup_settings_file()
+        self.laser = model.Laser()
+        self.daq = model.DAQ()
+        self.find_devices()
 
     def set_destination_folder(self):
         destination_folder = QtWidgets.QFileDialog.getExistingDirectory(self.view, "Destination Folder",
@@ -118,14 +56,14 @@ class Home:
         return file_path[0]
 
     def save_settings(self):
-        self.main_controller.settings_model.save()
+        self.settings_model.save()
 
     def load_settings(self):
         file_path = QtWidgets.QFileDialog.getOpenFileName(self.view, caption="Load SettingsTable",
                                                           filter="All Files (*);; CSV File (*.csv);; TXT File (*.txt")
         if file_path:
-            self.main_controller.settings_model.file_path = file_path[0]  # The actual file path
-            self.main_controller.settings_model.load()
+            self.settings_model.file_path = file_path[0]  # The actual file path
+            self.settings_model.load()
 
     def calculate_decimation(self):
         decimation_file_path = self.get_file_path("Decimation")
@@ -138,7 +76,7 @@ class Home:
         if not inversion_path:
             return
         threading.Thread(target=self.calculation_model.calculate_inversion,
-                         args=[self.main_controller.settings_model.file_path, inversion_path]).start()
+                         args=[self.settings_model.file_path, inversion_path]).start()
 
     def calculate_characterisation(self):
         characterisation_path = self.get_file_path("Characterisation")
@@ -150,8 +88,7 @@ class Home:
                                                       | QtWidgets.QMessageBox.StandardButton.No)
         use_settings = use_settings == QtWidgets.QMessageBox.StandardButton.Yes
         threading.Thread(target=self.calculation_model.calculate_characterisation,
-                         args=[characterisation_path, use_settings,
-                               self.main_controller.settings_model.file_path]).start()
+                         args=[characterisation_path, use_settings, self.settings_model.file_path]).start()
 
     def plot_inversion(self):
         try:
@@ -172,39 +109,116 @@ class Home:
             QtWidgets.QMessageBox.critical(self.view, "Plotting Error", "Invalid data given. Could not plot.")
 
     def find_devices(self):
-        self.main_controller.driver_model.find_device()
+        try:
+            self.daq.driver.find_port()
+        except OSError:
+            logging.error("Could not find DAQ")
+        try:
+            self.laser.driver.find_port()
+        except OSError:
+            logging.error("Could not find Laser Driver")
 
     def connect_devices(self):
-        self.driver_controller.hardware_model.open_laser()
-        self.driver_controller.hardware_model.open_daq()
+        try:
+            self.daq.driver.open()
+        except OSError:
+            logging.error("Could not connect with DAQ")
+        try:
+            self.laser.open()
+            self.laser.process_measured_data()
+        except OSError:
+            logging.error("Could not connect with Laser Driver")
 
     def enable_probe_laser(self):
         if not self.probe_laser_enabled:
-            self.driver_controller.hardware_model.enable_probe_laser()
-            view.toggle_button(True, self.view.tabs.home.buttons["Enable Probe Laser"])
+            self.laser.driver.enable_probe_laser()
+            view.toggle_button(True, self.view.buttons["Enable Probe Laser"])
             self.probe_laser_enabled = True
         else:
-            view.toggle_button(False, self.view.tabs.home.buttons["Enable Probe Laser"])
-            self.driver_controller.hardware_model.disable_probe_laser()
+            view.toggle_button(False, self.view.buttons["Enable Probe Laser"])
+            self.laser.driver.disable_probe_laser()
             self.probe_laser_enabled = False
 
     def enable_pump_laser(self):
         if not self.pump_laser_enabled:
-            self.driver_controller.hardware_model.enable_pump_laser()
-            self.driver_controller.hardware_model.ports.laser.run()
-            view.toggle_button(True, self.view.tabs.home.buttons["Enable Pump Laser"])
+            self.laser.driver.enable_pump_laser()
+            view.toggle_button(True, self.view.buttons["Enable Pump Laser"])
             self.pump_laser_enabled = True
         else:
-            view.toggle_button(False, self.view.tabs.home.buttons["Enable Pump Laser"])
-            self.driver_controller.hardware_model.disable_pump_laser()
+            view.toggle_button(False, self.view.buttons["Enable Pump Laser"])
+            self.laser.driver.disable_pump_laser()
             self.pump_laser_enabled = False
 
     def run_measurement(self) -> None:
         if not self.daq_enabled:
+            self.daq.driver.run()
             self.calculation_model.live_calculation()
-            view.toggle_button(True, self.view.tabs.home.buttons["Run Measurement"])
+            view.toggle_button(True, self.view.buttons["Run Measurement"])
             self.daq_enabled = True
         else:
-            view.toggle_button(False, self.view.tabs.home.buttons["Run Measurement"])
+            view.toggle_button(False, self.view.buttons["Run Measurement"])
             self.daq_enabled = False
 
+
+class Laser:
+    def __init__(self):
+        self.laser = model.Laser()
+
+    def update_driver_voltage(self, bits: int) -> None:
+        self.laser.driver_bits = bits
+
+    def update_current_dac1(self, bits: int) -> None:
+        self.laser.current_bits_dac_1 = bits
+
+    def update_current_dac2(self, bits: int) -> None:
+        self.laser.current_bits_dac_2 = bits
+
+    def save_configuration(self) -> None:
+        self.laser.save_configuration()
+
+    def load_configuration(self) -> None:
+        self.laser.load_configuration()
+        self.laser.driver_bits = self.laser.driver_bits
+        self.laser.current_bits_dac_1 = self.laser.current_bits_dac_1
+        self.laser.current_bits_dac_2 = self.laser.current_bits_dac_2
+        for i in range(3):
+            self.laser.mode_dac1(i)(i)
+            self.laser.mode_dac2(i)(i)
+
+    def apply_configuration(self) -> None:
+        self.laser.apply_configuration()
+
+    def mode_dac1(self, i: int) -> typing.Callable[[int], None]:
+        return self.laser.mode_dac1(i)
+
+    def mode_dac2(self, i) -> typing.Callable[[int], None]:
+        return self.laser.mode_dac2(i)
+
+    def update_max_current_probe_laser(self, max_current: str) -> None:
+        try:
+            self.laser.max_current_mA = float(max_current)
+        except ValueError:
+            logging.error("Could not apply new value. Invalid symbols encountered.")
+
+    def update_photo_gain(self, value: int) -> None:
+        self.laser.photo_diode_gain = value + 1
+
+    def update_probe_laser_mode(self, index: int) -> None:
+        match index:
+            case view.ProbeLaser.CONSTANT_LIGHT:
+                self.laser.constant_light = True
+                self.laser.constant_current = False
+            case view.ProbeLaser.CONSTANT_LIGHT:
+                self.laser.constant_light = False
+                self.laser.constant_current = True
+            case _:
+                self.laser.constant_light = False
+                self.laser.constant_light = True
+
+    def update_current_probe_laser(self, bits: int) -> None:
+        self.laser.current_bits_probe_laser = bits
+
+
+class Tec:
+    def __init__(self):
+        pass

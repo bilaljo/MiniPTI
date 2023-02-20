@@ -127,8 +127,8 @@ class Driver(hardware.serial.Driver):
                     self.ready_write.set()
                     continue
 
-    def _encode(self) -> None:
-        while self.connected:
+    def _process_data(self) -> None:
+        while self.connected.is_set():
             self._encode_data()
 
     @property

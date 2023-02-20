@@ -25,11 +25,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.tabs: None | Tab = None
         self.current_pump_laser = PumpLaserCurrent()
         self.current_probe_laser = ProbeLaserCurrent()
+        self.tec_values = TecCurrent()
         self.dc = DC()
         self.amplitudes = Amplitudes()
         self.output_phases = OutputPhases()
         self.interferometric_phase = InterferometricPhase()
         self.sensitivity = Sensitivity()
+        self.symmetry = Symmetry()
         self.pti_signal = PTISignal()
         self._init_tabs()
         self.resize(MainWindow.HORIZONTAL_SIZE, MainWindow.VERTICAL_SIZE)
@@ -53,15 +55,15 @@ class MainWindow(QtWidgets.QMainWindow):
         tec_tab = QtWidgets.QTabWidget()
         tec_tab.setLayout(QtWidgets.QHBoxLayout())
         tec_tab.layout().addWidget(Tec())
-        tec_tab.layout().addWidget(self.current_probe_laser.window)
+        tec_tab.layout().addWidget(self.tec_values.window)
         return tec_tab
 
     def _init_tabs(self):
         self.tabs = Tab(home=Home(), pump_laser=self._init_pump_laser_tab(), probe_laser=self._init_probe_laser_tab(),
                         tec=self._init_tec_tab(), dc=QtWidgets.QTabWidget(), amplitudes=QtWidgets.QTabWidget(),
                         output_phases=QtWidgets.QTabWidget(), sensitivity=QtWidgets.QTabWidget(),
-                        interferometric_phase=QtWidgets.QTabWidget(), pti_signal=QtWidgets.QTabWidget(),
-                        aerosol_concentration=QtWidgets.QTabWidget())
+                        symmetry=QtWidgets.QTabWidget(), interferometric_phase=QtWidgets.QTabWidget(),
+                        pti_signal=QtWidgets.QTabWidget())
         self.tab_bar.addTab(self.tabs.home, "Home")
         self.tab_bar.addTab(self.tabs.pump_laser, "Pump Laser")
         self.tab_bar.addTab(self.tabs.probe_laser, "Probe Laser")
@@ -86,15 +88,19 @@ class MainWindow(QtWidgets.QMainWindow):
         self.tabs.sensitivity.setLayout(QtWidgets.QHBoxLayout())
         self.tabs.sensitivity.layout().addWidget(self.sensitivity.window)
         self.tab_bar.addTab(self.tabs.sensitivity, "Sensitivity")
+        # Symmetry Plot
+        self.tabs.symmetry.setLayout(QtWidgets.QHBoxLayout())
+        self.tabs.symmetry.layout().addWidget(self.symmetry.window)
+        self.tab_bar.addTab(self.tabs.symmetry, "Symmetry")
         # PTI Signal Plot
         self.tabs.pti_signal.setLayout(QtWidgets.QHBoxLayout())
         self.tabs.pti_signal.layout().addWidget(self.pti_signal.window)
         self.tab_bar.addTab(self.tabs.pti_signal, "PTI Signal")
 
     def closeEvent(self, close_event):
-        close = QtWidgets.QMessageBox.question(self, "QUIT", "Are you sure you want to close?",
-                                               QtWidgets.QMessageBox.StandardButton.Yes
-                                               | QtWidgets.QMessageBox.StandardButton.No)
+        close = QtWidgets.QMessageBox.question(
+            self, "QUIT", "Are you sure you want to close?",
+            QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No)
         if close == QtWidgets.QMessageBox.StandardButton.Yes:
             close_event.accept()
             self.main_controller.close()
@@ -228,7 +234,7 @@ class Home(QtWidgets.QTabWidget, _Frames, _CreateButton):
         self.create_button(master=sub_layout, title="Enable Pump Laser", slot=self.controller.enable_pump_laser)
         self.create_button(master=sub_layout, title="Enable Tec", slot=self.controller.find_devices)
         self.create_button(master=sub_layout, title="Enable Probe Laser", slot=self.controller.enable_probe_laser)
-        self.create_button(master=sub_layout, title="Run Measurement", slot=self.controller.enable_daq)
+        self.create_button(master=sub_layout, title="Run Measurement", slot=self.controller.run_measurement)
 
     def logging_update(self, log_queue: collections.deque) -> None:
         self.logging_window.setText("".join(log_queue))
@@ -255,7 +261,6 @@ class Slider(QtWidgets.QWidget):
     @update_value.register
     def _(self, value: float) -> None:
         self.slider_value.setText(f"{round(value, 2)} " + self.unit)
-        self.slider.setValue(int(value))
 
 
 class PumpLaser(QtWidgets.QWidget, _Frames, _CreateButton):
@@ -270,7 +275,7 @@ class PumpLaser(QtWidgets.QWidget, _Frames, _CreateButton):
         _CreateButton.__init__(self)
         _Frames.__init__(self, name="Pump Laser")
         self.model = None
-        self.controller = controller.PumpLaser(self)
+        self.controller = controller.Laser()
         self.setLayout(QtWidgets.QGridLayout())
         self.current_display = QtWidgets.QLabel("0 mA")
         self.voltage_display = QtWidgets.QLabel("0 V")
@@ -286,6 +291,7 @@ class PumpLaser(QtWidgets.QWidget, _Frames, _CreateButton):
         self.frames["Measured Values"].layout().addWidget(self.current_display)
         self.frames["Measured Values"].layout().addWidget(self.voltage_display)
         model.signals.laser_data_display.connect(self.update_current_voltage)
+        self.controller.load_configuration()
 
     @QtCore.Slot()
     def update_current_voltage(self, value: hardware.laser.LaserData):
@@ -351,7 +357,7 @@ class ProbeLaser(QtWidgets.QWidget, _CreateButton, _Frames):
         self.setLayout(QtWidgets.QGridLayout())
         self.current_slider = Slider(minimum=ProbeLaser.MIN_CURRENT_BIT, maximum=ProbeLaser.MAX_CURRENT_BIT,
                                      unit="mA")
-        self.controller = controller.ProbeLaser(self)
+        self.controller = controller.Laser()
         self.laser_mode = QtWidgets.QComboBox()
         self.photo_gain = QtWidgets.QComboBox()
         self.current_display = QtWidgets.QLabel("0 mA")
@@ -520,7 +526,7 @@ class DC(_Plotting):
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="Intensity [V]")
         model.signals.decimation.connect(self.update_data)
-        model.signals.decimation_live.connect(self.update_data)
+        model.signals.decimation_live.connect(self.update_data_live)
 
     def update_data(self, data: pd.DataFrame) -> None:
         for channel in range(3):
@@ -617,6 +623,22 @@ class Sensitivity(_Plotting):
             self.curves[channel].setData(data.time, data.sensitivity[channel])
 
 
+class Symmetry(_Plotting):
+    def __init__(self):
+        _Plotting.__init__(self)
+        self.curves = self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE))
+        self.plot.setLabel(axis="bottom", text="Time [s]")
+        self.plot.setLabel(axis="left", text="Symmetry [1]")
+        model.signals.inversion.connect(self.update_data)
+        model.signals.inversion_live.connect(self.update_data_live)
+
+    def update_data(self, data: pd.DataFrame) -> None:
+        self.curves.setData(data[f"Symmetry"])
+
+    def update_data_live(self, data: model.PTIBuffer) -> None:
+        self.curves.setData(data.time, data.symmetry)
+
+
 class PTISignal(_Plotting):
     def __init__(self):
         _Plotting.__init__(self)
@@ -625,7 +647,7 @@ class PTISignal(_Plotting):
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="PTI Signal [µrad]")
         model.signals.inversion.connect(self.update_data)
-        model.signals.inversion_live.connect(self.update_data)
+        model.signals.inversion_live.connect(self.update_data_live)
 
     def update_data(self, data: pd.DataFrame) -> None:
         try:
@@ -684,6 +706,21 @@ class ProbeLaserCurrent(_Plotting):
         self.curves.setData(data.time, data.probe_laser_current)
 
 
+class TecCurrent(_Plotting):
+    def __init__(self):
+        _Plotting.__init__(self)
+        self.curves = self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE))
+        self.plot.setLabel(axis="bottom", text="Time [s]")
+        self.plot.setLabel(axis="left", text="Current [mA]")
+        # model.signals.laser_data.connect(self.update_data_live)
+
+    def update_data(self, data: pd.DataFrame) -> None:
+        raise NotImplementedError("There is no need to plot laser data offline")
+
+    def update_data_live(self, data: model.LaserBuffer) -> None:
+        self.curves.setData(data.time, data.probe_laser_current)
+
+
 class Tab(NamedTuple):
     home: Home
     pump_laser: QtWidgets.QTabWidget
@@ -694,5 +731,5 @@ class Tab(NamedTuple):
     output_phases: QtWidgets.QTabWidget
     interferometric_phase: QtWidgets.QTabWidget
     sensitivity: QtWidgets.QTabWidget
+    symmetry: QtWidgets.QTabWidget
     pti_signal: QtWidgets.QTabWidget
-    aerosol_concentration: QtWidgets.QTabWidget

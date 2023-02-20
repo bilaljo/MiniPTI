@@ -3,36 +3,22 @@ import logging
 import queue
 import re
 import threading
+import time
 import typing
 from dataclasses import dataclass
 from enum import Enum
 import os
 
 import platform
-if platform.system() == "Windows":
-    import clr
-    import System.IO.Ports
-else:
-    import signal
 
-from statemachine import StateMachine, State
+import serial
 from serial.tools import list_ports
+from PySide6 import QtCore, QtSerialPort
 
 
 @dataclass
 class Data:
     ...
-
-
-class DriverStateMachine(StateMachine):
-    disconnected = State("Disconnected", initial=True)
-    connected = State("Connected")
-    disabled = State("Disabled")
-    enabled = State("Enabled")
-
-    connect = disconnected.to(connected)
-    enable = connected.to(enabled) | disabled.to(enabled)
-    disable = connected.to(disabled) | enabled.to(disabled)
 
 
 class Error(Enum):
@@ -48,59 +34,57 @@ class Patterns:
     The first bytes stand for get (G) the second byte for the required thing (H for Hardware, F for Firmware etc.).
     The third bytes stands for the required Information (I for ID, V for version). \n is the termination symbol.
     """
-    HARDWARE_ID = re.compile("GHI[0-9a-fA-F]{4}", flags=re.MULTILINE)
-    ERROR = re.compile("ERR[0-9a-fA-F]{4}", flags=re.MULTILINE)
-    HEX_VALUE = re.compile("[0-9a-fA-F]{4}", flags=re.MULTILINE)
+    HARDWARE_ID = re.compile(b"GHI[0-9a-fA-F]{4}", flags=re.MULTILINE)
+    ERROR = re.compile(b"ERR[0-9a-fA-F]{4}", flags=re.MULTILINE)
+    HEX_VALUE = re.compile(b"[0-9a-fA-F]{4}", flags=re.MULTILINE)
 
 
 class Command:
-    HARDWARE_ID = "GHI0000"
+    HARDWARE_ID = b"GHI0000"
 
 
-class Driver:
+class Driver(QtCore.QObject):
     _QUEUE_SIZE = 15
     MAX_RESPONSE_TIME = 100e-3  # 50 ms response time
 
-    TERMINATION_SYMBOL = "\n"
+    TERMINATION_SYMBOL = b"\n"
     _NUMBER_OF_HEX_BYTES = 4
     _START_DATA_FRAME = 1  # First symbol is the header
 
     def __init__(self):
+        QtCore.QObject.__init__(self)
         self.received_data = queue.Queue(maxsize=Driver._QUEUE_SIZE)
         self.connected = threading.Event()
-        if platform.system() == "Windows":
-            self.serial_port = System.IO.Ports.SerialPort()
-        else:
-            signal.signal(signal.SIGIO, self.receive)
-            self.file_descriptor = -1
-            self.device = None
+        self.device = QtSerialPort.QSerialPort()
+        self.device.readyRead.connect(self.receive)
         self.port_name = ""
         self._write_buffer = queue.Queue()
         self.ready_write = threading.Event()
         self.ready_write.set()
         self.last_written_message = ""
         self.data = queue.Queue()
-        self.state_machine = DriverStateMachine()
+        self.running = False
 
     if platform.system() == "Windows":
         def find_port(self) -> None:
-            ports = System.IO.Ports.SerialPort.GetPortNames()
-            for port in ports:
-                serial_port = System.IO.Ports.SerialPort(port)
-                serial_port.DataReceived += System.IO.Ports.SerialDataReceivedEventHandler(self.receive)
+            for port in list_ports.comports():
                 try:
-                    serial_port.Open()
-                except System.UnauthorizedAccessException:
+                    device = serial.Serial(port.device, timeout=Driver.MAX_RESPONSE_TIME)
+                except serial.SerialException:
                     continue
-                serial_port.Write(Command.HARDWARE_ID + Driver.TERMINATION_SYMBOL)
+                device.write(Command.HARDWARE_ID + Driver.TERMINATION_SYMBOL)
+                time.sleep(0.1)
+                avaiable_bytes = device.in_waiting
+                self.received_data.put(device.read(avaiable_bytes))
                 hardware_id = self.get_hardware_id()
                 if hardware_id == self.device_id:
-                    self.port_name = port
+                    self.port_name = port.device
+                    self.device.setPortName(self.port_name)
                     logging.info(f"Found {self.device_name} at {self.port_name}")
-                    serial_port.Close()
+                    device.close()
                     break
                 else:
-                    serial_port.Close()
+                    device.close()
             else:
                 raise OSError("Could not find {self.device_name}")
     else:
@@ -112,7 +96,7 @@ class Driver:
                 os.write(self.file_descriptor, (Command.HARDWARE_ID + Driver.TERMINATION_SYMBOL).encode())
                 hardware_id = self.get_hardware_id()
                 if hardware_id is not None and hardware_id == self.device_id:
-                    self.port_name = port
+                    self.port_name = port.device
                     logging.info(f"Found {self.device_name} at {self.port_name}")
                     os.close(self.file_descriptor)
                 else:
@@ -124,23 +108,20 @@ class Driver:
     def open(self) -> bool:
         if self.port_name:
             logging.info(f"Connected with {self.device_name}")
-            self.serial_port = System.IO.Ports.SerialPort()
-            self.serial_port.PortName = self.port_name
-            self.serial_port.DataReceived += System.IO.Ports.SerialDataReceivedEventHandler(self.receive)
-            self.serial_port.Open()
+            self.device.open(QtSerialPort.QSerialPort.ReadWrite)
             self.connected.set()
-            self.state_machine.connect()
             return True
         else:
-            logging.error(f"Could not connect with {self.device_name}")
-            return False
+            raise OSError("Could not find {self.device_name}")
 
     def run(self) -> None:
+        self.running = True
         threading.Thread(target=self._write, daemon=True).start()
         threading.Thread(target=self._read, daemon=True).start()
 
     def _read(self):
         try:
+            print("called")
             self._process_data()
         finally:
             self.close()
@@ -161,9 +142,9 @@ class Driver:
                          f" device_id={self.device_id}, port_name={self.port_name}, received_data={self.received_data})"
         return representation
 
-    def get_hardware_id(self) -> str | None:
+    def get_hardware_id(self) -> bytes | None:
         try:
-            received_data = self.received_data.get(timeout=Driver.MAX_RESPONSE_TIME)
+            received_data = self.received_data.get(timeout=Driver.MAX_RESPONSE_TIME)  # type: bytes
             hardware_id = Patterns.HARDWARE_ID.search(received_data)
         except queue.Empty:
             return
@@ -175,17 +156,17 @@ class Driver:
         if Patterns.ERROR.search(received) is not None:
             match Patterns.HEX_VALUE.search(Patterns.ERROR.search(received).group()).group():
                 case Error.COMMAND:
-                    raise OSError(f"Packet length != 7 characters ('\n' excluded) from {self.serial_port}")
+                    raise OSError(f"Packet length != 7 characters ('\n' excluded) from {self.port_name}")
                 case Error.PARAMETER:
-                    raise OSError(f"Error converting the hex parameter from {self.serial_port}")
+                    raise OSError(f"Error converting the hex parameter from {self.port_name}")
                 case Error.COMMAND:
-                    raise OSError(f"Request consists of an unknown/invalid command from {self.serial_port}")
+                    raise OSError(f"Request consists of an unknown/invalid command from {self.port_name}")
                 case Error.UNKNOWN_COMMAND:
-                    raise OSError(f"Unknown command from {self.serial_port}")
+                    raise OSError(f"Unknown command from {self.port_name}")
 
     def write(self, message: str | bytes | bytearray) -> None:
-        if isinstance(message, bytes):
-            self._write_buffer.put(message.decode())
+        if isinstance(message, str):
+            self._write_buffer.put(message.encode())
         else:
             self._write_buffer.put(message, block=False)
 
@@ -194,7 +175,7 @@ class Driver:
             while self.connected.is_set():
                 if self.ready_write.wait(timeout=Driver.MAX_RESPONSE_TIME):
                     self.last_written_message = self._write_buffer.get(block=True)
-                    self.serial_port.Write(self.last_written_message + Driver.TERMINATION_SYMBOL)
+                    self.device.write(self.last_written_message + Driver.TERMINATION_SYMBOL)
                     self.ready_write.clear()
     else:
         def _write(self) -> None:
@@ -206,27 +187,25 @@ class Driver:
 
     if platform.system() == "Windows":
         def is_open(self) -> bool:
-            return self.serial_port.IsOpen
+            return self.device.isOpen()
     else:
         def is_open(self) -> bool:
             return self.file_descriptor != -1
 
     if platform.system() == "Windows":
         def close(self) -> None:
-            if self.serial_port.IsOpen:
+            if self.device.isOpen():
                 self.connected.clear()
-                self.serial_port.Close()
+                self.device.close()
     else:
         def close(self) -> None:
             if self.file_descriptor != -1:
                 os.close(self.file_descriptor)
 
     if platform.system() == "Windows":
-        def receive(self, sender, arg: System.IO.Ports.SerialDataReceivedEventArgs) -> None:
-            try:
-                self.received_data.put(sender.ReadExisting())
-            except System.InvalidOperationException:
-                return
+        def receive(self) -> None:
+            if self.running:
+                self.received_data.put(self.device.readAll())
     else:
         def receive(self, signum, frame) -> None:
             buffer_size = os.stat(self.file_descriptor).st_size
