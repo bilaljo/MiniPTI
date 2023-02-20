@@ -64,6 +64,7 @@ class Driver(QtCore.QObject):
         self.last_written_message = ""
         self.data = queue.Queue()
         self.running = False
+        self.file_descriptor = -1
 
     if platform.system() == "Windows":
         def find_port(self) -> None:
@@ -93,7 +94,7 @@ class Driver(QtCore.QObject):
                 self.file_descriptor = os.open(path=port.device, flags=os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
                 if self.file_descriptor == -1 or not os.isatty(self.file_descriptor):
                     continue
-                os.write(self.file_descriptor, (Command.HARDWARE_ID + Driver.TERMINATION_SYMBOL).encode())
+                os.write(self.file_descriptor, Command.HARDWARE_ID + Driver.TERMINATION_SYMBOL)
                 hardware_id = self.get_hardware_id()
                 if hardware_id is not None and hardware_id == self.device_id:
                     self.port_name = port.device
