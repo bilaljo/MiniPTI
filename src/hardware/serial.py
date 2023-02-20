@@ -121,7 +121,6 @@ class Driver(QtCore.QObject):
 
     def _read(self):
         try:
-            print("called")
             self._process_data()
         finally:
             self.close()

@@ -228,7 +228,7 @@ class PTIBuffer(Buffer):
         self.interferometric_phase.append(interferometer.phase)
         self.pti_signal.append(pti_data.inversion.pti_signal)
         self._pti_signal_mean_queue.append(pti_data.inversion.pti_signal)
-        self._pti_signal_mean_queue.append(np.mean(self.pti_signal_mean))
+        self.pti_signal_mean.append(np.mean(self._pti_signal_mean_queue))
         self.time.append(next(self.time_counter))
 
 
