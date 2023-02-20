@@ -94,8 +94,6 @@ class Driver:
                     continue
                 serial_port.Write(Command.HARDWARE_ID + Driver.TERMINATION_SYMBOL)
                 hardware_id = self.get_hardware_id()
-                while hardware_id is None:
-                    hardware_id = self.get_hardware_id()
                 if hardware_id == self.device_id:
                     self.port_name = port
                     logging.info(f"Found {self.device_name} at {self.port_name}")
@@ -104,7 +102,6 @@ class Driver:
                 else:
                     serial_port.Close()
             else:
-                logging.error(f"Could not find {self.device_name}")
                 raise OSError("Could not find {self.device_name}")
     else:
         def find_port(self) -> None:
@@ -122,7 +119,6 @@ class Driver:
                     os.close(self.file_descriptor)
                     self.file_descriptor = -1  # Reset it since we found no valid one
             else:
-                logging.error(f"Could not find {self.device_name}")
                 raise OSError("Could not find {self.device_name}")
 
     def open(self) -> bool:
