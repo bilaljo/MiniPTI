@@ -9,3 +9,4 @@ python-statemachine
 pythonnet; platform_system == "Windows"
 pyserial; platform_system != "Windows"  # Requiered for finding the ports
 psutil
+pywin32

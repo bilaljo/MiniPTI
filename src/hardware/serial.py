@@ -14,6 +14,7 @@ import platform
 import serial
 from serial.tools import list_ports
 from PySide6 import QtCore, QtSerialPort
+import win32file
 
 
 @dataclass
@@ -108,10 +109,22 @@ class Driver(QtCore.QObject):
 
     def open(self) -> bool:
         if self.port_name:
+            self.device = win32file.CreateFile(
+                fr"\\.\{self.port_name}",
+                win32file.GENERIC_READ | win32file.GENERIC_WRITE,
+                0,  # No sharing
+                0,  # No Security
+                win32file.OPEN_EXISTING,
+                win32file.FILE_FLAG_OVERLAPPED,
+                0
+            )
+
+            """
             logging.info(f"Connected with {self.device_name}")
             self.device.open(QtSerialPort.QSerialPort.ReadWrite)
             self.connected.set()
             return True
+            """
         else:
             raise OSError("Could not find {self.device_name}")
 
