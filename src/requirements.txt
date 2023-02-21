@@ -8,3 +8,4 @@ dacite
 python-statemachine
 pyserial
 psutil
+pywin32
