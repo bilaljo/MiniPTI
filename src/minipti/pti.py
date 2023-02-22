@@ -99,7 +99,7 @@ class Inversion:
             output_phase = self.interferometer.output_phases[channel]
             self.sensitivity[channel] = amplitude * np.abs(np.sin(self.interferometer.phase - output_phase))
         total_sensitivity = np.sum(self.sensitivity, axis=0)
-        self.symmetry = np.max(total_sensitivity) / np.min(total_sensitivity) - Inversion.SYMMETRIC_MINIMUM
+        self.symmetry = np.max(total_sensitivity) / np.min(total_sensitivity)
 
     def _calculate_offline(self) -> None:
         data = self.interferometer.read_decimation()
@@ -141,7 +141,7 @@ class Inversion:
         logging.info("PTI Inversion calculated.")
 
     def _prepare_data(self, pti_measurement) -> tuple[typing.Mapping[str, str], typing.Mapping[str, np.ndarray]]:
-        units = {"Interferometric Phase": "rad", "Total Sensitivity": "V/rad",
+        units = {"Interferometric Phase": "rad", "Symmetrie": "1",
                  "Sensitivity CH1": "V/rad", "Sensitivity CH2": "V/rad", "Sensitivity CH3": "V/rad"}
         output_data = {"Interferometric Phase": self.interferometer.phase, "Symmetry": self.symmetry}
         for i in range(3):
