@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 import psutil
 
+import hardware.daq
 from minipti import interferometry
 
 
@@ -194,7 +195,7 @@ class Decimation:
     """
     REF_VOLTAGE = 3.3  # V
     REF_PERIOD = 100  # Samples
-    SAMPLES = 8000
+    SAMPLES = hardware.daq.Driver.NUMBER_OF_SAMPLES
     DC_RESOLUTION = (1 << 12) - 1  # 12 Bit ADC
     AC_RESOLUTION = (1 << (16 - 1)) - 1  # 16 bit ADC with 2 complement
     AMPLIFICATION = 100  # Theoretical value given by the hardware

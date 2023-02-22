@@ -243,9 +243,9 @@ class CharacterisationBuffer(Buffer):
 
     def append(self, characterization: interferometry.Characterization, interferometer: interferometry.Interferometer):
         for i in range(3):
-            self.amplitudes.append(interferometer.amplitudes[i])
+            self.amplitudes[i].append(interferometer.amplitudes[i])
         for i in range(2):
-            self.output_phases.append(interferometer.output_phases[i + 1])
+            self.output_phases[i].append(interferometer.output_phases[i + 1])
         self.time.append(characterization.time_stamp)
 
 
@@ -303,6 +303,7 @@ class Calculation:
         self.interferometry = Interferometry(interferometry.Interferometer(), interferometry.Characterization())
         self.interferometry.characterization.interferometry = self.interferometry.interferometer
         self.pti = PTI(pti.Decimation(), pti.Inversion(interferometer=self.interferometry.interferometer))
+        self.interferometry.characterization.interferometry = self.interferometry.interferometer
         self.running = threading.Event()
         self._destination_folder = os.getcwd()
 
@@ -327,10 +328,13 @@ class Calculation:
         def calculate_characterization():
             while self.running.is_set():
                 self.interferometry.characterization()
-                self.characterisation_buffer.append(self.interferometry)
-                signals.characterization.emit(self.characterisation_buffer)
+                self.characterisation_buffer.append(
+                    self.interferometry.characterization,
+                    self.interferometry.interferometer)
+                signals.characterization_live.emit(self.characterisation_buffer)
 
         def calculate_inversion():
+            i = 0
             while self.running.is_set():
                 self.pti.decimation.ref = np.array(DAQ.driver.ref_signal)
                 self.pti.decimation.dc_coupled = np.array(DAQ.driver.dc_coupled)
@@ -348,7 +352,6 @@ class Calculation:
                         self.interferometry.characterization.tracking_phase)
                     self.interferometry.characterization.event.set()
                     self.dc_signals = []
-                    Signals.characterization_live.emit(self.characterisation_buffer)
                 self.pti_buffer.append(self.pti, self.interferometry.interferometer)
                 signals.inversion_live.emit(self.pti_buffer)
 

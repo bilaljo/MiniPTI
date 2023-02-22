@@ -171,20 +171,24 @@ class Characterization:
         self.observers = []
         self.signals = None  # type: None | np.ndarray
         self.destination_folder = os.getcwd()
+        self.init_headers = True
 
     def __call__(self, live=True) -> None:
-        units = {}
-        # The order of headers is important because the output data has no headers it relies on this order
-        for channel in range(1, 4):
-            units[f"Output Phase CH{channel}"] = "deg"
-            units[f"Amplitude CH{channel}"] = "V"
-            units[f"Offset CH{channel}"] = "V"
-        pd.DataFrame(units, index=["s"]).to_csv(f"{self.destination_folder}/Characterisation.csv",
-                                                index_label="Time Stamp")
+        if self.init_headers:
+            units = {}
+            # The order of headers is important because the output data has no headers it relies on this order
+            for channel in range(1, 4):
+                units[f"Output Phase CH{channel}"] = "deg"
+                units[f"Amplitude CH{channel}"] = "V"
+                units[f"Offset CH{channel}"] = "V"
+            pd.DataFrame(units, index=["s"]).to_csv(f"{self.destination_folder}/Characterisation.csv",
+                                                    index_label="Time Stamp")
+            self.init_headers = False
         if live:
             self._calculate_online()
         else:
             self._calculate_offline()
+            self.init_headers = True
 
     def __repr__(self) -> str:
         class_name = self.__class__.__name__
@@ -226,6 +230,7 @@ class Characterization:
         self.tracking_phase = []
         self._occurred_phases = np.full(self.step_size, False)
         self.signals = []
+        self.event.clear()
 
     def characterise_interferometer(self) -> None:
         """
@@ -326,15 +331,18 @@ class Characterization:
 
     def _calculate_online(self) -> None:
         self.event.wait()
-        self.use_settings = True
+        self.signals = np.array(self.signals).T
         self.characterise_interferometer()
         characterised_data = {}
         for i in range(3):
             characterised_data[f"Output Phase CH{1 + i}"] = np.rad2deg(self.interferometry.output_phases[i])
             characterised_data[f"Amplitude CH{1 + i}"] = self.interferometry.amplitudes[i]
             characterised_data[f"Offset CH{1 + i}"] = self.interferometry.offsets[i]
-        output_data = pd.DataFrame(characterised_data)
-        pd.DataFrame(output_data, index=[self.time_stamp]).to_csv(f"{self.destination_folder}/Characterisation.csv",
-                                                                  mode="a", header=False, index_label="Time Stamp")
+        pd.DataFrame(
+            characterised_data,
+            index=[self.time_stamp]).to_csv(
+            f"{self.destination_folder}/Characterisation.csv",
+            mode="a", header=False, index_label="Time Stamp"
+        )
         self.clear()
         self._parameters_changed ^= True
