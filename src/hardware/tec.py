@@ -22,6 +22,9 @@ class Driver(hardware.serial.Driver):
     def device_name(self):
         return Driver.NAME
 
+    def set_pid_d_value(self):
+        raise NotImplementedError("Implement me")
+
     @property
     def end_data_frame(self) -> int:
         return 0

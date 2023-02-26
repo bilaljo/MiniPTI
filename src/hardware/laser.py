@@ -60,10 +60,10 @@ class LaserData(hardware.serial.Data):
 
 
 class Driver(hardware.serial.Driver):
-    HARDWARE_ID = "0002"
+    HARDWARE_ID = b"0002"
     NAME = "Laser"
-    DELIMITER = "\t"
-    DATA_START = "L"
+    DELIMITER = b"\t"
+    DATA_START = b"L"
     _START_MEASURED_DATA = 1
     _END_MEASURED_DATA = 4
 
@@ -132,7 +132,7 @@ class Driver(hardware.serial.Driver):
             self._encode_data()
 
     @property
-    def device_id(self) -> str:
+    def device_id(self) -> bytes:
         return Driver.HARDWARE_ID
 
     @property

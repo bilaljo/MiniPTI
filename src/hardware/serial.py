@@ -13,8 +13,9 @@ import platform
 
 import serial
 from serial.tools import list_ports
-from PySide6 import QtCore, QtSerialPort
 import win32file
+import win32event
+import win32con
 
 
 @dataclass
@@ -44,20 +45,18 @@ class Command:
     HARDWARE_ID = b"GHI0000"
 
 
-class Driver(QtCore.QObject):
+class Driver:
     _QUEUE_SIZE = 15
     MAX_RESPONSE_TIME = 100e-3  # 50 ms response time
 
-    TERMINATION_SYMBOL = b"\n"
+    TERMINATION_SYMBOL = "\n"
     _NUMBER_OF_HEX_BYTES = 4
     _START_DATA_FRAME = 1  # First symbol is the header
 
     def __init__(self):
-        QtCore.QObject.__init__(self)
         self.received_data = queue.Queue(maxsize=Driver._QUEUE_SIZE)
+        self.device = None
         self.connected = threading.Event()
-        self.device = QtSerialPort.QSerialPort()
-        self.device.readyRead.connect(self.receive)
         self.port_name = ""
         self._write_buffer = queue.Queue()
         self.ready_write = threading.Event()
@@ -66,6 +65,13 @@ class Driver(QtCore.QObject):
         self.data = queue.Queue()
         self.running = False
         self.file_descriptor = -1
+        self.overlapped_io = win32file.OVERLAPPED()
+        self.overlapped_io.hEvent = win32event.CreateEvent(None, True, False, None)
+        self.overlapped_io.Internal = 0
+        self.overlapped_io.InternalHigh = 0
+        self.overlapped_io.Offset = 0
+        self.overlapped_io.OffsetHigh = 0
+        win32event.SetEvent(self.overlapped_io.hEvent)
 
     if platform.system() == "Windows":
         def find_port(self) -> None:
@@ -74,14 +80,13 @@ class Driver(QtCore.QObject):
                     device = serial.Serial(port.device, timeout=Driver.MAX_RESPONSE_TIME)
                 except serial.SerialException:
                     continue
-                device.write(Command.HARDWARE_ID + Driver.TERMINATION_SYMBOL)
+                device.write(Command.HARDWARE_ID + Driver.TERMINATION_SYMBOL.encode())
                 time.sleep(0.1)
                 avaiable_bytes = device.in_waiting
                 self.received_data.put(device.read(avaiable_bytes))
                 hardware_id = self.get_hardware_id()
                 if hardware_id == self.device_id:
                     self.port_name = port.device
-                    self.device.setPortName(self.port_name)
                     logging.info(f"Found {self.device_name} at {self.port_name}")
                     device.close()
                     break
@@ -110,21 +115,22 @@ class Driver(QtCore.QObject):
     def open(self) -> bool:
         if self.port_name:
             self.device = win32file.CreateFile(
-                fr"\\.\{self.port_name}",
+                f"\\\\.\\{self.port_name}",
                 win32file.GENERIC_READ | win32file.GENERIC_WRITE,
-                0,  # No sharing
-                0,  # No Security
+                0,
+                None,
                 win32file.OPEN_EXISTING,
                 win32file.FILE_FLAG_OVERLAPPED,
                 0
             )
-
-            """
-            logging.info(f"Connected with {self.device_name}")
-            self.device.open(QtSerialPort.QSerialPort.ReadWrite)
+            # Notify when new data is received or data succsessfully transmitted
+            win32file.SetCommMask(self.device, win32file.EV_RXCHAR)  # | win32file.EV_TXEMPTY)
+            win32file.SetupComm(self.device, 4096, 4096)
             self.connected.set()
+            threading.Thread(target=self.receive).start()
+            self.run()
+            logging.info(f"Connected with {self.device_name}")
             return True
-            """
         else:
             raise OSError("Could not find {self.device_name}")
 
@@ -179,7 +185,7 @@ class Driver(QtCore.QObject):
 
     def write(self, message: str | bytes | bytearray) -> None:
         if isinstance(message, str):
-            self._write_buffer.put(message.encode())
+            self._write_buffer.put(message)
         else:
             self._write_buffer.put(message, block=False)
 
@@ -188,7 +194,8 @@ class Driver(QtCore.QObject):
             while self.connected.is_set():
                 if self.ready_write.wait(timeout=Driver.MAX_RESPONSE_TIME):
                     self.last_written_message = self._write_buffer.get(block=True)
-                    self.device.write(self.last_written_message + Driver.TERMINATION_SYMBOL)
+                    win32file.WriteFile(self.device, (self.last_written_message + Driver.TERMINATION_SYMBOL).encode(),
+                                        self.overlapped_io)
                     self.ready_write.clear()
     else:
         def _write(self) -> None:
@@ -207,9 +214,9 @@ class Driver(QtCore.QObject):
 
     if platform.system() == "Windows":
         def close(self) -> None:
-            if self.device.isOpen():
+            if self.device is not None:
                 self.connected.clear()
-                self.device.close()
+                win32file.CloseHandle(self.device)
     else:
         def close(self) -> None:
             if self.file_descriptor != -1:
@@ -217,8 +224,16 @@ class Driver(QtCore.QObject):
 
     if platform.system() == "Windows":
         def receive(self) -> None:
-            if self.running:
-                self.received_data.put(self.device.readAll())
+            while self.connected.is_set():
+                rc, mask = win32file.WaitCommEvent(self.device, self.overlapped_io)
+                if rc == 0:  # Character already ready!
+                    win32event.SetEvent(self.overlapped_io.hEvent)
+                rc = win32event.WaitForSingleObject(self.overlapped_io.hEvent, win32event.INFINITE)
+                if rc == win32con.WAIT_OBJECT_0:
+                    flags, comstat = win32file.ClearCommError(self.device)
+                    rc, data = win32file.ReadFile(self.device, comstat.cbInQue, self.overlapped_io)
+                    self.received_data.put(data.tobytes().decode())
+                    win32event.ResetEvent(self.overlapped_io.hEvent)
     else:
         def receive(self, signum, frame) -> None:
             buffer_size = os.stat(self.file_descriptor).st_size
