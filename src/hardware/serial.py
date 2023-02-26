@@ -97,10 +97,14 @@ class Driver:
     else:
         def find_port(self) -> None:
             for port in list_ports.comports():
-                self.file_descriptor = os.open(path=port.device, flags=os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
-                if self.file_descriptor == -1 or not os.isatty(self.file_descriptor):
+                self.file_descriptor = os.open(
+                    path=port.device,
+                    flags=os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
+                if (self.file_descriptor == -1
+                    or not os.isatty(self.file_descriptor)):
                     continue
-                os.write(self.file_descriptor, Command.HARDWARE_ID + Driver.TERMINATION_SYMBOL)
+                os.write(self.file_descriptor,
+                    Command.HARDWARE_ID + Driver.TERMINATION_SYMBOL)
                 hardware_id = self.get_hardware_id()
                 if hardware_id is not None and hardware_id == self.device_id:
                     self.port_name = port.device
@@ -112,7 +116,7 @@ class Driver:
             else:
                 raise OSError("Could not find {self.device_name}")
 
-    def open(self) -> bool:
+    def open(self) -> None:
         if self.port_name:
             self.device = win32file.CreateFile(
                 f"\\\\.\\{self.port_name}",
@@ -123,14 +127,13 @@ class Driver:
                 win32file.FILE_FLAG_OVERLAPPED,
                 0
             )
-            # Notify when new data is received or data succsessfully transmitted
-            win32file.SetCommMask(self.device, win32file.EV_RXCHAR)  # | win32file.EV_TXEMPTY)
+            # Notify when new data is received
+            win32file.SetCommMask(self.device, win32file.EV_RXCHAR)
             win32file.SetupComm(self.device, 4096, 4096)
             self.connected.set()
-            threading.Thread(target=self.receive).start()
+            threading.Thread(target=self._receive).start()
             self.run()
             logging.info(f"Connected with {self.device_name}")
-            return True
         else:
             raise OSError("Could not find {self.device_name}")
 
@@ -173,7 +176,8 @@ class Driver:
 
     def command_error_handing(self, received: str) -> None:
         if Patterns.ERROR.search(received) is not None:
-            match Patterns.HEX_VALUE.search(Patterns.ERROR.search(received).group()).group():
+            match Patterns.HEX_VALUE.search(
+                Patterns.ERROR.search(received).group()).group():
                 case Error.COMMAND:
                     raise OSError(f"Packet length != 7 characters ('\n' excluded) from {self.port_name}")
                 case Error.PARAMETER:
@@ -202,7 +206,8 @@ class Driver:
             while self.connected.is_set():
                 if self.ready_write.wait(timeout=Driver.MAX_RESPONSE_TIME):
                     self.last_written_message = self._write_buffer.get(block=True)
-                    os.write(self.file_descriptor, (self.last_written_message + Driver.TERMINATION_SYMBOL).encode())
+                    os.write(
+                        self.file_descriptor, (self.last_written_message + Driver.TERMINATION_SYMBOL).encode())
                     self.ready_write.clear()
 
     if platform.system() == "Windows":
@@ -223,21 +228,27 @@ class Driver:
                 os.close(self.file_descriptor)
 
     if platform.system() == "Windows":
-        def receive(self) -> None:
+        def _receive(self) -> None:
             while self.connected.is_set():
-                rc, mask = win32file.WaitCommEvent(self.device, self.overlapped_io)
-                if rc == 0:  # Character already ready!
-                    win32event.SetEvent(self.overlapped_io.hEvent)
-                rc = win32event.WaitForSingleObject(self.overlapped_io.hEvent, win32event.INFINITE)
-                if rc == win32con.WAIT_OBJECT_0:
-                    flags, comstat = win32file.ClearCommError(self.device)
-                    rc, data = win32file.ReadFile(self.device, comstat.cbInQue, self.overlapped_io)
-                    self.received_data.put(data.tobytes().decode())
-                    win32event.ResetEvent(self.overlapped_io.hEvent)
+                # rc, mask = win32file.WaitCommEvent(self.device, self.overlapped_io)
+                # if rc == 0:  # Character already ready!
+                #     win32event.SetEvent(self.overlapped_io.hEvent)
+                rc = win32event.WaitForSingleObject(
+                    self.overlapped_io.hEvent, win32event.INFINITE)
+                match rc:
+                    case win32con.WAIT_OBJECT_0:
+                        flags, comstat = win32file.ClearCommError(self.device)
+                        rc, data = win32file.ReadFile(
+                            self.device, comstat.cbInQue, self.overlapped_io)
+                        self.received_data.put(data.tobytes().decode())
+                        win32event.ResetEvent(self.overlapped_io.hEvent)
+                    case win32con.WAIT_FAILED:
+                        logging.error("Error occured while reading the port")
     else:
-        def receive(self, signum, frame) -> None:
+        def _receive(self, signum, frame) -> None:
             buffer_size = os.stat(self.file_descriptor).st_size
-            self.received_data.put(os.read(self.file_descriptor, buffer_size).decode())
+            self.received_data.put(
+                os.read(self.file_descriptor, buffer_size).decode())
 
     @abc.abstractmethod
     def _encode_data(self) -> None:
