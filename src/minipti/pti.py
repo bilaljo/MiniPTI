@@ -236,7 +236,7 @@ class Decimation:
         """
         self.flushed = False
         current_data_frame = next(self._raw_data_index)
-        if current_data_frame + 1 == self.buffer_size:
+        if True: #current_data_frame + 1 == self.buffer_size:
             self.flush()
         elif psutil.virtual_memory().available < Decimation.MINIMUM_RAM:
             self._actual_buffer_size = current_data_frame + 1
@@ -317,12 +317,8 @@ class Decimation:
                                                           index_label="Time")
             self.init_header = False
         if live:
-            try:
-                self.process_raw_data()
-                self._calculate_decimation()
-            finally:
-                if not self.flushed:  # There is some data still in buffer
-                    self.flush()
+            self.process_raw_data()
+            self._calculate_decimation()
         else:
             for file in self.get_raw_data():
                 with np.load(file) as data:
