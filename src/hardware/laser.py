@@ -9,7 +9,7 @@ import hardware.serial
 
 
 @dataclass
-class _DAC:
+class DAC:
     bit_value: int
     continuous_wave: Annotated[list[bool], 3]
     pulsed_mode: Annotated[list[bool], 3]
@@ -24,14 +24,19 @@ class PumpLaser:
 
     max_current_mA: float
     bit_value: int
-    DAC_1: _DAC
-    DAC_2: _DAC
+    DAC_1: DAC
+    DAC_2: DAC
 
     @staticmethod
-    def bit_to_voltage(bits):
+    def bit_to_voltage(bits: int) -> float:
         # 0.8 is an interpolation constant without any practical meaning.
         return 0.8 * PumpLaser._RESISTOR / (bits * PumpLaser._DIGITAL_POT / PumpLaser.NUMBER_OF_STEPS
                                             + PumpLaser._PRE_RESISTOR) + 0.8
+
+    @staticmethod
+    def voltage_to_bit(voltage: float) -> int:
+        return int((0.8 * PumpLaser._RESISTOR / (voltage - 0.8) - PumpLaser._PRE_RESISTOR)
+                   * PumpLaser.NUMBER_OF_STEPS / PumpLaser._DIGITAL_POT)
 
 
 @dataclass
@@ -43,13 +48,13 @@ class ProbeLaser:
     photo_diode_gain: int
 
     @staticmethod
-    def bit_to_current(bits):
+    def bit_to_current(bits: int) -> float:
         # Values and formula is given by hardware
         return (bits - 260.4) / (-5.335)
 
     @staticmethod
-    def current_to_bit(bits):
-        return int(-5.335 * bits + 260.4)
+    def current_to_bit(current: float) -> int:
+        return int(-5.335 * current + 260.4)
 
 
 @dataclass
@@ -62,8 +67,8 @@ class LaserData(hardware.serial.Data):
 class Driver(hardware.serial.Driver):
     HARDWARE_ID = b"0002"
     NAME = "Laser"
-    DELIMITER = b"\t"
-    DATA_START = b"L"
+    DELIMITER = "\t"
+    DATA_START = "L"
     _START_MEASURED_DATA = 1
     _END_MEASURED_DATA = 4
 
@@ -73,7 +78,7 @@ class Driver(hardware.serial.Driver):
     _DAC_1_REGISTER = [1 << 8, 1 << 9, 1 << 10, 1 << 11, 1 << 12, 1 << 13]
     _DAC_2_REGISTER = [1 << 14, 1 << 15, 1 << 0, 1 << 1, 1 << 2, 1 << 3]
 
-    CURRENT_BITS = (1 << 8) - 1
+    CURRENT_BITS: int = (1 << 8) - 1
 
     def __init__(self):
         hardware.serial.Driver.__init__(self)
@@ -84,15 +89,13 @@ class Driver(hardware.serial.Driver):
         self.pump_laser_initialized = False
         self.load_configs()
 
-    def open(self) -> bool:
-        if super().open():
-            self.init_pump_laser()
-            self.init_probe_laser()
-            # If laser was configured as enabled we disable it for safety
-            self.disable_pump_laser()
-            self.disable_probe_laser()
-            return True
-        return False
+    def open(self) -> None:
+        super().open()
+        self.init_pump_laser()
+        self.init_probe_laser()
+        # If laser was configured as enabled we disable it for safety
+        self.disable_pump_laser()
+        self.disable_probe_laser()
 
     def load_configs(self) -> None:
         with open(self.config_path) as config:

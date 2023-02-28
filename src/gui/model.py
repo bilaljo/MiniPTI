@@ -39,13 +39,13 @@ class SettingsTable(QtCore.QAbstractTableModel):
     def update_settings(self, interferometer: interferometry.Interferometer) -> None:
         self.update_settings_parameters(interferometer)
 
-    def rowCount(self, parent=None):
+    def rowCount(self, parent=None) -> int:
         return self._data.shape[0]
 
-    def columnCount(self, parent=None):
+    def columnCount(self, parent=None) -> int:
         return self._data.shape[1]
 
-    def data(self, index, role: int = ...):
+    def data(self, index, role: int = ...) -> str | None:
         if index.isValid():
             if role == QtCore.Qt.DisplayRole or role == QtCore.Qt.EditRole:
                 value = self._data.at[SettingsTable.INDEX[index.row()], SettingsTable.HEADERS[index.column()]]
@@ -125,7 +125,7 @@ class Logging(logging.Handler):
         self.formatter = logging.Formatter('%(levelname)s %(asctime)s: %(message)s\n', datefmt='%Y-%m-%d %H:%M:%S')
         logging.getLogger().addHandler(self)
 
-    def emit(self, record: logging.LogRecord):
+    def emit(self, record: logging.LogRecord) -> None:
         log = self.format(record)
         if "ERROR" in log:
             log = f"<p style='color:red'>{log}</p>"
@@ -141,7 +141,7 @@ class Logging(logging.Handler):
         signals.logging_update.emit(self.logging_messages)
 
 
-def find_delimiter(file_path: str):
+def find_delimiter(file_path: str) -> str | None:
     delimiter_sniffer = csv.Sniffer()
     if not file_path:
         return
@@ -150,7 +150,7 @@ def find_delimiter(file_path: str):
     return delimiter
 
 
-def running_average(data, mean_size: int):
+def running_average(data, mean_size: int) -> list[float]:
     i = 1
     current_mean = data[0]
     result = [current_mean]
@@ -184,10 +184,10 @@ class Buffer:
                 yield getattr(self, member)
 
     @abc.abstractmethod
-    def append(self, *args):
+    def append(self, *args: typing.Any) -> None:
         ...
 
-    def clear(self):
+    def clear(self) -> None:
         for member in dir(self):
             if not callable(getattr(self, member)) and not member.startswith("__"):
                 if member == self.time_counter:
@@ -220,7 +220,7 @@ class PTIBuffer(Buffer):
         self.pti_signal_mean = deque(maxlen=Buffer.QUEUE_SIZE)
         self._pti_signal_mean_queue = deque(maxlen=PTIBuffer.MEAN_SIZE)
 
-    def append(self, pti_data: PTI, interferometer: interferometry.Interferometer):
+    def append(self, pti_data: PTI, interferometer: interferometry.Interferometer) -> None:
         for i in range(3):
             self.dc_values[i].append(pti_data.decimation.dc_signals[i])
             self.sensitivity[i].append(pti_data.inversion.sensitivity[i])
@@ -241,7 +241,8 @@ class CharacterisationBuffer(Buffer):
         # The number of channels for output phases is -1 because the first channel has always the phase 0 by definition.
         self.amplitudes = [deque(maxlen=Buffer.QUEUE_SIZE) for _ in range(CharacterisationBuffer.CHANNELS)]
 
-    def append(self, characterization: interferometry.Characterization, interferometer: interferometry.Interferometer):
+    def append(self, characterization: interferometry.Characterization,
+               interferometer: interferometry.Interferometer) -> None:
         for i in range(3):
             self.amplitudes[i].append(interferometer.amplitudes[i])
         for i in range(2):
@@ -256,11 +257,17 @@ class LaserBuffer(Buffer):
         self.pump_laser_current = deque(maxlen=Buffer.QUEUE_SIZE)
         self.probe_laser_current = deque(maxlen=Buffer.QUEUE_SIZE)
 
-    def append(self, laser_data: hardware.laser.LaserData):
+    def append(self, laser_data: hardware.laser.LaserData) -> None:
         self.time.append(next(self.time_counter) / 10)
         self.pump_laser_current.append(laser_data.pump_laser_current)
         self.pump_laser_voltage.append(laser_data.pump_laser_voltage)
         self.probe_laser_current.append(laser_data.probe_laser_current)
+
+
+class Mode(enum.IntEnum):
+    DISABLED = 0
+    CONTINUOUS_WAVE = 1
+    PULSED = 2
 
 
 @dataclass(init=False, frozen=True)
@@ -274,16 +281,17 @@ class Signals(QtCore.QObject):
     settings_pti = QtCore.Signal()
     logging_update = QtCore.Signal(deque)
     daq_running = QtCore.Signal()
-    laser_voltage = QtCore.Signal(float)
-    current_dac1 = QtCore.Signal(int)
-    current_dac2 = QtCore.Signal(int)
-    matrix_dac1 = QtCore.Signal(typing.Annotated[list[bool], 3])
-    matrix_dac2 = QtCore.Signal(typing.Annotated[list[bool], 3])
+    laser_voltage = QtCore.Signal(int, float)
+    current_dac = QtCore.Signal(int, int)
+    matrix_dac = QtCore.Signal(int, list)
     laser_data = QtCore.Signal(Buffer)
     laser_data_display = QtCore.Signal(hardware.laser.LaserData)
-    current_probe_laser = QtCore.Signal(float)
+    current_probe_laser = QtCore.Signal(int, float)
+    max_current_probe_laser = QtCore.Signal(float)
+    probe_laser_mode = QtCore.Signal(int)
     settings = QtCore.Signal(pd.DataFrame)
     destination_folder_changed = QtCore.Signal(str)
+    photo_gain = QtCore.Signal(int)
 
     def __init__(self):
         QtCore.QObject.__init__(self)
@@ -306,19 +314,26 @@ class Calculation:
         self.interferometry.characterization.interferometry = self.interferometry.interferometer
         self.running = threading.Event()
         self._destination_folder = os.getcwd()
+        self.save_raw_data = False
+
+    def set_raw_data_saving(self) -> None:
+        if self.save_raw_data:
+            self.pti.decimation.save_raw_data = False
+        else:
+            self.pti.decimation.save_raw_data = True
 
     @property
-    def destination_folder(self):
+    def destination_folder(self) -> str:
         return self._destination_folder
 
     @destination_folder.setter
-    def destination_folder(self, folder):
+    def destination_folder(self, folder: str) -> None:
         self.interferometry.characterization.destination_folder = folder
         self.pti.inversion.destination_folder = folder
         self._destination_folder = folder
         signals.destination_folder_changed.emit(folder)
 
-    def live_calculation(self):
+    def live_calculation(self) -> tuple[threading.Thread, threading.Thread]:
         self.pti.inversion.init_header = True
         self.pti.decimation.init_header = True
         self.interferometry.characterization.init_online = True
@@ -334,7 +349,6 @@ class Calculation:
                 signals.characterization_live.emit(self.characterisation_buffer)
 
         def calculate_inversion():
-            i = 0
             while self.running.is_set():
                 self.pti.decimation.ref = np.array(DAQ.driver.ref_signal)
                 self.pti.decimation.dc_coupled = np.array(DAQ.driver.dc_coupled)
@@ -361,18 +375,18 @@ class Calculation:
         inversion_thread.start()
         return characterization_thread, inversion_thread
 
-    def calculate_characterisation(self, dc_file_path: str, use_settings=False, settings_path=""):
+    def calculate_characterisation(self, dc_file_path: str, use_settings=False, settings_path="") -> None:
         self.interferometry.interferometer.decimation_filepath = dc_file_path
         self.interferometry.interferometer.settings_path = settings_path
         self.interferometry.characterization.use_settings = use_settings
         self.interferometry.characterization(live=False)
         signals.settings.emit(self.interferometry.interferometer)
 
-    def calculate_decimation(self, decimation_path: str):
+    def calculate_decimation(self, decimation_path: str) -> None:
         self.pti.decimation.file_path = decimation_path
         self.pti.decimation(live=False)
 
-    def calculate_inversion(self, settings_path: str, inversion_path: str):
+    def calculate_inversion(self, settings_path: str, inversion_path: str) -> None:
         self.interferometry.interferometer.decimation_filepath = inversion_path
         self.interferometry.interferometer.settings_path = settings_path
         self.interferometry.interferometer.load_settings()
@@ -387,6 +401,11 @@ class DAQ:
             self.driver = daq_driver
         else:
             self.driver = DAQ.driver
+
+
+class ProbeLaserMode(enum.IntEnum):
+    CONSTANT_LIGHT = 0
+    CONSTANT_CURRENT = 1
 
 
 class Laser:
@@ -425,97 +444,129 @@ class Laser:
         self.driver.apply_configuration()
 
     @property
-    def driver_bits(self):
+    def driver_bits(self) -> int:
         return self.driver.pump_laser.bit_value
 
     @driver_bits.setter
-    def driver_bits(self, bits):
+    def driver_bits(self, bits: int) -> None:
         # With increasing the slider decreases its value but the voltage should increase - hence we subtract the bits.
         self.driver.pump_laser.bit_value = hardware.laser.PumpLaser.NUMBER_OF_STEPS - bits
-        voltage = hardware.laser.PumpLaser.bit_to_voltage(hardware.laser.PumpLaser.NUMBER_OF_STEPS - bits)
-        signals.laser_voltage.emit(voltage)
+        voltage: float = hardware.laser.PumpLaser.bit_to_voltage(hardware.laser.PumpLaser.NUMBER_OF_STEPS - bits)
+        signals.laser_voltage.emit(bits, voltage)
         self.driver.set_driver_voltage()
 
     @property
-    def current_bits_dac_1(self):
+    def current_bits_dac_1(self) -> int:
         return self.driver.pump_laser.DAC_1.bit_value
 
     @current_bits_dac_1.setter
-    def current_bits_dac_1(self, bits):
+    def current_bits_dac_1(self, bits: int) -> None:
         self.driver.pump_laser.DAC_1.bit_value = bits
-        signals.current_dac1.emit(bits)
+        signals.current_dac.emit(0, bits)
         self.driver.set_dac_1()
 
     @property
-    def current_bits_dac_2(self):
+    def current_bits_dac_2(self) -> int:
         return self.driver.pump_laser.DAC_2.bit_value
 
     @current_bits_dac_2.setter
-    def current_bits_dac_2(self, bits):
+    def current_bits_dac_2(self, bits: int) -> None:
         self.driver.pump_laser.DAC_2.bit_value = bits
-        signals.current_dac2.emit(bits)
+        signals.current_dac.emit(1, bits)
         self.driver.set_dac_2()
 
     @property
-    def current_bits_probe_laser(self):
+    def current_bits_probe_laser(self) -> int:
         return self.driver.probe_laser.current_bits
 
     @current_bits_probe_laser.setter
-    def current_bits_probe_laser(self, bits):
-        # With increasing the slider decreases its value but the voltage should increase - hence we subtract the bits.
-        self.driver.probe_laser.current_bits = hardware.laser.Driver.CURRENT_BITS - bits
-        current = hardware.laser.ProbeLaser.bit_to_current(hardware.laser.Driver.CURRENT_BITS - bits)
-        signals.current_probe_laser.emit(current)
+    def current_bits_probe_laser(self, bits: int) -> None:
+        self.driver.probe_laser.current_bits = bits
+        current: float = hardware.laser.ProbeLaser.bit_to_current(bits)
+        signals.current_probe_laser.emit(hardware.laser.Driver.CURRENT_BITS - bits, current)
         self.driver.set_probe_laser_current()
 
     @property
-    def photo_diode_gain(self):
+    def photo_diode_gain(self) -> int:
         return self.driver.probe_laser.photo_diode_gain
 
     @photo_diode_gain.setter
-    def photo_diode_gain(self, phot_diode_gain):
-        self.driver.probe_laser.photo_diode_gain = phot_diode_gain
+    def photo_diode_gain(self, photo_diode_gain: int) -> None:
+        self.driver.probe_laser.photo_diode_gain = photo_diode_gain
+        signals.photo_gain.emit(photo_diode_gain - 1)
         self.driver.set_photo_gain()
 
+    @property
+    def probe_laser_max_current(self) -> float:
+        return self.driver.probe_laser.max_current_mA
+
+    @probe_laser_max_current.setter
+    def probe_laser_max_current(self, current: float) -> None:
+        if self.driver.probe_laser.max_current_mA != current:
+            self.driver.probe_laser.max_current_mA = current
+
+    @property
+    def probe_laser_mode(self) -> ProbeLaserMode:
+        if self.driver.probe_laser.constant_light:
+            return ProbeLaserMode.CONSTANT_LIGHT
+        else:
+            return ProbeLaserMode.CONSTANT_CURRENT
+
+    @probe_laser_mode.setter
+    def probe_laser_mode(self, mode: ProbeLaserMode) -> None:
+        match mode:
+            case ProbeLaserMode.CONSTANT_CURRENT:
+                self.driver.probe_laser.constant_current = True
+                self.driver.probe_laser.constant_light = False
+            case ProbeLaserMode.CONSTANT_LIGHT:
+                self.driver.probe_laser.constant_current = False
+                self.driver.probe_laser.constant_light = True
+        self.driver.set_probe_laser_mode()
+        signals.probe_laser_mode.emit(mode)
+
+    @property
+    def dac_1_matrix(self) -> hardware.laser.DAC:
+        return self.driver.pump_laser.DAC_1
+
+    @property
+    def dac_2_matrix(self) -> hardware.laser.DAC:
+        return self.driver.pump_laser.DAC_2
+
     @staticmethod
-    def process_mode_index(index):
-        continuous_wave = False
-        pulsed_mode = False
-        match index:
-            case Mode.DISABLED:
-                continuous_wave = False
-                pulsed_mode = False
+    def _set_indices(dac_number: int, dac: hardware.laser.DAC) -> None:
+        indices: typing.Annotated[list[int], 3] = []
+        for i in range(3):
+            if dac.continuous_wave[i]:
+                indices.append(Mode.CONTINUOUS_WAVE)
+            elif dac.pulsed_mode[i]:
+                indices.append(Mode.PULSED)
+            else:
+                indices.append(Mode.DISABLED)
+        signals.matrix_dac.emit(dac_number, indices)
+
+    @dac_1_matrix.setter
+    def dac_1_matrix(self, dac: hardware.laser.DAC) -> None:
+        self.driver.pump_laser.DAC_1 = dac
+        Laser._set_indices(dac_number=0, dac=self.dac_1_matrix)
+
+    @dac_2_matrix.setter
+    def dac_2_matrix(self, dac: hardware.laser.DAC) -> None:
+        self.driver.pump_laser.DAC_2 = dac
+        Laser._set_indices(dac_number=1, dac=self.dac_2_matrix)
+
+    def update_dac_mode(self, dac: hardware.laser.DAC, channel: int, mode: int) -> None:
+        match mode:
             case Mode.CONTINUOUS_WAVE:
-                continuous_wave = True
-                pulsed_mode = False
+                dac.continuous_wave[channel] = True
+                dac.pulsed_mode[channel] = False
             case Mode.PULSED:
-                continuous_wave = False
-                pulsed_mode = True
-        return continuous_wave, pulsed_mode
-
-    def mode_dac1(self, i: int) -> typing.Callable[[int], None]:
-        def update(index):
-            continuous_wave, pulsed_mode = Laser.process_mode_index(index)
-            self.driver.pump_laser.DAC_1.continuous_wave[i] = continuous_wave
-            self.driver.pump_laser.DAC_1.pulsed_mode[i] = pulsed_mode
-            self.driver.set_dac_matrix()
-        return update
-
-    def mode_dac2(self, i: int) -> typing.Callable[[int], None]:
-        def update(index):
-            continuous_wave, pulsed_mode = Laser.process_mode_index(index)
-            self.driver.pump_laser.DAC_2.continuous_wave[i] = continuous_wave
-            self.driver.pump_laser.DAC_2.pulsed_mode[i] = pulsed_mode
-            self.driver.set_dac_matrix()
-        return update
-
-    @property
-    def dac1_mode(self) -> tuple[typing.Annotated[list[bool], 3], typing.Annotated[list[bool], 3]]:
-        return self.driver.pump_laser.DAC_1.pulsed_mode, self.driver.pump_laser.DAC_1.continuous_wave
-
-    @property
-    def dac2_mode(self) -> tuple[typing.Annotated[list[bool], 3], typing.Annotated[list[bool], 3]]:
-        return self.driver.pump_laser.DAC_2.pulsed_mode, self.driver.pump_laser.DAC_2.continuous_wave
+                dac.continuous_wave[channel] = False
+                dac.pulsed_mode[channel] = True
+            case Mode.DISABLED:
+                print("called")
+                dac.continuous_wave[channel] = False
+                dac.pulsed_mode[channel] = False
+        self.driver.set_dac_matrix()
 
     def process_measured_data(self) -> None:
         def incoming_data():
@@ -577,12 +628,6 @@ def process_characterization_data(characterization_file_path: str):
     headers += [f"Offset CH{i}" for i in range(1, 4)]
     data = _process__data(characterization_file_path, headers)
     signals.characterization.emit(data)
-
-
-class Mode(enum.IntEnum):
-    DISABLED = 0
-    PULSED = 1
-    CONTINUOUS_WAVE = 2
 
 
 signals = Signals()

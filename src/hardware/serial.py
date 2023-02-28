@@ -4,18 +4,18 @@ import queue
 import re
 import threading
 import time
-import typing
 from dataclasses import dataclass
 from enum import Enum
 import os
 
 import platform
-
+if platform.system() == "Windows":
+    import clr
+    import System.IO.Ports
+else:
+    import signal
 import serial
 from serial.tools import list_ports
-import win32file
-import win32event
-import win32con
 
 
 @dataclass
@@ -47,11 +47,11 @@ class Command:
 
 class Driver:
     _QUEUE_SIZE = 15
-    MAX_RESPONSE_TIME = 100e-3  # 50 ms response time
+    MAX_RESPONSE_TIME = 500e-3  # 100 ms response time
 
     TERMINATION_SYMBOL = "\n"
     _NUMBER_OF_HEX_BYTES = 4
-    _START_DATA_FRAME = 1  # First symbol is the header
+    _START_DATA_FRAME = 1
 
     def __init__(self):
         self.received_data = queue.Queue(maxsize=Driver._QUEUE_SIZE)
@@ -64,14 +64,12 @@ class Driver:
         self.last_written_message = ""
         self.data = queue.Queue()
         self.running = False
-        self.file_descriptor = -1
-        self.overlapped_io = win32file.OVERLAPPED()
-        self.overlapped_io.hEvent = win32event.CreateEvent(None, True, False, None)
-        self.overlapped_io.Internal = 0
-        self.overlapped_io.InternalHigh = 0
-        self.overlapped_io.Offset = 0
-        self.overlapped_io.OffsetHigh = 0
-        win32event.SetEvent(self.overlapped_io.hEvent)
+        if platform.system() == "Windows":
+            self.serial_port = System.IO.Ports.SerialPort()
+        else:
+            signal.signal(signal.SIGIO, self._receive)
+            self.file_descriptor = -1
+            self.device = None
 
     if platform.system() == "Windows":
         def find_port(self) -> None:
@@ -100,11 +98,9 @@ class Driver:
                 self.file_descriptor = os.open(
                     path=port.device,
                     flags=os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
-                if (self.file_descriptor == -1
-                    or not os.isatty(self.file_descriptor)):
+                if self.file_descriptor == -1 or not os.isatty(self.file_descriptor):
                     continue
-                os.write(self.file_descriptor,
-                    Command.HARDWARE_ID + Driver.TERMINATION_SYMBOL)
+                os.write(self.file_descriptor, Command.HARDWARE_ID + Driver.TERMINATION_SYMBOL.encode())
                 hardware_id = self.get_hardware_id()
                 if hardware_id is not None and hardware_id == self.device_id:
                     self.port_name = port.device
@@ -118,27 +114,17 @@ class Driver:
 
     def open(self) -> None:
         if self.port_name:
-            self.device = win32file.CreateFile(
-                f"\\\\.\\{self.port_name}",
-                win32file.GENERIC_READ | win32file.GENERIC_WRITE,
-                0,
-                None,
-                win32file.OPEN_EXISTING,
-                win32file.FILE_FLAG_OVERLAPPED,
-                0
-            )
-            # Notify when new data is received
-            win32file.SetCommMask(self.device, win32file.EV_RXCHAR)
-            win32file.SetupComm(self.device, 4096, 4096)
+            self.serial_port = System.IO.Ports.SerialPort()
+            self.serial_port.PortName = self.port_name
+            self.serial_port.DataReceived += System.IO.Ports.SerialDataReceivedEventHandler(self._receive)
+            self.serial_port.Open()
             self.connected.set()
-            threading.Thread(target=self._receive).start()
-            self.run()
+            #self.run()
             logging.info(f"Connected with {self.device_name}")
         else:
             raise OSError("Could not find {self.device_name}")
 
     def run(self) -> None:
-        self.running = True
         threading.Thread(target=self._write, daemon=True).start()
         threading.Thread(target=self._read, daemon=True).start()
 
@@ -176,8 +162,7 @@ class Driver:
 
     def command_error_handing(self, received: str) -> None:
         if Patterns.ERROR.search(received) is not None:
-            match Patterns.HEX_VALUE.search(
-                Patterns.ERROR.search(received).group()).group():
+            match Patterns.HEX_VALUE.search(Patterns.ERROR.search(received).group()).group():
                 case Error.COMMAND:
                     raise OSError(f"Packet length != 7 characters ('\n' excluded) from {self.port_name}")
                 case Error.PARAMETER:
@@ -187,19 +172,22 @@ class Driver:
                 case Error.UNKNOWN_COMMAND:
                     raise OSError(f"Unknown command from {self.port_name}")
 
-    def write(self, message: str | bytes | bytearray) -> None:
-        if isinstance(message, str):
-            self._write_buffer.put(message)
+    def write(self, message: str | bytes | bytearray) -> bool:
+        if self.connected.is_set():
+            try:
+                self._write_buffer.put(message.decode(), block=False)
+            except AttributeError:
+                self._write_buffer.put(message, block=False)
+            return True
         else:
-            self._write_buffer.put(message, block=False)
+            return False
 
     if platform.system() == "Windows":
         def _write(self) -> None:
             while self.connected.is_set():
                 if self.ready_write.wait(timeout=Driver.MAX_RESPONSE_TIME):
                     self.last_written_message = self._write_buffer.get(block=True)
-                    win32file.WriteFile(self.device, (self.last_written_message + Driver.TERMINATION_SYMBOL).encode(),
-                                        self.overlapped_io)
+                    self.serial_port.Write(self.last_written_message + Driver.TERMINATION_SYMBOL)
                     self.ready_write.clear()
     else:
         def _write(self) -> None:
@@ -221,29 +209,16 @@ class Driver:
         def close(self) -> None:
             if self.device is not None:
                 self.connected.clear()
-                win32file.CloseHandle(self.device)
+                self.device.Close()
     else:
         def close(self) -> None:
             if self.file_descriptor != -1:
                 os.close(self.file_descriptor)
 
     if platform.system() == "Windows":
-        def _receive(self) -> None:
-            while self.connected.is_set():
-                # rc, mask = win32file.WaitCommEvent(self.device, self.overlapped_io)
-                # if rc == 0:  # Character already ready!
-                #     win32event.SetEvent(self.overlapped_io.hEvent)
-                rc = win32event.WaitForSingleObject(
-                    self.overlapped_io.hEvent, win32event.INFINITE)
-                match rc:
-                    case win32con.WAIT_OBJECT_0:
-                        flags, comstat = win32file.ClearCommError(self.device)
-                        rc, data = win32file.ReadFile(
-                            self.device, comstat.cbInQue, self.overlapped_io)
-                        self.received_data.put(data.tobytes().decode())
-                        win32event.ResetEvent(self.overlapped_io.hEvent)
-                    case win32con.WAIT_FAILED:
-                        logging.error("Error occured while reading the port")
+        def _receive(self, sender, arg: System.IO.Ports.SerialDataReceivedEventArgs) -> None:
+            data = sender.ReadExisting()
+            self.received_data.put(data)
     else:
         def _receive(self, signum, frame) -> None:
             buffer_size = os.stat(self.file_descriptor).st_size

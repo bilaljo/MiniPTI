@@ -5,6 +5,7 @@ import typing
 
 from PySide6 import QtWidgets
 
+import hardware
 from gui import model
 from gui import view
 
@@ -165,13 +166,16 @@ class Laser:
         self.laser = model.Laser()
 
     def update_driver_voltage(self, bits: int) -> None:
-        self.laser.driver_bits = bits
+        if bits != self.laser.driver_bits:
+            self.laser.driver_bits = bits
 
     def update_current_dac1(self, bits: int) -> None:
-        self.laser.current_bits_dac_1 = bits
+        if self.laser.current_bits_dac_2 != bits:
+            self.laser.current_bits_dac_1 = bits
 
     def update_current_dac2(self, bits: int) -> None:
-        self.laser.current_bits_dac_2 = bits
+        if self.laser.current_bits_dac_1 != bits:
+            self.laser.current_bits_dac_2 = bits
 
     def save_configuration(self) -> None:
         self.laser.save_configuration()
@@ -181,42 +185,42 @@ class Laser:
         self.laser.driver_bits = self.laser.driver_bits
         self.laser.current_bits_dac_1 = self.laser.current_bits_dac_1
         self.laser.current_bits_dac_2 = self.laser.current_bits_dac_2
-        for i in range(3):
-            self.laser.mode_dac1(i)(i)
-            self.laser.mode_dac2(i)(i)
+        self.laser.dac_1_matrix = self.laser.dac_1_matrix
+        self.laser.dac_2_matrix = self.laser.dac_2_matrix
+        self.laser.current_bits_probe_laser = self.laser.current_bits_probe_laser
+        self.laser.probe_laser_mode = self.laser.probe_laser_mode
+        self.laser.photo_diode_gain = self.laser.photo_diode_gain
 
     def apply_configuration(self) -> None:
         self.laser.apply_configuration()
 
-    def mode_dac1(self, i: int) -> typing.Callable[[int], None]:
-        return self.laser.mode_dac1(i)
+    def update_dac1(self, channel: int) -> typing.Callable[[int], None]:
+        def set_matrix(mode: int) -> None:
+            self.laser.update_dac_mode(self.laser.dac_1_matrix, channel, mode)
+        return set_matrix
 
-    def mode_dac2(self, i) -> typing.Callable[[int], None]:
-        return self.laser.mode_dac2(i)
+    def update_dac2(self, channel: int) -> typing.Callable[[int], None]:
+        def set_matrix(mode: int) -> None:
+            self.laser.update_dac_mode(self.laser.dac_2_matrix, channel, mode)
+        return set_matrix
 
     def update_max_current_probe_laser(self, max_current: str) -> None:
         try:
-            self.laser.max_current_mA = float(max_current)
+            self.laser.probe_laser_max_current = float(max_current)
         except ValueError:
             logging.error("Could not apply new value. Invalid symbols encountered.")
 
     def update_photo_gain(self, value: int) -> None:
-        self.laser.photo_diode_gain = value + 1
+        if self.laser.photo_diode_gain != value + 1:
+            self.laser.photo_diode_gain = value + 1
 
     def update_probe_laser_mode(self, index: int) -> None:
-        match index:
-            case view.ProbeLaser.CONSTANT_LIGHT:
-                self.laser.constant_light = True
-                self.laser.constant_current = False
-            case view.ProbeLaser.CONSTANT_LIGHT:
-                self.laser.constant_light = False
-                self.laser.constant_current = True
-            case _:
-                self.laser.constant_light = False
-                self.laser.constant_light = True
+        self.laser.probe_laser_mode = index
 
     def update_current_probe_laser(self, bits: int) -> None:
-        self.laser.current_bits_probe_laser = bits
+        effective_bits: int = hardware.laser.Driver.CURRENT_BITS - bits
+        if effective_bits != self.laser.current_bits_probe_laser:
+            self.laser.current_bits_probe_laser = effective_bits
 
 
 class Tec:

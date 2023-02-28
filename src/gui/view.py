@@ -1,6 +1,8 @@
 import abc
 import collections
+import enum
 import functools
+import typing
 from typing import NamedTuple
 
 import pandas as pd
@@ -174,7 +176,9 @@ class Home(QtWidgets.QTabWidget, _Frames, _CreateButton):
         self.frames["Log"].layout().addWidget(self.logging_window)
         self.destination_folder = QtWidgets.QLabel(self.controller.calculation_model.destination_folder)
         model.signals.destination_folder_changed.connect(self.update_destination_folder)
+        self.save_raw_data = QtWidgets.QCheckBox("Save Raw Data")
         self._init_buttons()
+        self._init_raw_data_button()
 
     def update_destination_folder(self) -> None:
         self.destination_folder.setText(self.controller.calculation_model.destination_folder)
@@ -195,7 +199,7 @@ class Home(QtWidgets.QTabWidget, _Frames, _CreateButton):
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
         self.create_button(master=sub_layout, title="Save Settings", slot=self.controller.save_settings)
         self.create_button(master=sub_layout, title="Load Settings", slot=self.controller.load_settings)
-        sub_layout.layout().addWidget(QtWidgets.QCheckBox("Save Raw Data"))
+        sub_layout.layout().addWidget(self.save_raw_data)
 
         # Offline Processing buttons
         sub_layout = QtWidgets.QWidget()
@@ -239,6 +243,10 @@ class Home(QtWidgets.QTabWidget, _Frames, _CreateButton):
     def logging_update(self, log_queue: collections.deque) -> None:
         self.logging_window.setText("".join(log_queue))
 
+    def _init_raw_data_button(self) -> None:
+        self.save_raw_data.setChecked(self.controller.calculation_model.save_raw_data)
+        self.save_raw_data.stateChanged.connect(self.controller.calculation_model.set_raw_data_saving)
+
 
 class Slider(QtWidgets.QWidget):
     def __init__(self, minimum=0, maximum=100, unit="%"):
@@ -252,15 +260,21 @@ class Slider(QtWidgets.QWidget):
         self.slider.setMinimum(minimum)
         self.slider.setMaximum(maximum)
         self.unit = unit
+        self.index_value = 0  # type: typing.Any
 
     @functools.singledispatchmethod
     def update_value(self, value: int) -> None:
         self.slider_value.setText(f"{value} " + self.unit)
-        self.slider.setValue(value)
 
     @update_value.register
     def _(self, value: float) -> None:
         self.slider_value.setText(f"{round(value, 2)} " + self.unit)
+
+
+class ModeIndices(enum.IntEnum):
+    DISABLED = 0
+    CONTINUOUS_WAVE = 1
+    PULSED = 2
 
 
 class PumpLaser(QtWidgets.QWidget, _Frames, _CreateButton):
@@ -290,26 +304,47 @@ class PumpLaser(QtWidgets.QWidget, _Frames, _CreateButton):
         self.frames["Driver Voltage"].layout().addWidget(self.driver_voltage)
         self.frames["Measured Values"].layout().addWidget(self.current_display)
         self.frames["Measured Values"].layout().addWidget(self.voltage_display)
-        model.signals.laser_data_display.connect(self.update_current_voltage)
+        model.signals.laser_data_display.connect(self._update_current_voltage)
         self.controller.load_configuration()
 
     @QtCore.Slot()
-    def update_current_voltage(self, value: hardware.laser.LaserData):
+    def _update_current_voltage(self, value: hardware.laser.LaserData):
         self.current_display.setText(str(value.pump_laser_current) + " mA")
         self.voltage_display.setText(str(value.pump_laser_voltage) + " V")
 
     def _init_voltage_configuration(self):
-        model.signals.laser_voltage.connect(self.driver_voltage.update_value)
         self.driver_voltage.slider.valueChanged.connect(self.controller.update_driver_voltage)
+        model.signals.laser_voltage.connect(self._update_voltage_slider)
 
     def _init_current_configuration(self):
         self.current[0].slider.valueChanged.connect(self.controller.update_current_dac1)
         self.current[1].slider.valueChanged.connect(self.controller.update_current_dac2)
-        model.signals.current_dac1.connect(self.current[0].update_value)
-        model.signals.current_dac2.connect(self.current[1].update_value)
+        model.signals.current_dac.connect(self._update_current_dac)
         for i in range(3):
-            self.mode_matrix[0][i].currentIndexChanged.connect(self.controller.mode_dac1(i))
-            self.mode_matrix[1][i].currentIndexChanged.connect(self.controller.mode_dac2(i))
+            self.mode_matrix[0][i].currentIndexChanged.connect(self.controller.update_dac1(i))
+            self.mode_matrix[1][i].currentIndexChanged.connect(self.controller.update_dac2(i))
+        model.signals.matrix_dac.connect(self._update_dac_matrix)
+
+    @QtCore.Slot(int, list)
+    def _update_dac_matrix(self, dac_number: int, configuration: typing.Annotated[list[int], 3]) -> None:
+        for channel in range(3):
+            match configuration[channel]:
+                case model.Mode.CONTINUOUS_WAVE:
+                    self.mode_matrix[dac_number][channel].setCurrentIndex(ModeIndices.CONTINUOUS_WAVE)
+                case model.Mode.PULSED:
+                    self.mode_matrix[dac_number][channel].setCurrentIndex(ModeIndices.PULSED)
+                case model.Mode.DISABLED:
+                    self.mode_matrix[dac_number][channel].setCurrentIndex(ModeIndices.DISABLED)
+
+    @QtCore.Slot(int, float)
+    def _update_voltage_slider(self, index: int, value: float):
+        self.driver_voltage.slider.setValue(index)
+        self.driver_voltage.update_value(value)
+
+    @QtCore.Slot(int, int)
+    def _update_current_dac(self, dac: int, index: int):
+        self.current[dac].slider.setValue(index)
+        self.current[dac].update_value(index)
 
     def _init_frames(self):
         self.create_frame(master=self, title="Measured Values", x_position=1, y_position=0)
@@ -328,8 +363,8 @@ class PumpLaser(QtWidgets.QWidget, _Frames, _CreateButton):
                 sub_frames[i].setLayout(QtWidgets.QVBoxLayout())
                 dac_inner_frames[j].layout().addWidget(sub_frames[i], 1, i)
                 self.mode_matrix[j][i].addItem("Disabled")
-                self.mode_matrix[j][i].addItem("Pulsed Mode")
                 self.mode_matrix[j][i].addItem("Continuous Wave")
+                self.mode_matrix[j][i].addItem("Pulsed Mode")
                 sub_frames[i].layout().addWidget(QtWidgets.QLabel(f"Channel {i + 1}"))
                 sub_frames[i].layout().addWidget(self.mode_matrix[j][i])
             self.frames[f"Current {j + 1}"].layout().addWidget(dac_inner_frames[j])
@@ -355,8 +390,7 @@ class ProbeLaser(QtWidgets.QWidget, _CreateButton, _Frames):
         _CreateButton.__init__(self)
         self.frames = {}
         self.setLayout(QtWidgets.QGridLayout())
-        self.current_slider = Slider(minimum=ProbeLaser.MIN_CURRENT_BIT, maximum=ProbeLaser.MAX_CURRENT_BIT,
-                                     unit="mA")
+        self.current_slider = Slider(minimum=ProbeLaser.MIN_CURRENT_BIT, maximum=ProbeLaser.MAX_CURRENT_BIT, unit="mA")
         self.controller = controller.Laser()
         self.laser_mode = QtWidgets.QComboBox()
         self.photo_gain = QtWidgets.QComboBox()
@@ -367,12 +401,13 @@ class ProbeLaser(QtWidgets.QWidget, _CreateButton, _Frames):
         self.photo_gain.currentIndexChanged.connect(self.controller.update_photo_gain)
         self.laser_mode.currentIndexChanged.connect(self.controller.update_probe_laser_mode)
         self.frames["Measured Values"].layout().addWidget(self.current_display)
-        self.max_current_display = QtWidgets.QLineEdit()
+        self.max_current_display = QtWidgets.QLineEdit(str(self.controller.laser.probe_laser_max_current))
         self.max_current_display.returnPressed.connect(self.max_current_changed)
         self.frames["Maximum Current"].setLayout(QtWidgets.QGridLayout())
         self.frames["Maximum Current"].layout().addWidget(self.max_current_display, 0, 0)
         self.frames["Maximum Current"].layout().addWidget(QtWidgets.QLabel("mA"), 0, 1)
         model.signals.laser_data_display.connect(self.update_current)
+        self.controller.load_configuration()
 
     @QtCore.Slot(hardware.laser.LaserData)
     def update_current(self, value: hardware.laser.LaserData) -> None:
@@ -392,7 +427,12 @@ class ProbeLaser(QtWidgets.QWidget, _CreateButton, _Frames):
     def _init_slider(self) -> None:
         self.frames["Current"].layout().addWidget(self.current_slider)
         self.current_slider.slider.valueChanged.connect(self.controller.update_current_probe_laser)
-        model.signals.current_probe_laser.connect(self.current_slider.update_value)
+        model.signals.current_probe_laser.connect(self._update_current_slider)
+
+    @QtCore.Slot(int, float)
+    def _update_current_slider(self, index: int, value: float) -> None:
+        self.current_slider.slider.setValue(index)
+        self.current_slider.update_value(value)
 
     def _init_buttons(self) -> None:
         sub_layout = QtWidgets.QWidget()
@@ -415,6 +455,16 @@ class ProbeLaser(QtWidgets.QWidget, _CreateButton, _Frames):
         self.create_button(master=config, title="Load Configuration", slot=self.controller.load_configuration)
         self.create_button(master=config, title="Apply Configuration", slot=self.controller.load_configuration)
         self.frames["Configuration"].layout().addWidget(config, 3, 0)
+        model.signals.photo_gain.connect(self._update_photo_gain)
+        model.signals.probe_laser_mode.connect(self._update_mode)
+
+    @QtCore.Slot(int)
+    def _update_photo_gain(self, index: int) -> None:
+        self.photo_gain.setCurrentIndex(index)
+
+    @QtCore.Slot(int)
+    def _update_mode(self, index: int):
+        self.laser_mode.setCurrentIndex(index)
 
 
 class TecTextFields:
@@ -422,7 +472,7 @@ class TecTextFields:
         self.p_value = QtWidgets.QLineEdit()
         self.i_value = [QtWidgets.QLineEdit(), QtWidgets.QLineEdit()]
         self.d_value = QtWidgets.QLineEdit()
-        self.setpoint_temperatur = QtWidgets.QLineEdit()
+        self.setpoint_temperature = QtWidgets.QLineEdit()
         self.loop_time = QtWidgets.QLineEdit()
         self.reference_resistor = QtWidgets.QLineEdit()
         self.max_power = QtWidgets.QLineEdit()
@@ -455,12 +505,12 @@ class Tec(QtWidgets.QWidget, _Frames):
 
         configuration_layout = QtWidgets.QWidget()
         configuration_layout.setLayout(QtWidgets.QVBoxLayout())
-        paramter_layout = QtWidgets.QWidget()
-        paramter_layout.setLayout(QtWidgets.QHBoxLayout())
+        parameter_layout = QtWidgets.QWidget()
+        parameter_layout.setLayout(QtWidgets.QHBoxLayout())
         configuration_layout.layout().addWidget(self.frames["PID Configuration"])
         configuration_layout.layout().addWidget(self.frames["System Settings"])
-        paramter_layout.layout().addWidget(self.frames["System Parameters"])
-        self.layout().addWidget(paramter_layout)
+        parameter_layout.layout().addWidget(self.frames["System Parameters"])
+        self.layout().addWidget(parameter_layout)
         self.layout().addWidget(configuration_layout)
 
     def _init_text_fields(self) -> None:
@@ -476,8 +526,8 @@ class Tec(QtWidgets.QWidget, _Frames):
         self.frames["PID Configuration"].layout().addWidget(QtWidgets.QLabel("D Value"), 3, 0)
         self.frames["PID Configuration"].layout().addWidget(self.text_fields.d_value, 3, 1)
 
-        self.frames["System Settings"].layout().addWidget(QtWidgets.QLabel("Setpoint Temperatur"), 0, 0)
-        self.frames["System Settings"].layout().addWidget(self.text_fields.setpoint_temperatur, 0, 1)
+        self.frames["System Settings"].layout().addWidget(QtWidgets.QLabel("Setpoint Temperature"), 0, 0)
+        self.frames["System Settings"].layout().addWidget(self.text_fields.setpoint_temperature, 0, 1)
 
         self.frames["System Settings"].layout().addWidget(QtWidgets.QLabel("Loop Time"), 1, 0)
         self.frames["System Settings"].layout().addWidget(self.text_fields.loop_time, 1, 1)
