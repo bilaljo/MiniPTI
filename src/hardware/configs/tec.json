@@ -1,5 +1,22 @@
 {
+"Probe Laser": {
   "PID": {
+    "P_parameter": 0,
+    "I_parameter": [
+      0,
+      0
+    ],
+    "D_parameter": 0
+  },
+  "system_paramters": {
+    "setpoint_temperatur": 0,
+    "loop_time": 0,
+    "reference_resistor": 0,
+    "max_power": 0
+  }
+},
+  "Pump Laser": {
+      "PID": {
     "P_parameter": 0,
     "I_parameter": [0, 0],
     "D_parameter": 0
@@ -9,5 +26,6 @@
     "loop_time": 0,
     "reference_resistor": 0,
     "max_power": 0
+  }
   }
 }

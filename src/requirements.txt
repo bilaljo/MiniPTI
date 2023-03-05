@@ -6,6 +6,6 @@ PySide6
 pyqtgraph
 dacite
 python-statemachine
-pyserial
+pyserial; sys_platform != "Windows"
 psutil
-pywin32
+pywin32; sys_platform == "Windows"

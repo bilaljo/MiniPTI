@@ -14,35 +14,8 @@ if platform.system() == "Windows":
     import System.IO.Ports
 else:
     import signal
-import serial
-from serial.tools import list_ports
-
-
-@dataclass
-class Data:
-    ...
-
-
-class Error(Enum):
-    REQUEST = "0000"
-    PARAMETER = "0001"
-    COMMAND = "0002"
-    UNKNOWN_COMMAND = "0003"
-
-
-@dataclass
-class Patterns:
-    """
-    The first bytes stand for get (G) the second byte for the required thing (H for Hardware, F for Firmware etc.).
-    The third bytes stands for the required Information (I for ID, V for version). \n is the termination symbol.
-    """
-    HARDWARE_ID = re.compile(b"GHI[0-9a-fA-F]{4}", flags=re.MULTILINE)
-    ERROR = re.compile(b"ERR[0-9a-fA-F]{4}", flags=re.MULTILINE)
-    HEX_VALUE = re.compile(b"[0-9a-fA-F]{4}", flags=re.MULTILINE)
-
-
-class Command:
-    HARDWARE_ID = b"GHI0000"
+    import serial
+    from serial.tools import list_ports
 
 
 class Driver:
@@ -119,7 +92,6 @@ class Driver:
             self.serial_port.DataReceived += System.IO.Ports.SerialDataReceivedEventHandler(self._receive)
             self.serial_port.Open()
             self.connected.set()
-            #self.run()
             logging.info(f"Connected with {self.device_name}")
         else:
             raise OSError("Could not find {self.device_name}")
@@ -232,3 +204,30 @@ class Driver:
     @abc.abstractmethod
     def _process_data(self) -> None:
         ...
+
+
+@dataclass
+class Data:
+    ...
+
+
+class Error(Enum):
+    REQUEST = "0000"
+    PARAMETER = "0001"
+    COMMAND = "0002"
+    UNKNOWN_COMMAND = "0003"
+
+
+@dataclass
+class Patterns:
+    """
+    The first bytes stand for get (G) the second byte for the required thing (H for Hardware, F for Firmware etc.).
+    The third bytes stands for the required Information (I for ID, V for version). \n is the termination symbol.
+    """
+    HARDWARE_ID = re.compile(b"GHI[0-9a-fA-F]{4}", flags=re.MULTILINE)
+    ERROR = re.compile(b"ERR[0-9a-fA-F]{4}", flags=re.MULTILINE)
+    HEX_VALUE = re.compile(b"[0-9a-fA-F]{4}", flags=re.MULTILINE)
+
+
+class Command:
+    HARDWARE_ID = b"GHI0000"
