@@ -1,4 +1,7 @@
+import json
 import typing
+
+import dacite
 
 import hardware
 from dataclasses import dataclass
@@ -18,7 +21,7 @@ class _PID:
 
 @dataclass
 class _SystemParameter:
-    setpoint_temperatur: float
+    setpoint_temperature: float
     loop_time: float
     reference_resistor: float
     max_power: float
@@ -27,7 +30,7 @@ class _SystemParameter:
 @dataclass
 class Tec:
     pid: _PID
-    sytem_parameter: _SystemParameter
+    system_parameter: _SystemParameter
 
 
 class Driver(hardware.serial.Driver):
@@ -36,6 +39,9 @@ class Driver(hardware.serial.Driver):
 
     def __init__(self):
         hardware.serial.Driver.__init__(self)
+        self.probe_laser = None  # type: None | Tec
+        self.pump_laser = None  # type: None | Tec
+        self.config_path = "hardware/configs/tec.json"
 
     @property
     def device_id(self):
@@ -44,6 +50,12 @@ class Driver(hardware.serial.Driver):
     @property
     def device_name(self):
         return Driver.NAME
+
+    def load_config(self) -> None:
+        with open(self.config_path) as config:
+            loaded_config = json.load(config)
+            self.pump_laser = dacite.from_dict(Tec, loaded_config["Pump Laser"])
+            self.probe_laser = dacite.from_dict(Tec, loaded_config["Probe Laser"])
 
     def set_pid_d_value(self):
         raise NotImplementedError("Implement me")
