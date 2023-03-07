@@ -14,8 +14,8 @@ if platform.system() == "Windows":
     import System.IO.Ports
 else:
     import signal
-    import serial
-    from serial.tools import list_ports
+import serial
+from serial.tools import list_ports
 
 
 class Driver:

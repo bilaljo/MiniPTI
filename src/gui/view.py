@@ -40,36 +40,44 @@ class MainWindow(QtWidgets.QMainWindow):
         self.show()
 
     def _init_pump_laser_tab(self) -> QtWidgets.QTabWidget:
+        tab = QtWidgets.QTabWidget()
+        pump_laser = PumpLaser()
         pump_laser_tab = QtWidgets.QTabWidget()
         pump_laser_tab.setLayout(QtWidgets.QHBoxLayout())
-        pump_laser_tab.layout().addWidget(PumpLaser())
+        pump_laser_tab.layout().addWidget(pump_laser)
         pump_laser_tab.layout().addWidget(self.current_pump_laser.window)
-        return pump_laser_tab
-
-    def _init_probe_laser_tab(self) -> QtWidgets.QTabWidget:
-        probe_laser_tab = QtWidgets.QTabWidget()
-        probe_laser_tab.setLayout(QtWidgets.QHBoxLayout())
-        probe_laser_tab.layout().addWidget(ProbeLaser())
-        probe_laser_tab.layout().addWidget(self.current_probe_laser.window)
-        return probe_laser_tab
-
-    def _init_tec_tab(self) -> QtWidgets.QTabWidget:
+        tab.addTab(pump_laser_tab, "Laser Driver")
         tec_tab = QtWidgets.QTabWidget()
         tec_tab.setLayout(QtWidgets.QHBoxLayout())
-        tec_tab.layout().addWidget(Tec())
-        tec_tab.layout().addWidget(self.tec_values.window)
-        return tec_tab
+        tec_tab.layout().addWidget(Tec(laser="Pump Laser", signals=model.pump_laser_tec_signals))
+        tec_tab.layout().addWidget(TecCurrent())
+        tab.addTab(tec_tab, "Tec Driver")
+        return tab
+
+    def _init_probe_laser_tab(self) -> QtWidgets.QTabWidget:
+        tab = QtWidgets.QTabWidget()
+        probe_laser = ProbeLaser()
+        probe_laser_tab = QtWidgets.QTabWidget()
+        probe_laser_tab.setLayout(QtWidgets.QHBoxLayout())
+        probe_laser_tab.layout().addWidget(probe_laser)
+        probe_laser_tab.layout().addWidget(self.current_probe_laser.window)
+        tab.addTab(probe_laser_tab, "Laser Driver")
+        tec_tab = QtWidgets.QTabWidget()
+        tec_tab.setLayout(QtWidgets.QHBoxLayout())
+        tec_tab.layout().addWidget(Tec(laser="Probe Laser", signals=model.probe_laser_tec_signals))
+        tec_tab.layout().addWidget(TecCurrent())
+        tab.addTab(tec_tab, "Tec Driver")
+        return tab
 
     def _init_tabs(self):
         self.tabs = Tab(home=Home(), pump_laser=self._init_pump_laser_tab(), probe_laser=self._init_probe_laser_tab(),
-                        tec=self._init_tec_tab(), dc=QtWidgets.QTabWidget(), amplitudes=QtWidgets.QTabWidget(),
+                        dc=QtWidgets.QTabWidget(), amplitudes=QtWidgets.QTabWidget(),
                         output_phases=QtWidgets.QTabWidget(), sensitivity=QtWidgets.QTabWidget(),
                         symmetry=QtWidgets.QTabWidget(), interferometric_phase=QtWidgets.QTabWidget(),
                         pti_signal=QtWidgets.QTabWidget())
         self.tab_bar.addTab(self.tabs.home, "Home")
         self.tab_bar.addTab(self.tabs.pump_laser, "Pump Laser")
         self.tab_bar.addTab(self.tabs.probe_laser, "Probe Laser")
-        self.tab_bar.addTab(self.tabs.tec, "Tec")
         # DC Plot
         self.tabs.dc.setLayout(QtWidgets.QHBoxLayout())
         self.tabs.dc.layout().addWidget(self.dc.window)
@@ -108,6 +116,19 @@ class MainWindow(QtWidgets.QMainWindow):
             self.main_controller.close()
         else:
             close_event.ignore()
+
+
+class Tab(NamedTuple):
+    home: "Home"
+    pump_laser: QtWidgets.QTabWidget
+    probe_laser: QtWidgets.QTabWidget
+    dc: QtWidgets.QTabWidget
+    amplitudes: QtWidgets.QTabWidget
+    output_phases: QtWidgets.QTabWidget
+    interferometric_phase: QtWidgets.QTabWidget
+    sensitivity: QtWidgets.QTabWidget
+    symmetry: QtWidgets.QTabWidget
+    pti_signal: QtWidgets.QTabWidget
 
 
 class _Frames:
@@ -284,7 +305,6 @@ class PumpLaser(QtWidgets.QWidget, _Frames, _CreateButton):
     MAX_CURRENT = (1 << 12) - 1
 
     def __init__(self):
-        self.frames = {}
         QtWidgets.QWidget.__init__(self)
         _CreateButton.__init__(self)
         _Frames.__init__(self, name="Pump Laser")
@@ -384,7 +404,6 @@ class ProbeLaser(QtWidgets.QWidget, _CreateButton, _Frames):
     CONSTANT_LIGHT = 1
 
     def __init__(self):
-        self.frames = {}
         QtWidgets.QWidget.__init__(self)
         _Frames.__init__(self, name="Probe Laser")
         _CreateButton.__init__(self)
@@ -478,65 +497,105 @@ class TecTextFields:
         self.max_power = QtWidgets.QLineEdit()
 
 
-class Tec(QtWidgets.QWidget, _Frames):
-    def __init__(self):
-        self.frames = {}
+class Tec(QtWidgets.QWidget, _Frames, _CreateButton):
+    def __init__(self, laser: str, signals: model.TecSignals):
         QtWidgets.QWidget.__init__(self)
         _Frames.__init__(self, name="Tec Driver")
-        self.frames = {}
-        self.setLayout(QtWidgets.QHBoxLayout())
-        self.controller = controller.Tec()
+        _CreateButton.__init__(self)
+        self.setLayout(QtWidgets.QGridLayout())
+        self.controller = controller.Tec(laser)
         self.text_fields = TecTextFields()
+        self.signals = signals
         self._init_frames()
         self._init_text_fields()
+        self._init_buttons()
+        self.controller.load_configuration()
 
     def _init_frames(self) -> None:
-        self.frames["System Parameters"] = QtWidgets.QGroupBox()
-        self.frames["System Parameters"].setTitle("System Parameters")
-        self.frames["System Parameters"].setLayout(QtWidgets.QGridLayout())
+        self.create_frame(master=self.layout(), title="PID Configuration", x_position=0, y_position=0)
+        self.create_frame(master=self.layout(), title="System Settings", x_position=1, y_position=0)
+        self.create_frame(master=self.layout(), title="System Parameters", x_position=2, y_position=0)
+        self.create_frame(master=self.layout(), title="Configuration", x_position=3, y_position=0)
 
-        self.frames["PID Configuration"] = QtWidgets.QGroupBox()
-        self.frames["PID Configuration"].setTitle("PID Configuration")
-        self.frames["PID Configuration"].setLayout(QtWidgets.QGridLayout())
-
-        self.frames["System Settings"] = QtWidgets.QGroupBox()
-        self.frames["System Settings"].setTitle("System Settings")
-        self.frames["System Settings"].setLayout(QtWidgets.QGridLayout())
-
-        configuration_layout = QtWidgets.QWidget()
-        configuration_layout.setLayout(QtWidgets.QVBoxLayout())
-        parameter_layout = QtWidgets.QWidget()
-        parameter_layout.setLayout(QtWidgets.QHBoxLayout())
-        configuration_layout.layout().addWidget(self.frames["PID Configuration"])
-        configuration_layout.layout().addWidget(self.frames["System Settings"])
-        parameter_layout.layout().addWidget(self.frames["System Parameters"])
-        self.layout().addWidget(parameter_layout)
-        self.layout().addWidget(configuration_layout)
+    @staticmethod
+    def _update_text_field(text_field: QtWidgets.QLineEdit):
+        @QtCore.Slot(float)
+        def update(value: float):
+            text_field.setText(str(round(value, 2)))
+        return update
 
     def _init_text_fields(self) -> None:
         self.frames["PID Configuration"].layout().addWidget(QtWidgets.QLabel("P Value"), 0, 0)
         self.frames["PID Configuration"].layout().addWidget(self.text_fields.p_value, 0, 1)
+        self.text_fields.p_value.returnPressed.connect(self.p_value_changed)
+        self.signals.p_value.connect(Tec._update_text_field(self.text_fields.p_value))
 
         self.frames["PID Configuration"].layout().addWidget(QtWidgets.QLabel("I<sub>1</sub> Value"), 1, 0)
         self.frames["PID Configuration"].layout().addWidget(self.text_fields.i_value[0], 1, 1)
+        self.text_fields.i_value[0].returnPressed.connect(self.i_1_value_changed)
+        self.signals.i_1_value.connect(Tec._update_text_field(self.text_fields.i_value[0]))
 
         self.frames["PID Configuration"].layout().addWidget(QtWidgets.QLabel("I<sub>2</sub> Value"), 2, 0)
         self.frames["PID Configuration"].layout().addWidget(self.text_fields.i_value[1], 2, 1)
+        self.text_fields.i_value[1].returnPressed.connect(self.i_2_value_changed)
+        self.signals.i_2_value.connect(Tec._update_text_field(self.text_fields.i_value[1]))
 
         self.frames["PID Configuration"].layout().addWidget(QtWidgets.QLabel("D Value"), 3, 0)
         self.frames["PID Configuration"].layout().addWidget(self.text_fields.d_value, 3, 1)
+        self.text_fields.d_value.returnPressed.connect(self.d_value_changed)
+        self.signals.d_value.connect(Tec._update_text_field(self.text_fields.d_value))
 
         self.frames["System Settings"].layout().addWidget(QtWidgets.QLabel("Setpoint Temperature"), 0, 0)
         self.frames["System Settings"].layout().addWidget(self.text_fields.setpoint_temperature, 0, 1)
+        self.text_fields.setpoint_temperature.returnPressed.connect(self.setpoint_temperature_changed)
+        self.signals.setpoint_temperature.connect(Tec._update_text_field(self.text_fields.setpoint_temperature))
 
         self.frames["System Settings"].layout().addWidget(QtWidgets.QLabel("Loop Time"), 1, 0)
         self.frames["System Settings"].layout().addWidget(self.text_fields.loop_time, 1, 1)
+        self.text_fields.loop_time.returnPressed.connect(self.loop_time_changed)
+        self.signals.loop_time.connect(Tec._update_text_field(self.text_fields.loop_time))
 
         self.frames["System Settings"].layout().addWidget(QtWidgets.QLabel("Reference Resistor"), 2, 0)
         self.frames["System Settings"].layout().addWidget(self.text_fields.reference_resistor, 2, 1)
+        self.text_fields.reference_resistor.returnPressed.connect(self.reference_resistor_changed)
+        self.signals.reference_resistor.connect(Tec._update_text_field(self.text_fields.reference_resistor))
 
         self.frames["System Settings"].layout().addWidget(QtWidgets.QLabel("Max Power"), 3, 0)
         self.frames["System Settings"].layout().addWidget(self.text_fields.max_power, 3, 1)
+        self.text_fields.max_power.returnPressed.connect(self.max_power_changed)
+        self.signals.max_power.connect(Tec._update_text_field(self.text_fields.max_power))
+
+    def d_value_changed(self) -> None:
+        self.controller.update_d_value(self.text_fields.d_value.text())
+
+    def i_1_value_changed(self) -> None:
+        self.controller.update_i_1_value(self.text_fields.i_value[0].text())
+
+    def i_2_value_changed(self) -> None:
+        self.controller.update_i_2_value(self.text_fields.i_value[1].text())
+
+    def p_value_changed(self) -> None:
+        self.controller.update_p_value(self.text_fields.p_value.text())
+
+    def setpoint_temperature_changed(self) -> None:
+        self.controller.update_setpoint_temperature(self.text_fields.setpoint_temperature.text())
+
+    def loop_time_changed(self) -> None:
+        self.controller.update_loop_time(self.text_fields.loop_time.text())
+
+    def reference_resistor_changed(self) -> None:
+        self.controller.update_reference_resistor(self.text_fields.reference_resistor.text())
+
+    def max_power_changed(self) -> None:
+        self.controller.update_max_power(self.text_fields.max_power.text())
+
+    def _init_buttons(self) -> None:
+        config = QtWidgets.QWidget()
+        config.setLayout(QtWidgets.QHBoxLayout())
+        self.create_button(master=config, title="Save Configuration", slot=self.controller.save_configuration)
+        self.create_button(master=config, title="Load Configuration", slot=self.controller.load_configuration)
+        self.create_button(master=config, title="Apply Configuration", slot=self.controller.load_configuration)
+        self.frames["Configuration"].layout().addWidget(config, 3, 0)
 
 
 class _MatplotlibColors:
@@ -769,17 +828,3 @@ class TecCurrent(_Plotting):
 
     def update_data_live(self, data: model.LaserBuffer) -> None:
         self.curves.setData(data.time, data.probe_laser_current)
-
-
-class Tab(NamedTuple):
-    home: Home
-    pump_laser: QtWidgets.QTabWidget
-    probe_laser: QtWidgets.QTabWidget
-    tec: QtWidgets.QTabWidget
-    dc: QtWidgets.QTabWidget
-    amplitudes: QtWidgets.QTabWidget
-    output_phases: QtWidgets.QTabWidget
-    interferometric_phase: QtWidgets.QTabWidget
-    sensitivity: QtWidgets.QTabWidget
-    symmetry: QtWidgets.QTabWidget
-    pti_signal: QtWidgets.QTabWidget

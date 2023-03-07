@@ -1,4 +1,5 @@
 import copy
+import dataclasses
 import json
 import logging
 from dataclasses import dataclass
@@ -6,6 +7,7 @@ from typing import Annotated
 import dacite
 
 import hardware.serial
+import json_parser
 
 
 @dataclass
@@ -87,7 +89,7 @@ class Driver(hardware.serial.Driver):
         self.config_path = "hardware/configs/laser.json"
         self.probe_laser_initialized = False
         self.pump_laser_initialized = False
-        self.load_configs()
+        self.load_configuration()
 
     def open(self) -> None:
         super().open()
@@ -97,11 +99,17 @@ class Driver(hardware.serial.Driver):
         self.disable_pump_laser()
         self.disable_probe_laser()
 
-    def load_configs(self) -> None:
+    def load_configuration(self) -> None:
         with open(self.config_path) as config:
             loaded_config = json.load(config)
-            self.pump_laser = dacite.from_dict(PumpLaser, loaded_config["Pump Laser"])
-            self.probe_laser = dacite.from_dict(ProbeLaser, loaded_config["Probe Laser"])
+            self.pump_laser = dacite.from_dict(hardware.laser.PumpLaser, loaded_config["Pump Laser"])
+            self.probe_laser = dacite.from_dict(hardware.laser.ProbeLaser, loaded_config["Probe Laser"])
+
+    def save_configuration(self) -> None:
+        with open(self.config_path, "w") as configuration:
+            lasers = {"Pump Laser": dataclasses.asdict(self.pump_laser),
+                      "Probe Laser": dataclasses.asdict(self.probe_laser)}
+            configuration.write(json_parser.to_json(lasers) + "\n")
 
     def _encode_data(self) -> None:
         received_data = self.received_data.get(block=True)  # type: str

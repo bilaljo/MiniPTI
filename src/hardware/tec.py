@@ -1,3 +1,4 @@
+import dataclasses
 import json
 import typing
 
@@ -5,6 +6,8 @@ import dacite
 
 import hardware
 from dataclasses import dataclass
+
+import json_parser
 
 
 @dataclass
@@ -14,9 +17,9 @@ class Data:
 
 @dataclass
 class _PID:
-    p_parameter: float
-    i_parameter: typing.Annotated[list[float], 2]
-    d_parameter: float
+    P_parameter: float
+    I_parameter: typing.Annotated[list[float], 2]
+    D_parameter: float
 
 
 @dataclass
@@ -29,7 +32,7 @@ class _SystemParameter:
 
 @dataclass
 class Tec:
-    pid: _PID
+    PID: _PID
     system_parameter: _SystemParameter
 
 
@@ -56,6 +59,15 @@ class Driver(hardware.serial.Driver):
             loaded_config = json.load(config)
             self.pump_laser = dacite.from_dict(Tec, loaded_config["Pump Laser"])
             self.probe_laser = dacite.from_dict(Tec, loaded_config["Probe Laser"])
+
+    def save_configuration(self) -> None:
+        with open(self.config_path, "w") as configuration:
+            lasers = {"Pump Laser": dataclasses.asdict(self.pump_laser),
+                      "Probe Laser": dataclasses.asdict(self.probe_laser)}
+            configuration.write(json_parser.to_json(lasers) + "\n")
+
+    def apply_configuration(self) -> None:
+        pass
 
     def set_pid_d_value(self):
         raise NotImplementedError("Implement me")
