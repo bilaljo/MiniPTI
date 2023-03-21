@@ -60,7 +60,7 @@ class ProbeLaser:
 
 
 @dataclass
-class LaserData(hardware.serial.Data):
+class Data(hardware.serial.Data):
     pump_laser_current: float
     pump_laser_voltage: float
     probe_laser_current: float
@@ -129,10 +129,11 @@ class Driver(hardware.serial.Driver):
                     self.ready_write.set()
                 case "L":
                     data_frame = received.split("\t")[Driver._START_DATA_FRAME:self.end_data_frame]
-                    extracted_data = LaserData(pump_laser_current=float(data_frame[0]),
-                                               pump_laser_voltage=float(data_frame[1]),
-                                               probe_laser_current=float(data_frame[2]))
-                    self.data.put(copy.deepcopy(extracted_data))
+                    self.data.put((Data(
+                        pump_laser_current=float(data_frame[0]),
+                        pump_laser_voltage=float(data_frame[1]),
+                        probe_laser_current=float(data_frame[2]))
+                    ))
                 case _:  # Broken data frame without header char
                     logging.error("Received invalid package without header")
                     self.ready_write.set()

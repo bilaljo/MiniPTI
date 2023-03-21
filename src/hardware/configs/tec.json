@@ -1,5 +1,9 @@
 {
     "Pump Laser": {
+        "mode": {
+            "cooling": true,
+            "heating": false
+        },
         "PID": {
             "P_parameter": 3,
             "I_parameter": [3, 12],
@@ -13,6 +17,10 @@
         }
     },
     "Probe Laser": {
+        "mode": {
+            "cooling": true,
+            "heating": false
+        },
         "PID": {
             "P_parameter": 12,
             "I_parameter": [0, 0],

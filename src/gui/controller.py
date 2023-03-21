@@ -41,6 +41,7 @@ class Home:
         self.settings_model.setup_settings_file()
         self.laser = model.Laser()
         self.daq = model.DAQ()
+        self.tec = model.Tec()
         self.find_devices()
 
     def set_destination_folder(self):
@@ -118,6 +119,10 @@ class Home:
             self.laser.driver.find_port()
         except OSError:
             logging.error("Could not find Laser Driver")
+        try:
+            self.tec.driver.find_port()
+        except OSError:
+            logging.error("Could not find TEC Driver")
 
     def connect_devices(self):
         try:
@@ -127,6 +132,11 @@ class Home:
         try:
             self.laser.open()
             self.laser.process_measured_data()
+        except OSError:
+            logging.error("Could not connect with Laser Driver")
+        try:
+            self.tec.open()
+            self.tec.process_measured_data()
         except OSError:
             logging.error("Could not connect with Laser Driver")
 
@@ -229,8 +239,12 @@ class Laser:
 
 
 class Tec:
-    def __init__(self, laser: str):
+    def __init__(self, laser: str, parent):
         self.tec = model.Tec(laser)
+        self.heating = False
+        self.cooling = False
+        self.view = parent
+        self.laser = laser
 
     def save_configuration(self) -> None:
         self.tec.save_configuration()
@@ -265,3 +279,27 @@ class Tec:
 
     def update_max_power(self, max_power: str) -> None:
         self.tec.max_power = _string_to_float(max_power)
+
+    def set_heating(self) -> None:
+        if not self.heating:
+            self.tec.driver.set_mode(self.laser, mode="heating")
+            view.toggle_button(True, self.view.buttons["Heat"])
+            view.toggle_button(False, self.view.buttons["Cool"])
+            self.heating = True
+            self.cooling = False
+        else:
+            view.toggle_button(False, self.view.buttons["Heat"])
+            self.tec.driver.disable(self.laser)
+            self.heating = False
+
+    def set_cooling(self) -> None:
+        if not self.cooling:
+            self.tec.driver.set_mode(self.laser, mode="cooling")
+            view.toggle_button(False, self.view.buttons["Heat"])
+            view.toggle_button(True, self.view.buttons["Cool"])
+            self.heating = False
+            self.cooling = True
+        else:
+            view.toggle_button(False, self.view.buttons["Cool"])
+            self.tec.driver.disable(self.laser)
+            self.cooling = False

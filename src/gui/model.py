@@ -257,11 +257,32 @@ class LaserBuffer(Buffer):
         self.pump_laser_current = deque(maxlen=Buffer.QUEUE_SIZE)
         self.probe_laser_current = deque(maxlen=Buffer.QUEUE_SIZE)
 
-    def append(self, laser_data: hardware.laser.LaserData) -> None:
+    def append(self, laser_data: hardware.laser.Data) -> None:
         self.time.append(next(self.time_counter) / 10)
         self.pump_laser_current.append(laser_data.pump_laser_current)
         self.pump_laser_voltage.append(laser_data.pump_laser_voltage)
         self.probe_laser_current.append(laser_data.probe_laser_current)
+
+
+class TecBuffer(Buffer):
+    PUMP_LASER = hardware.tec.Driver.PUMP_LASER
+    PROBE_LASER = hardware.tec.Driver.PROBE_LASER
+
+    def __init__(self):
+        Buffer.__init__(self)
+        self.set_point: typing.Annotated[list[deque], 2] = [
+            deque(maxlen=Buffer.QUEUE_SIZE), deque(maxlen=Buffer.QUEUE_SIZE)
+        ]
+        self.actual_value:  typing.Annotated[list[deque], 2] = [
+            deque(maxlen=Buffer.QUEUE_SIZE), deque(maxlen=Buffer.QUEUE_SIZE)
+        ]
+
+    def append(self, tec_data: hardware.tec.Data):
+        self.set_point[TecBuffer.PUMP_LASER].append(tec_data.set_point.pump_laser)
+        self.set_point[TecBuffer.PROBE_LASER].append(tec_data.set_point.probe_laser)
+        self.actual_value[TecBuffer.PUMP_LASER].append(tec_data.actual_temperature.pump_laser)
+        self.actual_value[TecBuffer.PROBE_LASER].append(tec_data.actual_temperature.probe_laser)
+        self.time.append(next(self.time_counter) / 10)
 
 
 class Mode(enum.IntEnum):
@@ -285,7 +306,9 @@ class Signals(QtCore.QObject):
     current_dac = QtCore.Signal(int, int)
     matrix_dac = QtCore.Signal(int, list)
     laser_data = QtCore.Signal(Buffer)
-    laser_data_display = QtCore.Signal(hardware.laser.LaserData)
+    laser_data_display = QtCore.Signal(hardware.laser.Data)
+    tec_data = QtCore.Signal(Buffer)
+    tec_data_display = QtCore.Signal(hardware.tec.Data)
     current_probe_laser = QtCore.Signal(int, float)
     max_current_probe_laser = QtCore.Signal(float)
     probe_laser_mode = QtCore.Signal(int)
@@ -572,7 +595,6 @@ class Laser:
                 dac.continuous_wave[channel] = False
                 dac.pulsed_mode[channel] = True
             case Mode.DISABLED:
-                print("called")
                 dac.continuous_wave[channel] = False
                 dac.pulsed_mode[channel] = False
         self.driver.set_dac_matrix()
@@ -589,13 +611,19 @@ class Laser:
 
 class Tec:
     driver = hardware.tec.Driver()
+    _buffer = TecBuffer()
 
-    def __init__(self, laser: str, tec_driver=None):
+    def __init__(self, laser="", tec_buffer=TecBuffer(), tec_driver=None):
         self.laser = laser
+        if tec_buffer is not None:
+            self.tec_buffer = tec_buffer
+        else:
+            self.laser_buffer = Tec._buffer
         if tec_driver is not None:
             self.driver = tec_driver
         else:
             self.driver = Tec.driver
+            self.driver.used_laser = laser
         self.load_configuration()
 
     @property
@@ -616,6 +644,10 @@ class Tec:
     def apply_configuration(self) -> None:
         self.driver.apply_configuration()
 
+    def open(self) -> None:
+        self.driver.open()
+        self.driver.run()
+
     @property
     def p_value(self) -> float:
         match self.laser:
@@ -631,12 +663,13 @@ class Tec:
         match self.laser:
             case "Pump Laser":
                 self.driver.pump_laser.PID.P_parameter = p_value
-                probe_laser_tec_signals.p_value.emit(p_value)
+                pump_laser_tec_signals.p_value.emit(p_value)
             case "Probe Laser":
                 self.driver.probe_laser.PID.P_parameter = p_value
                 probe_laser_tec_signals.p_value.emit(p_value)
             case _:
                 raise AttributeError("Invalid laser name")
+        self.driver.set_pid_p_value(self.laser)
 
     @property
     def i_1_value(self) -> float:
@@ -653,12 +686,13 @@ class Tec:
         match self.laser:
             case "Pump Laser":
                 self.driver.pump_laser.PID.I_parameter[0] = i_value
-                probe_laser_tec_signals.i_1_value.emit(i_value)
+                pump_laser_tec_signals.i_1_value.emit(i_value)
             case "Probe Laser":
                 self.driver.probe_laser.PID.I_parameter[0] = i_value
                 probe_laser_tec_signals.i_1_value.emit(i_value)
             case _:
                 raise AttributeError("Invalid laser name")
+        self.driver.set_pid_i_value(self.laser, 0)
 
     @property
     def i_2_value(self) -> float:
@@ -675,12 +709,13 @@ class Tec:
         match self.laser:
             case "Pump Laser":
                 self.driver.pump_laser.PID.I_parameter[1] = i_value
-                probe_laser_tec_signals.i_2_value.emit(i_value)
+                pump_laser_tec_signals.i_2_value.emit(i_value)
             case "Probe Laser":
                 self.driver.probe_laser.PID.I_parameter[1] = i_value
                 probe_laser_tec_signals.i_2_value.emit(i_value)
             case _:
                 raise AttributeError("Invalid laser name")
+        self.driver.set_pid_i_value(self.laser, 1)
 
     @property
     def d_value(self) -> float:
@@ -703,6 +738,7 @@ class Tec:
                 probe_laser_tec_signals.d_value.emit(d_value)
             case _:
                 raise AttributeError("Invalid laser name")
+        self.driver.set_pid_d_value(self.laser)
 
     @property
     def setpoint_temperature(self) -> float:
@@ -723,6 +759,7 @@ class Tec:
                 probe_laser_tec_signals.setpoint_temperature.emit(setpoint_temperature)
             case _:
                 raise AttributeError("Invalid laser name")
+        self.driver.set_setpoint_temperature_value(self.laser)
 
     @property
     def loop_time(self) -> float:
@@ -743,6 +780,7 @@ class Tec:
                 probe_laser_tec_signals.loop_time.emit(loop_time)
             case _:
                 raise AttributeError("Invalid laser name")
+        self.driver.set_loop_time_value(self.laser)
 
     @property
     def reference_resistor(self) -> float:
@@ -763,6 +801,7 @@ class Tec:
                 probe_laser_tec_signals.reference_resistor.emit(reference_resistor)
             case _:
                 raise AttributeError("Invalid laser name")
+        self.driver.set_reference_resistor_value(self.laser)
 
     @property
     def max_power(self) -> float:
@@ -783,6 +822,7 @@ class Tec:
                 probe_laser_tec_signals.max_power.emit(max_power)
             case _:
                 raise AttributeError("Invalid laser name")
+        self.driver.set_max_power_value(self.laser)
 
     def update_values(self):
         match self.laser:
@@ -804,6 +844,15 @@ class Tec:
                 probe_laser_tec_signals.loop_time.emit(self.loop_time)
                 probe_laser_tec_signals.reference_resistor.emit(self.reference_resistor)
                 probe_laser_tec_signals.max_power.emit(self.max_power)
+
+    def process_measured_data(self) -> None:
+        def incoming_data():
+            while self.driver.connected.is_set():
+                received_data = Tec.driver.data.get(block=True)
+                self.tec_buffer.append(received_data)
+                signals.tec_data.emit(self.tec_buffer)
+                signals.tec_data_display.emit(received_data)
+        threading.Thread(target=incoming_data, daemon=True).start()
 
 
 def _process__data(file_path: str, headers: list[str]) -> pd.DataFrame:

@@ -27,7 +27,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.tabs: None | Tab = None
         self.current_pump_laser = PumpLaserCurrent()
         self.current_probe_laser = ProbeLaserCurrent()
-        self.tec_values = TecCurrent()
+        self.temperature_probe_laser = TecTemperature(laser="Probe Laser")
+        self.temperature_pump_laser = TecTemperature(laser="Pump Laser")
+        #self.tec_values = TecCurrent()
         self.dc = DC()
         self.amplitudes = Amplitudes()
         self.output_phases = OutputPhases()
@@ -50,7 +52,7 @@ class MainWindow(QtWidgets.QMainWindow):
         tec_tab = QtWidgets.QTabWidget()
         tec_tab.setLayout(QtWidgets.QHBoxLayout())
         tec_tab.layout().addWidget(Tec(laser="Pump Laser", signals=model.pump_laser_tec_signals))
-        tec_tab.layout().addWidget(TecCurrent())
+        tec_tab.layout().addWidget(self.temperature_pump_laser.window)
         tab.addTab(tec_tab, "Tec Driver")
         return tab
 
@@ -65,7 +67,7 @@ class MainWindow(QtWidgets.QMainWindow):
         tec_tab = QtWidgets.QTabWidget()
         tec_tab.setLayout(QtWidgets.QHBoxLayout())
         tec_tab.layout().addWidget(Tec(laser="Probe Laser", signals=model.probe_laser_tec_signals))
-        tec_tab.layout().addWidget(TecCurrent())
+        tec_tab.layout().addWidget(self.temperature_probe_laser.window)
         tab.addTab(tec_tab, "Tec Driver")
         return tab
 
@@ -328,7 +330,7 @@ class PumpLaser(QtWidgets.QWidget, _Frames, _CreateButton):
         self.controller.load_configuration()
 
     @QtCore.Slot()
-    def _update_current_voltage(self, value: hardware.laser.LaserData):
+    def _update_current_voltage(self, value: hardware.laser.Data):
         self.current_display.setText(str(value.pump_laser_current) + " mA")
         self.voltage_display.setText(str(value.pump_laser_voltage) + " V")
 
@@ -428,8 +430,8 @@ class ProbeLaser(QtWidgets.QWidget, _CreateButton, _Frames):
         model.signals.laser_data_display.connect(self.update_current)
         self.controller.load_configuration()
 
-    @QtCore.Slot(hardware.laser.LaserData)
-    def update_current(self, value: hardware.laser.LaserData) -> None:
+    @QtCore.Slot(hardware.laser.Data)
+    def update_current(self, value: hardware.laser.Data) -> None:
         self.current_display.setText(str(value.probe_laser_current) + " mA")
 
     def max_current_changed(self) -> None:
@@ -503,18 +505,21 @@ class Tec(QtWidgets.QWidget, _Frames, _CreateButton):
         _Frames.__init__(self, name="Tec Driver")
         _CreateButton.__init__(self)
         self.setLayout(QtWidgets.QGridLayout())
-        self.controller = controller.Tec(laser)
+        self.controller = controller.Tec(laser, self)
         self.text_fields = TecTextFields()
         self.signals = signals
+        self.temperature_display = QtWidgets.QLabel("NaN °C")
         self._init_frames()
         self._init_text_fields()
         self._init_buttons()
+        self.laser = laser
         self.controller.load_configuration()
+        model.signals.tec_data_display.connect(self.update_temperature)
 
     def _init_frames(self) -> None:
         self.create_frame(master=self.layout(), title="PID Configuration", x_position=0, y_position=0)
         self.create_frame(master=self.layout(), title="System Settings", x_position=1, y_position=0)
-        self.create_frame(master=self.layout(), title="System Parameters", x_position=2, y_position=0)
+        self.create_frame(master=self.layout(), title="Temperature", x_position=2, y_position=0)
         self.create_frame(master=self.layout(), title="Configuration", x_position=3, y_position=0)
 
     @staticmethod
@@ -523,6 +528,10 @@ class Tec(QtWidgets.QWidget, _Frames, _CreateButton):
         def update(value: float):
             text_field.setText(str(round(value, 2)))
         return update
+
+    @QtCore.Slot(hardware.tec.Data)
+    def update_temperature(self, value: hardware.tec.Data) -> None:
+        self.temperature_display.setText(str(value.actual_temperature[self.laser]) + " °C")
 
     def _init_text_fields(self) -> None:
         self.frames["PID Configuration"].layout().addWidget(QtWidgets.QLabel("P Value"), 0, 0)
@@ -565,6 +574,8 @@ class Tec(QtWidgets.QWidget, _Frames, _CreateButton):
         self.text_fields.max_power.returnPressed.connect(self.max_power_changed)
         self.signals.max_power.connect(Tec._update_text_field(self.text_fields.max_power))
 
+        self.frames["Temperature"].layout().addWidget(self.temperature_display)
+
     def d_value_changed(self) -> None:
         self.controller.update_d_value(self.text_fields.d_value.text())
 
@@ -596,6 +607,9 @@ class Tec(QtWidgets.QWidget, _Frames, _CreateButton):
         self.create_button(master=config, title="Load Configuration", slot=self.controller.load_configuration)
         self.create_button(master=config, title="Apply Configuration", slot=self.controller.load_configuration)
         self.frames["Configuration"].layout().addWidget(config, 3, 0)
+
+        self.create_button(master=self.frames["Temperature"], title="Heat", slot=self.controller.set_heating)
+        self.create_button(master=self.frames["Temperature"], title="Cool", slot=self.controller.set_cooling)
 
 
 class _MatplotlibColors:
@@ -815,16 +829,25 @@ class ProbeLaserCurrent(_Plotting):
         self.curves.setData(data.time, data.probe_laser_current)
 
 
-class TecCurrent(_Plotting):
-    def __init__(self):
+class TecTemperature(_Plotting):
+    ACTUAL = 0
+    MEASURAED = 1
+
+    def __init__(self, laser: str):
         _Plotting.__init__(self)
-        self.curves = self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE))
+        self.curves = [
+            self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="Setpoint Temperature"),
+            self.plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="Measured Temperature")
+        ]
         self.plot.setLabel(axis="bottom", text="Time [s]")
-        self.plot.setLabel(axis="left", text="Current [mA]")
-        # model.signals.laser_data.connect(self.update_data_live)
+        self.plot.setLabel(axis="left", text="Temperature [°C]")
+        self.laser = model.TecBuffer.PUMP_LASER if laser == "Pump Laser" else model.TecBuffer.PROBE_LASER
+        model.signals.tec_data.connect(self.update_data_live)
 
     def update_data(self, data: pd.DataFrame) -> None:
         raise NotImplementedError("There is no need to plot laser data offline")
 
-    def update_data_live(self, data: model.LaserBuffer) -> None:
-        self.curves.setData(data.time, data.probe_laser_current)
+    def update_data_live(self, data: model.TecBuffer) -> None:
+        self.curves[TecTemperature.ACTUAL].setData(data.time, data.actual_value[self.laser])
+        self.curves[TecTemperature.MEASURAED].setData(data.time, data.set_point[self.laser])
+
