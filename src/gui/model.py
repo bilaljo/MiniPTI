@@ -1,10 +1,8 @@
 import abc
 import copy
 import csv
-import dataclasses
 import enum
 import itertools
-import json
 import logging
 import os
 import threading
@@ -12,13 +10,11 @@ from collections import deque
 import typing
 from dataclasses import dataclass
 
-import dacite
 import numpy as np
 import pandas as pd
 from PySide6 import QtCore
 from scipy import ndimage
 
-import json_parser
 from minipti import interferometry, pti
 import hardware
 
@@ -388,9 +384,9 @@ class Calculation:
 
         def calculate_inversion():
             while self.running.is_set():
-                self.pti.decimation.ref = np.array(DAQ.driver.ref_signal)
-                self.pti.decimation.dc_coupled = np.array(DAQ.driver.dc_coupled)
-                self.pti.decimation.ac_coupled = np.array(DAQ.driver.ac_coupled)
+                self.pti.decimation.ref = np.array(Motherboard.driver.ref_signal)
+                self.pti.decimation.dc_coupled = np.array(Motherboard.driver.dc_coupled)
+                self.pti.decimation.ac_coupled = np.array(Motherboard.driver.ac_coupled)
                 self.pti.decimation()
                 self.pti.inversion.lock_in = self.pti.decimation.lock_in  # Note that this copies a reference
                 self.pti.inversion.dc_signals = self.pti.decimation.dc_signals
@@ -431,14 +427,14 @@ class Calculation:
         self.pti.inversion(live=False)
 
 
-class DAQ:
-    driver = hardware.daq.Driver()
+class Motherboard:
+    driver = hardware.motherboard.Driver()
 
     def __init__(self, daq_driver=None):
         if daq_driver is not None:
             self.driver = daq_driver
         else:
-            self.driver = DAQ.driver
+            self.driver = Motherboard.driver
 
 
 class ProbeLaserMode(enum.IntEnum):

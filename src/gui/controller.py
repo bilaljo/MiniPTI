@@ -40,7 +40,7 @@ class Home:
         self.last_file_path = os.getcwd()
         self.settings_model.setup_settings_file()
         self.laser = model.Laser()
-        self.daq = model.DAQ()
+        self.daq = model.Motherboard()
         self.tec = model.Tec()
         self.find_devices()
 
