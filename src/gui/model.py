@@ -5,6 +5,7 @@ import enum
 import itertools
 import logging
 import os
+import re
 import threading
 from collections import deque
 import typing
@@ -442,10 +443,9 @@ class Calculation:
                 now = datetime.now()
                 output_data = {"Date": str(now.strftime("%Y-%m-%d")), "Time": str(now.strftime("%H:%M:%S"))}
                 for key, value in asdict(bms_data).values():
-                    new_key: str = key
-                    new_key.replace("_", " ")
-                    new_key.find(" ")
-                pd.DataFrame(asdict(bms_data)).to_csv(self._destination_folder + "/BMS.csv", header=False, mode="a")
+                    output_data[key.replace("_", " ").title()] = value
+                pd.DataFrame(output_data).to_csv(self._destination_folder + "/BMS.csv", header=False, mode="a")
+            threading.Thread(target=incoming_data).start()
 
 
 class Motherboard:
