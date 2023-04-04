@@ -8,7 +8,8 @@ import os
 import threading
 from collections import deque
 import typing
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
+from datetime import datetime
 
 import numpy as np
 import pandas as pd
@@ -311,6 +312,8 @@ class Signals(QtCore.QObject):
     settings = QtCore.pyqtSignal(pd.DataFrame)
     destination_folder_changed = QtCore.pyqtSignal(str)
     photo_gain = QtCore.pyqtSignal(int)
+    battery_state = QtCore.pyqtSignal(tuple[int, int])
+
 
     def __init__(self):
         QtCore.QObject.__init__(self)
@@ -426,15 +429,34 @@ class Calculation:
         self.interferometry.interferometer.load_settings()
         self.pti.inversion(live=False)
 
+    def process_bms_data(self) -> None:
+        units = {"Date": "Y:M:D", "Time": "H:M:S", "Exernal DC Power": "bool", "Charging Battery": "bool",
+                 "Minutes Left": "min", "Charging Level": "%", "Temperature": "°C", "Current": "mA",
+                 "Voltage": "V", "Full Charge Capacity": "mAh", "Remaining Charge Capacity": "mAh"}
+        pd.DataFrame(units).to_csv(self._destination_folder + "/BMS.csv")
+
+        def incoming_data():
+            while Motherboard.driver.connected.is_set():
+                bms_data: hardware.motherboard.BMSData = Motherboard.driver.bms
+                signals.battery_state.emit((bms_data.battery_percentage, bms_data.minutes_left))
+                now = datetime.now()
+                output_data = {"Date": str(now.strftime("%Y-%m-%d")), "Time": str(now.strftime("%H:%M:%S"))}
+                for key, value in asdict(bms_data).values():
+                    new_key: str = key
+                    new_key.replace("_", " ")
+                    new_key.find(" ")
+                pd.DataFrame(asdict(bms_data)).to_csv(self._destination_folder + "/BMS.csv", header=False, mode="a")
+
 
 class Motherboard:
     driver = hardware.motherboard.Driver()
 
     def __init__(self, daq_driver=None):
         if daq_driver is not None:
-            self.driver = daq_driver
+            self._driver = daq_driver
         else:
-            self.driver = Motherboard.driver
+            self._driver = Motherboard.driver
+        self.bms_data: tuple[float, float] = (0, 0)
 
 
 class ProbeLaserMode(enum.IntEnum):

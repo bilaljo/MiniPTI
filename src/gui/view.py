@@ -8,7 +8,6 @@ from typing import NamedTuple
 import pandas as pd
 import pyqtgraph as pg
 from PyQt5 import QtWidgets, QtCore
-from PyQt5 import Qt
 
 import hardware.laser
 from gui import model
@@ -75,7 +74,6 @@ class MainWindow(QtWidgets.QMainWindow):
     def _init_tabs(self):
         self.tabs = Tab(
             home=Home(),
-            motherboard=Motherboard(),
             pump_laser=self._init_pump_laser_tab(),
             probe_laser=self._init_probe_laser_tab(),
             dc=QtWidgets.QTabWidget(),
@@ -87,7 +85,6 @@ class MainWindow(QtWidgets.QMainWindow):
             pti_signal=QtWidgets.QTabWidget()
         )
         self.tab_bar.addTab(self.tabs.home, "Home")
-        self.tab_bar.addTab(self.tabs.motherboard, "Motherboard")
         self.tab_bar.addTab(self.tabs.pump_laser, "Pump Laser")
         self.tab_bar.addTab(self.tabs.probe_laser, "Probe Laser")
         # DC Plot
@@ -132,7 +129,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
 class Tab(NamedTuple):
     home: "Home"
-    motherboard: "Motherboard"
     pump_laser: QtWidgets.QTabWidget
     probe_laser: QtWidgets.QTabWidget
     dc: QtWidgets.QTabWidget
@@ -148,10 +144,13 @@ class _Frames:
     def __init__(self):
         self.frames = {}  # type: dict[str, QtWidgets.QGroupBox]
 
-    def create_frame(self, master: QtWidgets.QWidget, title, x_position, y_position) -> None:
+    def create_frame(self, master: QtWidgets.QWidget, title, x_position, y_position, vertical=False) -> None:
         self.frames[title] = QtWidgets.QGroupBox()
         self.frames[title].setTitle(title)
-        self.frames[title].setLayout(QtWidgets.QGridLayout())
+        if not vertical:
+            self.frames[title].setLayout(QtWidgets.QGridLayout())
+        else:
+            self.frames[title].setLayout(QtWidgets.QHBoxLayout())
         master.layout().addWidget(self.frames[title], x_position, y_position)
 
     @abc.abstractmethod
@@ -210,6 +209,13 @@ class Home(QtWidgets.QTabWidget, _Frames, _CreateButton):
         self.destination_folder = QtWidgets.QLabel(self.controller.calculation_model.destination_folder)
         model.signals.destination_folder_changed.connect(self.update_destination_folder)
         self.save_raw_data = QtWidgets.QCheckBox("Save Raw Data")
+        self.charge_level = QtWidgets.QLabel("0 % left 🔋")
+        self.minutes_left = QtWidgets.QLabel("Minutes left: ∞ 🕙")
+        self.charge_level.setStyleSheet("font-size: 20px")
+        self.minutes_left.setStyleSheet("font-size: 20px")
+        self.frames["Battery"].setLayout(QtWidgets.QVBoxLayout())
+        self.frames["Battery"].layout().addWidget(self.charge_level)
+        self.frames["Battery"].layout().addWidget(self.minutes_left)
         self._init_buttons()
         self._init_raw_data_button()
 
@@ -217,14 +223,15 @@ class Home(QtWidgets.QTabWidget, _Frames, _CreateButton):
         self.destination_folder.setText(self.controller.calculation_model.destination_folder)
 
     def _init_frames(self) -> None:
-        self.create_frame(master=self.layout(), title="Log", x_position=0, y_position=1)
-        self.create_frame(master=self.layout(), title="Setting", x_position=0, y_position=0)
-        self.create_frame(master=self.layout(), title="Offline Processing", x_position=1, y_position=0)
-        self.create_frame(master=self.layout(), title="Plot Data", x_position=2, y_position=0)
-        self.create_frame(master=self.layout(), title="Drivers", x_position=1, y_position=1)
-        self.create_frame(master=self.layout(), title="File Path", x_position=2, y_position=1)
-        self.create_frame(master=self.layout(), title="Valve", x_position=3, y_position=1)
-        self.create_frame(master=self.layout(), title="Measurement", x_position=3, y_position=0)
+        self.create_frame(master=self.layout(), title="Battery", x_position=0, y_position=0, vertical=True)
+        self.create_frame(master=self.layout(), title="Log", x_position=1, y_position=1)
+        self.create_frame(master=self.layout(), title="Setting", x_position=1, y_position=0)
+        self.create_frame(master=self.layout(), title="Offline Processing", x_position=2, y_position=0)
+        self.create_frame(master=self.layout(), title="Plot Data", x_position=3, y_position=0)
+        self.create_frame(master=self.layout(), title="Drivers", x_position=2, y_position=1)
+        self.create_frame(master=self.layout(), title="File Path", x_position=3, y_position=1)
+        self.create_frame(master=self.layout(), title="Valve", x_position=4, y_position=1)
+        self.create_frame(master=self.layout(), title="Measurement", x_position=4, y_position=0)
 
     def _init_buttons(self) -> None:
         # SettingsTable buttons
@@ -308,25 +315,6 @@ class Slider(QtWidgets.QWidget):
     def _(self, value: float) -> None:
         self.slider_value.setText(f"{round(value, 2)} " + self.unit)
 
-
-class Battery(QtWidgets.QProgressBar):
-    def __init__(self):
-        QtWidgets.QProgressBar.__init__(self)
-
-
-class Motherboard(QtWidgets.QTabWidget, _Frames):
-    def __init__(self):
-        QtWidgets.QTabWidget.__init__(self)
-        _Frames.__init__(self)
-        self.setLayout(QtWidgets.QGridLayout())
-        self._init_frames()
-        self.charge_level = Battery()
-        self.frames["Battery"].layout().addWidget(self.charge_level)
-
-    def _init_frames(self) -> None:
-        self.create_frame(master=self, title="Battery", x_position=0, y_position=0)
-        self.create_frame(master=self, title="Valves", x_position=1, y_position=0)
-        self.create_frame(master=self, title="Shutdown", x_position=2, y_position=0)
 
 
 class ModeIndices(enum.IntEnum):

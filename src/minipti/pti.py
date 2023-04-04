@@ -1,7 +1,6 @@
 import itertools
 import logging
 import os
-import tarfile
 import typing
 from datetime import datetime
 from dataclasses import dataclass
@@ -38,9 +37,9 @@ class Inversion:
     def __init__(self, response_phases=None, sign=1, interferometer=None, settings_path="minipti/configs/settings.csv"):
         super().__init__()
         self.response_phases = response_phases
-        self.pti_signal = 0  # type: float | np.array
-        self.sensitivity = 0  # type:  np.array
-        self.symmetry = 0  # type: float | np.array
+        self.pti_signal: float | np.ndarray = 0
+        self.sensitivity: np.ndarray = np.empty(0)
+        self.symmetry: float | np.ndarray = 0
         self.decimation_file_delimiter = ","
         self.dc_signals = np.empty(shape=3)
         self.settings_path = settings_path
@@ -136,8 +135,12 @@ class Inversion:
             self.calculate_pti_signal()
         units, output_data = self._prepare_data(pti_measurement)
         pd.DataFrame(units, index=["s"]).to_csv(f"{self.destination_folder}/PTI_Inversion.csv", index_label="Time")
-        pd.DataFrame(output_data).to_csv(f"{self.destination_folder}/PTI_Inversion.csv", index_label="Time", mode="a",
-                                         header=False)
+        pd.DataFrame(output_data).to_csv(
+            f"{self.destination_folder}/PTI_Inversion.csv",
+            index_label="Time",
+            mode="a",
+            header=False
+        )
         logging.info("PTI Inversion calculated.")
 
     def _prepare_data(self, pti_measurement) -> tuple[typing.Mapping[str, str], typing.Mapping[str, np.ndarray]]:

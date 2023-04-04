@@ -37,7 +37,11 @@ class BMS(enum.IntEnum):
     CHARGING_INDEX = 8
     MINUTES_LEFT_INDEX = 10
     BATTERY_PERCENTAGE_INDEX = 14
-    #BATTERY_TEMPERATURE =
+    BATTERY_TEMPERATURE_INDEX = 16
+    CURRENT_INDEX = 20
+    VOLTAGE_INDEX = 24
+    FULL_CHARGED_CAPACITY_INDEX = 28
+    REMAINING_CAPACITY_INDEX = 32
 
 
 @dataclass
@@ -101,6 +105,10 @@ class Driver(hardware.serial.Driver):
     @property
     def device_name(self) -> str:
         return Driver.NAME
+
+    @property
+    def bms(self) -> BMSData:
+        return self._package_data.BMS.get(block=True)
 
     @property
     def ref_signal(self) -> deque:
@@ -194,17 +202,28 @@ class Driver(hardware.serial.Driver):
             self._encoded_buffer.ac_coupled[channel].extend(ac_coupled[channel])
 
     def _encode_bms(self, data: str) -> None:
-        if int(data[BMS.SHUTDOWN_INDEX:BMS.SHUTDOWN_INDEX + 2], base=16) != BMS.SHUTDOWN:
+        if int(data[BMS.SHUTDOWN_INDEX:BMS.SHUTDOWN_INDEX + 2], base=16) < BMS.SHUTDOWN:
             self._shutdown.set()
         if not int(data[BMS.VALID_IDENTIFIER_INDEX: BMS.VALID_IDENTIFIER_INDEX + 2]):
             logging.error("Invalid package from BMS")
             return
         if not Driver._crc_check(data, "BMS"):
             return
-        #bms = BMSData(
-        #    external_dc_power=int(data[BMSData.EXTERNAL_DC_POWER_INDEX:BMSData.EXTERNAL_DC_POWER_INDEX + 2], base=16),
-        #    charging=int(data[BMS.CHARGING_INDEX:BMS.CHARING_INDEX + 2])
-        #)
+        bms = BMSData(
+            external_dc_power=bool(int(data[BMS.EXTERNAL_DC_POWER_INDEX:BMS.EXTERNAL_DC_POWER_INDEX + 2], base=16)),
+            charging=bool(int(data[BMS.CHARGING_INDEX:BMS.CHARGING_INDEX + 2], base=16)),
+            minutes_left=int(data[BMS.MINUTES_LEFT_INDEX:BMS.MINUTES_LEFT_INDEX + 4], base=16),
+            battery_percentage=int(data[BMS.BATTERY_PERCENTAGE_INDEX:BMS.BATTERY_PERCENTAGE_INDEX + 2], base=16),
+            battery_temperature=int(data[BMS.BATTERY_TEMPERATURE_INDEX:BMS.BATTERY_TEMPERATURE_INDEX + 4], base=16),
+            battery_current=Driver._binary_to_2_complement(
+                int(data[BMS.CURRENT_INDEX:BMS.CURRENT_INDEX + 4], base=16),
+                byte_length=16
+            ),
+            battery_voltage=int(data[BMS.VOLTAGE_INDEX: BMS.VOLTAGE_INDEX + 4], base=16),
+            full_charged_capacity=int(data[BMS.FULL_CHARGED_CAPACITY_INDEX:BMS.FULL_CHARGED_CAPACITY_INDEX + 4], base=16),
+            remaining_capacity=int(data[BMS.REMAINING_CAPACITY_INDEX:BMS.REMAINING_CAPACITY_INDEX + 4], base=16)
+        )
+        self._package_data.BMS.put(bms)
 
     @staticmethod
     def _crc_check(data: str, source) -> bool:
