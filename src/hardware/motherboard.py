@@ -1,10 +1,12 @@
+import enum
 import itertools
 import logging
 import queue
+import re
 import threading
 from collections import deque
 from dataclasses import dataclass
-from typing import Sequence
+from typing import Sequence, Annotated
 
 from fastcrc import crc16
 
@@ -12,10 +14,50 @@ import hardware.serial
 
 
 @dataclass
-class Data:
+class DAQData:
     ref_signal: queue.Queue | deque | Sequence
     ac_coupled: queue.Queue | deque | Sequence
     dc_coupled: queue.Queue | deque | Sequence
+
+
+_Samples = list[int]
+
+
+@dataclass
+class Packages:
+    DAQ = re.compile(b"00[0-9a-fA-F]{4108}", flags=re.MULTILINE)
+    BMS = re.compile(b"01[0-9a-fA-F]{41}", flags=re.MULTILINE)
+
+
+class BMS(enum.IntEnum):
+    SHUTDOWN_INDEX = 0
+    SHUTDOWN = 0xFF
+    VALID_IDENTIFIER_INDEX = 4
+    EXTERNAL_DC_POWER_INDEX = 6
+    CHARGING_INDEX = 8
+    MINUTES_LEFT_INDEX = 10
+    BATTERY_PERCENTAGE_INDEX = 14
+    #BATTERY_TEMPERATURE =
+
+
+@dataclass
+class BMSData:
+    external_dc_power: bool
+    charging: bool
+    minutes_left: int
+    battery_percentage: int
+    battery_temperature: float  # °C
+    battery_current: int  # mA
+    battery_voltage: int  # mV
+    full_charged_capacity: int  # mAh
+    remaining_capacity: int  # mAh
+
+
+@dataclass
+class PackageData:
+    _QUEUE_SIZE = 15
+    DAQ: DAQData
+    BMS: queue.Queue
 
 
 class Driver(hardware.serial.Driver):
@@ -39,41 +81,47 @@ class Driver(hardware.serial.Driver):
     def __init__(self):
         hardware.serial.Driver.__init__(self)
         self.connected = threading.Event()
-        self._package_data = Data(queue.Queue(maxsize=Driver._QUEUE_SIZE), queue.Queue(maxsize=Driver._QUEUE_SIZE),
-                                  queue.Queue(maxsize=Driver._QUEUE_SIZE))
-        self._encoded_buffer = Data(deque(), [deque(), deque(), deque()], [deque(), deque(), deque()])
+        self._package_data = PackageData(
+            DAQData(queue.Queue(maxsize=Driver._QUEUE_SIZE),
+                    queue.Queue(maxsize=Driver._QUEUE_SIZE),
+                    queue.Queue(maxsize=Driver._QUEUE_SIZE)),
+            queue.Queue(maxsize=Driver._QUEUE_SIZE)
+        )
+        self._encoded_buffer = DAQData(deque(), [deque(), deque(), deque()], [deque(), deque(), deque()])
         self._received_buffer = ""
         self._sample_numbers = deque(maxlen=2)
         self._synchronize = True
+        self._shutdown = threading.Event()
+        self.bypass = False
 
     @property
     def device_id(self) -> bytes:
         return Driver.ID
 
     @property
-    def device_name(self):
+    def device_name(self) -> str:
         return Driver.NAME
 
     @property
-    def ref_signal(self):
-        return self._package_data.ref_signal.get(block=True)
+    def ref_signal(self) -> deque:
+        return self._package_data.DAQ.ref_signal.get(block=True)
 
     @property
-    def dc_coupled(self):
-        return self._package_data.dc_coupled.get(block=True)
+    def dc_coupled(self) -> deque:
+        return self._package_data.DAQ.dc_coupled.get(block=True)
 
     @property
-    def ac_coupled(self):
-        return self._package_data.ac_coupled.get(block=True)
+    def ac_coupled(self) -> deque:
+        return self._package_data.DAQ.ac_coupled.get(block=True)
 
     @staticmethod
-    def _binary_to_2_complement(number, byte_length):
+    def _binary_to_2_complement(number: int, byte_length: int) -> int:
         if number & (1 << (byte_length - 1)):
             return number - (1 << byte_length)
         return number
 
     @staticmethod
-    def _encode(raw_data):
+    def _encode(raw_data: Sequence) -> tuple[_Samples, Annotated[list[_Samples], 3], Annotated[list[_Samples], 4]]:
         """
         A block of data has the following structure:
         Ref, DC 1, DC 2, DC 3, DC, 4 AC 1, AC 2, AC 3, AC 4
@@ -81,9 +129,9 @@ class Driver(hardware.serial.Driver):
         It starts with below the first 10 bytes (meta information) and ends before the last 4 bytes (crc checksum).
         """
         raw_data = raw_data[Driver._PACKAGE_SIZE_END_INDEX:Driver._PACKAGE_SIZE - Driver._CRC_START_INDEX]
-        ref = []
-        ac = [[], [], []]
-        dc = [[], [], [], []]
+        ref: _Samples = []
+        ac: list[_Samples] = [[], [], []]
+        dc: list[_Samples] = [[], [], [], []]
         for i in range(0, len(raw_data), Driver._WORD_SIZE):
             ref.append(int(raw_data[i:i + 4], 16))
             # AC signed
@@ -100,14 +148,15 @@ class Driver(hardware.serial.Driver):
             dc[3].append(int(raw_data[i + 28:i + 32], base=16))
         return ref, ac, dc
 
-    def _reset(self):
+    def _reset(self) -> None:
         self._synchronize = True
         self._received_buffer = ""
         self._encoded_buffer.ref_signal = deque()
         self._encoded_buffer.dc_coupled = [deque(), deque(), deque()]
         self._encoded_buffer.ac_coupled = [deque(), deque(), deque()]
+        self._sample_numbers = deque(maxlen=2)
 
-    def _encode_data(self):
+    def _encode_data(self) -> None:
         """
         The data is encoded according to the following protocol:
             - The first two bytes describes the send command
@@ -120,58 +169,97 @@ class Driver(hardware.serial.Driver):
             split_data = self._received_buffer.split("\n")
             self._received_buffer = ""
             for data in split_data:
-                if len(data) != Driver._PACKAGE_SIZE:  # Broken package with missing beginning
+                if Packages.DAQ.match(data):
+                    self._encode_daq(data)
+                elif Packages.BMS.match(data):
+                    self._encode_bms(data)
+                else:
                     continue
-                crc_calculated = crc16.arc(data[:-Driver._CRC_START_INDEX].encode())
-                crc_received = int(data[-Driver._CRC_START_INDEX:], base=16)
-                if crc_calculated != crc_received:  # Corrupted data
-                    logging.error(f"CRC value isn't equal to transmitted. Got {crc_received} "
-                                  f"instead of {crc_calculated}.")
-                    self._synchronize = True
-                    self._sample_numbers.popleft()
-                    self._sample_numbers.popleft()
-                    self._reset()  # The data is not trustful, and it should be waited for new
-                    continue
-                self._sample_numbers.append(data[Driver._PACKAGE_SIZE_START_INDEX:Driver._PACKAGE_SIZE_END_INDEX])
-                if len(self._sample_numbers) > 1:
-                    package_difference = int(self._sample_numbers[1], base=16) - int(self._sample_numbers[0], base=16)
-                    if package_difference != 1:
-                        logging.error(f"Missing {package_difference} packages.")
-                        logging.info("Start resynchronisation.")
-                        self._sample_numbers.popleft()
-                        self._reset()
-                ref_signal, ac_coupled, dc_coupled = Driver._encode(data)
-                if self._synchronize:
-                    while sum(ref_signal[:Driver.REF_PERIOD // 2]):
-                        ref_signal.pop(0)
-                        for channel in range(Driver._CHANNELS):
-                            ac_coupled[channel].pop(0)
-                            dc_coupled[channel].pop(0)
-                        dc_coupled[3].pop(0)
-                    if len(ref_signal) < Driver.REF_PERIOD // 2:
-                        continue
-                    self._synchronize = False
-                self._encoded_buffer.ref_signal.extend(ref_signal)
-                for channel in range(Driver._CHANNELS):
-                    self._encoded_buffer.dc_coupled[channel].extend(dc_coupled[channel])
-                    self._encoded_buffer.ac_coupled[channel].extend(ac_coupled[channel])
             if split_data[-1]:  # Data without termination symbol
                 self._received_buffer = split_data[-1]
 
-    def _build_sample_package(self):
+    def _encode_daq(self, data: str) -> None:
+        if not Driver._crc_check(data, "DAQ"):
+            self._reset()  # The data is not trustful, and it should be waited for new
+            return
+        self._sample_numbers.append(data[Driver._PACKAGE_SIZE_START_INDEX:Driver._PACKAGE_SIZE_END_INDEX])
+        if len(self._sample_numbers) > 1 and not self._check_package_difference():
+            self._reset()
+        ref_signal, ac_coupled, dc_coupled = Driver._encode(data)
+        if self._synchronize:
+            self._synchronize_with_ref(ref_signal, ac_coupled, dc_coupled)
+        self._encoded_buffer.ref_signal.extend(ref_signal)
+        for channel in range(Driver._CHANNELS):
+            self._encoded_buffer.dc_coupled[channel].extend(dc_coupled[channel])
+            self._encoded_buffer.ac_coupled[channel].extend(ac_coupled[channel])
+
+    def _encode_bms(self, data: str) -> None:
+        if int(data[BMS.SHUTDOWN_INDEX:BMS.SHUTDOWN_INDEX + 2], base=16) != BMS.SHUTDOWN:
+            self._shutdown.set()
+        if not int(data[BMS.VALID_IDENTIFIER_INDEX: BMS.VALID_IDENTIFIER_INDEX + 2]):
+            logging.error("Invalid package from BMS")
+            return
+        if not Driver._crc_check(data, "BMS"):
+            return
+        #bms = BMSData(
+        #    external_dc_power=int(data[BMSData.EXTERNAL_DC_POWER_INDEX:BMSData.EXTERNAL_DC_POWER_INDEX + 2], base=16),
+        #    charging=int(data[BMS.CHARGING_INDEX:BMS.CHARING_INDEX + 2])
+        #)
+
+    @staticmethod
+    def _crc_check(data: str, source) -> bool:
+        crc_calculated = crc16.arc(data[:-Driver._CRC_START_INDEX].encode())
+        crc_received = int(data[-Driver._CRC_START_INDEX:], base=16)
+        if crc_calculated != crc_received:  # Corrupted data
+            logging.error(f"CRC value of {source} isn't equal to transmitted. Got {crc_received} "
+                          f"instead of {crc_calculated}.")
+            return False
+        return True
+
+    def _check_package_difference(self) -> bool:
+        package_difference = int(self._sample_numbers[1], base=16) - int(self._sample_numbers[0], base=16)
+        if package_difference != 1:
+            logging.error(f"Missing {package_difference} packages.")
+            logging.info("Start resynchronisation.")
+            self._sample_numbers.popleft()
+            return False
+        return True
+
+    def _synchronize_with_ref(
+            self, ref_signal: _Samples, ac_coupled: list[_Samples], dc_coupled: list[_Samples]
+    ) -> None:
+        while sum(ref_signal[:Driver.REF_PERIOD // 2]):
+            ref_signal.pop(0)
+            for channel in range(Driver._CHANNELS):
+                ac_coupled[channel].pop(0)
+                dc_coupled[channel].pop(0)
+            dc_coupled[3].pop(0)
+        if len(ref_signal) < Driver.REF_PERIOD // 2:
+            return
+        self._synchronize = False
+
+    def _build_sample_package(self) -> None:
         """
         Creates a package of samples that represents approximately 1 s data. It contains 8000 samples.
         """
-        self._package_data.ref_signal.put([self._encoded_buffer.ref_signal.popleft()
-                                           for _ in range(Driver.NUMBER_OF_SAMPLES)])
+        self._package_data.DAQ.ref_signal.put([self._encoded_buffer.ref_signal.popleft()
+                                               for _ in range(Driver.NUMBER_OF_SAMPLES)])
         dc_package = [[], [], []]
         ac_package = [[], [], []]
         for _ in itertools.repeat(None, Driver.NUMBER_OF_SAMPLES):
             for channel in range(Driver._CHANNELS):
                 dc_package[channel].append(self._encoded_buffer.dc_coupled[channel].popleft())
                 ac_package[channel].append(self._encoded_buffer.ac_coupled[channel].popleft())
-        self._package_data.dc_coupled.put(dc_package)
-        self._package_data.ac_coupled.put(ac_package)
+        self._package_data.DAQ.dc_coupled.put(dc_package)
+        self._package_data.DAQ.ac_coupled.put(ac_package)
+
+    def set_valve(self) -> None:
+        if self.bypass:
+            self.write("SBP0000")
+            self.bypass = False
+        else:
+            self.write("SBP0001")
+            self.bypass = True
 
     def _process_data(self) -> None:
         self._reset()

@@ -2,7 +2,7 @@ fastcrc
 numpy
 pandas
 scipy
-PySide6
+PyQt5
 pyqtgraph
 dacite
 python-statemachine

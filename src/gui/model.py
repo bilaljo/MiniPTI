@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
-from PySide6 import QtCore
+from PyQt5 import QtCore
 from scipy import ndimage
 
 from minipti import interferometry, pti
@@ -31,7 +31,7 @@ class SettingsTable(QtCore.QAbstractTableModel):
         self._observer_callbacks = []
         signals.settings.connect(self.update_settings)
 
-    @QtCore.Slot(interferometry.Interferometer)
+    @QtCore.pyqtSlot(interferometry.Interferometer)
     def update_settings(self, interferometer: interferometry.Interferometer) -> None:
         self.update_settings_parameters(interferometer)
 
@@ -289,28 +289,28 @@ class Mode(enum.IntEnum):
 
 @dataclass(init=False, frozen=True)
 class Signals(QtCore.QObject):
-    decimation = QtCore.Signal(pd.DataFrame)
-    decimation_live = QtCore.Signal(Buffer)
-    inversion = QtCore.Signal(pd.DataFrame)
-    inversion_live = QtCore.Signal(Buffer)
-    characterization = QtCore.Signal(pd.DataFrame)
-    characterization_live = QtCore.Signal(Buffer)
-    settings_pti = QtCore.Signal()
-    logging_update = QtCore.Signal(deque)
-    daq_running = QtCore.Signal()
-    laser_voltage = QtCore.Signal(int, float)
-    current_dac = QtCore.Signal(int, int)
-    matrix_dac = QtCore.Signal(int, list)
-    laser_data = QtCore.Signal(Buffer)
-    laser_data_display = QtCore.Signal(hardware.laser.Data)
-    tec_data = QtCore.Signal(Buffer)
-    tec_data_display = QtCore.Signal(hardware.tec.Data)
-    current_probe_laser = QtCore.Signal(int, float)
-    max_current_probe_laser = QtCore.Signal(float)
-    probe_laser_mode = QtCore.Signal(int)
-    settings = QtCore.Signal(pd.DataFrame)
-    destination_folder_changed = QtCore.Signal(str)
-    photo_gain = QtCore.Signal(int)
+    decimation = QtCore.pyqtSignal(pd.DataFrame)
+    decimation_live = QtCore.pyqtSignal(Buffer)
+    inversion = QtCore.pyqtSignal(pd.DataFrame)
+    inversion_live = QtCore.pyqtSignal(Buffer)
+    characterization = QtCore.pyqtSignal(pd.DataFrame)
+    characterization_live = QtCore.pyqtSignal(Buffer)
+    settings_pti = QtCore.pyqtSignal()
+    logging_update = QtCore.pyqtSignal(deque)
+    daq_running = QtCore.pyqtSignal()
+    laser_voltage = QtCore.pyqtSignal(int, float)
+    current_dac = QtCore.pyqtSignal(int, int)
+    matrix_dac = QtCore.pyqtSignal(int, list)
+    laser_data = QtCore.pyqtSignal(Buffer)
+    laser_data_display = QtCore.pyqtSignal(hardware.laser.Data)
+    tec_data = QtCore.pyqtSignal(Buffer)
+    tec_data_display = QtCore.pyqtSignal(hardware.tec.Data)
+    current_probe_laser = QtCore.pyqtSignal(int, float)
+    max_current_probe_laser = QtCore.pyqtSignal(float)
+    probe_laser_mode = QtCore.pyqtSignal(int)
+    settings = QtCore.pyqtSignal(pd.DataFrame)
+    destination_folder_changed = QtCore.pyqtSignal(str)
+    photo_gain = QtCore.pyqtSignal(int)
 
     def __init__(self):
         QtCore.QObject.__init__(self)
@@ -318,14 +318,14 @@ class Signals(QtCore.QObject):
 
 @dataclass(init=False, frozen=True)
 class TecSignals(QtCore.QObject):
-    p_value = QtCore.Signal(float)
-    d_value = QtCore.Signal(float)
-    i_1_value = QtCore.Signal(float)
-    i_2_value = QtCore.Signal(float)
-    setpoint_temperature = QtCore.Signal(float)
-    loop_time = QtCore.Signal(float)
-    reference_resistor = QtCore.Signal(float)
-    max_power = QtCore.Signal(float)
+    p_value = QtCore.pyqtSignal(float)
+    d_value = QtCore.pyqtSignal(float)
+    i_1_value = QtCore.pyqtSignal(float)
+    i_2_value = QtCore.pyqtSignal(float)
+    setpoint_temperature = QtCore.pyqtSignal(float)
+    loop_time = QtCore.pyqtSignal(float)
+    reference_resistor = QtCore.pyqtSignal(float)
+    max_power = QtCore.pyqtSignal(float)
 
     def __init__(self):
         QtCore.QObject.__init__(self)

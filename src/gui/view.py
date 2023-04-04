@@ -7,7 +7,8 @@ from typing import NamedTuple
 
 import pandas as pd
 import pyqtgraph as pg
-from PySide6 import QtWidgets, QtCore
+from PyQt5 import QtWidgets, QtCore
+from PyQt5 import Qt
 
 import hardware.laser
 from gui import model
@@ -72,12 +73,21 @@ class MainWindow(QtWidgets.QMainWindow):
         return tab
 
     def _init_tabs(self):
-        self.tabs = Tab(home=Home(), pump_laser=self._init_pump_laser_tab(), probe_laser=self._init_probe_laser_tab(),
-                        dc=QtWidgets.QTabWidget(), amplitudes=QtWidgets.QTabWidget(),
-                        output_phases=QtWidgets.QTabWidget(), sensitivity=QtWidgets.QTabWidget(),
-                        symmetry=QtWidgets.QTabWidget(), interferometric_phase=QtWidgets.QTabWidget(),
-                        pti_signal=QtWidgets.QTabWidget())
+        self.tabs = Tab(
+            home=Home(),
+            motherboard=Motherboard(),
+            pump_laser=self._init_pump_laser_tab(),
+            probe_laser=self._init_probe_laser_tab(),
+            dc=QtWidgets.QTabWidget(),
+            amplitudes=QtWidgets.QTabWidget(),
+            output_phases=QtWidgets.QTabWidget(),
+            sensitivity=QtWidgets.QTabWidget(),
+            symmetry=QtWidgets.QTabWidget(),
+            interferometric_phase=QtWidgets.QTabWidget(),
+            pti_signal=QtWidgets.QTabWidget()
+        )
         self.tab_bar.addTab(self.tabs.home, "Home")
+        self.tab_bar.addTab(self.tabs.motherboard, "Motherboard")
         self.tab_bar.addTab(self.tabs.pump_laser, "Pump Laser")
         self.tab_bar.addTab(self.tabs.probe_laser, "Probe Laser")
         # DC Plot
@@ -122,6 +132,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
 class Tab(NamedTuple):
     home: "Home"
+    motherboard: "Motherboard"
     pump_laser: QtWidgets.QTabWidget
     probe_laser: QtWidgets.QTabWidget
     dc: QtWidgets.QTabWidget
@@ -134,8 +145,7 @@ class Tab(NamedTuple):
 
 
 class _Frames:
-    def __init__(self, name):
-        self.name = name
+    def __init__(self):
         self.frames = {}  # type: dict[str, QtWidgets.QGroupBox]
 
     def create_frame(self, master: QtWidgets.QWidget, title, x_position, y_position) -> None:
@@ -187,7 +197,7 @@ def toggle_button(checked, button: QtWidgets.QPushButton) -> None:
 class Home(QtWidgets.QTabWidget, _Frames, _CreateButton):
     def __init__(self):
         QtWidgets.QTabWidget.__init__(self)
-        _Frames.__init__(self, name="Home")
+        _Frames.__init__(self)
         _CreateButton.__init__(self)
         self.setLayout(QtWidgets.QGridLayout())
         self.controller = controller.Home(self)
@@ -213,7 +223,8 @@ class Home(QtWidgets.QTabWidget, _Frames, _CreateButton):
         self.create_frame(master=self.layout(), title="Plot Data", x_position=2, y_position=0)
         self.create_frame(master=self.layout(), title="Drivers", x_position=1, y_position=1)
         self.create_frame(master=self.layout(), title="File Path", x_position=2, y_position=1)
-        self.create_frame(master=self.layout(), title="Measurement", x_position=4, y_position=0)
+        self.create_frame(master=self.layout(), title="Valve", x_position=3, y_position=1)
+        self.create_frame(master=self.layout(), title="Measurement", x_position=3, y_position=0)
 
     def _init_buttons(self) -> None:
         # SettingsTable buttons
@@ -253,6 +264,10 @@ class Home(QtWidgets.QTabWidget, _Frames, _CreateButton):
         self.frames["File Path"].layout().addWidget(sub_layout)
         self.create_button(master=sub_layout, title="Destination Folder", slot=self.controller.set_destination_folder)
         sub_layout.layout().addWidget(self.destination_folder)
+        sub_layout = QtWidgets.QWidget(parent=self.frames["File Path"])
+        sub_layout.setLayout(QtWidgets.QVBoxLayout())
+        self.frames["Valve"].layout().addWidget(sub_layout)
+        self.create_button(master=sub_layout, title="Clean Air", slot=self.controller.valve_change)
 
         # Measurement Buttons
         sub_layout = QtWidgets.QWidget(parent=self.frames["Measurement"])
@@ -294,6 +309,26 @@ class Slider(QtWidgets.QWidget):
         self.slider_value.setText(f"{round(value, 2)} " + self.unit)
 
 
+class Battery(QtWidgets.QProgressBar):
+    def __init__(self):
+        QtWidgets.QProgressBar.__init__(self)
+
+
+class Motherboard(QtWidgets.QTabWidget, _Frames):
+    def __init__(self):
+        QtWidgets.QTabWidget.__init__(self)
+        _Frames.__init__(self)
+        self.setLayout(QtWidgets.QGridLayout())
+        self._init_frames()
+        self.charge_level = Battery()
+        self.frames["Battery"].layout().addWidget(self.charge_level)
+
+    def _init_frames(self) -> None:
+        self.create_frame(master=self, title="Battery", x_position=0, y_position=0)
+        self.create_frame(master=self, title="Valves", x_position=1, y_position=0)
+        self.create_frame(master=self, title="Shutdown", x_position=2, y_position=0)
+
+
 class ModeIndices(enum.IntEnum):
     DISABLED = 0
     CONTINUOUS_WAVE = 1
@@ -309,7 +344,7 @@ class PumpLaser(QtWidgets.QWidget, _Frames, _CreateButton):
     def __init__(self):
         QtWidgets.QWidget.__init__(self)
         _CreateButton.__init__(self)
-        _Frames.__init__(self, name="Pump Laser")
+        _Frames.__init__(self)
         self.model = None
         self.controller = controller.Laser()
         self.setLayout(QtWidgets.QGridLayout())
@@ -329,7 +364,7 @@ class PumpLaser(QtWidgets.QWidget, _Frames, _CreateButton):
         model.signals.laser_data_display.connect(self._update_current_voltage)
         self.controller.load_configuration()
 
-    @QtCore.Slot()
+    @QtCore.pyqtSlot()
     def _update_current_voltage(self, value: hardware.laser.Data):
         self.current_display.setText(str(value.pump_laser_current) + " mA")
         self.voltage_display.setText(str(value.pump_laser_voltage) + " V")
@@ -347,7 +382,7 @@ class PumpLaser(QtWidgets.QWidget, _Frames, _CreateButton):
             self.mode_matrix[1][i].currentIndexChanged.connect(self.controller.update_dac2(i))
         model.signals.matrix_dac.connect(self._update_dac_matrix)
 
-    @QtCore.Slot(int, list)
+    @QtCore.pyqtSlot(int, list)
     def _update_dac_matrix(self, dac_number: int, configuration: typing.Annotated[list[int], 3]) -> None:
         for channel in range(3):
             match configuration[channel]:
@@ -358,12 +393,12 @@ class PumpLaser(QtWidgets.QWidget, _Frames, _CreateButton):
                 case model.Mode.DISABLED:
                     self.mode_matrix[dac_number][channel].setCurrentIndex(ModeIndices.DISABLED)
 
-    @QtCore.Slot(int, float)
+    @QtCore.pyqtSlot(int, float)
     def _update_voltage_slider(self, index: int, value: float):
         self.driver_voltage.slider.setValue(index)
         self.driver_voltage.update_value(value)
 
-    @QtCore.Slot(int, int)
+    @QtCore.pyqtSlot(int, int)
     def _update_current_dac(self, dac: int, index: int):
         self.current[dac].slider.setValue(index)
         self.current[dac].update_value(index)
@@ -407,7 +442,7 @@ class ProbeLaser(QtWidgets.QWidget, _CreateButton, _Frames):
 
     def __init__(self):
         QtWidgets.QWidget.__init__(self)
-        _Frames.__init__(self, name="Probe Laser")
+        _Frames.__init__(self)
         _CreateButton.__init__(self)
         self.frames = {}
         self.setLayout(QtWidgets.QGridLayout())
@@ -430,7 +465,7 @@ class ProbeLaser(QtWidgets.QWidget, _CreateButton, _Frames):
         model.signals.laser_data_display.connect(self.update_current)
         self.controller.load_configuration()
 
-    @QtCore.Slot(hardware.laser.Data)
+    @QtCore.pyqtSlot(hardware.laser.Data)
     def update_current(self, value: hardware.laser.Data) -> None:
         self.current_display.setText(str(value.probe_laser_current) + " mA")
 
@@ -450,7 +485,7 @@ class ProbeLaser(QtWidgets.QWidget, _CreateButton, _Frames):
         self.current_slider.slider.valueChanged.connect(self.controller.update_current_probe_laser)
         model.signals.current_probe_laser.connect(self._update_current_slider)
 
-    @QtCore.Slot(int, float)
+    @QtCore.pyqtSlot(int, float)
     def _update_current_slider(self, index: int, value: float) -> None:
         self.current_slider.slider.setValue(index)
         self.current_slider.update_value(value)
@@ -479,11 +514,11 @@ class ProbeLaser(QtWidgets.QWidget, _CreateButton, _Frames):
         model.signals.photo_gain.connect(self._update_photo_gain)
         model.signals.probe_laser_mode.connect(self._update_mode)
 
-    @QtCore.Slot(int)
+    @QtCore.pyqtSlot(int)
     def _update_photo_gain(self, index: int) -> None:
         self.photo_gain.setCurrentIndex(index)
 
-    @QtCore.Slot(int)
+    @QtCore.pyqtSlot(int)
     def _update_mode(self, index: int):
         self.laser_mode.setCurrentIndex(index)
 
@@ -502,7 +537,7 @@ class TecTextFields:
 class Tec(QtWidgets.QWidget, _Frames, _CreateButton):
     def __init__(self, laser: str, signals: model.TecSignals):
         QtWidgets.QWidget.__init__(self)
-        _Frames.__init__(self, name="Tec Driver")
+        _Frames.__init__(self)
         _CreateButton.__init__(self)
         self.setLayout(QtWidgets.QGridLayout())
         self.controller = controller.Tec(laser, self)
@@ -524,12 +559,12 @@ class Tec(QtWidgets.QWidget, _Frames, _CreateButton):
 
     @staticmethod
     def _update_text_field(text_field: QtWidgets.QLineEdit):
-        @QtCore.Slot(float)
+        @QtCore.pyqtSlot(float)
         def update(value: float):
             text_field.setText(str(round(value, 2)))
         return update
 
-    @QtCore.Slot(hardware.tec.Data)
+    @QtCore.pyqtSlot(hardware.tec.Data)
     def update_temperature(self, value: hardware.tec.Data) -> None:
         self.temperature_display.setText(str(value.actual_temperature[self.laser]) + " °C")
 

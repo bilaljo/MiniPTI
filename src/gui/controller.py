@@ -3,7 +3,7 @@ import os
 import threading
 import typing
 
-from PySide6 import QtWidgets
+from PyQt5 import QtWidgets
 
 import hardware
 from gui import model
@@ -17,10 +17,10 @@ class MainApplication(QtWidgets.QApplication):
         self.view = view.MainWindow(self)
         # threading.excepthook = self.thread_exception
 
-    def close(self):
+    def close(self) -> None:
         self.view.close()
 
-    def thread_exception(self, args):
+    def thread_exception(self, args) -> None:
         if args.exc_type == KeyError:
             QtWidgets.QMessageBox.critical(self.view, "File Error", "Invalid file given or missing headers.")
         elif args.exc_type == TimeoutError:
@@ -42,22 +42,31 @@ class Home:
         self.laser = model.Laser()
         self.daq = model.Motherboard()
         self.tec = model.Tec()
+        self.clean_air = False
         self.find_devices()
 
-    def set_destination_folder(self):
+    def valve_change(self) -> None:
+        if not self.clean_air:
+            view.toggle_button(True, self.view.buttons["Clean Air"])
+            self.clean_air = True
+        else:
+            view.toggle_button(False, self.view.buttons["Clean Air"])
+            self.clean_air = False
+
+    def set_destination_folder(self) -> None:
         destination_folder = QtWidgets.QFileDialog.getExistingDirectory(self.view, "Destination Folder",
                                                                         self.calculation_model.destination_folder)
         if destination_folder:
             self.calculation_model.destination_folder = destination_folder
 
-    def get_file_path(self, dialog_name):
+    def get_file_path(self, dialog_name: str) -> str:
         file_path = QtWidgets.QFileDialog.getOpenFileName(self.view, dir=self.last_file_path, caption=dialog_name,
                                                           filter="All Files (*);; CSV File (*.csv);; TXT File (*.txt")
         if file_path[0]:
             self.last_file_path = file_path[0]
         return file_path[0]
 
-    def save_settings(self):
+    def save_settings(self) -> None:
         self.settings_model.save()
 
     def load_settings(self):
@@ -67,20 +76,20 @@ class Home:
             self.settings_model.file_path = file_path[0]  # The actual file path
             self.settings_model.load()
 
-    def calculate_decimation(self):
+    def calculate_decimation(self) -> None:
         decimation_file_path = self.get_file_path("Decimation")
         if not decimation_file_path:
             return
         threading.Thread(target=self.calculation_model.calculate_decimation, args=[decimation_file_path]).start()
 
-    def calculate_inversion(self):
+    def calculate_inversion(self) -> None:
         inversion_path = self.get_file_path("Inversion")
         if not inversion_path:
             return
         threading.Thread(target=self.calculation_model.calculate_inversion,
                          args=[self.settings_model.file_path, inversion_path]).start()
 
-    def calculate_characterisation(self):
+    def calculate_characterisation(self) -> None:
         characterisation_path = self.get_file_path("Characterisation")
         if not characterisation_path:
             return
@@ -92,29 +101,29 @@ class Home:
         threading.Thread(target=self.calculation_model.calculate_characterisation,
                          args=[characterisation_path, use_settings, self.settings_model.file_path]).start()
 
-    def plot_inversion(self):
+    def plot_inversion(self) -> None:
         try:
             model.process_inversion_data(self.get_file_path("Inversion"))
         except KeyError:
             QtWidgets.QMessageBox.critical(self.view, "Plotting Error", "Invalid data given. Could not plot.")
 
-    def plot_dc(self):
+    def plot_dc(self) -> None:
         try:
             model.process_dc_data(self.get_file_path("Decimation"))
         except KeyError:
             QtWidgets.QMessageBox.critical(self.view, "Plotting Error", "Invalid data given. Could not plot.")
 
-    def plot_characterisation(self):
+    def plot_characterisation(self) -> None:
         try:
             model.process_characterization_data(self.get_file_path("Characterisation"))
         except KeyError:
             QtWidgets.QMessageBox.critical(self.view, "Plotting Error", "Invalid data given. Could not plot.")
 
-    def find_devices(self):
+    def find_devices(self) -> None:
         try:
             self.daq.driver.find_port()
         except OSError:
-            logging.error("Could not find DAQ")
+            logging.error("Could not find Motherboard")
         try:
             self.laser.driver.find_port()
         except OSError:
@@ -124,7 +133,7 @@ class Home:
         except OSError:
             logging.error("Could not find TEC Driver")
 
-    def connect_devices(self):
+    def connect_devices(self) -> None:
         try:
             self.daq.driver.open()
         except OSError:
@@ -140,7 +149,7 @@ class Home:
         except OSError:
             logging.error("Could not connect with Laser Driver")
 
-    def enable_probe_laser(self):
+    def enable_probe_laser(self) -> None:
         if not self.probe_laser_enabled:
             self.laser.driver.enable_probe_laser()
             view.toggle_button(True, self.view.buttons["Enable Probe Laser"])
@@ -150,7 +159,7 @@ class Home:
             self.laser.driver.disable_probe_laser()
             self.probe_laser_enabled = False
 
-    def enable_pump_laser(self):
+    def enable_pump_laser(self) -> None:
         if not self.pump_laser_enabled:
             self.laser.driver.enable_pump_laser()
             view.toggle_button(True, self.view.buttons["Enable Pump Laser"])
