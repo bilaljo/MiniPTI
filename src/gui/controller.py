@@ -4,6 +4,7 @@ import threading
 import typing
 
 from PyQt5 import QtWidgets
+from PyQt5.QtCore import Qt
 
 import hardware
 from gui import model
@@ -30,8 +31,9 @@ class MainApplication(QtWidgets.QApplication):
 
 
 class Home:
-    def __init__(self, parent):
+    def __init__(self, parent, main_app: QtWidgets.QApplication):
         self.view = parent
+        self.main_app = main_app
         self.settings_model = model.SettingsTable()
         self.calculation_model = model.Calculation()
         self.pump_laser_enabled = False
@@ -40,7 +42,7 @@ class Home:
         self.last_file_path = os.getcwd()
         self.settings_model.setup_settings_file()
         self.laser = model.Laser()
-        self.daq = model.Motherboard()
+        self.motherboard = model.Motherboard()
         self.tec = model.Tec()
         self.clean_air = False
         self.find_devices()
@@ -60,7 +62,7 @@ class Home:
             self.calculation_model.destination_folder = destination_folder
 
     def get_file_path(self, dialog_name: str) -> str:
-        file_path = QtWidgets.QFileDialog.getOpenFileName(self.view, dir=self.last_file_path, caption=dialog_name,
+        file_path = QtWidgets.QFileDialog.getOpenFileName(self.view, directory=self.last_file_path, caption=dialog_name,
                                                           filter="All Files (*);; CSV File (*.csv);; TXT File (*.txt")
         if file_path[0]:
             self.last_file_path = file_path[0]
@@ -121,7 +123,7 @@ class Home:
 
     def find_devices(self) -> None:
         try:
-            self.daq.driver.find_port()
+            self.motherboard.driver.find_port()
         except OSError:
             logging.error("Could not find Motherboard")
         try:
@@ -133,9 +135,29 @@ class Home:
         except OSError:
             logging.error("Could not find TEC Driver")
 
+    def shutdown(self) -> None:
+        QtWidgets.QApplication.setOverrideCursor(Qt.WaitCursor)
+        logging.warning("Shutdown started")
+        model.shutdown_procedure()
+        self.main_app.quit()
+
+    def shutdown_by_button(self) -> None:
+        close = QtWidgets.QMessageBox.question(
+            self.view, "QUIT", "Are you sure you want to shutdown?",
+            QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No)
+        if close == QtWidgets.QMessageBox.StandardButton.Yes:
+            self.shutdown()
+
+    def await_shutdown(self):
+        def shutdown_low_energy() -> None:
+            self.motherboard.shutdown_event.wait()
+            self.shutdown()
+        threading.Thread(target=shutdown_low_energy).start()
+
     def connect_devices(self) -> None:
         try:
-            self.daq.driver.open()
+            self.motherboard.driver.open()
+            self.await_shutdown()
         except OSError:
             logging.error("Could not connect with DAQ")
         try:
@@ -171,7 +193,7 @@ class Home:
 
     def run_measurement(self) -> None:
         if not self.daq_enabled:
-            self.daq.driver.run()
+            self.motherboard.driver.run()
             self.calculation_model.live_calculation()
             view.toggle_button(True, self.view.buttons["Run Measurement"])
             self.daq_enabled = True

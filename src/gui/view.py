@@ -29,7 +29,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.current_probe_laser = ProbeLaserCurrent()
         self.temperature_probe_laser = TecTemperature(laser="Probe Laser")
         self.temperature_pump_laser = TecTemperature(laser="Pump Laser")
-        #self.tec_values = TecCurrent()
         self.dc = DC()
         self.amplitudes = Amplitudes()
         self.output_phases = OutputPhases()
@@ -73,7 +72,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _init_tabs(self):
         self.tabs = Tab(
-            home=Home(),
+            home=Home(self.main_controller),
             pump_laser=self._init_pump_laser_tab(),
             probe_laser=self._init_probe_laser_tab(),
             dc=QtWidgets.QTabWidget(),
@@ -194,12 +193,12 @@ def toggle_button(checked, button: QtWidgets.QPushButton) -> None:
 
 
 class Home(QtWidgets.QTabWidget, _Frames, _CreateButton):
-    def __init__(self):
+    def __init__(self, main_app: QtWidgets.QApplication):
         QtWidgets.QTabWidget.__init__(self)
         _Frames.__init__(self)
         _CreateButton.__init__(self)
         self.setLayout(QtWidgets.QGridLayout())
-        self.controller = controller.Home(self)
+        self.controller = controller.Home(self, main_app)
         self.logging_window = QtWidgets.QLabel()
         model.signals.logging_update.connect(self.logging_update)
         self._init_frames()
@@ -210,10 +209,9 @@ class Home(QtWidgets.QTabWidget, _Frames, _CreateButton):
         model.signals.destination_folder_changed.connect(self.update_destination_folder)
         self.save_raw_data = QtWidgets.QCheckBox("Save Raw Data")
         self.charge_level = QtWidgets.QLabel("0 % left 🔋")
-        self.minutes_left = QtWidgets.QLabel("Minutes left: ∞ 🕙")
+        self.minutes_left = QtWidgets.QLabel("Minutes left: ∞ 🕓")
         self.charge_level.setStyleSheet("font-size: 20px")
         self.minutes_left.setStyleSheet("font-size: 20px")
-        self.frames["Battery"].setLayout(QtWidgets.QVBoxLayout())
         self.frames["Battery"].layout().addWidget(self.charge_level)
         self.frames["Battery"].layout().addWidget(self.minutes_left)
         self._init_buttons()
@@ -222,18 +220,27 @@ class Home(QtWidgets.QTabWidget, _Frames, _CreateButton):
     def update_destination_folder(self) -> None:
         self.destination_folder.setText(self.controller.calculation_model.destination_folder)
 
+    @QtCore.pyqtSlot()
+    def update_battery_state(self, battery: model.Battery) -> None:
+        self.charge_level.setText(f"{battery.percentage} % left🔋")
+        self.minutes_left.setText(f"Minutes left: {battery.minutes_left} 🕓")
+
     def _init_frames(self) -> None:
-        self.create_frame(master=self.layout(), title="Battery", x_position=0, y_position=0, vertical=True)
-        self.create_frame(master=self.layout(), title="Log", x_position=1, y_position=1)
-        self.create_frame(master=self.layout(), title="Setting", x_position=1, y_position=0)
-        self.create_frame(master=self.layout(), title="Offline Processing", x_position=2, y_position=0)
-        self.create_frame(master=self.layout(), title="Plot Data", x_position=3, y_position=0)
-        self.create_frame(master=self.layout(), title="Drivers", x_position=2, y_position=1)
-        self.create_frame(master=self.layout(), title="File Path", x_position=3, y_position=1)
-        self.create_frame(master=self.layout(), title="Valve", x_position=4, y_position=1)
-        self.create_frame(master=self.layout(), title="Measurement", x_position=4, y_position=0)
+        self.create_frame(master=self, title="Battery", x_position=0, y_position=0, vertical=True)
+        self.create_frame(master=self, title="Shutdown", x_position=0, y_position=1)
+        self.create_frame(master=self, title="Log", x_position=1, y_position=1)
+        self.create_frame(master=self, title="Setting", x_position=1, y_position=0)
+        self.create_frame(master=self, title="Offline Processing", x_position=2, y_position=0)
+        self.create_frame(master=self, title="Plot Data", x_position=3, y_position=0)
+        self.create_frame(master=self, title="Drivers", x_position=2, y_position=1)
+        self.create_frame(master=self, title="File Path", x_position=3, y_position=1)
+        self.create_frame(master=self, title="Valve", x_position=4, y_position=1)
+        self.create_frame(master=self, title="Measurement", x_position=4, y_position=0)
 
     def _init_buttons(self) -> None:
+        self.create_button(master=self.frames["Shutdown"], title="Shutdown and Close",
+                           slot=self.controller.shutdown_by_button)
+
         # SettingsTable buttons
         sub_layout = QtWidgets.QWidget()
         self.frames["Setting"].layout().addWidget(sub_layout)
@@ -314,7 +321,6 @@ class Slider(QtWidgets.QWidget):
     @update_value.register
     def _(self, value: float) -> None:
         self.slider_value.setText(f"{round(value, 2)} " + self.unit)
-
 
 
 class ModeIndices(enum.IntEnum):
@@ -447,7 +453,6 @@ class ProbeLaser(QtWidgets.QWidget, _CreateButton, _Frames):
         self.frames["Measured Values"].layout().addWidget(self.current_display)
         self.max_current_display = QtWidgets.QLineEdit(str(self.controller.laser.probe_laser_max_current))
         self.max_current_display.returnPressed.connect(self.max_current_changed)
-        self.frames["Maximum Current"].setLayout(QtWidgets.QGridLayout())
         self.frames["Maximum Current"].layout().addWidget(self.max_current_display, 0, 0)
         self.frames["Maximum Current"].layout().addWidget(QtWidgets.QLabel("mA"), 0, 1)
         model.signals.laser_data_display.connect(self.update_current)
@@ -461,12 +466,12 @@ class ProbeLaser(QtWidgets.QWidget, _CreateButton, _Frames):
         return self.controller.update_max_current_probe_laser(self.max_current_display.text())
 
     def _init_frames(self) -> None:
-        self.create_frame(master=self.layout(), title="Maximum Current", x_position=0, y_position=0)
-        self.create_frame(master=self.layout(), title="Measured Values", x_position=1, y_position=0)
-        self.create_frame(master=self.layout(), title="Current", x_position=2, y_position=0)
-        self.create_frame(master=self.layout(), title="Mode", x_position=3, y_position=0)
-        self.create_frame(master=self.layout(), title="Photo Diode Gain", x_position=4, y_position=0)
-        self.create_frame(master=self.layout(), title="Configuration", x_position=5, y_position=0)
+        self.create_frame(master=self, title="Maximum Current", x_position=0, y_position=0)
+        self.create_frame(master=self, title="Measured Values", x_position=1, y_position=0)
+        self.create_frame(master=self, title="Current", x_position=2, y_position=0)
+        self.create_frame(master=self, title="Mode", x_position=3, y_position=0)
+        self.create_frame(master=self, title="Photo Diode Gain", x_position=4, y_position=0)
+        self.create_frame(master=self, title="Configuration", x_position=5, y_position=0)
 
     def _init_slider(self) -> None:
         self.frames["Current"].layout().addWidget(self.current_slider)
@@ -540,10 +545,10 @@ class Tec(QtWidgets.QWidget, _Frames, _CreateButton):
         model.signals.tec_data_display.connect(self.update_temperature)
 
     def _init_frames(self) -> None:
-        self.create_frame(master=self.layout(), title="PID Configuration", x_position=0, y_position=0)
-        self.create_frame(master=self.layout(), title="System Settings", x_position=1, y_position=0)
-        self.create_frame(master=self.layout(), title="Temperature", x_position=2, y_position=0)
-        self.create_frame(master=self.layout(), title="Configuration", x_position=3, y_position=0)
+        self.create_frame(master=self, title="PID Configuration", x_position=0, y_position=0)
+        self.create_frame(master=self, title="System Settings", x_position=1, y_position=0)
+        self.create_frame(master=self, title="Temperature", x_position=2, y_position=0)
+        self.create_frame(master=self, title="Configuration", x_position=3, y_position=0)
 
     @staticmethod
     def _update_text_field(text_field: QtWidgets.QLineEdit):

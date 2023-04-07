@@ -5,8 +5,11 @@ import enum
 import itertools
 import logging
 import os
-import re
+import functools
+import platform
+import subprocess
 import threading
+import time
 from collections import deque
 import typing
 from dataclasses import dataclass, asdict
@@ -289,6 +292,12 @@ class Mode(enum.IntEnum):
     PULSED = 2
 
 
+@dataclass
+class Battery:
+    percentage: int
+    minutes_left: int
+
+
 @dataclass(init=False, frozen=True)
 class Signals(QtCore.QObject):
     decimation = QtCore.pyqtSignal(pd.DataFrame)
@@ -313,8 +322,7 @@ class Signals(QtCore.QObject):
     settings = QtCore.pyqtSignal(pd.DataFrame)
     destination_folder_changed = QtCore.pyqtSignal(str)
     photo_gain = QtCore.pyqtSignal(int)
-    battery_state = QtCore.pyqtSignal(tuple[int, int])
-
+    battery_state = QtCore.pyqtSignal(Battery)
 
     def __init__(self):
         QtCore.QObject.__init__(self)
@@ -333,6 +341,17 @@ class TecSignals(QtCore.QObject):
 
     def __init__(self):
         QtCore.QObject.__init__(self)
+
+
+def shutdown_procedure() -> None:
+    Motherboard.driver.close()
+    Laser.driver.close()
+    Tec.driver.close()
+    time.sleep(0.5)  # Give the calculations threads time to finish their write operation
+    if platform.system() == "Windows":
+        subprocess.run(r"shutdown /s /t 0.5", shell=True)
+    else:
+        subprocess.run("sleep 0.5s && echo poweroff", shell=True)
 
 
 class Calculation:
@@ -417,6 +436,7 @@ class Calculation:
         self.interferometry.interferometer.decimation_filepath = dc_file_path
         self.interferometry.interferometer.settings_path = settings_path
         self.interferometry.characterization.use_settings = use_settings
+        self.interferometry.characterization.use_settings = use_settings
         self.interferometry.characterization(live=False)
         signals.settings.emit(self.interferometry.interferometer)
 
@@ -436,16 +456,17 @@ class Calculation:
                  "Voltage": "V", "Full Charge Capacity": "mAh", "Remaining Charge Capacity": "mAh"}
         pd.DataFrame(units).to_csv(self._destination_folder + "/BMS.csv")
 
-        def incoming_data():
+        def incoming_data() -> None:
             while Motherboard.driver.connected.is_set():
                 bms_data: hardware.motherboard.BMSData = Motherboard.driver.bms
-                signals.battery_state.emit((bms_data.battery_percentage, bms_data.minutes_left))
+                bms_data.battery_temperature -= 273.15  # Constant for calculation of Kelvin to Celsisus
+                signals.battery_state.emit(Battery(bms_data.battery_percentage, bms_data.minutes_left))
                 now = datetime.now()
                 output_data = {"Date": str(now.strftime("%Y-%m-%d")), "Time": str(now.strftime("%H:%M:%S"))}
                 for key, value in asdict(bms_data).values():
                     output_data[key.replace("_", " ").title()] = value
                 pd.DataFrame(output_data).to_csv(self._destination_folder + "/BMS.csv", header=False, mode="a")
-            threading.Thread(target=incoming_data).start()
+        threading.Thread(target=incoming_data).start()
 
 
 class Motherboard:
@@ -457,6 +478,10 @@ class Motherboard:
         else:
             self._driver = Motherboard.driver
         self.bms_data: tuple[float, float] = (0, 0)
+
+    @property
+    def shutdown_event(self) -> threading.Event:
+        return self.driver.shutdown
 
 
 class ProbeLaserMode(enum.IntEnum):
