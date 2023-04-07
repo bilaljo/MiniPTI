@@ -20,7 +20,7 @@ class DAQData:
     dc_coupled: queue.Queue | deque | Sequence
 
 
-_Samples = list[int]
+_Samples = deque[int]
 
 
 @dataclass
@@ -95,7 +95,7 @@ class Driver(hardware.serial.Driver):
         self._received_buffer = ""
         self._sample_numbers = deque(maxlen=2)
         self._synchronize = True
-        self._shutdown = threading.Event()
+        self.shutdown = threading.Event()
         self.bypass = False
 
     @property
@@ -137,9 +137,9 @@ class Driver(hardware.serial.Driver):
         It starts with below the first 10 bytes (meta information) and ends before the last 4 bytes (crc checksum).
         """
         raw_data = raw_data[Driver._PACKAGE_SIZE_END_INDEX:Driver._PACKAGE_SIZE - Driver._CRC_START_INDEX]
-        ref: _Samples = []
-        ac: list[_Samples] = [[], [], []]
-        dc: list[_Samples] = [[], [], [], []]
+        ref: _Samples = deque()
+        ac: list[_Samples] = [deque(), deque(), deque()]
+        dc: list[_Samples] = [deque(), deque(), deque(), deque()]
         for i in range(0, len(raw_data), Driver._WORD_SIZE):
             ref.append(int(raw_data[i:i + 4], 16))
             # AC signed
@@ -203,7 +203,7 @@ class Driver(hardware.serial.Driver):
 
     def _encode_bms(self, data: str) -> None:
         if int(data[BMS.SHUTDOWN_INDEX:BMS.SHUTDOWN_INDEX + 2], base=16) < BMS.SHUTDOWN:
-            self._shutdown.set()
+            self.shutdown.set()
         if not int(data[BMS.VALID_IDENTIFIER_INDEX: BMS.VALID_IDENTIFIER_INDEX + 2]):
             logging.error("Invalid package from BMS")
             return
@@ -220,7 +220,10 @@ class Driver(hardware.serial.Driver):
                 byte_length=16
             ),
             battery_voltage=int(data[BMS.VOLTAGE_INDEX: BMS.VOLTAGE_INDEX + 4], base=16),
-            full_charged_capacity=int(data[BMS.FULL_CHARGED_CAPACITY_INDEX:BMS.FULL_CHARGED_CAPACITY_INDEX + 4], base=16),
+            full_charged_capacity=int(
+                data[BMS.FULL_CHARGED_CAPACITY_INDEX:BMS.FULL_CHARGED_CAPACITY_INDEX + 4],
+                base=16
+            ),
             remaining_capacity=int(data[BMS.REMAINING_CAPACITY_INDEX:BMS.REMAINING_CAPACITY_INDEX + 4], base=16)
         )
         self._package_data.BMS.put(bms)
@@ -247,12 +250,12 @@ class Driver(hardware.serial.Driver):
     def _synchronize_with_ref(
             self, ref_signal: _Samples, ac_coupled: list[_Samples], dc_coupled: list[_Samples]
     ) -> None:
-        while sum(ref_signal[:Driver.REF_PERIOD // 2]):
-            ref_signal.pop(0)
+        while sum(itertools.islice(ref_signal, 0, Driver.REF_PERIOD // 2)):
+            ref_signal.popleft()
             for channel in range(Driver._CHANNELS):
-                ac_coupled[channel].pop(0)
-                dc_coupled[channel].pop(0)
-            dc_coupled[3].pop(0)
+                ac_coupled[channel].popleft()
+                dc_coupled[channel].popleft()
+            dc_coupled[3].popleft()
         if len(ref_signal) < Driver.REF_PERIOD // 2:
             return
         self._synchronize = False

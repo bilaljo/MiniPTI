@@ -146,10 +146,10 @@ class Driver:
 
     def write(self, message: str | bytes | bytearray) -> bool:
         if self.connected.is_set():
-            try:
-                self._write_buffer.put(message.decode(), block=False)
-            except AttributeError:
+            if isinstance(message, str):
                 self._write_buffer.put(message, block=False)
+            else:
+                self._write_buffer.put(message.decode(), block=False)
             return True
         else:
             return False
@@ -167,7 +167,9 @@ class Driver:
                 if self.ready_write.wait(timeout=Driver.MAX_RESPONSE_TIME):
                     self.last_written_message = self._write_buffer.get(block=True)
                     os.write(
-                        self.file_descriptor, (self.last_written_message + Driver.TERMINATION_SYMBOL).encode())
+                        self.file_descriptor,
+                        (self.last_written_message + Driver.TERMINATION_SYMBOL).encode()
+                    )
                     self.ready_write.clear()
 
     if platform.system() == "Windows":
@@ -194,8 +196,7 @@ class Driver:
     else:
         def _receive(self, signum, frame) -> None:
             buffer_size = os.stat(self.file_descriptor).st_size
-            self.received_data.put(
-                os.read(self.file_descriptor, buffer_size).decode())
+            self.received_data.put(os.read(self.file_descriptor, buffer_size).decode())
 
     @abc.abstractmethod
     def _encode_data(self) -> None:
