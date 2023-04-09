@@ -5,7 +5,7 @@
             "heating": false
         },
         "PID": {
-            "P_parameter": 3,
+            "P_parameter": 4,
             "I_parameter": [3, 12],
             "D_parameter": 12
         },

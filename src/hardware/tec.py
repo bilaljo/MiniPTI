@@ -1,4 +1,3 @@
-import copy
 import dataclasses
 import enum
 import json
@@ -90,10 +89,11 @@ class Driver(hardware.serial.Driver):
         self.used_laser: str = laser
         self.config_path: str = "hardware/configs/tec.json"
         self.temperatur_element: TemperatureElement = TemperatureElement.NTC
+        self.load_config()
 
     def __getitem__(self, item: str):
         if item == "Pump Laser" or item == "Probe Laser":
-            return getattr(self, item.replace(" ", "_"))  # For convience allow spaces in [] notation
+            return getattr(self, item.replace(" ", "_").casefold())  # For convience allow spaces in [] notation
         else:
             raise KeyError("Can only subscribe Pump Laser or Probe Laser")
 

@@ -1,3 +1,4 @@
+import abc
 import logging
 import os
 import threading
@@ -41,9 +42,7 @@ class Home:
         self.daq_enabled = False
         self.last_file_path = os.getcwd()
         self.settings_model.setup_settings_file()
-        self.laser = model.Laser()
         self.motherboard = model.Motherboard()
-        self.tec = model.Tec()
         self.clean_air = False
         self.find_devices()
 
@@ -56,8 +55,11 @@ class Home:
             self.clean_air = False
 
     def set_destination_folder(self) -> None:
-        destination_folder = QtWidgets.QFileDialog.getExistingDirectory(self.view, "Destination Folder",
-                                                                        self.calculation_model.destination_folder)
+        destination_folder = QtWidgets.QFileDialog.getExistingDirectory(
+            self.view, "Destination Folder",
+            self.calculation_model.destination_folder,
+            QtWidgets.QFileDialog.ShowDirsOnly
+        )
         if destination_folder:
             self.calculation_model.destination_folder = destination_folder
 
@@ -127,18 +129,19 @@ class Home:
         except OSError:
             logging.error("Could not find Motherboard")
         try:
-            self.laser.driver.find_port()
+            model.Laser.driver.find_port()
         except OSError:
-            logging.error("Could not find Laser Driver")
+            logging.error("Could not find Laser Serial")
         try:
-            self.tec.driver.find_port()
+            model.Tec.driver.find_port()
         except OSError:
-            logging.error("Could not find TEC Driver")
+            logging.error("Could not find TEC Serial")
 
     def shutdown(self) -> None:
         QtWidgets.QApplication.setOverrideCursor(Qt.WaitCursor)
         logging.warning("Shutdown started")
         model.shutdown_procedure()
+        self.view.close()
         self.main_app.quit()
 
     def shutdown_by_button(self) -> None:
@@ -161,34 +164,34 @@ class Home:
         except OSError:
             logging.error("Could not connect with DAQ")
         try:
-            self.laser.open()
-            self.laser.process_measured_data()
+            model.Laser.open()
+            model.Laser.process_measured_data()
         except OSError:
-            logging.error("Could not connect with Laser Driver")
+            logging.error("Could not connect with Laser Serial")
         try:
-            self.tec.open()
-            self.tec.process_measured_data()
+            model.Tec.open()
+            model.Tec.process_measured_data()
         except OSError:
-            logging.error("Could not connect with Laser Driver")
+            logging.error("Could not connect with Laser Serial")
 
     def enable_probe_laser(self) -> None:
         if not self.probe_laser_enabled:
-            self.laser.driver.enable_probe_laser()
+            model.Laser.driver.enable_probe_laser()
             view.toggle_button(True, self.view.buttons["Enable Probe Laser"])
             self.probe_laser_enabled = True
         else:
             view.toggle_button(False, self.view.buttons["Enable Probe Laser"])
-            self.laser.driver.disable_probe_laser()
+            model.Laser.driver.disable_probe_laser()
             self.probe_laser_enabled = False
 
     def enable_pump_laser(self) -> None:
         if not self.pump_laser_enabled:
-            self.laser.driver.enable_pump_laser()
+            model.Laser.driver.enable_pump_laser()
             view.toggle_button(True, self.view.buttons["Enable Pump Laser"])
             self.pump_laser_enabled = True
         else:
             view.toggle_button(False, self.view.buttons["Enable Pump Laser"])
-            self.laser.driver.disable_pump_laser()
+            model.Laser.driver.disable_pump_laser()
             self.pump_laser_enabled = False
 
     def run_measurement(self) -> None:
@@ -210,9 +213,46 @@ def _string_to_float(string_value: str) -> float:
         return 0
 
 
+def _driver_config_file_path(last_directory: str, parent: QtWidgets.QWidget, device: str) -> str:
+    file_path = QtWidgets.QFileDialog.getOpenFileName(parent, directory=last_directory,
+                                                      caption=f"{device} config file",
+                                                      filter="All Files (*);; JSON (.json)")
+    return file_path[0]
+
+
 class Laser:
-    def __init__(self):
+    def __init__(self, parent):
+        self.parent = parent
         self.laser = model.Laser()
+
+    def load_configuration(self) -> None:
+        if filepath := _driver_config_file_path(last_directory=self.laser.config_path,
+                                                parent=self.parent, device="Laser Serial"):
+            self.laser.config_path = filepath
+        else:
+            return
+        self.laser.load_configuration()
+        self.fire_configuration_change()
+
+    def save_configuration(self) -> None:
+        self.laser.save_configuration()
+
+    def apply_configuration(self) -> None:
+        self.laser.apply_configuration()
+
+    @abc.abstractmethod
+    def fire_configuration_change(self) -> None:
+        """
+        By initiastion of the Laser Serial Object (on which the laser model relies) the configuration is already set
+        and do not fire events to update the GUI. This function is hence only called once to manually actiave the
+        firing.
+        """
+
+
+class PumpLaser(Laser):
+    def __init__(self, parent):
+        Laser.__init__(self, parent)
+        self.laser = model.PumpLaser()
 
     def update_driver_voltage(self, bits: int) -> None:
         if bits != self.laser.driver_bits:
@@ -226,23 +266,6 @@ class Laser:
         if self.laser.current_bits_dac_1 != bits:
             self.laser.current_bits_dac_2 = bits
 
-    def save_configuration(self) -> None:
-        self.laser.save_configuration()
-
-    def load_configuration(self) -> None:
-        self.laser.load_configuration()
-        self.laser.driver_bits = self.laser.driver_bits
-        self.laser.current_bits_dac_1 = self.laser.current_bits_dac_1
-        self.laser.current_bits_dac_2 = self.laser.current_bits_dac_2
-        self.laser.dac_1_matrix = self.laser.dac_1_matrix
-        self.laser.dac_2_matrix = self.laser.dac_2_matrix
-        self.laser.current_bits_probe_laser = self.laser.current_bits_probe_laser
-        self.laser.probe_laser_mode = self.laser.probe_laser_mode
-        self.laser.photo_diode_gain = self.laser.photo_diode_gain
-
-    def apply_configuration(self) -> None:
-        self.laser.apply_configuration()
-
     def update_dac1(self, channel: int) -> typing.Callable[[int], None]:
         def set_matrix(mode: int) -> None:
             self.laser.update_dac_mode(self.laser.dac_1_matrix, channel, mode)
@@ -252,6 +275,15 @@ class Laser:
         def set_matrix(mode: int) -> None:
             self.laser.update_dac_mode(self.laser.dac_2_matrix, channel, mode)
         return set_matrix
+
+    def fire_configuration_change(self) -> None:
+        self.laser.fire_configuration_change()
+
+
+class ProbeLaser(Laser):
+    def __init__(self, parent):
+        Laser.__init__(self, parent)
+        self.laser = model.ProbeLaser()
 
     def update_max_current_probe_laser(self, max_current: str) -> None:
         self.laser.probe_laser_max_current = _string_to_float(max_current)
@@ -268,6 +300,9 @@ class Laser:
         if effective_bits != self.laser.current_bits_probe_laser:
             self.laser.current_bits_probe_laser = effective_bits
 
+    def fire_configuration_change(self) -> None:
+        self.laser.fire_configuration_change()
+
 
 class Tec:
     def __init__(self, laser: str, parent):
@@ -281,11 +316,16 @@ class Tec:
         self.tec.save_configuration()
 
     def load_configuration(self) -> None:
+        if filepath := _driver_config_file_path(last_directory=self.tec.config_path,
+                                                parent=self.view, device="Tec Driver"):
+            self.tec.config_path = filepath
+        else:
+            return
         self.tec.load_configuration()
-        self.tec.update_values()
+        self.fire_configuration_change()
 
     def apply_configuration(self) -> None:
-        pass
+        self.tec.apply_configuration()
 
     def update_d_value(self, d_value: str) -> None:
         self.tec.d_value = _string_to_float(d_value)
@@ -334,3 +374,6 @@ class Tec:
             view.toggle_button(False, self.view.buttons["Cool"])
             self.tec.driver.disable(self.laser)
             self.cooling = False
+
+    def fire_configuration_change(self) -> None:
+        self.tec.fire_configuration_change()

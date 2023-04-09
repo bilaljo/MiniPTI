@@ -84,11 +84,11 @@ class Driver(hardware.serial.Driver):
 
     def __init__(self):
         hardware.serial.Driver.__init__(self)
-        self.pump_laser = None  # type: None | PumpLaser
-        self.probe_laser = None  # type: None | ProbeLaser
-        self.config_path = "hardware/configs/laser.json"
-        self.probe_laser_initialized = False
-        self.pump_laser_initialized = False
+        self.pump_laser: None | PumpLaser = None
+        self.probe_laser: None | ProbeLaser = None
+        self.config_path: str = "hardware/configs/laser.json"
+        self.probe_laser_initialized: bool = False
+        self.pump_laser_initialized: bool = False
         self.load_configuration()
 
     def open(self) -> None:
@@ -237,10 +237,10 @@ class Driver(hardware.serial.Driver):
         self.write("SLS" + phot_gain_hex)
 
     def apply_configuration(self) -> None:
-        # Probe Driver
+        # Probe Serial
         self.set_probe_laser_current()
         self.set_probe_laser_mode()
-        # Pump Driver
+        # Pump Serial
         self.set_driver_voltage()
         self.set_dac_1()
         self.set_dac_2()

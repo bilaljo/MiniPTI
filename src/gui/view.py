@@ -7,7 +7,7 @@ from typing import NamedTuple
 
 import pandas as pd
 import pyqtgraph as pg
-from PyQt5 import QtWidgets, QtCore
+from PyQt5 import QtWidgets, QtCore, QtGui
 
 import hardware.laser
 from gui import model
@@ -20,7 +20,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def __init__(self, main_controller: controller.MainApplication):
         QtWidgets.QMainWindow.__init__(self)
-        self.setWindowTitle("Passepartout")
+        self.setWindowTitle("MiniPTI")
+        self.setWindowIcon(QtGui.QIcon("images/icon.png"))
         self.main_controller = main_controller
         self.tab_bar = QtWidgets.QTabWidget(self)
         self.setCentralWidget(self.tab_bar)
@@ -47,12 +48,12 @@ class MainWindow(QtWidgets.QMainWindow):
         pump_laser_tab.setLayout(QtWidgets.QHBoxLayout())
         pump_laser_tab.layout().addWidget(pump_laser)
         pump_laser_tab.layout().addWidget(self.current_pump_laser.window)
-        tab.addTab(pump_laser_tab, "Laser Driver")
+        tab.addTab(pump_laser_tab, "Laser Serial")
         tec_tab = QtWidgets.QTabWidget()
         tec_tab.setLayout(QtWidgets.QHBoxLayout())
-        tec_tab.layout().addWidget(Tec(laser="Pump Laser", signals=model.pump_laser_tec_signals))
+        tec_tab.layout().addWidget(Tec(laser="Pump Laser"))
         tec_tab.layout().addWidget(self.temperature_pump_laser.window)
-        tab.addTab(tec_tab, "Tec Driver")
+        tab.addTab(tec_tab, "Tec Serial")
         return tab
 
     def _init_probe_laser_tab(self) -> QtWidgets.QTabWidget:
@@ -62,12 +63,12 @@ class MainWindow(QtWidgets.QMainWindow):
         probe_laser_tab.setLayout(QtWidgets.QHBoxLayout())
         probe_laser_tab.layout().addWidget(probe_laser)
         probe_laser_tab.layout().addWidget(self.current_probe_laser.window)
-        tab.addTab(probe_laser_tab, "Laser Driver")
+        tab.addTab(probe_laser_tab, "Laser Serial")
         tec_tab = QtWidgets.QTabWidget()
         tec_tab.setLayout(QtWidgets.QHBoxLayout())
-        tec_tab.layout().addWidget(Tec(laser="Probe Laser", signals=model.probe_laser_tec_signals))
+        tec_tab.layout().addWidget(Tec(laser="Probe Laser"))
         tec_tab.layout().addWidget(self.temperature_probe_laser.window)
-        tab.addTab(tec_tab, "Tec Driver")
+        tab.addTab(tec_tab, "Tec Serial")
         return tab
 
     def _init_tabs(self):
@@ -265,7 +266,7 @@ class Home(QtWidgets.QTabWidget, _Frames, _CreateButton):
         self.create_button(master=sub_layout, title="Inversion", slot=self.controller.plot_inversion)
         self.create_button(master=sub_layout, title="Characterisation", slot=self.controller.plot_characterisation)
 
-        # Driver buttons
+        # Serial buttons
         sub_layout = QtWidgets.QWidget(parent=self.frames["Drivers"])
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
         self.frames["Drivers"].layout().addWidget(sub_layout)
@@ -340,7 +341,6 @@ class PumpLaser(QtWidgets.QWidget, _Frames, _CreateButton):
         _CreateButton.__init__(self)
         _Frames.__init__(self)
         self.model = None
-        self.controller = controller.Laser()
         self.setLayout(QtWidgets.QGridLayout())
         self.current_display = QtWidgets.QLabel("0 mA")
         self.voltage_display = QtWidgets.QLabel("0 V")
@@ -348,33 +348,37 @@ class PumpLaser(QtWidgets.QWidget, _Frames, _CreateButton):
         self.current = [Slider(minimum=PumpLaser.MIN_CURRENT, maximum=PumpLaser.MAX_CURRENT, unit="Bit"),
                         Slider(minimum=PumpLaser.MIN_CURRENT, maximum=PumpLaser.MAX_CURRENT, unit="Bit")]
         self.mode_matrix = [[QtWidgets.QComboBox() for _ in range(3)], [QtWidgets.QComboBox() for _ in range(3)]]
+        self.controller = controller.PumpLaser(self)
         self._init_frames()
-        self._init_buttons()
         self._init_current_configuration()
         self._init_voltage_configuration()
-        self.frames["Driver Voltage"].layout().addWidget(self.driver_voltage)
+        self._init_buttons()
+        self.frames["Serial Voltage"].layout().addWidget(self.driver_voltage)
         self.frames["Measured Values"].layout().addWidget(self.current_display)
         self.frames["Measured Values"].layout().addWidget(self.voltage_display)
+        self._init_signals()
+        self.controller.fire_configuration_change()
+
+    def _init_signals(self) -> None:
+        model.signals.laser_voltage.connect(self._update_voltage_slider)
+        model.signals.current_dac.connect(self._update_current_dac)
+        model.signals.matrix_dac.connect(self._update_dac_matrix)
         model.signals.laser_data_display.connect(self._update_current_voltage)
-        self.controller.load_configuration()
 
     @QtCore.pyqtSlot()
-    def _update_current_voltage(self, value: hardware.laser.Data):
+    def _update_current_voltage(self, value: hardware.laser.Data) -> None:
         self.current_display.setText(str(value.pump_laser_current) + " mA")
         self.voltage_display.setText(str(value.pump_laser_voltage) + " V")
 
-    def _init_voltage_configuration(self):
+    def _init_voltage_configuration(self) -> None:
         self.driver_voltage.slider.valueChanged.connect(self.controller.update_driver_voltage)
-        model.signals.laser_voltage.connect(self._update_voltage_slider)
 
-    def _init_current_configuration(self):
+    def _init_current_configuration(self) -> None:
         self.current[0].slider.valueChanged.connect(self.controller.update_current_dac1)
         self.current[1].slider.valueChanged.connect(self.controller.update_current_dac2)
-        model.signals.current_dac.connect(self._update_current_dac)
         for i in range(3):
             self.mode_matrix[0][i].currentIndexChanged.connect(self.controller.update_dac1(i))
             self.mode_matrix[1][i].currentIndexChanged.connect(self.controller.update_dac2(i))
-        model.signals.matrix_dac.connect(self._update_dac_matrix)
 
     @QtCore.pyqtSlot(int, list)
     def _update_dac_matrix(self, dac_number: int, configuration: typing.Annotated[list[int], 3]) -> None:
@@ -388,23 +392,23 @@ class PumpLaser(QtWidgets.QWidget, _Frames, _CreateButton):
                     self.mode_matrix[dac_number][channel].setCurrentIndex(ModeIndices.DISABLED)
 
     @QtCore.pyqtSlot(int, float)
-    def _update_voltage_slider(self, index: int, value: float):
+    def _update_voltage_slider(self, index: int, value: float) -> None:
         self.driver_voltage.slider.setValue(index)
         self.driver_voltage.update_value(value)
 
     @QtCore.pyqtSlot(int, int)
-    def _update_current_dac(self, dac: int, index: int):
+    def _update_current_dac(self, dac: int, index: int) -> None:
         self.current[dac].slider.setValue(index)
         self.current[dac].update_value(index)
 
-    def _init_frames(self):
+    def _init_frames(self) -> None:
         self.create_frame(master=self, title="Measured Values", x_position=1, y_position=0)
-        self.create_frame(master=self, title="Driver Voltage", x_position=2, y_position=0)
+        self.create_frame(master=self, title="Serial Voltage", x_position=2, y_position=0)
         for i in range(1, 3):
             self.create_frame(master=self, title=f"Current {i}", x_position=i + 2, y_position=0)
         self.create_frame(master=self, title="Configuration", x_position=5, y_position=0)
 
-    def _init_buttons(self):
+    def _init_buttons(self) -> None:
         dac_inner_frames = [QtWidgets.QWidget() for _ in range(2)]  # For slider and button-matrices
         for j in range(2):
             dac_inner_frames[j].setLayout(QtWidgets.QGridLayout())
@@ -441,7 +445,7 @@ class ProbeLaser(QtWidgets.QWidget, _CreateButton, _Frames):
         self.frames = {}
         self.setLayout(QtWidgets.QGridLayout())
         self.current_slider = Slider(minimum=ProbeLaser.MIN_CURRENT_BIT, maximum=ProbeLaser.MAX_CURRENT_BIT, unit="mA")
-        self.controller = controller.Laser()
+        self.controller = controller.ProbeLaser(self)
         self.laser_mode = QtWidgets.QComboBox()
         self.photo_gain = QtWidgets.QComboBox()
         self.current_display = QtWidgets.QLabel("0 mA")
@@ -451,18 +455,33 @@ class ProbeLaser(QtWidgets.QWidget, _CreateButton, _Frames):
         self.photo_gain.currentIndexChanged.connect(self.controller.update_photo_gain)
         self.laser_mode.currentIndexChanged.connect(self.controller.update_probe_laser_mode)
         self.frames["Measured Values"].layout().addWidget(self.current_display)
-        self.max_current_display = QtWidgets.QLineEdit(str(self.controller.laser.probe_laser_max_current))
-        self.max_current_display.returnPressed.connect(self.max_current_changed)
+        self.max_current_display = QtWidgets.QLineEdit("")
+        self.max_current_display.returnPressed.connect(self._max_current_changed)
         self.frames["Maximum Current"].layout().addWidget(self.max_current_display, 0, 0)
         self.frames["Maximum Current"].layout().addWidget(QtWidgets.QLabel("mA"), 0, 1)
-        model.signals.laser_data_display.connect(self.update_current)
-        self.controller.load_configuration()
+        self._init_signals()
+        self.controller.fire_configuration_change()
+
+    def _init_signals(self) -> None:
+        model.signals.current_probe_laser.connect(self._update_current_slider)
+        model.signals.photo_gain.connect(self._update_photo_gain)
+        model.signals.probe_laser_mode.connect(self._update_mode)
+        model.signals.laser_data_display.connect(self._update_current)
+        model.signals.max_current_probe_laser.connect(self._update_max_current)
 
     @QtCore.pyqtSlot(hardware.laser.Data)
-    def update_current(self, value: hardware.laser.Data) -> None:
+    def _update_current(self, value: hardware.laser.Data) -> None:
         self.current_display.setText(str(value.probe_laser_current) + " mA")
 
-    def max_current_changed(self) -> None:
+    @functools.singledispatchmethod
+    def _update_max_current(self, value: int):
+        self.max_current_display.setText(str(value) + " mA")
+
+    @_update_max_current.register
+    def _(self, value: float):
+        self.max_current_display.setText(str(round(value, 2)) + " mA")
+
+    def _max_current_changed(self) -> None:
         return self.controller.update_max_current_probe_laser(self.max_current_display.text())
 
     def _init_frames(self) -> None:
@@ -476,7 +495,6 @@ class ProbeLaser(QtWidgets.QWidget, _CreateButton, _Frames):
     def _init_slider(self) -> None:
         self.frames["Current"].layout().addWidget(self.current_slider)
         self.current_slider.slider.valueChanged.connect(self.controller.update_current_probe_laser)
-        model.signals.current_probe_laser.connect(self._update_current_slider)
 
     @QtCore.pyqtSlot(int, float)
     def _update_current_slider(self, index: int, value: float) -> None:
@@ -504,8 +522,6 @@ class ProbeLaser(QtWidgets.QWidget, _CreateButton, _Frames):
         self.create_button(master=config, title="Load Configuration", slot=self.controller.load_configuration)
         self.create_button(master=config, title="Apply Configuration", slot=self.controller.load_configuration)
         self.frames["Configuration"].layout().addWidget(config, 3, 0)
-        model.signals.photo_gain.connect(self._update_photo_gain)
-        model.signals.probe_laser_mode.connect(self._update_mode)
 
     @QtCore.pyqtSlot(int)
     def _update_photo_gain(self, index: int) -> None:
@@ -528,21 +544,33 @@ class TecTextFields:
 
 
 class Tec(QtWidgets.QWidget, _Frames, _CreateButton):
-    def __init__(self, laser: str, signals: model.TecSignals):
+    def __init__(self, laser: str):
         QtWidgets.QWidget.__init__(self)
         _Frames.__init__(self)
         _CreateButton.__init__(self)
+        self.laser = laser
         self.setLayout(QtWidgets.QGridLayout())
         self.controller = controller.Tec(laser, self)
         self.text_fields = TecTextFields()
-        self.signals = signals
         self.temperature_display = QtWidgets.QLabel("NaN °C")
         self._init_frames()
         self._init_text_fields()
         self._init_buttons()
-        self.laser = laser
-        self.controller.load_configuration()
+        self._init_signals()
+        self.controller.fire_configuration_change()
+
+    def _init_signals(self) -> None:
         model.signals.tec_data_display.connect(self.update_temperature)
+        model.tec_signals[self.laser].p_value.connect(Tec._update_text_field(self.text_fields.p_value))
+        model.tec_signals[self.laser].i_1_value.connect(Tec._update_text_field(self.text_fields.i_value[0]))
+        model.tec_signals[self.laser].i_2_value.connect(Tec._update_text_field(self.text_fields.i_value[1]))
+        model.tec_signals[self.laser].d_value.connect(Tec._update_text_field(self.text_fields.d_value))
+        model.tec_signals[self.laser].setpoint_temperature.connect(
+            Tec._update_text_field(self.text_fields.setpoint_temperature))
+        model.tec_signals[self.laser].loop_time.connect(Tec._update_text_field(self.text_fields.loop_time))
+        model.tec_signals[self.laser].reference_resistor.connect(
+            Tec._update_text_field(self.text_fields.reference_resistor))
+        model.tec_signals[self.laser].max_power.connect(Tec._update_text_field(self.text_fields.max_power))
 
     def _init_frames(self) -> None:
         self.create_frame(master=self, title="PID Configuration", x_position=0, y_position=0)
@@ -565,42 +593,34 @@ class Tec(QtWidgets.QWidget, _Frames, _CreateButton):
         self.frames["PID Configuration"].layout().addWidget(QtWidgets.QLabel("P Value"), 0, 0)
         self.frames["PID Configuration"].layout().addWidget(self.text_fields.p_value, 0, 1)
         self.text_fields.p_value.returnPressed.connect(self.p_value_changed)
-        self.signals.p_value.connect(Tec._update_text_field(self.text_fields.p_value))
 
         self.frames["PID Configuration"].layout().addWidget(QtWidgets.QLabel("I<sub>1</sub> Value"), 1, 0)
         self.frames["PID Configuration"].layout().addWidget(self.text_fields.i_value[0], 1, 1)
         self.text_fields.i_value[0].returnPressed.connect(self.i_1_value_changed)
-        self.signals.i_1_value.connect(Tec._update_text_field(self.text_fields.i_value[0]))
 
         self.frames["PID Configuration"].layout().addWidget(QtWidgets.QLabel("I<sub>2</sub> Value"), 2, 0)
         self.frames["PID Configuration"].layout().addWidget(self.text_fields.i_value[1], 2, 1)
         self.text_fields.i_value[1].returnPressed.connect(self.i_2_value_changed)
-        self.signals.i_2_value.connect(Tec._update_text_field(self.text_fields.i_value[1]))
 
         self.frames["PID Configuration"].layout().addWidget(QtWidgets.QLabel("D Value"), 3, 0)
         self.frames["PID Configuration"].layout().addWidget(self.text_fields.d_value, 3, 1)
         self.text_fields.d_value.returnPressed.connect(self.d_value_changed)
-        self.signals.d_value.connect(Tec._update_text_field(self.text_fields.d_value))
 
         self.frames["System Settings"].layout().addWidget(QtWidgets.QLabel("Setpoint Temperature"), 0, 0)
         self.frames["System Settings"].layout().addWidget(self.text_fields.setpoint_temperature, 0, 1)
         self.text_fields.setpoint_temperature.returnPressed.connect(self.setpoint_temperature_changed)
-        self.signals.setpoint_temperature.connect(Tec._update_text_field(self.text_fields.setpoint_temperature))
 
         self.frames["System Settings"].layout().addWidget(QtWidgets.QLabel("Loop Time"), 1, 0)
         self.frames["System Settings"].layout().addWidget(self.text_fields.loop_time, 1, 1)
         self.text_fields.loop_time.returnPressed.connect(self.loop_time_changed)
-        self.signals.loop_time.connect(Tec._update_text_field(self.text_fields.loop_time))
 
         self.frames["System Settings"].layout().addWidget(QtWidgets.QLabel("Reference Resistor"), 2, 0)
         self.frames["System Settings"].layout().addWidget(self.text_fields.reference_resistor, 2, 1)
         self.text_fields.reference_resistor.returnPressed.connect(self.reference_resistor_changed)
-        self.signals.reference_resistor.connect(Tec._update_text_field(self.text_fields.reference_resistor))
 
         self.frames["System Settings"].layout().addWidget(QtWidgets.QLabel("Max Power"), 3, 0)
         self.frames["System Settings"].layout().addWidget(self.text_fields.max_power, 3, 1)
         self.text_fields.max_power.returnPressed.connect(self.max_power_changed)
-        self.signals.max_power.connect(Tec._update_text_field(self.text_fields.max_power))
 
         self.frames["Temperature"].layout().addWidget(self.temperature_display)
 
