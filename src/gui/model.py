@@ -9,8 +9,8 @@ import platform
 import subprocess
 import threading
 import time
-from collections import deque
 import typing
+from collections import deque
 from dataclasses import dataclass, asdict
 from datetime import datetime
 
@@ -19,8 +19,8 @@ import pandas as pd
 from PyQt5 import QtCore
 from scipy import ndimage
 
-from minipti import interferometry, pti
 import hardware
+from minipti import interferometry, pti
 
 
 class SettingsTable(QtCore.QAbstractTableModel):
@@ -117,7 +117,7 @@ class SettingsTable(QtCore.QAbstractTableModel):
 
 
 class Logging(logging.Handler):
-    LOGGING_HISTORY = 20
+    LOGGING_HISTORY = 50
 
     def __init__(self):
         logging.Handler.__init__(self)
@@ -270,12 +270,8 @@ class TecBuffer(Buffer):
 
     def __init__(self):
         Buffer.__init__(self)
-        self.set_point: typing.Annotated[list[deque], 2] = [
-            deque(maxlen=Buffer.QUEUE_SIZE), deque(maxlen=Buffer.QUEUE_SIZE)
-        ]
-        self.actual_value:  typing.Annotated[list[deque], 2] = [
-            deque(maxlen=Buffer.QUEUE_SIZE), deque(maxlen=Buffer.QUEUE_SIZE)
-        ]
+        self.set_point: list[deque] = [deque(maxlen=Buffer.QUEUE_SIZE), deque(maxlen=Buffer.QUEUE_SIZE)]
+        self.actual_value: list[deque] = [deque(maxlen=Buffer.QUEUE_SIZE), deque(maxlen=Buffer.QUEUE_SIZE)]
 
     def append(self, tec_data: hardware.tec.Data):
         self.set_point[TecBuffer.PUMP_LASER].append(tec_data.set_point.pump_laser)
@@ -322,6 +318,7 @@ class Signals(QtCore.QObject):
     destination_folder_changed = QtCore.pyqtSignal(str)
     photo_gain = QtCore.pyqtSignal(int)
     battery_state = QtCore.pyqtSignal(Battery)
+    valve_change = QtCore.pyqtSignal(hardware.motherboard.Valve)
 
     def __init__(self):
         QtCore.QObject.__init__(self)
@@ -368,7 +365,6 @@ class Calculation:
         self.interferometry.characterization.interferometry = self.interferometry.interferometer
         self.pti = PTI(pti.Decimation(), pti.Inversion(interferometer=self.interferometry.interferometer))
         self.interferometry.characterization.interferometry = self.interferometry.interferometer
-        self.running = threading.Event()
         self._destination_folder = os.getcwd()
         self.save_raw_data = False
 
@@ -394,10 +390,9 @@ class Calculation:
         self.pti.decimation.init_header = True
         self.interferometry.characterization.init_online = True
         self.interferometry.interferometer.load_settings()
-        self.running.set()
 
         def calculate_characterization():
-            while self.running.is_set():
+            while Motherboard.driver.connected.is_set():
                 self.interferometry.characterization()
                 self.characterisation_buffer.append(
                     self.interferometry.characterization,
@@ -405,7 +400,7 @@ class Calculation:
                 signals.characterization_live.emit(self.characterisation_buffer)
 
         def calculate_inversion():
-            while self.running.is_set():
+            while Motherboard.driver.connected.is_set():
                 self.pti.decimation.ref = np.array(Motherboard.driver.ref_signal)
                 self.pti.decimation.dc_coupled = np.array(Motherboard.driver.dc_coupled)
                 self.pti.decimation.ac_coupled = np.array(Motherboard.driver.ac_coupled)
@@ -465,22 +460,8 @@ class Calculation:
                 for key, value in asdict(bms_data).values():
                     output_data[key.replace("_", " ").title()] = value
                 pd.DataFrame(output_data).to_csv(self._destination_folder + "/BMS.csv", header=False, mode="a")
+
         threading.Thread(target=incoming_data).start()
-
-
-class Motherboard:
-    driver = hardware.motherboard.Driver()
-
-    def __init__(self, daq_driver=None):
-        if daq_driver is not None:
-            self._driver = daq_driver
-        else:
-            self._driver = Motherboard.driver
-        self.bms_data: tuple[float, float] = (0, 0)
-
-    @property
-    def shutdown_event(self) -> threading.Event:
-        return self.driver.shutdown
 
 
 class ProbeLaserMode(enum.IntEnum):
@@ -528,7 +509,6 @@ class Serial:
         self.fire_configuration_change()
 
     @staticmethod
-    @abc.abstractmethod
     def _incoming_data():
         """
         Listens to incoming data and emits them as signals to the view as long a serial connection is etablished.
@@ -539,6 +519,29 @@ class Serial:
         processing_thread = threading.Thread(target=Serial._incoming_data, daemon=True)
         processing_thread.start()
         return processing_thread
+
+
+class Motherboard(Serial):
+    driver = hardware.motherboard.Driver()
+
+    def __init__(self):
+        Serial.__init__(self)
+        self.bms_data: tuple[float, float] = (0, 0)
+
+    @property
+    def shutdown_event(self) -> threading.Event:
+        return self.driver.shutdown
+
+    def load_configuration(self) -> None:
+        Motherboard.driver.load_config()
+        self.fire_configuration_change()
+
+    @staticmethod
+    def save_configuration() -> None:
+        Motherboard.driver.save_config()
+
+    def fire_configuration_change(self) -> None:
+        signals.valve_change.emit(Motherboard.driver.config.valve)
 
 
 class Laser(Serial):

@@ -1,13 +1,13 @@
-import itertools
 import logging
 import os
-import typing
-from datetime import datetime
 from dataclasses import dataclass
+from datetime import datetime
+from collections.abc import Generator
 
+import h5py
 import numpy as np
 import pandas as pd
-import psutil
+from nptyping import NDArray, UInt16, Int16, Shape
 
 import hardware.motherboard
 from minipti import interferometry
@@ -32,7 +32,7 @@ class Inversion:
                        ([f"Lock in Amplitude {i}" for i in range(1, 4)], [f"Lock in Phase{i}" for i in range(1, 4)]),
                        ([f"AC CH{i}" for i in range(1, 4)], [f"AC Phase CH{i}" for i in range(1, 4)])]
 
-    SYMMETRIC_MINIMUM = 1.154 - 1  # We subtract 1 to shift the optimium to 1
+    SYMMETRIC_MINIMUM = 1.154 - 1  # We subtract 1 to shift the optimum to 1
 
     def __init__(self, response_phases=None, sign=1, interferometer=None, settings_path="minipti/configs/settings.csv"):
         super().__init__()
@@ -143,14 +143,16 @@ class Inversion:
         )
         logging.info("PTI Inversion calculated.")
 
-    def _prepare_data(self, pti_measurement) -> tuple[typing.Mapping[str, str], typing.Mapping[str, np.ndarray]]:
-        units = {"Interferometric Phase": "rad", "Symmetrie": "1",
-                 "Sensitivity CH1": "V/rad", "Sensitivity CH2": "V/rad", "Sensitivity CH3": "V/rad"}
+    def _prepare_data(self, pti_measurement) -> tuple[dict[str, str], dict[str, np.ndarray]]:
+        units: dict[str, str] = {
+            "Interferometric Phase": "rad", "Symmetry": "1",
+            "Sensitivity CH1": "V/rad", "Sensitivity CH2": "V/rad",
+            "Sensitivity CH3": "V/rad"}
         output_data = {"Interferometric Phase": self.interferometer.phase, "Symmetry": self.symmetry}
         for i in range(3):
             output_data[f"Sensitivity CH{i + 1}"] = self.sensitivity[i]
         if pti_measurement:
-            units["PTI Signal"] = ["µrad"]
+            units["PTI Signal"] = "µrad"
             output_data["PTI Signal"] = self.pti_signal
         output_data["Interferometric Phase"] = np.array(output_data["Interferometric Phase"])
         return units, output_data
@@ -172,7 +174,7 @@ class Inversion:
         now = datetime.now()
         time_stamp = str(now.strftime("%Y-%m-%d %H:%M:%S"))
         output_data = {"Interferometric Phase": self.interferometer.phase, "Sensitivity CH1": self.sensitivity[0],
-                       "Sensitivity CH2": self.sensitivity[1],  "Sensitivity CH3": self.sensitivity[2],
+                       "Sensitivity CH2": self.sensitivity[1], "Sensitivity CH3": self.sensitivity[2],
                        "Symmetry": self.symmetry, "PTI Signal": self.pti_signal}
         try:
             pd.DataFrame(output_data, index=[time_stamp]).to_csv(f"{self.destination_folder}/PTI_Inversion.csv",
@@ -196,90 +198,58 @@ class Decimation:
     [1]: Waveguide based passively demodulated photo-thermal
          interferometer for aerosol measurements
     """
-    REF_VOLTAGE = 3.3  # V
-    REF_PERIOD = 100  # Samples
-    SAMPLES = hardware.motherboard.Driver.NUMBER_OF_SAMPLES
-    DC_RESOLUTION = (1 << 12) - 1  # 12 Bit ADC
-    AC_RESOLUTION = (1 << (16 - 1)) - 1  # 16 bit ADC with 2 complement
-    AMPLIFICATION = 100  # Theoretical value given by the hardware
+    REF_VOLTAGE: float = 3.3  # V
+    REF_PERIOD: int = 100  # Samples
+    SAMPLES: int = hardware.motherboard.Driver.NUMBER_OF_SAMPLES
+    DC_RESOLUTION: int = (1 << 12) - 1  # 12 Bit ADC
+    AC_RESOLUTION: int = (1 << (16 - 1)) - 1  # 16 bit ADC with 2 complement
+    AMPLIFICATION: int = 100  # Theoretical value given by the hardware
 
-    MINIMUM_RAM = 1e-2 * psutil.virtual_memory().total  # 1 % of maximum RAM should be at least free
-    MEMORY_ALLOCATION_SIZE = 1e-2  # 1 %
-    DATA_BLOCK_SIZE = int(112e3)
+    UNTIL_MICRO_SECONDS = -3
 
-    CHANNELS = 8
-
-    def __init__(self, debug=True):
-        self.dc_coupled = np.empty(shape=(3, Decimation.SAMPLES))
-        self.ac_coupled = np.empty(shape=(3, Decimation.SAMPLES))
-        self.dc_signals = np.empty(shape=3)
-        self.lock_in = LockIn(np.empty(shape=3), np.empty(shape=3))
-        self.ref = None
-        self.save_raw_data = False
-        self.in_phase = np.cos(2 * np.pi / Decimation.REF_PERIOD * np.arange(0, Decimation.SAMPLES))
-        self.quadrature = np.sin(2 * np.pi / Decimation.REF_PERIOD * np.arange(0, Decimation.SAMPLES))
-        self.destination_folder = "."
-        self.file_path = ""
-        self.init_header = True
-        self.now = datetime.now()
-        # Memory allocation is too expensive, so it's better to allocate the memory at startup once and reuse it
-        self.buffer_size = int(psutil.virtual_memory().total * Decimation.MEMORY_ALLOCATION_SIZE)
-        self.buffer_size //= Decimation.DATA_BLOCK_SIZE
-        self.buffer = np.empty(shape=(self.buffer_size, Decimation.CHANNELS, Decimation.SAMPLES))
-        self._actual_buffer_size = self.buffer_size
-        self._raw_data_index = itertools.count()
-        self._raw_data_file_index = itertools.count()
-        self.flushed = False
-
-    def save_to_buffer(self) -> None:
-        """
-        One package of raw data needs 8000 samples * (3 AC + 3 DC + 1 Ref) * 2 Bytes = 112 kB. To reduce the IO
-        operations we buffer this data with until 10 % of available RAM is allocated. If the program finishes before
-        raw data is saved the data will be flushed out. Same if available RAM is too low.
-        """
-        self.flushed = False
-        current_data_frame = next(self._raw_data_index)
-        if True: #current_data_frame + 1 == self.buffer_size:
-            self.flush()
-        elif psutil.virtual_memory().available < Decimation.MINIMUM_RAM:
-            self._actual_buffer_size = current_data_frame + 1
-            self.flush()
-        else:
-            for channel in range(3):
-                self.buffer[current_data_frame][channel][:] = self.dc_coupled[channel]
-                self.buffer[current_data_frame][channel + 3][:] = self.ac_coupled[channel]
-            self.buffer[current_data_frame][Decimation.CHANNELS - 1][:] = self.ref
-
-    def flush(self) -> None:
-        if self._actual_buffer_size < self.buffer_size:
-            # We had to flush earlier so the arrays needs to be smaller
-            self.buffer.resize((self._actual_buffer_size, Decimation.CHANNELS))
-        np.save(self.destination_folder + f"/raw_data_{next(self._raw_data_file_index)}", self.buffer)
-        self.flushed = True
-        self._raw_data_index = itertools.count()
-        if self._actual_buffer_size < self.buffer_size:
-            self._actual_buffer_size = self.buffer_size
-            self.buffer.resize((self.buffer_size, Decimation.CHANNELS))
+    def __init__(self):
+        self.dc_coupled: NDArray[Shape["3", f"{Decimation.SAMPLES}"], UInt16] | None = None
+        self.ac_coupled: NDArray[Shape["3", f"{Decimation.SAMPLES}"], Int16] | None = None
+        self.dc_signals: np.ndarray | None = None
+        self.lock_in: LockIn = LockIn(np.empty(shape=3), np.empty(shape=3))
+        self.ref: NDArray[Shape["1", f"{Decimation.SAMPLES}"], UInt16] | None = None
+        self.save_raw_data: bool = False
+        self.in_phase: np.ndarray = np.cos(2 * np.pi / Decimation.REF_PERIOD * np.arange(0, Decimation.SAMPLES))
+        self.quadrature: np.ndarray = np.sin(2 * np.pi / Decimation.REF_PERIOD * np.arange(0, Decimation.SAMPLES))
+        self.destination_folder: str = "."
+        self.file_path: str = ""
+        self.init_header: bool = True
 
     def process_raw_data(self) -> None:
         """
         Reads the binary data and save it into numpy arrays. The data is saved into npy archives in debug mode.
         """
         if self.save_raw_data:
-            self.save_to_buffer()
-        dc_coupled = self.dc_coupled * Decimation.REF_VOLTAGE / Decimation.DC_RESOLUTION
-        ac_coupled = self.ac_coupled / Decimation.AMPLIFICATION * Decimation.REF_VOLTAGE / Decimation.AC_RESOLUTION
-        self.dc_coupled = dc_coupled
-        self.ac_coupled = ac_coupled
+            self.save()
+        self.dc_coupled *= Decimation.REF_VOLTAGE / Decimation.DC_RESOLUTION
+        self.ac_coupled *= Decimation.REF_VOLTAGE / (Decimation.AMPLIFICATION * Decimation.AC_RESOLUTION)
 
-    def get_raw_data(self) -> str:
-        pass
+    def save(self) -> None:
+        with h5py.File(f"{self.destination_folder}/raw_data.h5", "a") as h5f:
+            now = datetime.now()
+            time_stamp = str(now.strftime("%Y-%m-%d %H:%M:%S:%S.%f")[:Decimation.UNTIL_MICRO_SECONDS])
+            h5f.create_group(time_stamp)
+            h5f[time_stamp]["Ref"] = self.ref
+            h5f[time_stamp]["AC"] = self.ac_coupled
+            h5f[time_stamp]["DC"] = self.dc_coupled
+
+    def get_raw_data(self) -> Generator[None, None, None]:
+        with h5py.File(self.file_path, "r") as h5f:
+            for sample_package in h5f.values():
+                self.dc_coupled = np.array(sample_package["DC"]).T
+                self.ac_coupled = np.array(sample_package["AC"]).T
+                yield None
 
     def calculate_dc(self) -> None:
         """
         Applies a low pass to the DC-coupled signals and decimate it to 1 s values.
         """
-        np.mean(self.dc_coupled, axis=1, out=self.dc_signals)
+        self.dc_signals = np.mean(self.dc_coupled, axis=1)
 
     def common_mode_noise_reduction(self) -> None:
         noise_factor = np.sum(self.ac_coupled, axis=0) / sum(self.dc_signals)
@@ -316,15 +286,16 @@ class Decimation:
                 output_data[f"Lock In Amplitude CH{channel + 1}"] = "V"
                 output_data[f"Lock In Phase CH{channel + 1}"] = "deg"
                 output_data[f"DC CH{channel + 1}"] = "V"
-            pd.DataFrame(output_data, index=["s"]).to_csv(f"{self.destination_folder}/Decimation.csv",
-                                                          index_label="Time")
+            pd.DataFrame(output_data, index=["s"]).to_csv(
+                f"{self.destination_folder}/Decimation.csv",
+                index_label="Time"
+            )
             self.init_header = False
         if live:
             self.process_raw_data()
             self._calculate_decimation()
         else:
-            for file in self.get_raw_data():
-                with np.load(file) as data:
-                    self.dc_coupled = data["dc_coupled"]
-                    self.ac_coupled = data["ac_coupled"]
+            for _ in self.get_raw_data():
                 self._calculate_decimation()
+            logging.info("Finished decimation")
+            logging.info(f"Saved results in {self.destination_folder}")

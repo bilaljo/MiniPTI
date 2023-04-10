@@ -1,6 +1,7 @@
 import logging
 
 import gui
+from PyQt5.QtGui import QIcon
 
 
 def main():
@@ -8,7 +9,8 @@ def main():
                         filemode="a")
     app = gui.controller.MainApplication(argv=[])
     logging.info("Started Program")
-    app.exec()
+    app.setWindowIcon(QIcon("gui/images/icon.png"))
+    app.exec_()
     logging.info("Program closed")
 
 

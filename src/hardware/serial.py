@@ -1,16 +1,15 @@
 import abc
 import logging
+import os
+import platform
 import queue
 import re
 import threading
 import time
 from dataclasses import dataclass
 from enum import Enum
-import os
 
-import platform
 if platform.system() == "Windows":
-    import clr
     import System.IO.Ports
 else:
     import signal

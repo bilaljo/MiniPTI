@@ -1,7 +1,7 @@
 {
     "Pump Laser": {
         "max_current_mA": 1500,
-        "bit_value": 1,
+        "bit_value": 62,
         "DAC_1": {
             "bit_value": 1345,
             "continuous_wave": [false, false, false],

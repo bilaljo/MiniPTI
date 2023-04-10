@@ -4,11 +4,13 @@ import logging
 import queue
 import re
 import threading
+import time
 from collections import deque
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from typing import Sequence, Annotated
 
 from fastcrc import crc16
+from commentedconfigparser import CommentedConfigParser
 
 import hardware.serial
 
@@ -64,6 +66,18 @@ class PackageData:
     BMS: queue.Queue
 
 
+@dataclass
+class Valve:
+    automatic_switch: bool
+    period: int
+    duty_cycle: int
+
+
+@dataclass
+class MotherBoardConfig:
+    valve: Valve
+
+
 class Driver(hardware.serial.Driver):
     """
     This class provides an interface for receiving data from the serial port of a USB connected DAQ system.
@@ -95,8 +109,13 @@ class Driver(hardware.serial.Driver):
         self._received_buffer = ""
         self._sample_numbers = deque(maxlen=2)
         self._synchronize = True
+        self.config: MotherBoardConfig | None = None
         self.shutdown = threading.Event()
-        self.bypass = False
+        self._bypass = False
+        self.config_path = "hardware/configs/motherboard.conf"
+        self.config_parser = CommentedConfigParser()
+        self.automatic_switch = threading.Event()
+        self.load_config()
 
     @property
     def device_id(self) -> bytes:
@@ -127,6 +146,22 @@ class Driver(hardware.serial.Driver):
         if number & (1 << (byte_length - 1)):
             return number - (1 << byte_length)
         return number
+
+    def load_config(self) -> None:
+        self.config_parser.read(self.config_path)
+        valve_config = Valve(
+            automatic_switch=self.config_parser.getboolean("Valve", "automatic_switch"),
+            period=self.config_parser.getint("Valve", "period"),
+            duty_cycle=self.config_parser.getint("Valve", "duty_cycle"),
+        )
+        self.config = MotherBoardConfig(valve_config)
+        if valve_config.automatic_switch:
+            self.automatic_switch.set()
+
+    def save_config(self) -> None:
+        self.config_parser["Valve"] = asdict(self.config.valve)
+        with open(self.config_path, "w") as savefile:
+            self.config_parser.write(savefile)
 
     @staticmethod
     def _encode(raw_data: Sequence) -> tuple[_Samples, Annotated[list[_Samples], 3], Annotated[list[_Samples], 4]]:
@@ -276,12 +311,12 @@ class Driver(hardware.serial.Driver):
         self._package_data.DAQ.ac_coupled.put(ac_package)
 
     def set_valve(self) -> None:
-        if self.bypass:
+        if self._bypass:
             self.write("SBP0000")
-            self.bypass = False
+            self._bypass = False
         else:
             self.write("SBP0001")
-            self.bypass = True
+            self._bypass = True
 
     def _process_data(self) -> None:
         self._reset()
@@ -289,3 +324,17 @@ class Driver(hardware.serial.Driver):
             self._encode_data()
             if len(self._encoded_buffer.ref_signal) >= Driver.NUMBER_OF_SAMPLES:
                 self._build_sample_package()
+
+    def automatic_valve_change(self) -> None:
+        """
+        Periodically bypass a valve. The duty cycle defines how much time for each part (bypassed or not) is spent.
+        """
+        def switch() -> None:
+            while self.automatic_switch.set():
+                if self._bypass:
+                    self.set_valve()
+                    time.sleep(self.config.valve.period * self.config.valve.duty_cycle / 100)
+                else:
+                    self.set_valve()
+                    time.sleep(self.config.valve.period * (1 - self.config.valve.duty_cycle / 100))
+        threading.Thread(target=switch, daemon=True).start()

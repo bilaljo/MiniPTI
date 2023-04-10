@@ -1,9 +1,9 @@
-import copy
 import dataclasses
 import json
 import logging
 from dataclasses import dataclass
 from typing import Annotated
+
 import dacite
 
 import hardware.serial
@@ -67,18 +67,18 @@ class Data(hardware.serial.Data):
 
 
 class Driver(hardware.serial.Driver):
-    HARDWARE_ID = b"0002"
-    NAME = "Laser"
-    DELIMITER = "\t"
-    DATA_START = "L"
-    _START_MEASURED_DATA = 1
-    _END_MEASURED_DATA = 4
+    HARDWARE_ID: bytes = b"0002"
+    NAME: str = "Laser"
+    DELIMITER: str = "\t"
+    DATA_START: str = "L"
+    _START_MEASURED_DATA: int = 1
+    _END_MEASURED_DATA: int = 4
 
     CHANNELS = 3
 
     # Pump Laser
-    _DAC_1_REGISTER = [1 << 8, 1 << 9, 1 << 10, 1 << 11, 1 << 12, 1 << 13]
-    _DAC_2_REGISTER = [1 << 14, 1 << 15, 1 << 0, 1 << 1, 1 << 2, 1 << 3]
+    _DAC_1_REGISTER: list[int] = [1 << 8, 1 << 9, 1 << 10, 1 << 11, 1 << 12, 1 << 13]
+    _DAC_2_REGISTER: list[int] = [1 << 14, 1 << 15, 1 << 0, 1 << 1, 1 << 2, 1 << 3]
 
     CURRENT_BITS: int = (1 << 8) - 1
 

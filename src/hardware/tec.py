@@ -3,12 +3,11 @@ import enum
 import json
 import logging
 import typing
+from dataclasses import dataclass
 
 import dacite
 
 import hardware
-from dataclasses import dataclass
-
 import json_parser
 
 
