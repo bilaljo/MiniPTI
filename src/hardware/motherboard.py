@@ -106,7 +106,6 @@ class Driver(hardware.serial.Driver):
             queue.Queue(maxsize=Driver._QUEUE_SIZE)
         )
         self._encoded_buffer = DAQData(deque(), [deque(), deque(), deque()], [deque(), deque(), deque()])
-        self._received_buffer = ""
         self._sample_numbers = deque(maxlen=2)
         self._synchronize = True
         self.config: MotherBoardConfig | None = None
@@ -192,8 +191,9 @@ class Driver(hardware.serial.Driver):
         return ref, ac, dc
 
     def _reset(self) -> None:
+        with self.received_data.mutex:
+            self.received_data.queue.clear()
         self._synchronize = True
-        self._received_buffer = ""
         self._encoded_buffer.ref_signal = deque()
         self._encoded_buffer.dc_coupled = [deque(), deque(), deque()]
         self._encoded_buffer.ac_coupled = [deque(), deque(), deque()]
@@ -207,19 +207,14 @@ class Driver(hardware.serial.Driver):
             - Byte 10 to 32 contain the data as period sequence of blocks in hex decimal
             - The last 4 bytes represent a CRC checksum in hex decimal
         """
-        self._received_buffer += self.received_data.get(block=True)
-        if len(self._received_buffer) >= Driver._PACKAGE_SIZE + len("\n"):
-            split_data = self._received_buffer.split("\n")
-            self._received_buffer = ""
-            for data in split_data:
-                if Packages.DAQ.match(data):
-                    self._encode_daq(data)
-                elif Packages.BMS.match(data):
-                    self._encode_bms(data)
-                else:
-                    continue
-            if split_data[-1]:  # Data without termination symbol
-                self._received_buffer = split_data[-1]
+        split_data = self.received_data.get(block=True).split("\n")
+        for data in split_data:
+            if Packages.DAQ.match(data):
+                self._encode_daq(data)
+            elif Packages.BMS.match(data):
+                self._encode_bms(data)
+            else:
+                continue
 
     def _encode_daq(self, data: str) -> None:
         if not Driver._crc_check(data, "DAQ"):
@@ -277,8 +272,6 @@ class Driver(hardware.serial.Driver):
         package_difference = int(self._sample_numbers[1], base=16) - int(self._sample_numbers[0], base=16)
         if package_difference != 1:
             logging.error(f"Missing {package_difference} packages.")
-            logging.info("Start resynchronisation.")
-            self._sample_numbers.popleft()
             return False
         return True
 
