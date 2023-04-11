@@ -2,7 +2,6 @@ import enum
 import itertools
 import logging
 import queue
-import re
 import threading
 import time
 from collections import deque
@@ -23,12 +22,6 @@ class DAQData:
 
 
 _Samples = deque[int]
-
-
-@dataclass
-class Packages:
-    DAQ = re.compile("00[0-9a-fA-F]{4108}", flags=re.MULTILINE)
-    BMS = re.compile("01[0-9a-fA-F]{41}", flags=re.MULTILINE)
 
 
 class BMS(enum.IntEnum):
@@ -191,8 +184,6 @@ class Driver(hardware.serial.Driver):
         return ref, ac, dc
 
     def _reset(self) -> None:
-        with self.received_data.mutex:
-            self.received_data.queue.clear()
         self._synchronize = True
         self._encoded_buffer.ref_signal = deque()
         self._encoded_buffer.dc_coupled = [deque(), deque(), deque()]
@@ -209,12 +200,10 @@ class Driver(hardware.serial.Driver):
         """
         split_data = self.received_data.get(block=True).split("\n")
         for data in split_data:
-            if Packages.DAQ.match(data):
+            if data[:2] == "00" and len(data) == 4110:
                 self._encode_daq(data)
-            elif Packages.BMS.match(data):
+            elif data[:2] == "01" and len(data) == 44:
                 self._encode_bms(data)
-            else:
-                continue
 
     def _encode_daq(self, data: str) -> None:
         if not Driver._crc_check(data, "DAQ"):
@@ -234,7 +223,7 @@ class Driver(hardware.serial.Driver):
     def _encode_bms(self, data: str) -> None:
         if int(data[BMS.SHUTDOWN_INDEX:BMS.SHUTDOWN_INDEX + 2], base=16) < BMS.SHUTDOWN:
             self.shutdown.set()
-        if not int(data[BMS.VALID_IDENTIFIER_INDEX: BMS.VALID_IDENTIFIER_INDEX + 2]):
+        if not int(data[BMS.VALID_IDENTIFIER_INDEX: BMS.VALID_IDENTIFIER_INDEX + 2], base=16):
             logging.error("Invalid package from BMS")
             return
         if not Driver._crc_check(data, "BMS"):
