@@ -343,7 +343,10 @@ class ProbeLaser(Laser):
         self.laser = model.ProbeLaser()
 
     def update_max_current_probe_laser(self, max_current: str) -> None:
-        self.laser.probe_laser_max_current = _string_to_float(max_current)
+        new_max_current = _string_to_float(max_current)
+        if new_max_current == -1:
+            return
+        self.laser.probe_laser_max_current = new_max_current
 
     def update_photo_gain(self, value: int) -> None:
         if self.laser.photo_diode_gain != value + 1:
