@@ -53,8 +53,8 @@ class Driver:
                     continue
                 device.write(Command.HARDWARE_ID + Driver.TERMINATION_SYMBOL.encode())
                 time.sleep(0.1)
-                avaiable_bytes = device.in_waiting
-                self.received_data.put(device.read(avaiable_bytes))
+                available_bytes = device.in_waiting
+                self.received_data.put(device.read(available_bytes))
                 hardware_id = self.get_hardware_id()
                 if hardware_id == self.device_id:
                     self.port_name = port.device
