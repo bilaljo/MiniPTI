@@ -2,6 +2,7 @@ import enum
 import itertools
 import logging
 import queue
+import re
 import threading
 import time
 from collections import deque
@@ -19,6 +20,12 @@ class DAQData:
     ref_signal: queue.Queue | deque | Sequence
     ac_coupled: queue.Queue | deque | Sequence
     dc_coupled: queue.Queue | deque | Sequence
+
+
+@dataclass
+class Packages:
+    DAQ = re.compile("00[0-9a-fA-F]{4108}", flags=re.MULTILINE)
+    BMS = re.compile("01[0-9a-fA-F]{41}", flags=re.MULTILINE)
 
 
 _Samples = deque[int]
@@ -200,9 +207,9 @@ class Driver(hardware.serial.Driver):
         """
         split_data = self.received_data.get(block=True).split("\n")
         for data in split_data:
-            if data[:2] == "00" and len(data) == 4110:
+            if Packages.DAQ.match(data):
                 self._encode_daq(data)
-            elif data[:2] == "01" and len(data) == 44:
+            elif Packages.BMS.match(data):
                 self._encode_bms(data)
 
     def _encode_daq(self, data: str) -> None:

@@ -213,8 +213,9 @@ class Home(QtWidgets.QTabWidget, _Frames, _CreateButton):
         self.frames["Log"].setWidget(self.scroll)
         self.frames["Battery"] = QtWidgets.QDockWidget("Battery", self)
         self.charge_level = QtWidgets.QLabel("NaN % left")
-        self.minutes_left = QtWidgets.QLabel("Minutes left: NaN")
+        self.minutes_left = QtWidgets.QLabel("NaN Minutes left")
         sub_layout = QtWidgets.QWidget()
+        sub_layout.setMaximumWidth(150)
         sub_layout.setLayout(QtWidgets.QVBoxLayout())
         sub_layout.layout().addWidget(self.charge_level)
         sub_layout.layout().addWidget(self.minutes_left)
@@ -222,6 +223,7 @@ class Home(QtWidgets.QTabWidget, _Frames, _CreateButton):
         self.scroll.setWidget(self.logging_window)
         main_window.addDockWidget(Qt.BottomDockWidgetArea, self.frames["Log"])
         main_window.addDockWidget(Qt.BottomDockWidgetArea, self.frames["Battery"])
+        main_window.setCorner(Qt.BottomRightCorner, Qt.RightDockWidgetArea)
         self.destination_folder = QtWidgets.QLabel(self.controller.calculation_model.destination_folder)
         model.signals.destination_folder_changed.connect(self.update_destination_folder)
         self.save_raw_data = QtWidgets.QCheckBox("Save Raw Data")
@@ -251,10 +253,10 @@ class Home(QtWidgets.QTabWidget, _Frames, _CreateButton):
         self.automatic_valve_switch.setChecked(valve.automatic_switch)
 
     def _init_frames(self) -> None:
-        #sub_layout = QtWidgets.QWidget()
-        #sub_layout.setLayout(QtWidgets.QVBoxLayout())
-        #self.layout().addWidget(sub_layout, 0, 1)
-        #self.create_frame(master=sub_layout, title="Shutdown", x_position=0, y_position=1)
+        sub_layout = QtWidgets.QWidget()
+        sub_layout.setLayout(QtWidgets.QGridLayout())
+        self.create_frame(master=sub_layout, title="File Path", x_position=0, y_position=1)
+        self.create_frame(master=sub_layout, title="Shutdown", x_position=0, y_position=2)
         self.create_frame(master=self, title="Setting", x_position=0, y_position=0, x_span=2)
         self.create_frame(master=self, title="Offline Processing", x_position=2, y_position=0)
         self.create_frame(master=self, title="Plot Data", x_position=2, y_position=1)
@@ -262,12 +264,12 @@ class Home(QtWidgets.QTabWidget, _Frames, _CreateButton):
         self.create_frame(master=self, title="Drivers", x_position=3, y_position=1)
         self.create_frame(master=self, title="Pump Laser", x_position=4, y_position=0)
         self.create_frame(master=self, title="Probe Laser", x_position=4, y_position=1)
-        self.create_frame(master=self, title="File Path", x_position=1, y_position=1)
+        self.layout().addWidget(sub_layout, 1, 1)
         self.create_frame(master=self, title="Valve", x_position=0, y_position=1)
 
     def _init_buttons(self) -> None:
-        #self.create_button(master=self.frames["Shutdown"], title="Shutdown and Close",
-        #                   slot=self.controller.shutdown_by_button)
+        self.create_button(master=self.frames["Shutdown"], title="Shutdown and Close",
+                           slot=self.controller.shutdown_by_button)
 
         # SettingsTable buttons
         sub_layout = QtWidgets.QWidget()
