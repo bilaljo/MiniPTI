@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 if platform.system() == "Windows":
+    import clr
     import System.IO.Ports
 else:
     import signal

@@ -27,8 +27,8 @@ _Samples = deque[int]
 
 @dataclass
 class Packages:
-    DAQ = re.compile(b"00[0-9a-fA-F]{4108}", flags=re.MULTILINE)
-    BMS = re.compile(b"01[0-9a-fA-F]{41}", flags=re.MULTILINE)
+    DAQ = re.compile("00[0-9a-fA-F]{4108}", flags=re.MULTILINE)
+    BMS = re.compile("01[0-9a-fA-F]{41}", flags=re.MULTILINE)
 
 
 class BMS(enum.IntEnum):
@@ -111,10 +111,10 @@ class Driver(hardware.serial.Driver):
         self._synchronize = True
         self.config: MotherBoardConfig | None = None
         self.shutdown = threading.Event()
-        self._bypass = False
         self.config_path = "hardware/configs/motherboard.conf"
         self.config_parser = CommentedConfigParser()
         self.automatic_switch = threading.Event()
+        self.bypass = False
         self.load_config()
 
     @property
@@ -311,12 +311,12 @@ class Driver(hardware.serial.Driver):
         self._package_data.DAQ.ac_coupled.put(ac_package)
 
     def set_valve(self) -> None:
-        if self._bypass:
+        if self.bypass:
             self.write("SBP0000")
-            self._bypass = False
+            self.bypass = False
         else:
             self.write("SBP0001")
-            self._bypass = True
+            self.bypass = True
 
     def _process_data(self) -> None:
         self._reset()
@@ -330,8 +330,8 @@ class Driver(hardware.serial.Driver):
         Periodically bypass a valve. The duty cycle defines how much time for each part (bypassed or not) is spent.
         """
         def switch() -> None:
-            while self.automatic_switch.set():
-                if self._bypass:
+            while self.connected and self.automatic_switch.set():
+                if self.bypass:
                     self.set_valve()
                     time.sleep(self.config.valve.period * self.config.valve.duty_cycle / 100)
                 else:

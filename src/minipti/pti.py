@@ -226,8 +226,8 @@ class Decimation:
         """
         if self.save_raw_data:
             self.save()
-        self.dc_coupled *= Decimation.REF_VOLTAGE / Decimation.DC_RESOLUTION
-        self.ac_coupled *= Decimation.REF_VOLTAGE / (Decimation.AMPLIFICATION * Decimation.AC_RESOLUTION)
+        self.dc_coupled = self.dc_coupled * Decimation.REF_VOLTAGE / Decimation.DC_RESOLUTION
+        self.ac_coupled = self.ac_coupled * Decimation.REF_VOLTAGE / (Decimation.AMPLIFICATION * Decimation.AC_RESOLUTION)
 
     def save(self) -> None:
         with h5py.File(f"{self.destination_folder}/raw_data.h5", "a") as h5f:

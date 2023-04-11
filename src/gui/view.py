@@ -163,10 +163,10 @@ class _CreateButton:
     def __init__(self):
         self.buttons = {}  # type: dict[str, QtWidgets.QPushButton]
 
-    def create_button(self, master, title, slot) -> None:
-        self.buttons[title] = QtWidgets.QPushButton(master, text=title)
-        self.buttons[title].clicked.connect(slot)
-        master.layout().addWidget(self.buttons[title])
+    def create_button(self, master, title, slot, master_title="") -> None:
+        self.buttons[master_title + title] = QtWidgets.QPushButton(master, text=title)
+        self.buttons[master_title + title].clicked.connect(slot)
+        master.layout().addWidget(self.buttons[master_title + title])
 
     @abc.abstractmethod
     def _init_buttons(self) -> None:
@@ -333,18 +333,30 @@ class Home(QtWidgets.QTabWidget, _Frames, _CreateButton):
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
         self.frames["Measurement"].layout().addWidget(sub_layout)
         self.create_button(master=sub_layout, title="Run Measurement", slot=self.controller.run_measurement)
-        self.create_button(master=sub_layout, title="Clean Air", slot=self.controller.run_measurement)
+        self.create_button(master=sub_layout, title="Clean Air", slot=self.controller.update_bypass)
 
         sub_layout = QtWidgets.QWidget(parent=self.frames["Pump Laser"])
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
-        self.create_button(master=sub_layout, title="Enable Laser", slot=self.controller.enable_pump_laser)
-        self.create_button(master=sub_layout, title="Enable Tec", slot=self.controller.find_devices)
+        self.create_button(
+            master=sub_layout, title="Enable Laser", slot=self.controller.enable_pump_laser,
+            master_title="Pump Laser "
+        )
+        self.create_button(
+            master=sub_layout, title="Enable Tec", slot=self.controller.enable_tec_pump_laser,
+            master_title="Pump Laser "
+        )
         self.frames["Pump Laser"].layout().addWidget(sub_layout)
 
         sub_layout = QtWidgets.QWidget(parent=self.frames["Probe Laser"])
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
-        self.create_button(master=sub_layout, title="Enable Laser", slot=self.controller.enable_pump_laser)
-        self.create_button(master=sub_layout, title="Enable Tec", slot=self.controller.find_devices)
+        self.create_button(
+            master=sub_layout, title="Enable Laser", slot=self.controller.enable_probe_laser,
+            master_title="Probe Laser "
+        )
+        self.create_button(
+            master=sub_layout, title="Enable Tec", slot=self.controller.enable_tec_probe_laser,
+            master_title="Probe Laser "
+        )
         self.frames["Probe Laser"].layout().addWidget(sub_layout)
 
     def logging_update(self, log_queue: collections.deque) -> None:
@@ -368,8 +380,33 @@ class Home(QtWidgets.QTabWidget, _Frames, _CreateButton):
     def _duty_cycle_changed(self) -> None:
         self.controller.update_valve_duty_cycle(self.duty_cycle_field.text())
 
+    @QtCore.pyqtSlot(bool)
+    def update_clean_air(self, state: bool) -> None:
+        toggle_button(state, self.buttons["Clean Air"])
+
+    @QtCore.pyqtSlot(bool)
+    def update_enable_pump_laser(self, state: bool):
+        toggle_button(state, self.buttons["Pump Laser Enable Laser"])
+
+    @QtCore.pyqtSlot(bool)
+    def update_enable_probe_laser(self, state: bool):
+        toggle_button(state, self.buttons["Probe Laser Enable Laser"])
+
+    @QtCore.pyqtSlot(bool)
+    def update_enable_pump_laser_tec(self, state: bool):
+        toggle_button(state, self.buttons["Pump Laser Enable Tec"])
+
+    @QtCore.pyqtSlot(bool)
+    def update_enable_probe_laser_tec(self, state: bool):
+        toggle_button(state, self.buttons["Probe Laser Enable Tec"])
+
     def _init_signals(self) -> None:
         model.signals.valve_change.connect(self.update_valve)
+        model.signals.bypass.connect(self.update_clean_air)
+        model.laser_signals.pump_laser_enabled.connect(self.update_enable_pump_laser)
+        model.laser_signals.probe_laser_enabled.connect(self.update_enable_probe_laser)
+        model.tec_signals.pump_laser.enabled.connect(self.update_enable_pump_laser_tec)
+        model.tec_signals.probe_laser.enabled.connect(self.update_enable_probe_laser_tec)
 
 
 class Slider(QtWidgets.QWidget):
@@ -431,10 +468,10 @@ class PumpLaser(QtWidgets.QWidget, _Frames, _CreateButton):
         self.controller.fire_configuration_change()
 
     def _init_signals(self) -> None:
-        model.signals.laser_voltage.connect(self._update_voltage_slider)
-        model.signals.current_dac.connect(self._update_current_dac)
-        model.signals.matrix_dac.connect(self._update_dac_matrix)
-        model.signals.laser_data_display.connect(self._update_current_voltage)
+        model.laser_signals.laser_voltage.connect(self._update_voltage_slider)
+        model.laser_signals.current_dac.connect(self._update_current_dac)
+        model.laser_signals.matrix_dac.connect(self._update_dac_matrix)
+        model.laser_signals.data_display.connect(self._update_current_voltage)
 
     @QtCore.pyqtSlot()
     def _update_current_voltage(self, value: hardware.laser.Data) -> None:
@@ -534,11 +571,11 @@ class ProbeLaser(QtWidgets.QWidget, _CreateButton, _Frames):
         self.controller.fire_configuration_change()
 
     def _init_signals(self) -> None:
-        model.signals.current_probe_laser.connect(self._update_current_slider)
-        model.signals.photo_gain.connect(self._update_photo_gain)
-        model.signals.probe_laser_mode.connect(self._update_mode)
-        model.signals.laser_data_display.connect(self._update_current)
-        model.signals.max_current_probe_laser.connect(self._update_max_current)
+        model.laser_signals.current_probe_laser.connect(self._update_current_slider)
+        model.laser_signals.photo_gain.connect(self._update_photo_gain)
+        model.laser_signals.probe_laser_mode.connect(self._update_mode)
+        model.laser_signals.data_display.connect(self._update_current)
+        model.laser_signals.max_current_probe_laser.connect(self._update_max_current)
 
     @QtCore.pyqtSlot(hardware.laser.Data)
     def _update_current(self, value: hardware.laser.Data) -> None:
@@ -642,6 +679,7 @@ class Tec(QtWidgets.QWidget, _Frames, _CreateButton):
         model.tec_signals[self.laser].reference_resistor.connect(
             Tec._update_text_field(self.text_fields.reference_resistor))
         model.tec_signals[self.laser].max_power.connect(Tec._update_text_field(self.text_fields.max_power))
+        model.tec_signals[self.laser].mode.connect(self.update_mode)
 
     def _init_frames(self) -> None:
         self.create_frame(master=self, title="PID Configuration", x_position=0, y_position=0)
@@ -660,6 +698,15 @@ class Tec(QtWidgets.QWidget, _Frames, _CreateButton):
     @QtCore.pyqtSlot(hardware.tec.Data)
     def update_temperature(self, value: hardware.tec.Data) -> None:
         self.temperature_display.setText(str(value.actual_temperature[self.laser]) + " °C")
+
+    @QtCore.pyqtSlot(model.TecMode)
+    def update_mode(self, mode: model.TecMode):
+        if mode == model.TecMode.COOLING:
+            toggle_button(False, self.buttons["Heat"])
+            toggle_button(True, self.buttons["Cool"])
+        else:
+            toggle_button(True, self.buttons["Heat"])
+            toggle_button(False, self.buttons["Cool"])
 
     def _init_text_fields(self) -> None:
         self.frames["PID Configuration"].layout().addWidget(QtWidgets.QLabel("P Value"), 0, 0)
@@ -910,7 +957,7 @@ class PumpLaserCurrent(_Plotting):
         self.curves = self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE))
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="Current [mA]")
-        model.signals.laser_data.connect(self.update_data_live)
+        model.laser_signals.data.connect(self.update_data_live)
 
     def update_data(self, data: pd.DataFrame) -> None:
         raise NotImplementedError
@@ -925,7 +972,7 @@ class PumpLaserVoltage(_Plotting):
         self.curves = self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE))
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="Voltage [V]")
-        model.signals.laser_data.connect(self.update_data_live)
+        model.laser_signals.data.connect(self.update_data_live)
 
     def update_data(self, data: pd.DataFrame) -> None:
         raise NotImplementedError("There is no need to plot laser data offline")
@@ -940,7 +987,7 @@ class ProbeLaserCurrent(_Plotting):
         self.curves = self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE))
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="Current [mA]")
-        model.signals.laser_data.connect(self.update_data_live)
+        model.laser_signals.data.connect(self.update_data_live)
 
     def update_data(self, data: pd.DataFrame) -> None:
         raise NotImplementedError("There is no need to plot laser data offline")

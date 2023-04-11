@@ -12,6 +12,12 @@ import json_parser
 
 
 @dataclass
+class Mode:
+    heating: bool
+    cooling: bool
+
+
+@dataclass
 class _PID:
     P_parameter: float
     I_parameter: typing.Annotated[list[float], 2]
@@ -28,6 +34,7 @@ class _SystemParameter:
 
 @dataclass
 class Tec:
+    mode: Mode
     PID: _PID
     system_parameter: _SystemParameter
 
@@ -88,6 +95,8 @@ class Driver(hardware.serial.Driver):
         self.used_laser: str = laser
         self.config_path: str = "hardware/configs/tec.json"
         self.temperatur_element: TemperatureElement = TemperatureElement.NTC
+        self._tec_probe_laser_enabled: bool = False
+        self._tec_pump_laser_enabled: bool = False
         self.load_config()
 
     def __getitem__(self, item: str):
@@ -164,14 +173,41 @@ class Driver(hardware.serial.Driver):
         channel = 1 if laser == "Pump Laser" else 2
         self.write(f"SO{channel}" + max_power_value_hex)
 
-    def set_mode(self, laser: str, mode: str) -> None:
+    def set_mode(self, laser: str) -> None:
         channel = 1 if laser == "Pump Laser" else 2
-        mode = 2 if mode == "heating" else 1
+        if self[laser].mode.cooling:
+            mode = 1
+        else:
+            mode = 2
         self.write(f"SL{channel}000{mode}")
 
-    def disable(self, laser: str) -> None:
-        channel = 1 if laser == "Pump Laser" else 2
-        self.write(f"SL{channel}0000")
+    @property
+    def pump_laser_enabled(self) -> bool:
+        return self._tec_pump_laser_enabled
+
+    @pump_laser_enabled.setter
+    def pump_laser_enabled(self, state: bool) -> None:
+        if state:
+            self.set_mode("Probe Laser")
+            self.write(f"SL10001")
+            self._tec_pump_laser_enabled = True
+        else:
+            self.write(f"SL10000")
+            self._tec_pump_laser_enabled = False
+
+    @property
+    def probe_laser_enabled(self) -> bool:
+        return self._tec_probe_laser_enabled
+
+    @probe_laser_enabled.setter
+    def probe_laser_enabled(self, state: bool) -> None:
+        if state:
+            self.set_mode("Probe Laser")
+            self.write(f"SL20001")
+            self._tec_probe_laser_enabled = True
+        else:
+            self.write(f"SL20000")
+            self._tec_probe_laser_enabled = False
 
     def _process_data(self) -> None:
         while self.connected.is_set():

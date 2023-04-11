@@ -37,34 +37,44 @@ class Home:
         self.main_app = main_app
         self.settings_model = model.SettingsTable()
         self.calculation_model = model.Calculation()
-        self.pump_laser_enabled = False
-        self.probe_laser_enabled = False
+        self.mother_board_model = model.Motherboard()
+        self.pump_laser = model.PumpLaser()
+        self.probe_laser = model.ProbeLaser()
+        self.pump_laser_tec = model.Tec("Pump Laser")
+        self.probe_laser_tec = model.Tec("Probe Laser")
         self.daq_enabled = False
         self.last_file_path = os.getcwd()
         self.settings_model.setup_settings_file()
-        self.clean_air = False
-        self.motherboard = model.Motherboard()
         self.find_devices()
 
-    def valve_change(self) -> None:
-        if not self.clean_air:
-            view.toggle_button(True, self.view.buttons["Clean Air"])
-            self.clean_air = True
-        else:
-            view.toggle_button(False, self.view.buttons["Clean Air"])
-            self.clean_air = False
+    def update_bypass(self) -> None:
+        self.mother_board_model.bypass = not self.mother_board_model.bypass
 
     def update_valve_period(self, period: str) -> None:
-        self.motherboard.driver.config.valve.period = _string_to_int(period)
+        period = _string_to_int(period)
+        try:
+            self.mother_board_model.valve_period = period
+        except ValueError as error:
+            info_text = "Value must be a positive integer"
+            logging.error(str(error))
+            logging.info(info_text)
+            QtWidgets.QMessageBox.critical(self.view, "Valve Error", f"{str(error)}. {info_text}")
 
     def update_valve_duty_cycle(self, duty_cycle: str) -> None:
-        self.motherboard.driver.config.valve.duty_cycle = duty_cycle
+        duty_cycle = _string_to_int(duty_cycle)
+        try:
+            self.mother_board_model.valve_duty_cycle = duty_cycle
+        except ValueError as error:
+            info_text = "Value must be an integer between 0 and 100"
+            logging.error(str(error))
+            logging.info(info_text)
+            QtWidgets.QMessageBox.critical(self.view, "Valve Error", f"{str(error)}. {info_text}")
 
     def update_automatic_valve_switch(self, automatic_valve_switch: bool) -> None:
-        self.motherboard.driver.config.valve.automatic_switch = automatic_valve_switch
+        self.mother_board_model.automatic_valve_switch = automatic_valve_switch
 
     def fire_motherboard_configuration_change(self) -> None:
-        self.motherboard.fire_configuration_change()
+        self.mother_board_model.fire_configuration_change()
 
     def set_destination_folder(self) -> None:
         destination_folder = QtWidgets.QFileDialog.getExistingDirectory(
@@ -100,8 +110,12 @@ class Home:
 
     def load_motherboard_configuration(self) -> None:
         if file_path := self.get_file_path("Valve", "CONF File (*.conf);; All Files (*)"):
-            self.motherboard.driver.config_path = file_path[0]
-            self.motherboard.load_configuration()
+            try:
+                self.mother_board_model.config_path = file_path[0]
+            except ValueError as error:
+                logging.error(error)
+            else:
+                self.mother_board_model.load_configuration()
 
     def calculate_decimation(self) -> None:
         decimation_file_path = self.get_file_path("Decimation", "HDF5 File (*.hdf5);; All Files (*)")
@@ -190,7 +204,7 @@ class Home:
 
     def await_shutdown(self):
         def shutdown_low_energy() -> None:
-            self.motherboard.shutdown_event.wait()
+            self.mother_board_model.shutdown_event.wait()
             self.shutdown()
 
         threading.Thread(target=shutdown_low_energy).start()
@@ -213,24 +227,16 @@ class Home:
             logging.error("Could not connect with Laser Driver")
 
     def enable_probe_laser(self) -> None:
-        if not self.probe_laser_enabled:
-            model.Laser.driver.enable_probe_laser()
-            view.toggle_button(True, self.view.buttons["Enable Probe Laser"])
-            self.probe_laser_enabled = True
-        else:
-            view.toggle_button(False, self.view.buttons["Enable Probe Laser"])
-            model.Laser.driver.disable_probe_laser()
-            self.probe_laser_enabled = False
+        self.probe_laser.enabled = not self.probe_laser.enabled
 
     def enable_pump_laser(self) -> None:
-        if not self.pump_laser_enabled:
-            model.Laser.driver.enable_pump_laser()
-            view.toggle_button(True, self.view.buttons["Enable Pump Laser"])
-            self.pump_laser_enabled = True
-        else:
-            view.toggle_button(False, self.view.buttons["Enable Pump Laser"])
-            model.Laser.driver.disable_pump_laser()
-            self.pump_laser_enabled = False
+        self.pump_laser.enabled = not self.pump_laser.enabled
+
+    def enable_tec_pump_laser(self) -> None:
+        self.pump_laser_tec.enabled = not self.pump_laser_tec.enabled
+
+    def enable_tec_probe_laser(self) -> None:
+        self.probe_laser_tec.enabled = not self.probe_laser_tec.enabled
 
     def run_measurement(self) -> None:
         if not self.daq_enabled:
@@ -241,6 +247,9 @@ class Home:
         else:
             view.toggle_button(False, self.view.buttons["Run Measurement"])
             self.daq_enabled = False
+
+    def set_clean_air(self, bypass: bool) -> None:
+        self.mother_board_model.bypass = bypass
 
 
 def _string_to_float(string_value: str) -> float:
@@ -400,28 +409,10 @@ class Tec:
         self.tec.max_power = _string_to_float(max_power)
 
     def set_heating(self) -> None:
-        if not self.heating:
-            self.tec.driver.set_mode(self.laser, mode="heating")
-            view.toggle_button(True, self.view.buttons["Heat"])
-            view.toggle_button(False, self.view.buttons["Cool"])
-            self.heating = True
-            self.cooling = False
-        else:
-            view.toggle_button(False, self.view.buttons["Heat"])
-            self.tec.driver.disable(self.laser)
-            self.heating = False
+        self.tec.heating = True
 
     def set_cooling(self) -> None:
-        if not self.cooling:
-            self.tec.driver.set_mode(self.laser, mode="cooling")
-            view.toggle_button(False, self.view.buttons["Heat"])
-            view.toggle_button(True, self.view.buttons["Cool"])
-            self.heating = False
-            self.cooling = True
-        else:
-            view.toggle_button(False, self.view.buttons["Cool"])
-            self.tec.driver.disable(self.laser)
-            self.cooling = False
+        self.tec.cooling = True
 
     def fire_configuration_change(self) -> None:
         self.tec.fire_configuration_change()

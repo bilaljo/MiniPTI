@@ -89,6 +89,8 @@ class Driver(hardware.serial.Driver):
         self.config_path: str = "hardware/configs/laser.json"
         self.probe_laser_initialized: bool = False
         self.pump_laser_initialized: bool = False
+        self._probe_laser_enabled: bool = False
+        self._pump_laser_enabled: bool = False
         self.load_configuration()
 
     def open(self) -> None:
@@ -96,8 +98,8 @@ class Driver(hardware.serial.Driver):
         self.init_pump_laser()
         self.init_probe_laser()
         # If laser was configured as enabled we disable it for safety
-        self.disable_pump_laser()
-        self.disable_probe_laser()
+        self._disable_pump_laser()
+        self._disable_probe_laser()
 
     def load_configuration(self) -> None:
         with open(self.config_path) as config:
@@ -210,7 +212,19 @@ class Driver(hardware.serial.Driver):
         self.write("CLI0001")
         self.probe_laser_initialized = True
 
-    def enable_pump_laser(self) -> None:
+    @property
+    def pump_laser_enabled(self) -> bool:
+        return self._pump_laser_enabled
+
+    @pump_laser_enabled.setter
+    def pump_laser_enabled(self, state: bool):
+        self._pump_laser_enabled = state
+        if state:
+            self._enable_pump_laser()
+        else:
+            self._disable_pump_laser()
+
+    def _enable_pump_laser(self) -> None:
         if self.pump_laser_initialized:
             self.write("SHE0001")
         else:
@@ -218,7 +232,19 @@ class Driver(hardware.serial.Driver):
             self.pump_laser_initialized = True
             self.write("SHE0001")
 
-    def enable_probe_laser(self):
+    @property
+    def probe_laser_enabled(self) -> bool:
+        return self._probe_laser_enabled
+
+    @probe_laser_enabled.setter
+    def probe_laser_enabled(self, state: bool):
+        self._probe_laser_enabled = state
+        if state:
+            self._enable_probe_laser()
+        else:
+            self._disable_probe_laser()
+
+    def _enable_probe_laser(self):
         if self.probe_laser_initialized:
             self.write("SLE0001")
         else:
@@ -226,10 +252,10 @@ class Driver(hardware.serial.Driver):
             self.probe_laser_initialized = True
             self.write("SLE0001")
 
-    def disable_pump_laser(self) -> None:
+    def _disable_pump_laser(self) -> None:
         self.write("SHE0000")
 
-    def disable_probe_laser(self) -> None:
+    def _disable_probe_laser(self) -> None:
         self.write("SLE0000")
 
     def set_photo_gain(self) -> None:
