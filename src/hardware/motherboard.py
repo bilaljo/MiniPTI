@@ -22,10 +22,10 @@ class DAQData:
     dc_coupled: queue.Queue | deque | Sequence
 
 
-@dataclass
+@dataclass(frozen=True)
 class Packages:
-    DAQ = re.compile("00[0-9a-fA-F]{4108}", flags=re.MULTILINE)
-    BMS = re.compile("01[0-9a-fA-F]{41}", flags=re.MULTILINE)
+    DAQ: re.Pattern = re.compile("00[0-9a-fA-F]{4108}", flags=re.MULTILINE)
+    BMS: re.Pattern = re.compile("01[0-9a-fA-F]{41}", flags=re.MULTILINE)
 
 
 _Samples = deque[int]
@@ -61,7 +61,6 @@ class BMSData:
 
 @dataclass
 class PackageData:
-    _QUEUE_SIZE = 15
     DAQ: DAQData
     BMS: queue.Queue
 
@@ -105,6 +104,7 @@ class Driver(hardware.serial.Driver):
                     queue.Queue(maxsize=Driver._QUEUE_SIZE)),
             queue.Queue(maxsize=Driver._QUEUE_SIZE)
         )
+        self._buffer = ""
         self._encoded_buffer = DAQData(deque(), [deque(), deque(), deque()], [deque(), deque(), deque()])
         self._sample_numbers = deque(maxlen=2)
         self._synchronize = True
@@ -175,7 +175,7 @@ class Driver(hardware.serial.Driver):
         ac: list[_Samples] = [deque(), deque(), deque()]
         dc: list[_Samples] = [deque(), deque(), deque(), deque()]
         for i in range(0, len(raw_data), Driver._WORD_SIZE):
-            ref.append(int(raw_data[i:i + 4], 16))
+            ref.append(int(raw_data[i:i + 4], base=16))
             # AC signed
             ac_value = Driver._binary_to_2_complement(int(raw_data[i + 4:i + 8], base=16), 16)
             ac[0].append(ac_value)
@@ -197,7 +197,7 @@ class Driver(hardware.serial.Driver):
         self._encoded_buffer.ac_coupled = [deque(), deque(), deque()]
         self._sample_numbers = deque(maxlen=2)
 
-    def _encode_data(self) -> None:
+    def encode_data(self) -> None:
         """
         The data is encoded according to the following protocol:
             - The first two bytes describes the send command
@@ -205,12 +205,15 @@ class Driver(hardware.serial.Driver):
             - Byte 10 to 32 contain the data as period sequence of blocks in hex decimal
             - The last 4 bytes represent a CRC checksum in hex decimal
         """
-        split_data = self.received_data.get(block=True).split("\n")
+        full_data = self._buffer + self.received_data.get(block=True)
+        split_data = full_data.split("\n")
         for data in split_data:
-            if Packages.DAQ.match(data):
+            if Packages.DAQ.fullmatch(data):
                 self._encode_daq(data)
-            elif Packages.BMS.match(data):
+            elif Packages.BMS.fullmatch(data):
                 self._encode_bms(data)
+            else:
+                self._buffer = split_data[-1]
 
     def _encode_daq(self, data: str) -> None:
         if not Driver._crc_check(data, "DAQ"):
@@ -288,8 +291,10 @@ class Driver(hardware.serial.Driver):
         """
         Creates a package of samples that represents approximately 1 s data. It contains 8000 samples.
         """
-        self._package_data.DAQ.ref_signal.put([self._encoded_buffer.ref_signal.popleft()
-                                               for _ in range(Driver.NUMBER_OF_SAMPLES)])
+        self._package_data.DAQ.ref_signal.put(
+            [self._encoded_buffer.ref_signal.popleft()
+             for _ in range(Driver.NUMBER_OF_SAMPLES)]
+        )
         dc_package = [[], [], []]
         ac_package = [[], [], []]
         for _ in itertools.repeat(None, Driver.NUMBER_OF_SAMPLES):
@@ -310,7 +315,7 @@ class Driver(hardware.serial.Driver):
     def _process_data(self) -> None:
         self._reset()
         while self.connected.is_set():
-            self._encode_data()
+            self.encode_data()
             if len(self._encoded_buffer.ref_signal) >= Driver.NUMBER_OF_SAMPLES:
                 self._build_sample_package()
 

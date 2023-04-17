@@ -199,7 +199,7 @@ class Driver:
             self.received_data.put(os.read(self.file_descriptor, buffer_size).decode())
 
     @abc.abstractmethod
-    def _encode_data(self) -> None:
+    def encode_data(self) -> None:
         ...
 
     @abc.abstractmethod

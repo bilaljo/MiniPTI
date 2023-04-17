@@ -211,9 +211,9 @@ class Driver(hardware.serial.Driver):
 
     def _process_data(self) -> None:
         while self.connected.is_set():
-            self._encode_data()
+            self.encode_data()
 
-    def _encode_data(self) -> None:
+    def encode_data(self) -> None:
         received_data = self.received_data.get(block=True)  # type: str
         for received in received_data.split(Driver.TERMINATION_SYMBOL):
             if not received:

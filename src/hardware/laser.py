@@ -113,7 +113,7 @@ class Driver(hardware.serial.Driver):
                       "Probe Laser": dataclasses.asdict(self.probe_laser)}
             configuration.write(json_parser.to_json(lasers) + "\n")
 
-    def _encode_data(self) -> None:
+    def encode_data(self) -> None:
         received_data = self.received_data.get(block=True)  # type: str
         for received in received_data.split(Driver.TERMINATION_SYMBOL):
             if not received:
@@ -143,7 +143,7 @@ class Driver(hardware.serial.Driver):
 
     def _process_data(self) -> None:
         while self.connected.is_set():
-            self._encode_data()
+            self.encode_data()
 
     @property
     def device_id(self) -> bytes:
@@ -217,9 +217,9 @@ class Driver(hardware.serial.Driver):
         return self._pump_laser_enabled
 
     @pump_laser_enabled.setter
-    def pump_laser_enabled(self, state: bool):
-        self._pump_laser_enabled = state
-        if state:
+    def pump_laser_enabled(self, enable: bool):
+        self._pump_laser_enabled = enable
+        if enable:
             self._enable_pump_laser()
         else:
             self._disable_pump_laser()
