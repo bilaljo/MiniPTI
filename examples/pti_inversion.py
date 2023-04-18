@@ -11,7 +11,7 @@ if __name__ == "__main__":
     inversion.load_response_phase()
 
     # Using the wrapper for pti inversion
-    inversion(mode="offline")
+    inversion()
     print(inversion)
 
     # Using the API

@@ -1,3 +1,2 @@
-from minipti import hardware
-from minipti import gui
-from minipti import algorithm
+from . import interferometry
+from . import pti

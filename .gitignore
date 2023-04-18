@@ -1,5 +1,6 @@
+.idea
 notebooks/.ipynb_checkpoints
-**/data
-src/pti.log
-**/__pycache__
-**/.idea
+notebooks/__pycache__
+minipti/__pycache__
+tests/__pycache__
+minipti/.idea

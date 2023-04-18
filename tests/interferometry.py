@@ -12,13 +12,13 @@ class TestInterferometer(unittest.TestCase):
 
     def setUp(self):
         unittest.TestCase.__init__(self)
-        self.characterisation = minipti.algorithm.interferometry.Characterization()
+        self.characterisation = minipti.interferometry.Characterization()
         self.dc_data = None
-        self.interferometry = minipti.algorithm.interferometry.Interferometer()
+        self.interferometry = minipti.interferometry.Interferometer()
         settings = "../examples/sample_configs/settings.csv"
-        self.interferometry = minipti.algorithm.interferometry.Interferometer(settings_path=settings)
+        self.interferometry = minipti.interferometry.Interferometer(settings_path=settings)
         self.interferometry.init_settings()
-        self.characterisation = minipti.algorithm.interferometry.Characterization(interferometry=self.interferometry)
+        self.characterisation = minipti.interferometry.Characterization(interferometry=self.interferometry)
         self.interferometry.decimation_filepath = "../examples/sample_data/Decimation_Comercial.csv"
         data = pd.read_csv("../examples/sample_data/Decimation_Comercial.csv")
         self.dc_data = data[[f"DC CH{i}" for i in range(1, 4)]].to_numpy().T

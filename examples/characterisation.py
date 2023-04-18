@@ -1,19 +1,19 @@
 import pandas as pd
 
 if __name__ == "__main__":
-    interferometer = src.minipti.interferometry.Interferometer(settings_path="sample_configs/settings.csv")
+    interferometer = minipti.algorithm.interferometry.Interferometer(settings_path="sample_configs/settings.csv")
     interferometer.decimation_filepath = "sample_data/Decimation_Comercial.csv"
     interferometer.init_settings()
 
     # Using the default settings values
-    characterization = src.minipti.interferometry.Characterization(interferometry=interferometer)
-    characterization(mode="offline")
+    characterization = minipti.algorithm.interferometry.Characterization(interferometry=interferometer)
+    characterization()
     print(characterization)
 
     # Without default values
     characterization = src.minipti.interferometry.Characterization(interferometry=interferometer)
     characterization.use_settings = False
-    characterization(mode="offline")
+    characterization()
     print(characterization)
 
     dc_signals = pd.read_csv("sample_data/Decimation_Comercial.csv")
