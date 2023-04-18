@@ -5,7 +5,7 @@ scipy
 PyQt5
 pyqtgraph
 dacite
-pyserial; platform_system  != "Windows"
+pyserial
 pythonnet; platform_system  == "Windows"
 h5py
 nptyping[complete]

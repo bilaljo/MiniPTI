@@ -1,6 +1,7 @@
 import enum
 import itertools
 import logging
+import os
 import queue
 import re
 import threading
@@ -12,7 +13,7 @@ from typing import Sequence, Annotated
 from fastcrc import crc16
 from commentedconfigparser import CommentedConfigParser
 
-import hardware.serial
+from minipti import hardware
 
 
 @dataclass
@@ -77,7 +78,7 @@ class MotherBoardConfig:
     valve: Valve
 
 
-class Driver(hardware.serial.Driver):
+class Driver(hardware.serial_device.Driver):
     """
     This class provides an interface for receiving data from the serial port of a USB connected DAQ system.
     The data is accordingly to a defined protocol encoded and build into a packages of samples.
@@ -96,7 +97,7 @@ class Driver(hardware.serial.Driver):
     NUMBER_OF_SAMPLES = 8000
 
     def __init__(self):
-        hardware.serial.Driver.__init__(self)
+        hardware.serial_device.Driver.__init__(self)
         self.connected = threading.Event()
         self._package_data = PackageData(
             DAQData(queue.Queue(maxsize=Driver._QUEUE_SIZE),
@@ -107,10 +108,10 @@ class Driver(hardware.serial.Driver):
         self._buffer = ""
         self._encoded_buffer = DAQData(deque(), [deque(), deque(), deque()], [deque(), deque(), deque()])
         self._sample_numbers = deque(maxlen=2)
-        self._synchronize = True
+        self._synchronize = False
         self.config: MotherBoardConfig | None = None
         self.shutdown = threading.Event()
-        self.config_path = "hardware/configs/motherboard.conf"
+        self.config_path = f"{os.path.dirname(__file__)}/configs/motherboard.conf"
         self.config_parser = CommentedConfigParser()
         self.automatic_switch = threading.Event()
         self.bypass = False
@@ -198,6 +199,17 @@ class Driver(hardware.serial.Driver):
         self._sample_numbers = deque(maxlen=2)
 
     def encode_data(self) -> None:
+        split_data = (self._buffer + self.received_data.get(block=True)).split("\n")
+        for data in split_data:
+            if Packages.DAQ.fullmatch(data):
+                self._encode_daq(data)
+            elif Packages.BMS.fullmatch(data):
+                self._encode_bms(data)
+        else:
+            # Remaining data without a termination symbol must be buffered
+            self._buffer = split_data[-1]
+
+    def _encode_daq(self, data: str) -> None:
         """
         The data is encoded according to the following protocol:
             - The first two bytes describes the send command
@@ -205,17 +217,6 @@ class Driver(hardware.serial.Driver):
             - Byte 10 to 32 contain the data as period sequence of blocks in hex decimal
             - The last 4 bytes represent a CRC checksum in hex decimal
         """
-        full_data = self._buffer + self.received_data.get(block=True)
-        split_data = full_data.split("\n")
-        for data in split_data:
-            if Packages.DAQ.fullmatch(data):
-                self._encode_daq(data)
-            elif Packages.BMS.fullmatch(data):
-                self._encode_bms(data)
-            else:
-                self._buffer = split_data[-1]
-
-    def _encode_daq(self, data: str) -> None:
         if not Driver._crc_check(data, "DAQ"):
             self._reset()  # The data is not trustful, and it should be waited for new
             return
@@ -262,8 +263,8 @@ class Driver(hardware.serial.Driver):
         crc_calculated = crc16.arc(data[:-Driver._CRC_START_INDEX].encode())
         crc_received = int(data[-Driver._CRC_START_INDEX:], base=16)
         if crc_calculated != crc_received:  # Corrupted data
-            logging.error(f"CRC value of {source} isn't equal to transmitted. Got {crc_received} "
-                          f"instead of {crc_calculated}.")
+            logging.error(f"CRC value of {source} isn't equal to transmitted. Got {crc_received:04X} "
+                          f"instead of {crc_calculated:04X}.")
             return False
         return True
 
@@ -287,7 +288,7 @@ class Driver(hardware.serial.Driver):
             return
         self._synchronize = False
 
-    def _build_sample_package(self) -> None:
+    def build_sample_package(self) -> None:
         """
         Creates a package of samples that represents approximately 1 s data. It contains 8000 samples.
         """
@@ -317,7 +318,7 @@ class Driver(hardware.serial.Driver):
         while self.connected.is_set():
             self.encode_data()
             if len(self._encoded_buffer.ref_signal) >= Driver.NUMBER_OF_SAMPLES:
-                self._build_sample_package()
+                self.build_sample_package()
 
     def automatic_valve_change(self) -> None:
         """

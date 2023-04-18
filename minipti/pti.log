@@ -1,0 +1,28 @@
+ERROR 2023-04-17 20:07:42,201: Could not find Motherboard
+ERROR 2023-04-17 20:07:42,327: Could not find Laser Driver
+ERROR 2023-04-17 20:07:42,451: Could not find TEC Driver
+ERROR 2023-04-17 20:07:58,237: Could not find Motherboard
+ERROR 2023-04-17 20:07:58,360: Could not find Laser Driver
+ERROR 2023-04-17 20:07:58,484: Could not find TEC Driver
+INFO 2023-04-17 20:07:58,573: Started Program
+INFO 2023-04-17 20:08:07,266: Program closed
+ERROR 2023-04-17 20:12:54,509: Could not find Motherboard
+ERROR 2023-04-17 20:12:54,634: Could not find Laser Driver
+ERROR 2023-04-17 20:12:54,757: Could not find TEC Driver
+INFO 2023-04-17 20:12:54,830: Started Program
+INFO 2023-04-17 20:13:01,937: Program closed
+ERROR 2023-04-18 08:47:50,017: Could not find Motherboard
+ERROR 2023-04-18 08:47:50,144: Could not find Laser Driver
+ERROR 2023-04-18 08:47:50,274: Could not find TEC Driver
+INFO 2023-04-18 08:47:50,464: Started Program
+INFO 2023-04-18 08:48:01,492: Program closed
+ERROR 2023-04-18 08:48:08,784: Could not find Motherboard
+ERROR 2023-04-18 08:48:08,910: Could not find Laser Driver
+ERROR 2023-04-18 08:48:09,057: Could not find TEC Driver
+INFO 2023-04-18 08:48:09,127: Started Program
+INFO 2023-04-18 08:48:25,166: Program closed
+ERROR 2023-04-18 09:05:50,509: Could not find Motherboard
+ERROR 2023-04-18 09:05:50,635: Could not find Laser Driver
+ERROR 2023-04-18 09:05:50,760: Could not find TEC Driver
+INFO 2023-04-18 09:05:50,875: Started Program
+INFO 2023-04-18 09:05:55,339: Program closed
