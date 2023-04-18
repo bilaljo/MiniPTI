@@ -1,6 +1,6 @@
 import os
 import unittest
-import minipti
+from minipti import hardware
 import logging
 
 
@@ -8,7 +8,7 @@ logging.disable()
 
 
 class DAQTest(unittest.TestCase):
-    driver = minipti.hardware.motherboard.Driver()
+    driver = hardware.motherboard.Driver()
 
     def setUp(self) -> None:
         self.driver._synchronize = False
@@ -132,7 +132,7 @@ class MotherBoardDAQ(DAQTest):
 
 
 class MotherBoardBMS(unittest.TestCase):
-    driver = minipti.hardware.motherboard.Driver()
+    driver = hardware.motherboard.Driver()
 
     with open(f"{os.path.dirname(__file__)}/sample_data/hardware/bms.data", "r") as bms_file:
         received_data_bms = bms_file.read().split("\n")
@@ -184,7 +184,7 @@ class MotherBoardBMS(unittest.TestCase):
 
 
 class MotherBoardDAQBMS(DAQTest):
-    driver = minipti.hardware.motherboard.Driver()
+    driver = hardware.motherboard.Driver()
 
     with open(f"{os.path.dirname(__file__)}/sample_data/hardware/package.data", "r") as package_file:
         received_data_package = package_file.read().split("\n")
