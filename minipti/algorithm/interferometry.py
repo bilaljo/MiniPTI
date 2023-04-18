@@ -139,7 +139,7 @@ class Interferometer:
         if len(intensities) == 3:  # Only one Sample of 3 Values
             self.phase = self._calculate_phase(intensities)[0]
         else:
-            self.phase = np.fromiter(map(self._calculate_phase, intensities), dtype=np.float)
+            self.phase = np.fromiter(map(self._calculate_phase, intensities), dtype=float)
 
 
 class Characterization:
@@ -170,32 +170,13 @@ class Characterization:
         if live:
             raise NotImplementedError("Will be avaiable in version 1.0")
         else:
-                self._calculate_offline()
+            self._calculate_offline()
 
     def __repr__(self):
         class_name = self.__class__.__name__
         representation = f"{class_name}(signals={self.signals}, use_settings={self.use_settings}," \
                          f" step_size={self.step_size}, characterised_data={self.characterised_data})"
         return representation
-
-    @property
-    def signals(self):
-        return self.signals
-
-    @signals.setter
-    def signals(self, signals):
-        self.interferometry.error_handing_intensity(signals)
-        try:
-            if signals.shape[1] == 3:
-                self.signals = signals.T
-            else:
-                self.signals = signals
-        except AttributeError:
-            signals = np.array(signals)
-            if signals.shape[1] == 3:
-                self.signals = signals.T
-            else:
-                self.signals = signals
 
     @property
     def occurred_phases(self):
