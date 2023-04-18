@@ -1,0 +1,23 @@
+name: MiniPTI
+
+on:
+  push:
+    branches: [ "develop" ]
+  pull_request:
+    branches: [ "develop" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    - name: Install Packages
+      run: pip install fastcrc numpy pandas scipy dacite pyserial h5py nptyping[complete] beartype commented-configparser
+    - name: Run Hardware Tests
+      run: python -m unittest tests/hardware.py
+    - name: Run Algorithm Tests
+      run: python -m unittest tests/algorithm.py
