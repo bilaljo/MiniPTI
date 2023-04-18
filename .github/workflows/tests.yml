@@ -1,4 +1,4 @@
-name: MiniPTI
+name: Tests
 
 on:
   push:
