@@ -1,18 +1,24 @@
 # MiniPTI
 
-<p align="center">
+<p style="text-align: center;">
 <img alt="flowchart" src="https://www.fhnw.ch/de/medien/logos/media/fhnw_e_10mm.jpg" class="center">
 </p>
 
 In this library the python implementation of the algorithm from
 [Waveguide based passively demodulated photothermal interferometer for light absorption measurements of trace substances](https://doi.org/10.1364/AO.476868)
-is provided.
+is provided. Additionally, a gui is provided.
 
 ### Installation
 ```bash
 pip install minipti
 ```
 https://pypi.org/project/minipti
+
+## The GUI
+<p style="text-align: center;">
+<img alt="flowchart" src="images/gui_home.png" >
+</p>
+
 
 The library can be split into sub-libraries:
 
@@ -40,7 +46,7 @@ from the mentioned paper.
 
 The picture below shows the basic file structure and the public members of the classes.
 
-<p align="center">
+<p style="text-align: center;">
 <img alt="flowchart" src="https://raw.githubusercontent.com/bilaljo/MiniPTI/0dad7516c4a8105e1fcbecc22dcb905d3a4bee11/images/flowchart.svg" class="center">
 </p>
 
@@ -66,13 +72,6 @@ for i in range(3):
     output_data[f"DC CH{i + 1}"].append("s")
     output_data[f"Lock In Amplitude CH{i + 1}"].append("V")
     output_data[f"Lock In Phase CH{i + 1}"].append("rad")
-with minipti.pti.Decimation(binary_file) as decimation:
-    while decimation.read_data():
-        decimation()
-        for i in range(3):
-            output_data[f"DC CH{i + 1}"].append(decimation.dc_down_sampled[i])
-            output_data[f"Lock In Amplitude CH{i}"].append(decimation.lock_in.amplitude[i])
-            output_data[f"Lock In Phase CH{i}"].append(decimation.lock_in.phase[i])
 pd.DataFrame(output_data).to_csv("Decimation.csv")
 ```
 
@@ -88,7 +87,7 @@ such a file can be found in src/configs/settings.csv. There are also settings fi
 import minipti
 import pandas as pd
 
-interferometer = minipti.interferometry.Interferometer()
+interferometer = minipti.algorithm.interferometry.Interferometer()
 
 interferometer.settings_file_path = "configs/settings.csv"
 interferometer.decimation_filepath = "data/Decimation_Commercial.csv"
@@ -115,12 +114,12 @@ if you use the provided wrappers.
 ```python
 import minipti
 
-interferometer = minipti.interferometry.Interferometer()
+interferometer = minipti.algorithm.interferometry.Interferometer()
 interferometer.settings_file_path = "configs/settings.csv"
 interferometer.decimation_filepath = "data/Decimation_Commercial.csv"
 interferometer.init_settings()
 
-characterization = minipti.interferometry.Characterization()
+characterization = minipti.algorithm.interferometry.Characterization()
 characterization()
 
 characterization.use_settings = False
@@ -133,9 +132,9 @@ characterization()
 import minipti
 import pandas as pd
 
-interferometer = minipti.interferometry.Interferometer()
+interferometer = minipti.algorithm.interferometry.Interferometer()
 dc_signals = pd.read_csv("data/Decimation_Commercial.csv")
-characterization = minipti.interferometry.Characterization()
+characterization = minipti.algorithm.interferometry.Characterization()
 interferometer.settings_path = "configs/settings.csv"
 characterization.signals = dc_signals[[f"DC CH{i}" for i in range(1, 4)]].to_numpy()
 interferometer.init_settings()
@@ -159,11 +158,11 @@ to the actual API.
 ```python
 import minipti
 
-interferometer = minipti.interferometry.Interferometer()
+interferometer = minipti.algorithm.interferometry.Interferometer()
 interferometer.decimation_filepath = "data/Decimation_Commercial.csv"
 interferometer.settings_path = "configs/settings.csv"
 interferometer.init_settings()
-inversion = minipti.pti.Inversion(interferometer=interferometer)
+inversion = minipti.algorithm.pti.Inversion(interferometer=interferometer)
 inversion()
 ```
 
@@ -173,13 +172,13 @@ inversion()
 import pandas as pd
 import minipti
 
-interferometer = minipti.interferometry.Interferometer()
+interferometer = minipti.algorithm.interferometry.Interferometer()
 interferometer.decimation_filepath = "data/Decimation_Commercial.csv"
 interferometer.settings_path = "configs/settings.csv"
 interferometer.init_settings()
 data = pd.read_csv("data/Decimation_Commercial.csv")
 
-inversion = minipti.pti.Inversion(interferometer=interferometer)
+inversion = minipti.algorithm.pti.Inversion(interferometer=interferometer)
 
 dc_signals = data[[f"DC CH{i}" for i in range(1, 4)]].to_numpy()
 amplitudes = data[[f"Lock In Amplitude CH{i}" for i in range(1, 4)]].to_numpy().T
