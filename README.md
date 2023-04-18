@@ -47,7 +47,7 @@ from the mentioned paper.
 The picture below shows the basic file structure and the public members of the classes.
 
 <p style="text-align: center;">
-<img alt="flowchart" src="https://raw.githubusercontent.com/bilaljo/MiniPTI/0dad7516c4a8105e1fcbecc22dcb905d3a4bee11/images/flowchart.svg" class="center">
+<img alt="flowchart" src="https://raw.githubusercontent.com/bilaljo/MiniPTI/0dad7516c4a8105e1fcbecc22dcb905d3a4bee11/images/flowchart.svg">
 </p>
 
 ## **Decimation**
