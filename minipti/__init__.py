@@ -1,3 +1,6 @@
 from minipti import algorithm
-from minipti import gui
+try:
+    from minipti import gui
+except ModuleNotFoundError:
+    pass
 from minipti import hardware

@@ -7,7 +7,7 @@ import typing
 from PyQt5 import QtWidgets
 from PyQt5.QtCore import Qt
 
-from minipti import hardware
+from tests import hardware
 from minipti.gui import model
 from minipti.gui import view
 

@@ -1,3 +1,3 @@
-from minipti.gui import controller
-from minipti.gui import model
-from minipti.gui import view
+from . import controller
+from . import model
+from . import view

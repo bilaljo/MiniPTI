@@ -8,8 +8,7 @@ from dataclasses import dataclass
 
 import dacite
 
-from minipti import hardware
-from minipti import json_parser
+from minipti import hardware, json_parser
 
 
 @dataclass
