@@ -24,7 +24,8 @@ class MainApplication(QtWidgets.QApplication):
 
     def thread_exception(self, args) -> None:
         if args.exc_type == KeyError:
-            QtWidgets.QMessageBox.critical(self.view, "File Error", "Invalid file given or missing headers.")
+            QtWidgets.QMessageBox.critical(self.view, "File Error",
+                                           "Invalid file given or missing headers.")
         elif args.exc_type == TimeoutError:
             QtWidgets.QMessageBox.critical(self.view, "Timeout Error", "Timeout Error")
         else:
@@ -86,8 +87,8 @@ class Home:
             self.calculation_model.destination_folder = destination_folder
 
     def get_file_path(self, dialog_name: str, files: str) -> str:
-        file_path = QtWidgets.QFileDialog.getOpenFileName(self.view, directory=self.last_file_path, caption=dialog_name,
-                                                          filter=files)
+        file_path = QtWidgets.QFileDialog.getOpenFileName(self.view, directory=self.last_file_path,
+                                                          caption=dialog_name, filter=files)
         if file_path[0]:
             self.last_file_path = file_path[0]
         return file_path[0]
@@ -118,13 +119,17 @@ class Home:
                 self.mother_board_model.load_configuration()
 
     def calculate_decimation(self) -> None:
-        decimation_file_path = self.get_file_path("Decimation", "HDF5 File (*.hdf5);; All Files (*)")
+        decimation_file_path = self.get_file_path(
+            "Decimation", "HDF5 File (*.hdf5);; All Files (*)"
+        )
         if not decimation_file_path:
             return
-        threading.Thread(target=self.calculation_model.calculate_decimation, args=[decimation_file_path]).start()
+        threading.Thread(target=self.calculation_model.calculate_decimation,
+                         args=[decimation_file_path]).start()
 
     def calculate_inversion(self) -> None:
-        inversion_path = self.get_file_path("Inversion", "CSV File (*.csv);; TXT File (*.txt);; All Files (*)")
+        inversion_path = self.get_file_path("Inversion",
+                                            "CSV File (*.csv);; TXT File (*.txt);; All Files (*)")
         if not inversion_path:
             return
         threading.Thread(target=self.calculation_model.calculate_inversion,
@@ -141,7 +146,8 @@ class Home:
                                                       | QtWidgets.QMessageBox.StandardButton.No)
         use_settings = use_settings == QtWidgets.QMessageBox.StandardButton.Yes
         threading.Thread(target=self.calculation_model.calculate_characterisation,
-                         args=[characterisation_path, use_settings, self.settings_model.file_path]).start()
+                         args=[characterisation_path, use_settings,
+                               self.settings_model.file_path]).start()
 
     def plot_inversion(self) -> None:
         try:
@@ -151,7 +157,8 @@ class Home:
                 )
             )
         except KeyError:
-            QtWidgets.QMessageBox.critical(self.view, "Plotting Error", "Invalid data given. Could not plot.")
+            QtWidgets.QMessageBox.critical(self.view, "Plotting Error",
+                                           "Invalid data given. Could not plot.")
 
     def plot_dc(self) -> None:
         try:
@@ -161,7 +168,8 @@ class Home:
                 )
             )
         except KeyError:
-            QtWidgets.QMessageBox.critical(self.view, "Plotting Error", "Invalid data given. Could not plot.")
+            QtWidgets.QMessageBox.critical(self.view, "Plotting Error",
+                                           "Invalid data given. Could not plot.")
 
     def plot_characterisation(self) -> None:
         try:
@@ -171,7 +179,8 @@ class Home:
                 )
             )
         except KeyError:
-            QtWidgets.QMessageBox.critical(self.view, "Plotting Error", "Invalid data given. Could not plot.")
+            QtWidgets.QMessageBox.critical(self.view, "Plotting Error",
+                                           "Invalid data given. Could not plot.")
 
     @staticmethod
     def find_devices() -> None:
@@ -298,9 +307,9 @@ class Laser:
     @abc.abstractmethod
     def fire_configuration_change(self) -> None:
         """
-        By initialisation of the Laser Serial Object (on which the laser model relies) the configuration is already set
-        and do not fire events to update the GUI. This function is hence only called once to manually activate the
-        firing.
+        By initialisation of the Laser Serial Object (on which the laser model relies) the
+        configuration is already set and do not fire events to update the GUI. This function is
+        hence only called once to manually activate the firing.
         """
 
 
