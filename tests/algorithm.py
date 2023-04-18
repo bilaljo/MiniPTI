@@ -12,12 +12,12 @@ class TestInterferometer(unittest.TestCase):
 
     def setUp(self):
         unittest.TestCase.__init__(self)
-        settings = "../examples/sample_configs/settings.csv"
+        settings = "sample_data/algorithm/settings.csv"
         self.interferometry = minipti.algorithm.interferometry.Interferometer(settings_path=settings)
         self.interferometry.init_settings()
         self.characterisation = minipti.algorithm.interferometry.Characterization(interferometry=self.interferometry)
-        self.interferometry.decimation_filepath = "../examples/sample_data/Decimation_Comercial.csv"
-        data = pd.read_csv("../examples/sample_data/Decimation_Comercial.csv")
+        self.interferometry.decimation_filepath = "sample_data/algorithm/Decimation_Comercial.csv"
+        data = pd.read_csv(self.interferometry.decimation_filepath)
         self.dc_data = data[[f"DC CH{i}" for i in range(1, 4)]].to_numpy().T
 
     def _reconstruct_signal(self, phases):
@@ -33,10 +33,9 @@ class TestInterferometer(unittest.TestCase):
         self.characterisation.use_settings = False
         self.characterisation.iterate_characterization(self.dc_data)
         self.interferometry.calculate_phase(self.dc_data.T)
-        settings = pd.read_csv("../examples/sample_configs/settings.csv", index_col="Setting")
-        self.assertTrue((np.abs(settings.loc["Output Phases [deg]"]
-                                - self.interferometry.output_phases) <
-                         np.deg2rad(TestInterferometer.MAX_ERROR_PARAMETERS).any()))
+        settings = pd.read_csv("sample_data/algorithm/settings.csv", index_col="Setting")
+        self.assertTrue((np.abs(settings.loc["Output Phases [deg]"] - self.interferometry.output_phases)
+                         < np.deg2rad(TestInterferometer.MAX_ERROR_PARAMETERS)).any())
         self.assertTrue((np.abs(settings.loc["Amplitude [V]"]
                                 - self.interferometry.amplitudes) < TestInterferometer.MAX_ERROR_PARAMETERS).any())
         self.assertTrue((np.abs(settings.loc["Offset [V]"]

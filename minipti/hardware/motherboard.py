@@ -26,7 +26,7 @@ class DAQData:
 @dataclass(frozen=True)
 class Packages:
     DAQ: re.Pattern = re.compile("00[0-9a-fA-F]{4108}", flags=re.MULTILINE)
-    BMS: re.Pattern = re.compile("01[0-9a-fA-F]{41}", flags=re.MULTILINE)
+    BMS: re.Pattern = re.compile("01[0-9a-fA-F]{38}", flags=re.MULTILINE)
 
 
 _Samples = deque[int]
@@ -232,13 +232,13 @@ class Driver(hardware.serial_device.Driver):
             self._encoded_buffer.ac_coupled[channel].extend(ac_coupled[channel])
 
     def _encode_bms(self, data: str) -> None:
-        if int(data[BMS.SHUTDOWN_INDEX:BMS.SHUTDOWN_INDEX + 2], base=16) < BMS.SHUTDOWN:
-            self.shutdown.set()
+        if not Driver._crc_check(data, "BMS"):
+            return
         if not int(data[BMS.VALID_IDENTIFIER_INDEX: BMS.VALID_IDENTIFIER_INDEX + 2], base=16):
             logging.error("Invalid package from BMS")
             return
-        if not Driver._crc_check(data, "BMS"):
-            return
+        if int(data[BMS.SHUTDOWN_INDEX:BMS.SHUTDOWN_INDEX + 2], base=16) < BMS.SHUTDOWN:
+            self.shutdown.set()
         bms = BMSData(
             external_dc_power=bool(int(data[BMS.EXTERNAL_DC_POWER_INDEX:BMS.EXTERNAL_DC_POWER_INDEX + 2], base=16)),
             charging=bool(int(data[BMS.CHARGING_INDEX:BMS.CHARGING_INDEX + 2], base=16)),
