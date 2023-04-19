@@ -19,8 +19,8 @@ import pandas as pd
 from PyQt5 import QtCore
 from scipy import ndimage
 
-from minipti import hardware
 from minipti import algorithm
+from minipti import hardware
 
 
 class SettingsTable(QtCore.QAbstractTableModel):
@@ -48,7 +48,8 @@ class SettingsTable(QtCore.QAbstractTableModel):
     def data(self, index, role: int = ...) -> str | None:
         if index.isValid():
             if role == QtCore.Qt.DisplayRole or role == QtCore.Qt.EditRole:
-                value = self._data.at[SettingsTable.INDEX[index.row()], SettingsTable.HEADERS[index.column()]]
+                value = self._data.at[
+                    SettingsTable.INDEX[index.row()], SettingsTable.HEADERS[index.column()]]
                 return str(round(value, SettingsTable.SIGNIFICANT_VALUES))
 
     def flags(self, index):
@@ -57,7 +58,8 @@ class SettingsTable(QtCore.QAbstractTableModel):
     def setData(self, index, value, role: int = ...):
         if index.isValid():
             if role == QtCore.Qt.EditRole:
-                self._data.at[SettingsTable.INDEX[index.row()], SettingsTable.HEADERS[index.column()]] = float(value)
+                self._data.at[SettingsTable.INDEX[index.row()], SettingsTable.HEADERS[
+                    index.column()]] = float(value)
                 return True
 
     def headerData(self, section, orientation, role=QtCore.Qt.DisplayRole):
@@ -96,7 +98,8 @@ class SettingsTable(QtCore.QAbstractTableModel):
         self.table_data.loc["Offset [V]"] = interferometer.offsets
 
     def update_settings_paths(
-            self, interferometer: algorithm.interferometry.Interferometer, inversion: algorithm.pti.Inversion
+            self, interferometer: algorithm.interferometry.Interferometer,
+            inversion: algorithm.pti.Inversion
     ):
         interferometer.settings_path = self.file_path
         inversion.settings_path = self.file_path
@@ -104,7 +107,8 @@ class SettingsTable(QtCore.QAbstractTableModel):
         inversion.load_response_phase()
 
     def setup_settings_file(self):
-        if not os.path.exists("minipti/configs/settings.csv"):  # If no settings found, a new empty file is created.
+        # If no settings found, a new empty file is created filled with NaN.
+        if not os.path.exists("minipti/configs/settings.csv"):
             self.save()
         else:
             try:
@@ -112,7 +116,8 @@ class SettingsTable(QtCore.QAbstractTableModel):
             except FileNotFoundError:
                 self.save()
             else:
-                if list(settings.columns) != SettingsTable.HEADERS or list(settings.index) != SettingsTable.INDEX:
+                if list(settings.columns) != SettingsTable.HEADERS or list(
+                        settings.index) != SettingsTable.INDEX:
                     self.save()  # The file is in any way broken.
                 else:
                     self.table_data = settings
@@ -124,7 +129,8 @@ class Logging(logging.Handler):
     def __init__(self):
         logging.Handler.__init__(self)
         self.logging_messages = deque(maxlen=Logging.LOGGING_HISTORY)
-        self.formatter = logging.Formatter('%(levelname)s %(asctime)s: %(message)s\n', datefmt='%Y-%m-%d %H:%M:%S')
+        self.formatter = logging.Formatter('%(levelname)s %(asctime)s: %(message)s\n',
+                                           datefmt='%Y-%m-%d %H:%M:%S')
         logging.getLogger().addHandler(self)
 
     def emit(self, record: logging.LogRecord) -> None:
@@ -182,7 +188,8 @@ class Buffer:
 
     def __iter__(self):
         for member in dir(self):
-            if not callable(getattr(self, member)) and not member.startswith("__") and member != "time_counter":
+            if not callable(getattr(self, member)) and not member.startswith(
+                    "__") and member != "time_counter":
                 yield getattr(self, member)
 
     @abc.abstractmethod
@@ -222,7 +229,8 @@ class PTIBuffer(Buffer):
         self.pti_signal_mean = deque(maxlen=Buffer.QUEUE_SIZE)
         self._pti_signal_mean_queue = deque(maxlen=PTIBuffer.MEAN_SIZE)
 
-    def append(self, pti_data: PTI, interferometer: algorithm.interferometry.Interferometer) -> None:
+    def append(self, pti_data: PTI,
+               interferometer: algorithm.interferometry.Interferometer) -> None:
         for i in range(3):
             self.dc_values[i].append(pti_data.decimation.dc_signals[i])
             self.sensitivity[i].append(pti_data.inversion.sensitivity[i])
@@ -239,9 +247,10 @@ class CharacterisationBuffer(Buffer):
 
     def __init__(self):
         Buffer.__init__(self)
+        # The first channel has always the phase 0 by definition hence it is not needed.
         self.output_phases = [deque(maxlen=Buffer.QUEUE_SIZE) for _ in range(self.CHANNELS - 1)]
-        # The number of channels for output phases is -1 because the first channel has always the phase 0 by definition.
-        self.amplitudes = [deque(maxlen=Buffer.QUEUE_SIZE) for _ in range(CharacterisationBuffer.CHANNELS)]
+        self.amplitudes = [deque(maxlen=Buffer.QUEUE_SIZE) for _ in
+                           range(CharacterisationBuffer.CHANNELS)]
 
     def append(self, characterization: algorithm.interferometry.Characterization,
                interferometer: algorithm.interferometry.Interferometer) -> None:
@@ -272,8 +281,10 @@ class TecBuffer(Buffer):
 
     def __init__(self):
         Buffer.__init__(self)
-        self.set_point: list[deque] = [deque(maxlen=Buffer.QUEUE_SIZE), deque(maxlen=Buffer.QUEUE_SIZE)]
-        self.actual_value: list[deque] = [deque(maxlen=Buffer.QUEUE_SIZE), deque(maxlen=Buffer.QUEUE_SIZE)]
+        self.set_point: list[deque] = [deque(maxlen=Buffer.QUEUE_SIZE),
+                                       deque(maxlen=Buffer.QUEUE_SIZE)]
+        self.actual_value: list[deque] = [deque(maxlen=Buffer.QUEUE_SIZE),
+                                          deque(maxlen=Buffer.QUEUE_SIZE)]
 
     def append(self, tec_data: hardware.tec.Data):
         self.set_point[TecBuffer.PUMP_LASER].append(tec_data.set_point.pump_laser)
@@ -364,7 +375,7 @@ def shutdown_procedure() -> None:
     Tec.driver.close()
     time.sleep(0.5)  # Give the calculations threads time to finish their write operation
     if platform.system() == "Windows":
-        #subprocess.run(r"shutdown /s /t 0.5", shell=True)
+        # subprocess.run(r"shutdown /s /t 0.5", shell=True)
         pass
     else:
         subprocess.run("sleep 0.5s && echo poweroff", shell=True)
@@ -386,7 +397,8 @@ class Calculation:
         )
         self.interferometry.characterization.interferometry = self.interferometry.interferometer
         self.pti = PTI(
-            algorithm.pti.Decimation(), algorithm.pti.Inversion(interferometer=self.interferometry.interferometer)
+            algorithm.pti.Decimation(),
+            algorithm.pti.Inversion(interferometer=self.interferometry.interferometer)
         )
         self.interferometry.characterization.interferometry = self.interferometry.interferometer
         self._destination_folder = os.getcwd()
@@ -418,9 +430,8 @@ class Calculation:
         def calculate_characterization():
             while Motherboard.driver.connected.is_set():
                 self.interferometry.characterization()
-                self.characterisation_buffer.append(
-                    self.interferometry.characterization,
-                    self.interferometry.interferometer)
+                self.characterisation_buffer.append(self.interferometry.characterization,
+                                                    self.interferometry.interferometer)
                 signals.characterization_live.emit(self.characterisation_buffer)
 
         def calculate_inversion():
@@ -429,11 +440,12 @@ class Calculation:
                 self.pti.decimation.dc_coupled = np.array(Motherboard.driver.dc_coupled)
                 self.pti.decimation.ac_coupled = np.array(Motherboard.driver.ac_coupled)
                 self.pti.decimation()
-                self.pti.inversion.lock_in = self.pti.decimation.lock_in  # Note that this copies a reference
+                self.pti.inversion.lock_in = self.pti.decimation.lock_in
                 self.pti.inversion.dc_signals = self.pti.decimation.dc_signals
                 signals.decimation_live.emit(self.pti_buffer)
                 self.pti.inversion()
-                self.interferometry.characterization.add_phase(self.interferometry.interferometer.phase)
+                self.interferometry.characterization.add_phase(
+                    self.interferometry.interferometer.phase)
                 self.dc_signals.append(copy.deepcopy(self.pti.decimation.dc_signals))
                 if self.interferometry.characterization.enough_values:
                     self.interferometry.characterization.signals = copy.deepcopy(self.dc_signals)
@@ -450,7 +462,8 @@ class Calculation:
         inversion_thread.start()
         return characterization_thread, inversion_thread
 
-    def calculate_characterisation(self, dc_file_path: str, use_settings=False, settings_path="") -> None:
+    def calculate_characterisation(self, dc_file_path: str, use_settings=False,
+                                   settings_path="") -> None:
         self.interferometry.interferometer.decimation_filepath = dc_file_path
         self.interferometry.interferometer.settings_path = settings_path
         self.interferometry.characterization.use_settings = use_settings
@@ -468,8 +481,13 @@ class Calculation:
         self.interferometry.interferometer.load_settings()
         self.pti.inversion(live=False)
 
+    @staticmethod
+    def kelvin_to_celsius(temperature: float) -> float:
+        return temperature - 273.15
+
     def process_bms_data(self) -> None:
-        units = {"Date": "Y:M:D", "Time": "H:M:S", "Exernal DC Power": "bool", "Charging Battery": "bool",
+        units = {"Date": "Y:M:D", "Time": "H:M:S", "External DC Power": "bool",
+                 "Charging Battery": "bool",
                  "Minutes Left": "min", "Charging Level": "%", "Temperature": "°C", "Current": "mA",
                  "Voltage": "V", "Full Charge Capacity": "mAh", "Remaining Charge Capacity": "mAh"}
         pd.DataFrame(units).to_csv(self._destination_folder + "/BMS.csv")
@@ -477,14 +495,17 @@ class Calculation:
         def incoming_data() -> None:
             while Motherboard.driver.connected.is_set():
                 bms_data: hardware.motherboard.BMSData = Motherboard.driver.bms
-                bms_data.battery_temperature -= 273.15  # Constant for calculation of Kelvin to Celsisus
-                signals.battery_state.emit(Battery(bms_data.battery_percentage, bms_data.minutes_left))
+                bms_data.battery_temperature = Calculation.kelvin_to_celsius(
+                    bms_data.battery_temperature)
+                signals.battery_state.emit(
+                    Battery(bms_data.battery_percentage, bms_data.minutes_left))
                 now = datetime.now()
-                output_data = {"Date": str(now.strftime("%Y-%m-%d")), "Time": str(now.strftime("%H:%M:%S"))}
+                output_data = {"Date": str(now.strftime("%Y-%m-%d")),
+                               "Time": str(now.strftime("%H:%M:%S"))}
                 for key, value in asdict(bms_data).values():
                     output_data[key.replace("_", " ").title()] = value
-                pd.DataFrame(output_data).to_csv(self._destination_folder + "/BMS.csv", header=False, mode="a")
-
+                pd.DataFrame(output_data).to_csv(self._destination_folder + "/BMS.csv",
+                                                 header=False, mode="a")
         threading.Thread(target=incoming_data).start()
 
 
@@ -523,9 +544,9 @@ class Serial:
     @abc.abstractmethod
     def fire_configuration_change(self) -> None:
         """
-        By initiastion of a Serial Object (on which the laser model relies) the configuration is already set
-        and do not fire events to update the GUI. This function is hence only called once to manually actiave the
-        firing.
+        By initiation of a Serial Object (on which the laser model relies) the configuration is
+        already set and do not fire events to update the GUI. This function is hence only called
+        once to manually activate the firing.
         """
 
     @abc.abstractmethod
@@ -535,7 +556,8 @@ class Serial:
     @staticmethod
     def _incoming_data():
         """
-        Listens to incoming data and emits them as signals to the view as long a serial connection is etablished.
+        Listens to incoming data and emits them as signals to the view as long a serial connection
+        is established.
         """
 
     @staticmethod
@@ -662,7 +684,8 @@ class PumpLaser(Laser):
 
     @driver_bits.setter
     def driver_bits(self, bits: int) -> None:
-        # With increasing the slider decreases its value but the voltage should increase - hence we subtract the bits.
+        # With increasing the slider decreases its value but the voltage should increase
+        # - hence we subtract the bits.
         self.driver.pump_laser.bit_value = hardware.laser.PumpLaser.NUMBER_OF_STEPS - bits
         self.fire_driver_bits_signal()
         self.driver.set_driver_voltage()
@@ -899,38 +922,38 @@ class Tec(Serial):
 
     @property
     def p_value(self) -> float:
-        return self.driver[self.laser].PID.P_parameter
+        return self.driver[self.laser].pid.proportional_value
 
     @p_value.setter
     def p_value(self, p_value: float) -> None:
-        self.driver[self.laser].PID.P_parameter = p_value
+        self.driver[self.laser].pid.proportional_value = p_value
         self.driver.set_pid_p_value(self.laser)
 
     @property
     def i_1_value(self) -> float:
-        return self.driver[self.laser].PID.I_parameter[0]
+        return self.driver[self.laser].pid.integral_value[0]
 
     @i_1_value.setter
     def i_1_value(self, i_value: float) -> None:
-        self.driver[self.laser].PID.I_parameter[0] = i_value
+        self.driver[self.laser].pid.integral_value[0] = i_value
         self.driver.set_pid_i_value(self.laser, 0)
 
     @property
     def i_2_value(self) -> float:
-        return self.driver[self.laser].PID.I_parameter[1]
+        return self.driver[self.laser].pid.integral_value[1]
 
     @i_2_value.setter
     def i_2_value(self, i_value: float) -> None:
-        self.driver[self.laser].PID.I_parameter[1] = i_value
+        self.driver[self.laser].pid.integral_value[1] = i_value
         self.driver.set_pid_i_value(self.laser, 1)
 
     @property
     def d_value(self) -> float:
-        return self.driver[self.laser].PID.D_parameter
+        return self.driver[self.laser].pid.derivative_value
 
     @d_value.setter
     def d_value(self, d_value: float) -> None:
-        self.driver[self.laser].PID.D_parameter = d_value
+        self.driver[self.laser].pid.derivative_value = d_value
         self.driver.set_pid_d_value(self.laser)
 
     @property
@@ -1077,7 +1100,7 @@ class TecLaserSignals(typing.NamedTuple):
 
     def __getitem__(self, item) -> TecSignals:
         if item == "Pump Laser" or item == "Probe Laser":
-            return getattr(self, item.replace(" ", "_").casefold())  # For convience allow spaces in [] notation
+            return getattr(self, item.replace(" ", "_").casefold())
         else:
             raise KeyError("Can only subscribe Pump Laser or Probe Laser")
 

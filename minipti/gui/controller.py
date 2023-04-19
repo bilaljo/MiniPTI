@@ -99,8 +99,7 @@ class Home:
     def load_settings(self):
         file_path = QtWidgets.QFileDialog.getOpenFileName(
             self.view, caption="Load SettingsTable",
-            filter="CSV File (*.csv);; TXT File (*.txt);; All Files (*);;"
-        )
+            filter="CSV File (*.csv);; TXT File (*.txt);; All Files (*);;")
         if file_path:
             self.settings_model.file_path = file_path[0]  # The actual file path
             self.settings_model.load()
@@ -119,9 +118,8 @@ class Home:
                 self.mother_board_model.load_configuration()
 
     def calculate_decimation(self) -> None:
-        decimation_file_path = self.get_file_path(
-            "Decimation", "HDF5 File (*.hdf5);; All Files (*)"
-        )
+        decimation_file_path = self.get_file_path("Decimation",
+                                                  "HDF5 File (*.hdf5);; All Files (*)")
         if not decimation_file_path:
             return
         threading.Thread(target=self.calculation_model.calculate_decimation,
@@ -153,9 +151,7 @@ class Home:
         try:
             model.process_inversion_data(
                 self.get_file_path(
-                    "Inversion", "CSV File (*.csv);; TXT File (*.txt);; All Files (*)"
-                )
-            )
+                    "Inversion", "CSV File (*.csv);; TXT File (*.txt);; All Files (*)"))
         except KeyError:
             QtWidgets.QMessageBox.critical(self.view, "Plotting Error",
                                            "Invalid data given. Could not plot.")
@@ -164,9 +160,7 @@ class Home:
         try:
             model.process_dc_data(
                 self.get_file_path(
-                    "Decimation", "CSV File (*.csv);; TXT File (*.txt);; All Files (*)"
-                )
-            )
+                    "Decimation", "CSV File (*.csv);; TXT File (*.txt);; All Files (*)"))
         except KeyError:
             QtWidgets.QMessageBox.critical(self.view, "Plotting Error",
                                            "Invalid data given. Could not plot.")
@@ -175,9 +169,7 @@ class Home:
         try:
             model.process_characterization_data(
                 self.get_file_path(
-                    "Characterisation", "CSV File (*.csv);; TXT File (*.txt);; All Files (*)"
-                )
-            )
+                    "Characterisation", "CSV File (*.csv);; TXT File (*.txt);; All Files (*)"))
         except KeyError:
             QtWidgets.QMessageBox.critical(self.view, "Plotting Error",
                                            "Invalid data given. Could not plot.")

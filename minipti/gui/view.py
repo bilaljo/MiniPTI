@@ -301,7 +301,8 @@ class Home(QtWidgets.QTabWidget, _Frames, _CreateButton):
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
         self.frames["Plot Data"].layout().addWidget(sub_layout)
         self.create_button(master=sub_layout, title="Decimation", slot=self.controller.plot_dc)
-        self.create_button(master=sub_layout, title="Inversion", slot=self.controller.plot_inversion)
+        self.create_button(master=sub_layout, title="Inversion",
+                           slot=self.controller.plot_inversion)
         self.create_button(master=sub_layout, title="Characterisation",
                            slot=self.controller.plot_characterisation)
 
@@ -582,7 +583,8 @@ class ProbeLaser(QtWidgets.QWidget, _CreateButton, _Frames):
         _CreateButton.__init__(self)
         self.frames = {}
         self.setLayout(QtWidgets.QGridLayout())
-        self.current_slider = Slider(minimum=ProbeLaser.MIN_CURRENT_BIT, maximum=ProbeLaser.MAX_CURRENT_BIT, unit="mA")
+        self.current_slider = Slider(minimum=ProbeLaser.MIN_CURRENT_BIT,
+                                     maximum=ProbeLaser.MAX_CURRENT_BIT, unit="mA")
         self.controller = controller.ProbeLaser(self)
         self.laser_mode = QtWidgets.QComboBox()
         self.photo_gain = QtWidgets.QComboBox()
@@ -656,9 +658,12 @@ class ProbeLaser(QtWidgets.QWidget, _CreateButton, _Frames):
         self.frames["Photo Diode Gain"].layout().addWidget(sub_layout)
         config = QtWidgets.QWidget()
         config.setLayout(QtWidgets.QHBoxLayout())
-        self.create_button(master=config, title="Save Configuration", slot=self.controller.save_configuration)
-        self.create_button(master=config, title="Load Configuration", slot=self.controller.load_configuration)
-        self.create_button(master=config, title="Apply Configuration", slot=self.controller.load_configuration)
+        self.create_button(master=config, title="Save Configuration",
+                           slot=self.controller.save_configuration)
+        self.create_button(master=config, title="Load Configuration",
+                           slot=self.controller.load_configuration)
+        self.create_button(master=config, title="Apply Configuration",
+                           slot=self.controller.load_configuration)
         self.frames["Configuration"].layout().addWidget(config, 3, 0)
 
     @QtCore.pyqtSlot(int)
@@ -699,20 +704,26 @@ class Tec(QtWidgets.QWidget, _Frames, _CreateButton):
 
     def _init_signals(self) -> None:
         model.signals.tec_data_display.connect(self.update_temperature)
-        model.tec_signals[self.laser].p_value.connect(Tec._update_text_field(self.text_fields.p_value))
-        model.tec_signals[self.laser].i_1_value.connect(Tec._update_text_field(self.text_fields.i_value[0]))
-        model.tec_signals[self.laser].i_2_value.connect(Tec._update_text_field(self.text_fields.i_value[1]))
-        model.tec_signals[self.laser].d_value.connect(Tec._update_text_field(self.text_fields.d_value))
+        model.tec_signals[self.laser].p_value.connect(
+            Tec._update_text_field(self.text_fields.p_value))
+        model.tec_signals[self.laser].i_1_value.connect(
+            Tec._update_text_field(self.text_fields.i_value[0]))
+        model.tec_signals[self.laser].i_2_value.connect(
+            Tec._update_text_field(self.text_fields.i_value[1]))
+        model.tec_signals[self.laser].d_value.connect(
+            Tec._update_text_field(self.text_fields.d_value))
         model.tec_signals[self.laser].setpoint_temperature.connect(
             Tec._update_text_field(self.text_fields.setpoint_temperature))
-        model.tec_signals[self.laser].loop_time.connect(Tec._update_text_field(self.text_fields.loop_time))
+        model.tec_signals[self.laser].loop_time.connect(
+            Tec._update_text_field(self.text_fields.loop_time))
         model.tec_signals[self.laser].reference_resistor.connect(
             Tec._update_text_field(self.text_fields.reference_resistor))
-        model.tec_signals[self.laser].max_power.connect(Tec._update_text_field(self.text_fields.max_power))
+        model.tec_signals[self.laser].max_power.connect(
+            Tec._update_text_field(self.text_fields.max_power))
         model.tec_signals[self.laser].mode.connect(self.update_mode)
 
     def _init_frames(self) -> None:
-        self.create_frame(master=self, title="PID Configuration", x_position=0, y_position=0)
+        self.create_frame(master=self, title="pid Configuration", x_position=0, y_position=0)
         self.create_frame(master=self, title="System Settings", x_position=1, y_position=0)
         self.create_frame(master=self, title="Temperature", x_position=2, y_position=0)
         self.create_frame(master=self, title="Configuration", x_position=3, y_position=0)
@@ -739,31 +750,40 @@ class Tec(QtWidgets.QWidget, _Frames, _CreateButton):
             toggle_button(False, self.buttons["Cool"])
 
     def _init_text_fields(self) -> None:
-        self.frames["PID Configuration"].layout().addWidget(QtWidgets.QLabel("P Value"), 0, 0)
-        self.frames["PID Configuration"].layout().addWidget(self.text_fields.p_value, 0, 1)
+        self.frames["pid Configuration"].layout().addWidget(QtWidgets.QLabel("P Value"), 0, 0)
+        self.frames["pid Configuration"].layout().addWidget(self.text_fields.p_value, 0, 1)
         self.text_fields.p_value.editingFinished.connect(self.p_value_changed)
 
-        self.frames["PID Configuration"].layout().addWidget(QtWidgets.QLabel("I<sub>1</sub> Value"), 1, 0)
-        self.frames["PID Configuration"].layout().addWidget(self.text_fields.i_value[0], 1, 1)
+        self.frames["pid Configuration"].layout().addWidget(
+            QtWidgets.QLabel("I<sub>1</sub> Value"), 1, 0
+        )
+        self.frames["pid Configuration"].layout().addWidget(self.text_fields.i_value[0], 1, 1)
         self.text_fields.i_value[0].editingFinished.connect(self.i_1_value_changed)
 
-        self.frames["PID Configuration"].layout().addWidget(QtWidgets.QLabel("I<sub>2</sub> Value"), 2, 0)
-        self.frames["PID Configuration"].layout().addWidget(self.text_fields.i_value[1], 2, 1)
+        self.frames["pid Configuration"].layout().addWidget(
+            QtWidgets.QLabel("I<sub>2</sub> Value"), 2, 0
+        )
+        self.frames["pid Configuration"].layout().addWidget(self.text_fields.i_value[1], 2, 1)
         self.text_fields.i_value[1].editingFinished.connect(self.i_2_value_changed)
 
-        self.frames["PID Configuration"].layout().addWidget(QtWidgets.QLabel("D Value"), 3, 0)
-        self.frames["PID Configuration"].layout().addWidget(self.text_fields.d_value, 3, 1)
+        self.frames["pid Configuration"].layout().addWidget(QtWidgets.QLabel("D Value"), 3, 0)
+        self.frames["pid Configuration"].layout().addWidget(self.text_fields.d_value, 3, 1)
         self.text_fields.d_value.editingFinished.connect(self.d_value_changed)
 
-        self.frames["System Settings"].layout().addWidget(QtWidgets.QLabel("Setpoint Temperature"), 0, 0)
-        self.frames["System Settings"].layout().addWidget(self.text_fields.setpoint_temperature, 0, 1)
-        self.text_fields.setpoint_temperature.editingFinished.connect(self.setpoint_temperature_changed)
+        self.frames["System Settings"].layout().addWidget(QtWidgets.QLabel("Setpoint Temperature"),
+                                                          0, 0)
+        self.frames["System Settings"].layout().addWidget(self.text_fields.setpoint_temperature, 0,
+                                                          1)
+        self.text_fields.setpoint_temperature.editingFinished.connect(
+            self.setpoint_temperature_changed
+        )
 
         self.frames["System Settings"].layout().addWidget(QtWidgets.QLabel("Loop Time"), 1, 0)
         self.frames["System Settings"].layout().addWidget(self.text_fields.loop_time, 1, 1)
         self.text_fields.loop_time.editingFinished.connect(self.loop_time_changed)
 
-        self.frames["System Settings"].layout().addWidget(QtWidgets.QLabel("Reference Resistor"), 2, 0)
+        self.frames["System Settings"].layout().addWidget(QtWidgets.QLabel("Reference Resistor"),
+                                                          2, 0)
         self.frames["System Settings"].layout().addWidget(self.text_fields.reference_resistor, 2, 1)
         self.text_fields.reference_resistor.editingFinished.connect(self.reference_resistor_changed)
 
@@ -800,13 +820,18 @@ class Tec(QtWidgets.QWidget, _Frames, _CreateButton):
     def _init_buttons(self) -> None:
         config = QtWidgets.QWidget()
         config.setLayout(QtWidgets.QHBoxLayout())
-        self.create_button(master=config, title="Save Configuration", slot=self.controller.save_configuration)
-        self.create_button(master=config, title="Load Configuration", slot=self.controller.load_configuration)
-        self.create_button(master=config, title="Apply Configuration", slot=self.controller.load_configuration)
+        self.create_button(master=config, title="Save Configuration",
+                           slot=self.controller.save_configuration)
+        self.create_button(master=config, title="Load Configuration",
+                           slot=self.controller.load_configuration)
+        self.create_button(master=config, title="Apply Configuration",
+                           slot=self.controller.load_configuration)
         self.frames["Configuration"].layout().addWidget(config, 3, 0)
 
-        self.create_button(master=self.frames["Temperature"], title="Heat", slot=self.controller.set_heating)
-        self.create_button(master=self.frames["Temperature"], title="Cool", slot=self.controller.set_cooling)
+        self.create_button(master=self.frames["Temperature"], title="Heat",
+                           slot=self.controller.set_heating)
+        self.create_button(master=self.frames["Temperature"], title="Cool",
+                           slot=self.controller.set_cooling)
 
 
 class _MatplotlibColors:
@@ -889,10 +914,11 @@ class Amplitudes(_Plotting):
 class OutputPhases(_Plotting):
     def __init__(self):
         _Plotting.__init__(self)
-        self.curves = [self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="Output Phase CH2",
-                                             brush=pg.mkBrush(_MatplotlibColors.ORANGE)),
-                       self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.GREEN), name="Output Phase CH3",
-                                             brush=pg.mkBrush(_MatplotlibColors.GREEN))]
+        self.curves = [
+            self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="Output Phase CH2",
+                                  brush=pg.mkBrush(_MatplotlibColors.ORANGE)),
+            self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.GREEN), name="Output Phase CH3",
+                                  brush=pg.mkBrush(_MatplotlibColors.GREEN))]
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="Output Phase [deg]")
         model.signals.characterization.connect(self.update_data)
@@ -962,8 +988,11 @@ class Symmetry(_Plotting):
 class PTISignal(_Plotting):
     def __init__(self):
         _Plotting.__init__(self)
-        self.curves = {"PTI Signal": self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="1 s", size=6),
-                       "PTI Signal Mean": self.plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="60 s Mean")}
+        self.curves = {
+            "PTI Signal": self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="1 s",
+                                                size=6),
+            "PTI Signal Mean": self.plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE),
+                                              name="60 s Mean")}
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="PTI Signal [µrad]")
         model.signals.inversion.connect(self.update_data)
@@ -1038,7 +1067,10 @@ class TecTemperature(_Plotting):
         ]
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="Temperature [°C]")
-        self.laser = model.TecBuffer.PUMP_LASER if laser == "Pump Laser" else model.TecBuffer.PROBE_LASER
+        if laser == "Pump Laser":
+            self.laser = model.TecBuffer.PUMP_LASER
+        else:
+            self.laser = model.TecBuffer.PROBE_LASER
         model.signals.tec_data.connect(self.update_data_live)
 
     def update_data(self, data: pd.DataFrame) -> None:
