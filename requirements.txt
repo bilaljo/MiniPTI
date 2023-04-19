@@ -2,8 +2,6 @@ fastcrc
 numpy
 pandas
 scipy
-PyQt5
-pyqtgraph
 dacite
 pyserial
 pythonnet; platform_system  == "Windows"
