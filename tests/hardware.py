@@ -180,6 +180,7 @@ class MotherBoardBMS(unittest.TestCase):
         self.driver.encode_data()
         self.assertEqual(self.driver.buffer_size, len(self.received_data_bms[1]))
         self.assertTrue(self.driver.bms_package_empty)
+        self.driver.clear_buffer()
 
     def test_bms_5_too_long_package(self) -> None:
         """
@@ -190,6 +191,7 @@ class MotherBoardBMS(unittest.TestCase):
         self.driver.encode_data()
         self.assertEqual(self.driver.buffer_size, len(self.received_data_bms[4][40:]))
         self._bms_check_1()
+        self.driver.clear_buffer()
 
 
 class MotherBoardDAQBMS(DAQTest):
