@@ -1,9 +1,17 @@
+"""
+Example file for the usage of the interferometry API of the MiniPTI.
+"""
+
 import pandas as pd
 
+import minipti
+
+
 if __name__ == "__main__":
-    interferometer = src.minipti.interferometry.Interferometer(settings_path="sample_configs/settings.csv",
-                                                               decimation_filepath="sample_data/Decimation_Comercial.csv")
-    interferometer.init_settings()
+    interferometer = minipti.algorithm.interferometry.Interferometer(
+        settings_path="sample_configs/settings.csv",
+        decimation_filepath="sample_data/Decimation_Comercial.csv")
+    interferometer.load_settings()
 
     data = pd.read_csv("sample_data/Decimation_Comercial.csv")
 

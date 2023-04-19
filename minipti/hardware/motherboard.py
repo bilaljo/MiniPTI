@@ -8,12 +8,12 @@ import threading
 import time
 from collections import deque
 from dataclasses import dataclass, asdict
-from typing import Sequence, Annotated
+from typing import Sequence
 
-from fastcrc import crc16
 from commentedconfigparser import CommentedConfigParser
+from fastcrc import crc16
 
-from minipti import hardware
+from . import serial_device
 
 
 @dataclass
@@ -78,10 +78,11 @@ class MotherBoardConfig:
     valve: Valve
 
 
-class Driver(hardware.serial_device.Driver):
+class Driver(serial_device.Driver):
     """
-    This class provides an interface for receiving data from the serial port of a USB connected DAQ system.
-    The data is accordingly to a defined protocol encoded and build into a packages of samples.
+    This class provides an interface for receiving data from the serial port of a USB connected DAQ
+    system. The data is accordingly to a defined protocol encoded and build into a packages of
+    samples.
     """
     _PACKAGE_SIZE_START_INDEX = 2
     _PACKAGE_SIZE_END_INDEX = 10
@@ -97,7 +98,7 @@ class Driver(hardware.serial_device.Driver):
     NUMBER_OF_SAMPLES = 8000
 
     def __init__(self):
-        hardware.serial_device.Driver.__init__(self)
+        serial_device.Driver.__init__(self)
         self.connected = threading.Event()
         self._package_data = PackageData(
             DAQData(queue.Queue(maxsize=Driver._QUEUE_SIZE),
@@ -106,9 +107,10 @@ class Driver(hardware.serial_device.Driver):
             queue.Queue(maxsize=Driver._QUEUE_SIZE)
         )
         self._buffer = ""
-        self._encoded_buffer = DAQData(deque(), [deque(), deque(), deque()], [deque(), deque(), deque()])
+        self._encoded_buffer = DAQData(deque(), [deque(), deque(), deque()],
+                                       [deque(), deque(), deque()])
         self._sample_numbers = deque(maxlen=2)
-        self._synchronize = False
+        self.synchronize = False
         self.config: MotherBoardConfig | None = None
         self.shutdown = threading.Event()
         self.config_path = f"{os.path.dirname(__file__)}/configs/motherboard.conf"
@@ -141,6 +143,30 @@ class Driver(hardware.serial_device.Driver):
     def ac_coupled(self) -> deque:
         return self._package_data.DAQ.ac_coupled.get(block=True)
 
+    @property
+    def buffer_size(self) -> int:
+        return len(self._buffer)
+
+    @property
+    def encoded_buffer_ref_size(self) -> int:
+        return len(self._encoded_buffer.ref_signal)
+
+    @property
+    def encoded_buffer_ac_size(self) -> int:
+        return self._encoded_buffer.ac_coupled[0]
+
+    @property
+    def encoded_buffer_dc_size(self) -> tuple[int, int, int, int]:
+        return self._encoded_buffer.dc_coupled[0]
+
+    @property
+    def bms_package_empty(self) -> bool:
+        return self._package_data.BMS.empty()
+
+    @property
+    def saved_sample_numbers(self) -> int:
+        return len(self._sample_numbers)
+
     @staticmethod
     def _binary_to_2_complement(number: int, byte_length: int) -> int:
         if number & (1 << (byte_length - 1)):
@@ -164,14 +190,16 @@ class Driver(hardware.serial_device.Driver):
             self.config_parser.write(savefile)
 
     @staticmethod
-    def _encode(raw_data: Sequence) -> tuple[_Samples, Annotated[list[_Samples], 3], Annotated[list[_Samples], 4]]:
+    def _encode(raw_data: Sequence) -> tuple[_Samples, list[_Samples], list[_Samples]]:
         """
         A block of data has the following structure:
         Ref, DC 1, DC 2, DC 3, DC, 4 AC 1, AC 2, AC 3, AC 4
-        These byte words are 4 bytes wide and hex decimal decoded. These big byte word of size 32 repeats periodically.
-        It starts with below the first 10 bytes (meta information) and ends before the last 4 bytes (crc checksum).
+        These byte words are 4 bytes wide and hex decimal decoded. These big byte word of size 32
+        repeats periodically. It starts with below the first 10 bytes (meta information) and ends
+        before the last 4 bytes (crc checksum).
         """
-        raw_data = raw_data[Driver._PACKAGE_SIZE_END_INDEX:Driver._PACKAGE_SIZE - Driver._CRC_START_INDEX]
+        raw_data = raw_data[
+                   Driver._PACKAGE_SIZE_END_INDEX:Driver._PACKAGE_SIZE - Driver._CRC_START_INDEX]
         ref: _Samples = deque()
         ac: list[_Samples] = [deque(), deque(), deque()]
         dc: list[_Samples] = [deque(), deque(), deque(), deque()]
@@ -192,7 +220,7 @@ class Driver(hardware.serial_device.Driver):
         return ref, ac, dc
 
     def _reset(self) -> None:
-        self._synchronize = True
+        self.synchronize = True
         self._encoded_buffer.ref_signal = deque()
         self._encoded_buffer.dc_coupled = [deque(), deque(), deque()]
         self._encoded_buffer.ac_coupled = [deque(), deque(), deque()]
@@ -220,11 +248,12 @@ class Driver(hardware.serial_device.Driver):
         if not Driver._crc_check(data, "DAQ"):
             self._reset()  # The data is not trustful, and it should be waited for new
             return
-        self._sample_numbers.append(data[Driver._PACKAGE_SIZE_START_INDEX:Driver._PACKAGE_SIZE_END_INDEX])
+        self._sample_numbers.append(
+            data[Driver._PACKAGE_SIZE_START_INDEX:Driver._PACKAGE_SIZE_END_INDEX])
         if len(self._sample_numbers) > 1 and not self._check_package_difference():
             self._reset()
         ref_signal, ac_coupled, dc_coupled = Driver._encode(data)
-        if self._synchronize:
+        if self.synchronize:
             self._synchronize_with_ref(ref_signal, ac_coupled, dc_coupled)
         self._encoded_buffer.ref_signal.extend(ref_signal)
         for channel in range(Driver._CHANNELS):
@@ -240,11 +269,14 @@ class Driver(hardware.serial_device.Driver):
         if int(data[BMS.SHUTDOWN_INDEX:BMS.SHUTDOWN_INDEX + 2], base=16) < BMS.SHUTDOWN:
             self.shutdown.set()
         bms = BMSData(
-            external_dc_power=bool(int(data[BMS.EXTERNAL_DC_POWER_INDEX:BMS.EXTERNAL_DC_POWER_INDEX + 2], base=16)),
+            external_dc_power=bool(
+                int(data[BMS.EXTERNAL_DC_POWER_INDEX:BMS.EXTERNAL_DC_POWER_INDEX + 2], base=16)),
             charging=bool(int(data[BMS.CHARGING_INDEX:BMS.CHARGING_INDEX + 2], base=16)),
             minutes_left=int(data[BMS.MINUTES_LEFT_INDEX:BMS.MINUTES_LEFT_INDEX + 4], base=16),
-            battery_percentage=int(data[BMS.BATTERY_PERCENTAGE_INDEX:BMS.BATTERY_PERCENTAGE_INDEX + 2], base=16),
-            battery_temperature=int(data[BMS.BATTERY_TEMPERATURE_INDEX:BMS.BATTERY_TEMPERATURE_INDEX + 4], base=16),
+            battery_percentage=int(
+                data[BMS.BATTERY_PERCENTAGE_INDEX:BMS.BATTERY_PERCENTAGE_INDEX + 2], base=16),
+            battery_temperature=int(
+                data[BMS.BATTERY_TEMPERATURE_INDEX:BMS.BATTERY_TEMPERATURE_INDEX + 4], base=16),
             battery_current=Driver._binary_to_2_complement(
                 int(data[BMS.CURRENT_INDEX:BMS.CURRENT_INDEX + 4], base=16),
                 byte_length=16
@@ -254,7 +286,8 @@ class Driver(hardware.serial_device.Driver):
                 data[BMS.FULL_CHARGED_CAPACITY_INDEX:BMS.FULL_CHARGED_CAPACITY_INDEX + 4],
                 base=16
             ),
-            remaining_capacity=int(data[BMS.REMAINING_CAPACITY_INDEX:BMS.REMAINING_CAPACITY_INDEX + 4], base=16)
+            remaining_capacity=int(
+                data[BMS.REMAINING_CAPACITY_INDEX:BMS.REMAINING_CAPACITY_INDEX + 4], base=16)
         )
         self._package_data.BMS.put(bms)
 
@@ -263,13 +296,15 @@ class Driver(hardware.serial_device.Driver):
         crc_calculated = crc16.arc(data[:-Driver._CRC_START_INDEX].encode())
         crc_received = int(data[-Driver._CRC_START_INDEX:], base=16)
         if crc_calculated != crc_received:  # Corrupted data
-            logging.error(f"CRC value of {source} isn't equal to transmitted. Got {crc_received:04X} "
-                          f"instead of {crc_calculated:04X}.")
+            logging.error(
+                f"CRC value of {source} isn't equal to transmitted. Got {crc_received:04X} "
+                f"instead of {crc_calculated:04X}.")
             return False
         return True
 
     def _check_package_difference(self) -> bool:
-        package_difference = int(self._sample_numbers[1], base=16) - int(self._sample_numbers[0], base=16)
+        package_difference = int(self._sample_numbers[1], base=16) - int(self._sample_numbers[0],
+                                                                         base=16)
         if package_difference != 1:
             logging.error(f"Missing {package_difference} packages.")
             return False
@@ -286,11 +321,12 @@ class Driver(hardware.serial_device.Driver):
             dc_coupled[3].popleft()
         if len(ref_signal) < Driver.REF_PERIOD // 2:
             return
-        self._synchronize = False
+        self.synchronize = False
 
     def build_sample_package(self) -> None:
         """
-        Creates a package of samples that represents approximately 1 s data. It contains 8000 samples.
+        Creates a package of samples that represents approximately 1 s data. It contains 8000
+        samples.
         """
         self._package_data.DAQ.ref_signal.put(
             [self._encoded_buffer.ref_signal.popleft()
@@ -322,8 +358,10 @@ class Driver(hardware.serial_device.Driver):
 
     def automatic_valve_change(self) -> None:
         """
-        Periodically bypass a valve. The duty cycle defines how much time for each part (bypassed or not) is spent.
+        Periodically bypass a valve. The duty cycle defines how much time for each part (bypassed
+        or not) is spent.
         """
+
         def switch() -> None:
             while self.connected and self.automatic_switch.set():
                 if self.bypass:
@@ -332,4 +370,5 @@ class Driver(hardware.serial_device.Driver):
                 else:
                     self.set_valve()
                     time.sleep(self.config.valve.period * (1 - self.config.valve.duty_cycle / 100))
+
         threading.Thread(target=switch, daemon=True).start()

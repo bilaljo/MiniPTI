@@ -1,23 +1,39 @@
 {
-    "Pump Laser": {
-        "max_current_mA": 1500,
-        "bit_value": 62,
-        "DAC_1": {
-            "bit_value": 1345,
-            "continuous_wave": [false, false, false],
-            "pulsed_mode": [false, false, false]
-        },
-        "DAC_2": {
-            "bit_value": 1100,
-            "continuous_wave": [false, false, false],
-            "pulsed_mode": [false, false, false]
-        }
+  "Pump Laser": {
+    "max_current_mA": 1500,
+    "bit_value": 62,
+    "DAC_1": {
+      "bit_value": 1345,
+      "continuous_wave": [
+        false,
+        false,
+        false
+      ],
+      "pulsed_mode": [
+        false,
+        false,
+        false
+      ]
     },
-    "Probe Laser": {
-        "max_current_mA": 13,
-        "current_bits": 123,
-        "constant_current": false,
-        "constant_light": true,
-        "photo_diode_gain": 3
+    "DAC_2": {
+      "bit_value": 1100,
+      "continuous_wave": [
+        false,
+        false,
+        false
+      ],
+      "pulsed_mode": [
+        false,
+        false,
+        false
+      ]
     }
+  },
+  "Probe Laser": {
+    "max_current_mA": 13,
+    "current_bits": 123,
+    "constant_current": false,
+    "constant_light": true,
+    "photo_diode_gain": 3
+  }
 }

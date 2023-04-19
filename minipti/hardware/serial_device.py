@@ -10,7 +10,6 @@ from dataclasses import dataclass
 from enum import Enum
 
 if platform.system() == "Windows":
-    import clr
     import System.IO.Ports
 else:
     import signal
@@ -23,7 +22,7 @@ class Driver:
     MAX_RESPONSE_TIME = 500e-3  # 100 ms response time
 
     TERMINATION_SYMBOL = "\n"
-    _NUMBER_OF_HEX_BYTES = 4
+    NUMBER_OF_HEX_BYTES = 4
     _START_DATA_FRAME = 1
 
     def __init__(self):
@@ -63,8 +62,7 @@ class Driver:
                     break
                 else:
                     device.close()
-            else:
-                raise OSError("Could not find {self.device_name}")
+            raise OSError("Could not find {self.device_name}")
     else:
         def find_port(self) -> None:
             for port in list_ports.comports():
@@ -73,23 +71,25 @@ class Driver:
                     flags=os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
                 if self.file_descriptor == -1 or not os.isatty(self.file_descriptor):
                     continue
-                os.write(self.file_descriptor, Command.HARDWARE_ID + Driver.TERMINATION_SYMBOL.encode())
+                os.write(self.file_descriptor,
+                         Command.HARDWARE_ID + Driver.TERMINATION_SYMBOL.encode())
                 hardware_id = self.get_hardware_id()
                 if hardware_id is not None and hardware_id == self.device_id:
                     self.port_name = port.device
                     logging.info(f"Found {self.device_name} at {self.port_name}")
                     os.close(self.file_descriptor)
+                    break
                 else:
                     os.close(self.file_descriptor)
                     self.file_descriptor = -1  # Reset it since we found no valid one
-            else:
-                raise OSError("Could not find {self.device_name}")
+            raise OSError("Could not find {self.device_name}")
 
     def open(self) -> None:
         if self.port_name:
             self.serial_port = System.IO.Ports.SerialPort()
             self.serial_port.PortName = self.port_name
-            self.serial_port.DataReceived += System.IO.Ports.SerialDataReceivedEventHandler(self._receive)
+            self.serial_port.DataReceived += System.IO.Ports.SerialDataReceivedEventHandler(
+                self._receive)
             self.serial_port.Open()
             self.connected.set()
             logging.info(f"Connected with {self.device_name}")
@@ -119,12 +119,13 @@ class Driver:
     def __repr__(self) -> str:
         class_name = self.__class__.__name__
         representation = f"{class_name}(termination_symbol={Driver.TERMINATION_SYMBOL}," \
-                         f" device_id={self.device_id}, port_name={self.port_name}, received_data={self.received_data})"
+                         f" device_id={self.device_id}, port_name={self.port_name}," \
+                         f" received_data={self.received_data})"
         return representation
 
     def get_hardware_id(self) -> bytes | None:
         try:
-            received_data = self.received_data.get(timeout=Driver.MAX_RESPONSE_TIME)  # type: bytes
+            received_data: bytes = self.received_data.get(timeout=Driver.MAX_RESPONSE_TIME)
             hardware_id = Patterns.HARDWARE_ID.search(received_data)
         except queue.Empty:
             return
@@ -136,11 +137,13 @@ class Driver:
         if Patterns.ERROR.search(received) is not None:
             match Patterns.HEX_VALUE.search(Patterns.ERROR.search(received).group()).group():
                 case Error.COMMAND:
-                    raise OSError(f"Packet length != 7 characters ('\n' excluded) from {self.port_name}")
+                    raise OSError(
+                        f"Packet length != 7 characters ('\n' excluded) from {self.port_name}")
                 case Error.PARAMETER:
                     raise OSError(f"Error converting the hex parameter from {self.port_name}")
                 case Error.COMMAND:
-                    raise OSError(f"Request consists of an unknown/invalid command from {self.port_name}")
+                    raise OSError(
+                        f"Request consists of an unknown/invalid command from {self.port_name}")
                 case Error.UNKNOWN_COMMAND:
                     raise OSError(f"Unknown command from {self.port_name}")
 
@@ -151,8 +154,7 @@ class Driver:
             else:
                 self._write_buffer.put(message.decode(), block=False)
             return True
-        else:
-            return False
+        return False
 
     if platform.system() == "Windows":
         def _write(self) -> None:
@@ -222,8 +224,9 @@ class Error(Enum):
 @dataclass
 class Patterns:
     """
-    The first bytes stand for get (G) the second byte for the required thing (H for Hardware, F for Firmware etc.).
-    The third bytes stands for the required Information (I for ID, V for version). \n is the termination symbol.
+    The first bytes stand for get (G) the second byte for the required thing (H for Hardware).
+    The third bytes stands for the required Information (I for ID, V for version).
+    \n is the termination symbol.
     """
     HARDWARE_ID = re.compile(b"GHI[0-9a-fA-F]{4}", flags=re.MULTILINE)
     ERROR = re.compile(b"ERR[0-9a-fA-F]{4}", flags=re.MULTILINE)

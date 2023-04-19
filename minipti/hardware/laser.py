@@ -7,8 +7,8 @@ from typing import Annotated
 
 import dacite
 
-from minipti import hardware
-from minipti import json_parser
+from . import serial_device
+from .. import json_parser
 
 
 @dataclass
@@ -25,6 +25,8 @@ class PumpLaser:
     NUMBER_OF_STEPS = 1 << 7
     _PRE_RESISTOR = 1.6e3
 
+    _NUMBER_OF_DIGITS = serial_device.Driver.NUMBER_OF_HEX_BYTES
+
     max_current_mA: float
     bit_value: int
     DAC_1: DAC
@@ -33,8 +35,9 @@ class PumpLaser:
     @staticmethod
     def bit_to_voltage(bits: int) -> float:
         # 0.8 is an interpolation constant without any practical meaning.
-        return 0.8 * PumpLaser._RESISTOR / (bits * PumpLaser._DIGITAL_POT / PumpLaser.NUMBER_OF_STEPS
-                                            + PumpLaser._PRE_RESISTOR) + 0.8
+        return 0.8 * PumpLaser._RESISTOR / (
+                bits * PumpLaser._DIGITAL_POT / PumpLaser.NUMBER_OF_STEPS
+                + PumpLaser._PRE_RESISTOR) + 0.8
 
     @staticmethod
     def voltage_to_bit(voltage: float) -> int:
@@ -61,20 +64,20 @@ class ProbeLaser:
 
 
 @dataclass
-class Data(hardware.serial_device.Data):
+class Data(serial_device.Data):
     pump_laser_current: float
     pump_laser_voltage: float
     probe_laser_current: float
 
 
-class Driver(hardware.serial_device.Driver):
+class Driver(serial_device.Driver):
     HARDWARE_ID: bytes = b"0002"
     NAME: str = "Laser"
     DELIMITER: str = "\t"
     DATA_START: str = "L"
     _START_MEASURED_DATA: int = 1
     _END_MEASURED_DATA: int = 4
-
+    _NUMBER_OF_DIGITS = serial_device.Driver.NUMBER_OF_HEX_BYTES
     CHANNELS = 3
 
     # Pump Laser
@@ -84,7 +87,7 @@ class Driver(hardware.serial_device.Driver):
     CURRENT_BITS: int = (1 << 8) - 1
 
     def __init__(self):
-        hardware.serial_device.Driver.__init__(self)
+        serial_device.Driver.__init__(self)
         self.pump_laser: None | PumpLaser = None
         self.probe_laser: None | ProbeLaser = None
         self.config_path: str = f"{os.path.dirname(__file__)}/configs/laser.json"
@@ -105,8 +108,8 @@ class Driver(hardware.serial_device.Driver):
     def load_configuration(self) -> None:
         with open(self.config_path) as config:
             loaded_config = json.load(config)
-            self.pump_laser = dacite.from_dict(hardware.laser.PumpLaser, loaded_config["Pump Laser"])
-            self.probe_laser = dacite.from_dict(hardware.laser.ProbeLaser, loaded_config["Probe Laser"])
+            self.pump_laser = dacite.from_dict(PumpLaser, loaded_config["Pump Laser"])
+            self.probe_laser = dacite.from_dict(ProbeLaser, loaded_config["Probe Laser"])
 
     def save_configuration(self) -> None:
         with open(self.config_path, "w") as configuration:
@@ -126,17 +129,16 @@ class Driver(hardware.serial_device.Driver):
                 case "S" | "C":
                     last_written = self.last_written_message
                     if received != last_written and received != last_written.capitalize():
-                        logging.error(f"Received message {received} message, expected {last_written}")
+                        logging.error(
+                            f"Received message {received} message, expected {last_written}")
                     else:
                         logging.debug(f"Command {received} successfully applied")
                     self.ready_write.set()
                 case "L":
                     data_frame = received.split("\t")[Driver._START_DATA_FRAME:self.end_data_frame]
-                    self.data.put((Data(
-                        pump_laser_current=float(data_frame[0]),
-                        pump_laser_voltage=float(data_frame[1]),
-                        probe_laser_current=float(data_frame[2]))
-                    ))
+                    self.data.put(Data(pump_laser_current=float(data_frame[0]),
+                                       pump_laser_voltage=float(data_frame[1]),
+                                       probe_laser_current=float(data_frame[2])))
                 case _:  # Broken data frame without header char
                     logging.error("Received invalid package without header")
                     self.ready_write.set()
@@ -159,15 +161,15 @@ class Driver(hardware.serial_device.Driver):
         return 4
 
     def set_driver_voltage(self) -> None:
-        voltage_hex = f"{self.pump_laser.bit_value:0{hardware.serial_device.Driver._NUMBER_OF_HEX_BYTES}X}"
+        voltage_hex = f"{self.pump_laser.bit_value:0{Driver._NUMBER_OF_DIGITS}X}"
         self.write("SHV" + voltage_hex)
 
     def set_dac_1(self) -> None:
-        dac_1_hex = f"{self.pump_laser.DAC_1.bit_value:0{hardware.serial_device.Driver._NUMBER_OF_HEX_BYTES}X}"
+        dac_1_hex = f"{self.pump_laser.DAC_1.bit_value:0{Driver._NUMBER_OF_DIGITS}X}"
         self.write("SC3" + dac_1_hex)
 
     def set_dac_2(self) -> None:
-        dac_2_hex = f"{self.pump_laser.DAC_2.bit_value:0{hardware.serial_device.Driver._NUMBER_OF_HEX_BYTES}X}"
+        dac_2_hex = f"{self.pump_laser.DAC_2.bit_value:0{Driver._NUMBER_OF_DIGITS}X}"
         self.write("SC4" + dac_2_hex)
 
     def set_dac_matrix(self) -> None:
@@ -181,7 +183,7 @@ class Driver(hardware.serial_device.Driver):
                 matrix |= Driver._DAC_2_REGISTER[2 * i]
             elif self.pump_laser.DAC_2.pulsed_mode[i]:
                 matrix |= Driver._DAC_2_REGISTER[2 * i + 1]
-        matrix_hex = f"{matrix:0{hardware.serial_device.Driver._NUMBER_OF_HEX_BYTES}X}"
+        matrix_hex = f"{matrix:0{Driver._NUMBER_OF_DIGITS}X}"
         self.write("SC1" + matrix_hex)
 
     def enable_channels(self) -> None:
@@ -190,12 +192,13 @@ class Driver(hardware.serial_device.Driver):
     def set_probe_laser_current(self) -> None:
         current_mA = ProbeLaser.bit_to_current(self.probe_laser.current_bits)
         if current_mA > self.probe_laser.max_current_mA:
-            logging.error(f"Current exceeds maximum current of {self.probe_laser.max_current_mA} mA")
+            logging.error(
+                f"Current exceeds maximum current of {self.probe_laser.max_current_mA} mA")
             logging.info(f"Setting it to maximum value of {self.probe_laser.max_current_mA} mA")
             current = ProbeLaser.current_to_bit(self.probe_laser.max_current_mA)
         else:
             current = self.probe_laser.current_bits
-        current_hex = f"{current:0{hardware.serial_device.Driver._NUMBER_OF_HEX_BYTES}X}"
+        current_hex = f"{current:0{Driver._NUMBER_OF_DIGITS}X}"
         self.write("SLS" + current_hex)
 
     def set_probe_laser_mode(self) -> None:
@@ -260,7 +263,7 @@ class Driver(hardware.serial_device.Driver):
         self.write("SLE0000")
 
     def set_photo_gain(self) -> None:
-        phot_gain_hex = f"{self.probe_laser.photo_diode_gain:0{hardware.serial_device.Driver._NUMBER_OF_HEX_BYTES}X}"
+        phot_gain_hex = f"{self.probe_laser.photo_diode_gain:0{Driver._NUMBER_OF_DIGITS}X}"
         self.write("SLS" + phot_gain_hex)
 
     def apply_configuration(self) -> None:

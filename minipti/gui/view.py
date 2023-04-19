@@ -10,9 +10,9 @@ import pyqtgraph as pg
 from PyQt5 import QtWidgets, QtCore, QtGui
 from PyQt5.QtCore import Qt
 
-from minipti import hardware
-from minipti.gui import controller
-from minipti.gui import model
+from .. import hardware
+from . import controller
+from . import model
 
 
 class MainWindow(QtWidgets.QMainWindow):

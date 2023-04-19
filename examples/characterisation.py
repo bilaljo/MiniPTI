@@ -1,17 +1,28 @@
+"""
+Example file for usage of the characterisation API of the MiniPTI.
+"""
+
 import pandas as pd
 
+import minipti
+
+
 if __name__ == "__main__":
-    interferometer = minipti.algorithm.interferometry.Interferometer(settings_path="sample_configs/settings.csv")
+    interferometer = minipti.algorithm.interferometry.Interferometer(
+        settings_path="sample_configs/settings.csv")
     interferometer.decimation_filepath = "sample_data/Decimation_Comercial.csv"
-    interferometer.init_settings()
+    interferometer.load_settings()
 
     # Using the default settings values
-    characterization = minipti.algorithm.interferometry.Characterization(interferometry=interferometer)
+    characterization = minipti.algorithm.interferometry.Characterization(
+        interferometry=interferometer)
     characterization()
     print(characterization)
 
     # Without default values
-    characterization = src.minipti.interferometry.Characterization(interferometry=interferometer)
+    characterization = minipti.algorithm.interferometry.Characterization(
+        interferometry=interferometer
+    )
     characterization.use_settings = False
     characterization()
     print(characterization)
@@ -21,7 +32,7 @@ if __name__ == "__main__":
 
     # Without knowing any parameter
     characterization.use_settings = False
-    characterization.iterate_characterization(characterization.signals.T)
+    characterization()
     print(characterization)
 
     # With knowing the parameters and already calculated phases

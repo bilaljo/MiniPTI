@@ -19,8 +19,8 @@ import pandas as pd
 from PyQt5 import QtCore
 from scipy import ndimage
 
-from minipti import algorithm
-from minipti import hardware
+from .. import algorithm
+from .. import hardware
 
 
 class SettingsTable(QtCore.QAbstractTableModel):

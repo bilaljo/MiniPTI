@@ -4,13 +4,13 @@
       "cooling": true,
       "heating": false
     },
-    "PID": {
-      "P_parameter": 4,
-      "I_parameter": [
+    "pid": {
+      "proportional_value": 4,
+      "integral_value": [
         3,
         12
       ],
-      "D_parameter": 12
+      "derivative_value": 12
     },
     "system_parameter": {
       "setpoint_temperature": 1,
@@ -24,13 +24,13 @@
       "cooling": true,
       "heating": false
     },
-    "PID": {
-      "P_parameter": 12,
-      "I_parameter": [
+    "pid": {
+      "proportional_value": 12,
+      "integral_value": [
         0,
         0
       ],
-      "D_parameter": 4
+      "derivative_value": 4
     },
     "system_parameter": {
       "setpoint_temperature": 2.5,
