@@ -9,12 +9,15 @@ In this library the python implementation of the algorithm from
 is provided. Additionally, a gui is provided.
 
 ### Installation
+
 ```bash
 pip install minipti
 ```
+
 https://pypi.org/project/minipti
 
 ## The GUI
+
 <p style="text-align: center;">
 <img alt="flowchart" src="images/gui_home.png" >
 </p>
@@ -24,17 +27,21 @@ The library can be split into sub-libraries:
 
 #### 1. Interferometry
 
-The Interferometry library provides algorithms to characterise a 3x3 coupler interferometer (calculating the output
+The Interferometry library provides algorithms to characterise a 3x3 coupler interferometer (
+calculating the output
 phases,
 amplitudes and offsets of the output DC-signals) for any given, measured DC-signals.
-It also contains an API for calculating the current phase of the interferometer for given DC signals.
+It also contains an API for calculating the current phase of the interferometer for given DC
+signals.
 
-Note that this library is primarily designed for 3x3 couplers, but it can be easily extended for every amount of
+Note that this library is primarily designed for 3x3 couplers, but it can be easily extended for
+every amount of
 outputs.
 
 #### 2. PTI
 
-PTI, short for Photo Thermal Inversion, provided the PTI-related algorithm from the mentioned paper above.
+PTI, short for Photo Thermal Inversion, provided the PTI-related algorithm from the mentioned paper
+above.
 They include an algorithm for common mode noise rejection of high-resolution AC signals, decimation
 and the actual PTI inversion.
 
@@ -53,11 +60,14 @@ The picture below shows the basic file structure and the public members of the c
 ## **Decimation**
 
 The measured data for decimation is in binary file format generated from LabView.
-It is good practice to use the decimation object with the ```with``` statement so that the binary fill will
+It is good practice to use the decimation object with the ```with``` statement so that the binary
+fill will
 automatically
-be closed. Note that as the binary file itself can be very large (up to GB) the decimation will read the file
+be closed. Note that as the binary file itself can be very large (up to GB) the decimation will read
+the file
 chunk-wise.
-read_data reads a block of 50'000 samples of data and decodes them into NumPy arrays. The call of the decimation will
+read_data reads a block of 50'000 samples of data and decodes them into NumPy arrays. The call of
+the decimation will
 then process the algorithms described in [1].
 
 ```python
@@ -77,9 +87,12 @@ pd.DataFrame(output_data).to_csv("Decimation.csv")
 
 ## **Interferometry**
 
-The interferometry provides an API for calculating the interferometric phase and characterising the interferometer
-(output phases, amplitudes and offsets). For proper use, it is needed to provide a configuration file. An example of
-such a file can be found in src/configs/settings.csv. There are also settings files for other couplers and experiments.
+The interferometry provides an API for calculating the interferometric phase and characterising the
+interferometer
+(output phases, amplitudes and offsets). For proper use, it is needed to provide a configuration
+file. An example of
+such a file can be found in src/configs/settings.csv. There are also settings files for other
+couplers and experiments.
 
 ### **Calculating the interferometric Phase**
 
@@ -103,9 +116,12 @@ interferometer.calculate_phase(dc_signals)
 
 ### **Characterising the Interferometer**
 
-The characterisation uses an interferometer object, as well as the PTI Inversion. The accessed fields (output_phases,
-amplitudes and offsets) are threadsafe via locks. If no output phases, amplitudes or offsets are known, the field
-```use_settings``` can be set to ```False```. In this case, the settings will ignore and the parameters will be found by
+The characterisation uses an interferometer object, as well as the PTI Inversion. The accessed
+fields (output_phases,
+amplitudes and offsets) are threadsafe via locks. If no output phases, amplitudes or offsets are
+known, the field
+```use_settings``` can be set to ```False```. In this case, the settings will ignore and the
+parameters will be found by
 repeating of calculating the interferometric phase and parameters.
 
 characterization itself saves the data directly to ```data/Characterization.csv```
@@ -151,8 +167,10 @@ characterization.characterise_interferometer()
 
 ### **PTI Inversion**
 
-The PTI inversion algorithms can be applied from a call to the functor or by calling the single function by itself. The
-first one is recommended if it is needed to run the whole procedure based on Decimation-Files. The second gives access
+The PTI inversion algorithms can be applied from a call to the functor or by calling the single
+function by itself. The
+first one is recommended if it is needed to run the whole procedure based on Decimation-Files. The
+second gives access
 to the actual API.
 
 ```python
