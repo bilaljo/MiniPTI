@@ -31,6 +31,7 @@ class TestInterferometer(unittest.TestCase):
         self.interferometry.decimation_filepath = f"{self.base_dir}/Decimation_Comercial.csv"
         data = pd.read_csv(self.interferometry.decimation_filepath)
         self.dc_data = data[[f"DC CH{i}" for i in range(1, 4)]].to_numpy().T
+        self.characterisation.destination_folder = os.path.dirname(__file__)
 
     def _reconstruct_signal(self, phases):
         """
@@ -56,7 +57,7 @@ class TestInterferometer(unittest.TestCase):
         """
         self.characterisation.use_settings = False
         self.characterisation.signals = self.dc_data
-        self.characterisation()
+        self.characterisation(live=False)
         self.interferometry.calculate_phase(self.dc_data.T)
         settings = pd.read_csv(f"{self.base_dir}/settings.csv", index_col="Setting")
         self.assertTrue((np.abs(settings.loc["Output Phases [deg]"]
@@ -78,6 +79,11 @@ class TestInterferometer(unittest.TestCase):
         reconstructed_signal = self._reconstruct_signal(self.interferometry.phase)
         self.assertTrue((np.abs(
             reconstructed_signal - self.dc_data) < TestInterferometer.MAX_ERROR_PHASE).any())
+
+    def tearDown(self) -> None:
+        data_path: str = f"{os.path.dirname(__file__)}"
+        if os.path.exists(f"{data_path}/Characterisation.csv"):
+            os.remove(f"{data_path}/Characterisation.csv")
 
 
 if __name__ == "__main__":

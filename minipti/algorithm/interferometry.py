@@ -288,7 +288,7 @@ class Characterization:
 
     def _iterate_characterization(self) -> None:
         logging.info("Start iteration...")
-        for _ in itertools.repeat(Characterization.MAX_ITERATIONS):
+        for _ in itertools.repeat(None, Characterization.MAX_ITERATIONS):
             self.interferometry.calculate_phase(self.signals.T)
             self.phases = self.interferometry.phase
             self.characterise_interferometer()

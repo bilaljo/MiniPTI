@@ -4,4 +4,4 @@ from . import json_parser
 try:
     from . import gui
 except ModuleNotFoundError:
-    pass
+    pass  # In case the GUI is not needed
