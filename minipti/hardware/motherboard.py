@@ -153,11 +153,11 @@ class Driver(serial_device.Driver):
 
     @property
     def encoded_buffer_ac_size(self) -> int:
-        return self._encoded_buffer.ac_coupled[0]
+        return len(self._encoded_buffer.ac_coupled[0])
 
     @property
-    def encoded_buffer_dc_size(self) -> tuple[int, int, int, int]:
-        return self._encoded_buffer.dc_coupled[0]
+    def encoded_buffer_dc_size(self) -> int:
+        return len(self._encoded_buffer.dc_coupled[0])
 
     @property
     def bms_package_empty(self) -> bool:
@@ -166,6 +166,9 @@ class Driver(serial_device.Driver):
     @property
     def saved_sample_numbers(self) -> int:
         return len(self._sample_numbers)
+
+    def clear_buffer(self) -> None:
+        self._buffer = ""
 
     @staticmethod
     def _binary_to_2_complement(number: int, byte_length: int) -> int:
