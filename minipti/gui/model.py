@@ -31,7 +31,7 @@ class SettingsTable(QtCore.QAbstractTableModel):
     def __init__(self):
         QtCore.QAbstractTableModel.__init__(self)
         self._data = pd.DataFrame(columns=SettingsTable.HEADERS, index=SettingsTable.INDEX)
-        self._file_path = "minipti/algorithm/configs/settings.csv"
+        self._file_path = f"{os.path.dirname(os.path.dirname(__file__))}/algorithm/configs/settings.csv"
         self._observer_callbacks = []
         signals.settings.connect(self.update_settings)
 
@@ -97,10 +97,8 @@ class SettingsTable(QtCore.QAbstractTableModel):
         self.table_data.loc["Amplitude [V]"] = interferometer.amplitudes
         self.table_data.loc["Offset [V]"] = interferometer.offsets
 
-    def update_settings_paths(
-            self, interferometer: algorithm.interferometry.Interferometer,
-            inversion: algorithm.pti.Inversion
-    ):
+    def update_settings_paths(self, interferometer: algorithm.interferometry.Interferometer,
+                              inversion: algorithm.pti.Inversion):
         interferometer.settings_path = self.file_path
         inversion.settings_path = self.file_path
         interferometer.load_settings()
@@ -108,11 +106,12 @@ class SettingsTable(QtCore.QAbstractTableModel):
 
     def setup_settings_file(self):
         # If no settings found, a new empty file is created filled with NaN.
-        if not os.path.exists("minipti/configs/settings.csv"):
+        algorithm_dir: str = f"{os.path.dirname(os.path.dirname(__file__))}/algorithm"
+        if not os.path.exists(f"{algorithm_dir}/configs/settings.csv"):
             self.save()
         else:
             try:
-                settings = pd.read_csv("minipti/configs/settings.csv", index_col="Setting")
+                settings = pd.read_csv(f"{algorithm_dir}/configs/settings.csv", index_col="Setting")
             except FileNotFoundError:
                 self.save()
             else:
@@ -392,14 +391,11 @@ class Calculation:
         self.characterisation_buffer = CharacterisationBuffer()
         self.pti_signal_mean_queue = deque(maxlen=60)
         self.current_time = 0
-        self.interferometry = Interferometry(
-            algorithm.interferometry.Interferometer(), algorithm.interferometry.Characterization()
-        )
+        self.interferometry = Interferometry(algorithm.interferometry.Interferometer(),
+                                             algorithm.interferometry.Characterization())
         self.interferometry.characterization.interferometry = self.interferometry.interferometer
-        self.pti = PTI(
-            algorithm.pti.Decimation(),
-            algorithm.pti.Inversion(interferometer=self.interferometry.interferometer)
-        )
+        self.pti = PTI(algorithm.pti.Decimation(),
+                       algorithm.pti.Inversion(interferometer=self.interferometry.interferometer))
         self.interferometry.characterization.interferometry = self.interferometry.interferometer
         self._destination_folder = os.getcwd()
         self.save_raw_data = False
@@ -444,8 +440,7 @@ class Calculation:
                 self.pti.inversion.dc_signals = self.pti.decimation.dc_signals
                 signals.decimation_live.emit(self.pti_buffer)
                 self.pti.inversion()
-                self.interferometry.characterization.add_phase(
-                    self.interferometry.interferometer.phase)
+                self.interferometry.characterization.add_phase(self.interferometry.interferometer.phase)
                 self.dc_signals.append(copy.deepcopy(self.pti.decimation.dc_signals))
                 if self.interferometry.characterization.enough_values:
                     self.interferometry.characterization.signals = copy.deepcopy(self.dc_signals)
@@ -493,12 +488,11 @@ class Calculation:
         pd.DataFrame(units).to_csv(self._destination_folder + "/BMS.csv")
 
         def incoming_data() -> None:
-            while Motherboard.driver.connected.is_set():
+            while self.running.is_set():
                 bms_data: hardware.motherboard.BMSData = Motherboard.driver.bms
                 bms_data.battery_temperature = Calculation.kelvin_to_celsius(
                     bms_data.battery_temperature)
-                signals.battery_state.emit(
-                    Battery(bms_data.battery_percentage, bms_data.minutes_left))
+                signals.battery_state.emit(Battery(bms_data.battery_percentage, bms_data.minutes_left))
                 now = datetime.now()
                 output_data = {"Date": str(now.strftime("%Y-%m-%d")),
                                "Time": str(now.strftime("%H:%M:%S"))}

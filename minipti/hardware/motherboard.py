@@ -100,12 +100,10 @@ class Driver(serial_device.Driver):
     def __init__(self):
         serial_device.Driver.__init__(self)
         self.connected = threading.Event()
-        self._package_data = PackageData(
-            DAQData(queue.Queue(maxsize=Driver._QUEUE_SIZE),
-                    queue.Queue(maxsize=Driver._QUEUE_SIZE),
-                    queue.Queue(maxsize=Driver._QUEUE_SIZE)),
-            queue.Queue(maxsize=Driver._QUEUE_SIZE)
-        )
+        self._package_data = PackageData(DAQData(queue.Queue(maxsize=Driver._QUEUE_SIZE),
+                                                 queue.Queue(maxsize=Driver._QUEUE_SIZE),
+                                                 queue.Queue(maxsize=Driver._QUEUE_SIZE)),
+                                         queue.Queue(maxsize=Driver._QUEUE_SIZE))
         self._buffer = ""
         self._encoded_buffer = DAQData(deque(), [deque(), deque(), deque()],
                                        [deque(), deque(), deque()])
@@ -251,8 +249,7 @@ class Driver(serial_device.Driver):
         if not Driver._crc_check(data, "DAQ"):
             self._reset()  # The data is not trustful, and it should be waited for new
             return
-        self._sample_numbers.append(
-            data[Driver._PACKAGE_SIZE_START_INDEX:Driver._PACKAGE_SIZE_END_INDEX])
+        self._sample_numbers.append(data[Driver._PACKAGE_SIZE_START_INDEX:Driver._PACKAGE_SIZE_END_INDEX])
         if len(self._sample_numbers) > 1 and not self._check_package_difference():
             self._reset()
         ref_signal, ac_coupled, dc_coupled = Driver._encode(data)
@@ -272,25 +269,17 @@ class Driver(serial_device.Driver):
         if int(data[BMS.SHUTDOWN_INDEX:BMS.SHUTDOWN_INDEX + 2], base=16) < BMS.SHUTDOWN:
             self.shutdown.set()
         bms = BMSData(
-            external_dc_power=bool(
-                int(data[BMS.EXTERNAL_DC_POWER_INDEX:BMS.EXTERNAL_DC_POWER_INDEX + 2], base=16)),
+            external_dc_power=bool(int(data[BMS.EXTERNAL_DC_POWER_INDEX:BMS.EXTERNAL_DC_POWER_INDEX + 2], base=16)),
             charging=bool(int(data[BMS.CHARGING_INDEX:BMS.CHARGING_INDEX + 2], base=16)),
             minutes_left=int(data[BMS.MINUTES_LEFT_INDEX:BMS.MINUTES_LEFT_INDEX + 4], base=16),
-            battery_percentage=int(
-                data[BMS.BATTERY_PERCENTAGE_INDEX:BMS.BATTERY_PERCENTAGE_INDEX + 2], base=16),
-            battery_temperature=int(
-                data[BMS.BATTERY_TEMPERATURE_INDEX:BMS.BATTERY_TEMPERATURE_INDEX + 4], base=16),
-            battery_current=Driver._binary_to_2_complement(
-                int(data[BMS.CURRENT_INDEX:BMS.CURRENT_INDEX + 4], base=16),
-                byte_length=16
-            ),
+            battery_percentage=int(data[BMS.BATTERY_PERCENTAGE_INDEX:BMS.BATTERY_PERCENTAGE_INDEX + 2], base=16),
+            battery_temperature=int(data[BMS.BATTERY_TEMPERATURE_INDEX:BMS.BATTERY_TEMPERATURE_INDEX + 4], base=16),
+            battery_current=Driver._binary_to_2_complement(int(data[BMS.CURRENT_INDEX:BMS.CURRENT_INDEX + 4], base=16),
+                                                           byte_length=16),
             battery_voltage=int(data[BMS.VOLTAGE_INDEX: BMS.VOLTAGE_INDEX + 4], base=16),
-            full_charged_capacity=int(
-                data[BMS.FULL_CHARGED_CAPACITY_INDEX:BMS.FULL_CHARGED_CAPACITY_INDEX + 4],
-                base=16
-            ),
-            remaining_capacity=int(
-                data[BMS.REMAINING_CAPACITY_INDEX:BMS.REMAINING_CAPACITY_INDEX + 4], base=16)
+            full_charged_capacity=int(data[BMS.FULL_CHARGED_CAPACITY_INDEX:BMS.FULL_CHARGED_CAPACITY_INDEX + 4],
+                                      base=16),
+            remaining_capacity=int(data[BMS.REMAINING_CAPACITY_INDEX:BMS.REMAINING_CAPACITY_INDEX + 4], base=16)
         )
         self._package_data.BMS.put(bms)
 
@@ -299,23 +288,20 @@ class Driver(serial_device.Driver):
         crc_calculated = crc16.arc(data[:-Driver._CRC_START_INDEX].encode())
         crc_received = int(data[-Driver._CRC_START_INDEX:], base=16)
         if crc_calculated != crc_received:  # Corrupted data
-            logging.error(
-                f"CRC value of {source} isn't equal to transmitted. Got {crc_received:04X} "
-                f"instead of {crc_calculated:04X}.")
+            logging.error(f"CRC value of {source} isn't equal to transmitted. Got {crc_received:04X} "
+                          f"instead of {crc_calculated:04X}.")
             return False
         return True
 
     def _check_package_difference(self) -> bool:
-        package_difference = int(self._sample_numbers[1], base=16) - int(self._sample_numbers[0],
-                                                                         base=16)
+        package_difference = int(self._sample_numbers[1], base=16) - int(self._sample_numbers[0],  base=16)
         if package_difference != 1:
             logging.error(f"Missing {package_difference} packages.")
             return False
         return True
 
-    def _synchronize_with_ref(
-            self, ref_signal: _Samples, ac_coupled: list[_Samples], dc_coupled: list[_Samples]
-    ) -> None:
+    def _synchronize_with_ref(self, ref_signal: _Samples, ac_coupled: list[_Samples],
+                              dc_coupled: list[_Samples]) -> None:
         while sum(itertools.islice(ref_signal, 0, Driver.REF_PERIOD // 2)):
             ref_signal.popleft()
             for channel in range(Driver._CHANNELS):
@@ -331,10 +317,8 @@ class Driver(serial_device.Driver):
         Creates a package of samples that represents approximately 1 s data. It contains 8000
         samples.
         """
-        self._package_data.DAQ.ref_signal.put(
-            [self._encoded_buffer.ref_signal.popleft()
-             for _ in range(Driver.NUMBER_OF_SAMPLES)]
-        )
+        self._package_data.DAQ.ref_signal.put([self._encoded_buffer.ref_signal.popleft()
+                                               for _ in range(Driver.NUMBER_OF_SAMPLES)])
         dc_package = [[], [], []]
         ac_package = [[], [], []]
         for _ in itertools.repeat(None, Driver.NUMBER_OF_SAMPLES):
@@ -354,6 +338,13 @@ class Driver(serial_device.Driver):
 
     def _process_data(self) -> None:
         self._reset()
+        self._package_data = PackageData(DAQData(queue.Queue(maxsize=Driver._QUEUE_SIZE),
+                                                 queue.Queue(maxsize=Driver._QUEUE_SIZE),
+                                                 queue.Queue(maxsize=Driver._QUEUE_SIZE)),
+                                         queue.Queue(maxsize=Driver._QUEUE_SIZE))
+        self._buffer = ""
+        self._encoded_buffer = DAQData(deque(), [deque(), deque(), deque()], [deque(), deque(), deque()])
+        self._sample_numbers = deque(maxlen=2)
         while self.connected.is_set():
             self.encode_data()
             if len(self._encoded_buffer.ref_signal) >= Driver.NUMBER_OF_SAMPLES:

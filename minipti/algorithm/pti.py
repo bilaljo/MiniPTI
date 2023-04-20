@@ -42,8 +42,7 @@ class Inversion:
 
     def __init__(
             self, response_phases=None, sign=1, interferometer=None,
-            settings_path=f"{os.path.dirname(__file__)}/configs/settings.csv"
-    ):
+            settings_path=f"{os.path.dirname(__file__)}/configs/settings.csv"):
         super().__init__()
         self.response_phases = response_phases
         self.pti_signal: float | np.ndarray = 0
@@ -151,11 +150,7 @@ class Inversion:
         pd.DataFrame(units, index=["s"]).to_csv(f"{self.destination_folder}/PTI_Inversion.csv",
                                                 index_label="Time")
         pd.DataFrame(output_data).to_csv(
-            f"{self.destination_folder}/PTI_Inversion.csv",
-            index_label="Time",
-            mode="a",
-            header=False
-        )
+            f"{self.destination_folder}/PTI_Inversion.csv",  index_label="Time",  mode="a",  header=False)
         logging.info("PTI Inversion calculated.")
 
     def _prepare_data(self, pti_measurement) -> tuple[dict[str, str], dict[str, np.ndarray]]:
@@ -163,8 +158,7 @@ class Inversion:
             "Interferometric Phase": "rad", "Symmetry": "1",
             "Sensitivity CH1": "V/rad", "Sensitivity CH2": "V/rad",
             "Sensitivity CH3": "V/rad"}
-        output_data = {"Interferometric Phase": self.interferometer.phase,
-                       "Symmetry": self.symmetry}
+        output_data = {"Interferometric Phase": self.interferometer.phase,  "Symmetry": self.symmetry}
         for i in range(3):
             output_data[f"Sensitivity CH{i + 1}"] = self.sensitivity[i]
         if pti_measurement:
@@ -256,9 +250,7 @@ class Decimation:
     def save(self) -> None:
         with h5py.File(f"{self.destination_folder}/raw_data.h5", "a") as h5f:
             now = datetime.now()
-            time_stamp = str(
-                now.strftime("%Y-%m-%d %H:%M:%S:%S.%f")[:Decimation.UNTIL_MICRO_SECONDS]
-            )
+            time_stamp = str(now.strftime("%Y-%m-%d %H:%M:%S:%S.%f")[:Decimation.UNTIL_MICRO_SECONDS])
             h5f.create_group(time_stamp)
             h5f[time_stamp]["Ref"] = self.ref
             h5f[time_stamp]["AC"] = self.ac_coupled
@@ -310,6 +302,8 @@ class Decimation:
 
     def __call__(self, live=True) -> None:
         if self.init_header:
+            with h5py.File(f"{self.destination_folder}/raw_data.h5", "a") as _:
+                pass  # File created
             output_data = {}
             for channel in range(3):
                 output_data[f"Lock In Amplitude CH{channel + 1}"] = "V"

@@ -1,5 +1,5 @@
 Setting,Detector 1,Detector 2,Detector 3
-Amplitude [V],,,
-Offset [V],,,
-Output Phases [deg],,,
-Response Phases [deg],,,
+Amplitude [V],1.4887564333151475,1.5111981824490974,1.3934563079251343
+Offset [V],1.6364041974605368,1.6623385047636885,1.5090263589000763
+Output Phases [deg],0.0,123.25179218192962,242.4868706928669
+Response Phases [deg],141.04,129.99,135.02
