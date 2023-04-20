@@ -67,13 +67,10 @@ class Driver:
     else:
         def find_port(self) -> None:
             for port in list_ports.comports():
-                self.file_descriptor = os.open(
-                    path=port.device,
-                    flags=os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
+                self.file_descriptor = os.open(path=port.device, flags=os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
                 if self.file_descriptor == -1 or not os.isatty(self.file_descriptor):
                     continue
-                os.write(self.file_descriptor,
-                         Command.HARDWARE_ID + Driver.TERMINATION_SYMBOL.encode())
+                os.write(self.file_descriptor, Command.HARDWARE_ID + Driver.TERMINATION_SYMBOL.encode())
                 hardware_id = self.get_hardware_id()
                 if hardware_id is not None and hardware_id == self.device_id:
                     self.port_name = port.device
@@ -89,8 +86,7 @@ class Driver:
         if self.port_name:
             self.serial_port = System.IO.Ports.SerialPort()
             self.serial_port.PortName = self.port_name
-            self.serial_port.DataReceived += System.IO.Ports.SerialDataReceivedEventHandler(
-                self._receive)
+            self.serial_port.DataReceived += System.IO.Ports.SerialDataReceivedEventHandler(self._receive)
             self.serial_port.Open()
             self.connected.set()
             logging.info(f"Connected with {self.device_name}")
@@ -169,10 +165,7 @@ class Driver:
             while self.connected.is_set():
                 if self.ready_write.wait(timeout=Driver.MAX_RESPONSE_TIME):
                     self.last_written_message = self._write_buffer.get(block=True)
-                    os.write(
-                        self.file_descriptor,
-                        (self.last_written_message + Driver.TERMINATION_SYMBOL).encode()
-                    )
+                    os.write(self.file_descriptor,  (self.last_written_message + Driver.TERMINATION_SYMBOL).encode())
                     self.ready_write.clear()
 
     if platform.system() == "Windows":
@@ -194,7 +187,9 @@ class Driver:
 
     if platform.system() == "Windows":
         def _receive(self, sender, arg: System.IO.Ports.SerialDataReceivedEventArgs) -> None:
-            data = sender.ReadExisting()
+            data: str = ""
+            bytes_to_read: int = sender.BytesToRead
+            self.device.Read(data, 0, bytes_to_read)
             self.received_data.put(data)
     else:
         def _receive(self, signum, frame) -> None:
