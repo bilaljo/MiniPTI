@@ -169,11 +169,12 @@ class Driver:
 
     if platform.system() == "Windows":
         def _write(self) -> None:
+            overlapped = win32file.OVERLAPPED()
             while self.connected.is_set():
                 self.running.wait()
                 if self.ready_write.wait(timeout=Driver.MAX_RESPONSE_TIME):
                     self.last_written_message = self._write_buffer.get(block=True)
-                    self.device.Write(self.last_written_message + Driver.TERMINATION_SYMBOL)
+                    win32file.WriteFile(self.device, self.last_written_message + Driver.TERMINATION_SYMBOL, overlapped)
                     self.ready_write.clear()
     else:
         def _write(self) -> None:
