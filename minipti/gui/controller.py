@@ -2,6 +2,7 @@ import abc
 import logging
 import os
 import threading
+import time
 import typing
 
 from PyQt5 import QtWidgets
@@ -20,6 +21,8 @@ class MainApplication(QtWidgets.QApplication):
         # threading.excepthook = self.thread_exception
 
     def close(self) -> None:
+        time.sleep(0.01)
+        model.Motherboard.driver.close()
         self.view.close()
 
     def thread_exception(self, args) -> None:
@@ -212,7 +215,7 @@ class Home:
 
     def connect_devices(self) -> None:
         try:
-            model.Motherboard.driver.open()
+            model.Motherboard.open()
             self.await_shutdown()
         except OSError:
             logging.error("Could not connect with Motherboard")
@@ -241,12 +244,17 @@ class Home:
 
     def run_measurement(self) -> None:
         if not self.daq_enabled:
-            model.Motherboard.driver.run()
+            if not self.mother_board_model.run():
+                QtWidgets.QMessageBox.critical(self.view, "IO Error",
+                                               "Cannot run measurement. Motherboard is not connected.")
+                return
+            self.mother_board_model.run()
             self.calculation_model.live_calculation()
             view.toggle_button(True, self.view.buttons["Run Measurement"])
             self.daq_enabled = True
         else:
             view.toggle_button(False, self.view.buttons["Run Measurement"])
+            self.mother_board_model.stop()
             self.daq_enabled = False
 
     def set_clean_air(self, bypass: bool) -> None:

@@ -118,9 +118,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.tab_bar.addTab(self.tabs.pti_signal, "PTI Signal")
 
     def closeEvent(self, close_event):
-        close = QtWidgets.QMessageBox.question(
-            self, "QUIT", "Are you sure you want to close?",
-            QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No)
+        close = QtWidgets.QMessageBox.question(self, "QUIT", "Are you sure you want to close?",
+                                               QtWidgets.QMessageBox.StandardButton.Yes |
+                                               QtWidgets.QMessageBox.StandardButton.No)
         if close == QtWidgets.QMessageBox.StandardButton.Yes:
             close_event.accept()
             self.main_controller.close()
@@ -335,14 +335,12 @@ class Home(QtWidgets.QTabWidget, _Frames, _CreateButton):
         self.frames["Valve"].layout().addWidget(sub_layout)
         sub_layout = QtWidgets.QWidget(parent=self.frames["Valve"])
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
-        self.create_button(
-            master=sub_layout, title="Save Settings",
-            slot=self.controller.save_motherboard_configuration
-        )
-        self.create_button(
-            master=sub_layout, title="Load Settings",
-            slot=self.controller.load_motherboard_configuration
-        )
+        self.create_button(master=sub_layout, title="Save Settings",
+                           slot=self.controller.save_motherboard_configuration
+                           )
+        self.create_button(master=sub_layout, title="Load Settings",
+                           slot=self.controller.load_motherboard_configuration
+                           )
         self.frames["Valve"].layout().addWidget(sub_layout)
 
         # Measurement Buttons
@@ -355,14 +353,12 @@ class Home(QtWidgets.QTabWidget, _Frames, _CreateButton):
 
         sub_layout = QtWidgets.QWidget(parent=self.frames["Pump Laser"])
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
-        self.create_button(
-            master=sub_layout, title="Enable Laser", slot=self.controller.enable_pump_laser,
-            master_title="Pump Laser "
-        )
-        self.create_button(
-            master=sub_layout, title="Enable Tec", slot=self.controller.enable_tec_pump_laser,
-            master_title="Pump Laser "
-        )
+        self.create_button(master=sub_layout, title="Enable Laser", slot=self.controller.enable_pump_laser,
+                           master_title="Pump Laser "
+                           )
+        self.create_button(master=sub_layout, title="Enable Tec", slot=self.controller.enable_tec_pump_laser,
+                           master_title="Pump Laser "
+                           )
         self.frames["Pump Laser"].layout().addWidget(sub_layout)
 
         sub_layout = QtWidgets.QWidget(parent=self.frames["Probe Laser"])

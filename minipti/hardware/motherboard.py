@@ -3,7 +3,6 @@ import itertools
 import logging
 import os
 import queue
-import re
 import threading
 import time
 from collections import deque
@@ -23,18 +22,12 @@ class DAQData:
     dc_coupled: queue.Queue | deque | Sequence
 
 
-@dataclass(frozen=True)
-class Packages:
-    DAQ: re.Pattern = re.compile("00[0-9a-fA-F]{4108}", flags=re.MULTILINE)
-    BMS: re.Pattern = re.compile("01[0-9a-fA-F]{38}", flags=re.MULTILINE)
-
-
 _Samples = deque[int]
 
 
 class BMS(enum.IntEnum):
-    SHUTDOWN_INDEX = 0
     SHUTDOWN = 0xFF
+    SHUTDOWN_INDEX = 2
     VALID_IDENTIFIER_INDEX = 4
     EXTERNAL_DC_POWER_INDEX = 6
     CHARGING_INDEX = 8
@@ -176,11 +169,10 @@ class Driver(serial_device.Driver):
 
     def load_config(self) -> None:
         self.config_parser.read(self.config_path)
-        valve_config = Valve(
-            automatic_switch=self.config_parser.getboolean("Valve", "automatic_switch"),
-            period=self.config_parser.getint("Valve", "period"),
-            duty_cycle=self.config_parser.getint("Valve", "duty_cycle"),
-        )
+        valve_config = Valve(automatic_switch=self.config_parser.getboolean("Valve", "automatic_switch"),
+                             period=self.config_parser.getint("Valve", "period"),
+                             duty_cycle=self.config_parser.getint("Valve", "duty_cycle"),
+                             )
         self.config = MotherBoardConfig(valve_config)
         if valve_config.automatic_switch:
             self.automatic_switch.set()
@@ -199,8 +191,7 @@ class Driver(serial_device.Driver):
         repeats periodically. It starts with below the first 10 bytes (meta information) and ends
         before the last 4 bytes (crc checksum).
         """
-        raw_data = raw_data[
-                   Driver._PACKAGE_SIZE_END_INDEX:Driver._PACKAGE_SIZE - Driver._CRC_START_INDEX]
+        raw_data = raw_data[Driver._PACKAGE_SIZE_END_INDEX:Driver._PACKAGE_SIZE - Driver._CRC_START_INDEX]
         ref: _Samples = deque()
         ac: list[_Samples] = [deque(), deque(), deque()]
         dc: list[_Samples] = [deque(), deque(), deque(), deque()]
@@ -220,6 +211,10 @@ class Driver(serial_device.Driver):
             dc[3].append(int(raw_data[i + 28:i + 32], base=16))
         return ref, ac, dc
 
+    def reset(self) -> None:
+        self._reset()
+        self.clear_buffer()
+
     def _reset(self) -> None:
         self.synchronize = True
         self._encoded_buffer.ref_signal = deque()
@@ -230,13 +225,12 @@ class Driver(serial_device.Driver):
     def encode_data(self) -> None:
         split_data = (self._buffer + self.received_data.get(block=True)).split("\n")
         for data in split_data:
-            if Packages.DAQ.fullmatch(data):
+            if data[:2] == "00" and len(data) == 4110:
                 self._encode_daq(data)
-            elif Packages.BMS.fullmatch(data):
+            elif data[:2] == "01" and len(data) == 40:
                 self._encode_bms(data)
-        else:
-            # Remaining data without a termination symbol must be buffered
-            self._buffer = split_data[-1]
+        # Remaining data without a termination symbol must be buffered
+        self._buffer = split_data[-1]
 
     def _encode_daq(self, data: str) -> None:
         """
@@ -263,11 +257,11 @@ class Driver(serial_device.Driver):
     def _encode_bms(self, data: str) -> None:
         if not Driver._crc_check(data, "BMS"):
             return
+        if int(data[BMS.SHUTDOWN_INDEX:BMS.SHUTDOWN_INDEX + 2], base=16) < BMS.SHUTDOWN:
+            self.shutdown.set()
         if not int(data[BMS.VALID_IDENTIFIER_INDEX: BMS.VALID_IDENTIFIER_INDEX + 2], base=16):
             logging.error("Invalid package from BMS")
             return
-        if int(data[BMS.SHUTDOWN_INDEX:BMS.SHUTDOWN_INDEX + 2], base=16) < BMS.SHUTDOWN:
-            self.shutdown.set()
         bms = BMSData(
             external_dc_power=bool(int(data[BMS.EXTERNAL_DC_POWER_INDEX:BMS.EXTERNAL_DC_POWER_INDEX + 2], base=16)),
             charging=bool(int(data[BMS.CHARGING_INDEX:BMS.CHARGING_INDEX + 2], base=16)),
@@ -355,7 +349,6 @@ class Driver(serial_device.Driver):
         Periodically bypass a valve. The duty cycle defines how much time for each part (bypassed
         or not) is spent.
         """
-
         def switch() -> None:
             while self.connected and self.automatic_switch.set():
                 if self.bypass:

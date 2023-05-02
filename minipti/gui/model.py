@@ -6,6 +6,7 @@ import itertools
 import logging
 import os
 import platform
+import queue
 import subprocess
 import threading
 import time
@@ -374,8 +375,7 @@ def shutdown_procedure() -> None:
     Tec.driver.close()
     time.sleep(0.5)  # Give the calculations threads time to finish their write operation
     if platform.system() == "Windows":
-        # subprocess.run(r"shutdown /s /t 0.5", shell=True)
-        pass
+        subprocess.run(r"shutdown /s /t 1", shell=True)
     else:
         subprocess.run("sleep 0.5s && echo poweroff", shell=True)
 
@@ -424,14 +424,14 @@ class Calculation:
         self.interferometry.interferometer.load_settings()
 
         def calculate_characterization():
-            while Motherboard.driver.connected.is_set():
+            while Motherboard.driver.running.is_set():
                 self.interferometry.characterization()
                 self.characterisation_buffer.append(self.interferometry.characterization,
                                                     self.interferometry.interferometer)
                 signals.characterization_live.emit(self.characterisation_buffer)
 
         def calculate_inversion():
-            while Motherboard.driver.connected.is_set():
+            while Motherboard.driver.running.is_set():
                 self.pti.decimation.ref = np.array(Motherboard.driver.ref_signal)
                 self.pti.decimation.dc_coupled = np.array(Motherboard.driver.dc_coupled)
                 self.pti.decimation.ac_coupled = np.array(Motherboard.driver.ac_coupled)
@@ -488,7 +488,7 @@ class Calculation:
         pd.DataFrame(units).to_csv(self._destination_folder + "/BMS.csv")
 
         def incoming_data() -> None:
-            while self.running.is_set():
+            while Motherboard.driver.running.is_set():
                 bms_data: hardware.motherboard.BMSData = Motherboard.driver.bms
                 bms_data.battery_temperature = Calculation.kelvin_to_celsius(
                     bms_data.battery_temperature)
@@ -521,7 +521,6 @@ class Serial:
         Connects to a serial device and listens to incoming data.
         """
         Serial.driver.open()
-        Serial.driver.run()
 
     @staticmethod
     def close() -> None:
@@ -567,6 +566,21 @@ class Motherboard(Serial):
     def __init__(self):
         Serial.__init__(self)
         self.bms_data: tuple[float, float] = (0, 0)
+
+    @staticmethod
+    def open() -> None:
+        Motherboard.driver.open()
+        Motherboard.driver.run()
+
+    def run(self) -> bool:
+        if not self.driver.connected.is_set():
+            return False
+        self.driver.reset()
+        self.driver.running.set()
+        return True
+
+    def stop(self) -> None:
+        self.driver.running.clear()
 
     @property
     def shutdown_event(self) -> threading.Event:
@@ -658,7 +672,7 @@ class Laser(Serial):
 
     @staticmethod
     def _incoming_data():
-        while Laser.driver.connected.is_set():
+        while Laser.driver.running.is_set():
             received_data = Laser.driver.data.get(block=True)
             Laser.buffer.append(received_data)
             laser_signals.data.emit(Laser.buffer)
