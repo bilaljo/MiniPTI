@@ -1,10 +1,11 @@
 .idea
 notebooks/__pycache__
-notebooks/.ipynb_checkpoints
-minipti/__pycache__
 tests/__pycache__
+minipti/__pycache__
 minipti/gui/__pycache__
 minipti/algorithm/__pycache__
 minipti/hardware/__pycache__
-pti.log
+minipti/*.log
 venv
+*.csv
+*.h5
