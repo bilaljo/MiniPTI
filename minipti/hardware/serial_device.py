@@ -68,10 +68,12 @@ class Driver:
     else:
         def find_port(self) -> None:
             for port in list_ports.comports():
-                self.file_descriptor = os.open(path=port.device, flags=os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
+                self.file_descriptor = os.open(path=port.device,
+                                               flags=os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
                 if self.file_descriptor == -1 or not os.isatty(self.file_descriptor):
                     continue
-                os.write(self.file_descriptor, Command.HARDWARE_ID + Driver.TERMINATION_SYMBOL.encode())
+                os.write(self.file_descriptor,
+                         Command.HARDWARE_ID + Driver.TERMINATION_SYMBOL.encode())
                 hardware_id = self.get_hardware_id()
                 if hardware_id is not None and hardware_id == self.device_id:
                     self.port_name = port.device
@@ -174,7 +176,9 @@ class Driver:
                 self.running.wait()
                 if self.ready_write.wait(timeout=Driver.MAX_RESPONSE_TIME):
                     self.last_written_message = self._write_buffer.get(block=True)
-                    win32file.WriteFile(self.device, self.last_written_message + Driver.TERMINATION_SYMBOL, overlapped)
+                    win32file.WriteFile(self.device, self.last_written_message
+                                        + Driver.TERMINATION_SYMBOL,
+                                        overlapped)
                     self.ready_write.clear()
     else:
         def _write(self) -> None:
@@ -182,7 +186,8 @@ class Driver:
                 self.running.wait()
                 if self.ready_write.wait(timeout=Driver.MAX_RESPONSE_TIME):
                     self.last_written_message = self._write_buffer.get(block=True)
-                    os.write(self.file_descriptor,  (self.last_written_message + Driver.TERMINATION_SYMBOL).encode())
+                    os.write(self.file_descriptor,
+                             (self.last_written_message + Driver.TERMINATION_SYMBOL).encode())
                     self.ready_write.clear()
 
     def _check_ack(self, data: str) -> bool:
