@@ -185,6 +185,17 @@ class Driver:
                     os.write(self.file_descriptor,  (self.last_written_message + Driver.TERMINATION_SYMBOL).encode())
                     self.ready_write.clear()
 
+    def _check_ack(self, data: str) -> bool:
+        last_written = self.last_written_message
+        if data != last_written and data != last_written.capitalize():
+            logging.error(f"Received message {data} message, expected {last_written}")
+            success = False
+        else:
+            logging.debug(f"Command {data} successfully applied")
+            success = True
+        self.ready_write.set()
+        return success
+
     if platform.system() == "Windows":
         def is_open(self) -> bool:
             return self.device is not None
@@ -206,6 +217,10 @@ class Driver:
 
     if platform.system() == "Windows":
         def _receive(self) -> None:
+            """
+            Receiver thread for incoming data. Blocks until new data is ready to read.
+            This function is chosen on a Windows based system.
+            """
             overlapped = win32file.OVERLAPPED()
             overlapped.hEvent = win32event.CreateEvent(None, 1, 0, None)
             while self.connected.is_set():
@@ -219,12 +234,18 @@ class Driver:
                 self.received_data.put(data.tobytes().decode())
     else:
         def _receive(self, signum, frame) -> None:
+            """
+            Receiver signal handler for IO event. This function is chosen on a Unix based sytem.
+            """
             buffer_size = os.stat(self.file_descriptor).st_size
             self.received_data.put(os.read(self.file_descriptor, buffer_size).decode())
 
     @abc.abstractmethod
     def encode_data(self) -> None:
-        ...
+        """
+        Encodes incoming data of the serial device. Each package has a package identifier, to decide the decoding
+        algorithm of it.
+        """
 
     @abc.abstractmethod
     def _process_data(self) -> None:

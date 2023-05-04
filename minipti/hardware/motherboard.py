@@ -229,6 +229,8 @@ class Driver(serial_device.Driver):
                 self._encode_daq(data)
             elif data[:2] == "01" and len(data) == 40:
                 self._encode_bms(data)
+            elif data[:3] == "SBP" and len(data) == 7:
+                self._check_ack(data)
         # Remaining data without a termination symbol must be buffered
         self._buffer = split_data[-1]
 
@@ -255,6 +257,16 @@ class Driver(serial_device.Driver):
             self._encoded_buffer.ac_coupled[channel].extend(ac_coupled[channel])
 
     def _encode_bms(self, data: str) -> None:
+        """
+        The BMS data is encoded according to the following scheme:
+        Every byte is an ASCII symbol. The bytes have the following meanings:
+        1 - 2:
+            Represent the package identifier
+        2 - 4:
+        - The next two bytes are the countdown of a shutdown. Attention: if this value is below 255 (0xFF),
+          the motherboard will shut down itself soon.
+        - The next
+        """
         if not Driver._crc_check(data, "BMS"):
             return
         if int(data[BMS.SHUTDOWN_INDEX:BMS.SHUTDOWN_INDEX + 2], base=16) < BMS.SHUTDOWN:

@@ -567,6 +567,10 @@ class Motherboard(Serial):
         Serial.__init__(self)
         self.bms_data: tuple[float, float] = (0, 0)
 
+    @property
+    def connected(self) -> bool:
+        return self.driver.connected.is_set()
+
     @staticmethod
     def open() -> None:
         Motherboard.driver.open()
@@ -687,6 +691,10 @@ class PumpLaser(Laser):
         Laser.__init__(self)
 
     @property
+    def connected(self) -> bool:
+        return self.driver.connected.is_set()
+
+    @property
     def driver_bits(self) -> int:
         return self.driver.pump_laser.bit_value
 
@@ -801,6 +809,10 @@ class ProbeLaser(Laser):
         Laser.__init__(self)
 
     @property
+    def connected(self) -> bool:
+        return self.driver.connected.is_set()
+
+    @property
     def current_bits_probe_laser(self) -> int:
         return self.driver.probe_laser.current_bits
 
@@ -891,6 +903,10 @@ class Tec(Serial):
     def __init__(self, laser: str):
         Serial.__init__(self)
         self.laser = laser
+
+    @property
+    def connected(self) -> bool:
+        return self.driver.connected.is_set()
 
     @property
     def enabled(self) -> bool:

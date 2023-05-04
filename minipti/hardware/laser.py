@@ -127,13 +127,7 @@ class Driver(serial_device.Driver):
                     logging.error(f"Invalid command {received}")
                     self.ready_write.set()
                 case "S" | "C":
-                    last_written = self.last_written_message
-                    if received != last_written and received != last_written.capitalize():
-                        logging.error(
-                            f"Received message {received} message, expected {last_written}")
-                    else:
-                        logging.debug(f"Command {received} successfully applied")
-                    self.ready_write.set()
+                    self._check_ack(received_data)
                 case "L":
                     data_frame = received.split("\t")[Driver._START_DATA_FRAME:self.end_data_frame]
                     self.data.put(Data(pump_laser_current=float(data_frame[0]),
