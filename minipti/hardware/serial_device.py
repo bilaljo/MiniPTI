@@ -1,5 +1,4 @@
 import abc
-import copy
 import logging
 import os
 import platform
@@ -9,6 +8,8 @@ import threading
 import time
 from dataclasses import dataclass
 from enum import Enum
+
+import pywintypes
 
 if platform.system() == "Windows":
     import win32con
@@ -87,15 +88,20 @@ class Driver:
 
     def open(self) -> None:
         if self.port_name:
-            self.device = win32file.CreateFile(self.port_name,
-                                               win32con.GENERIC_READ | win32con.GENERIC_WRITE,
-                                               0,
-                                               None,
-                                               win32con.OPEN_EXISTING,
-                                               win32con.FILE_ATTRIBUTE_NORMAL,
-                                               None)
+            try:
+                self.device = win32file.CreateFile(self.port_name,
+                                                   win32con.GENERIC_READ | win32con.GENERIC_WRITE,
+                                                   0,
+                                                   None,
+                                                   win32con.OPEN_EXISTING,
+                                                   win32con.FILE_ATTRIBUTE_NORMAL,
+                                                   None)
+            except pywintypes.error:
+                logging.error(f"Could not connect with {self.device_name}")
+                logging.info("The COM port of the device cannot be found anymore")
+
             win32file.SetCommMask(self.device, win32file.EV_RXCHAR)
-            win32file .SetupComm(self.device, 4096, 4096)
+            win32file.SetupComm(self.device, 4096, 4096)
             win32file.PurgeComm(self.device,
                                 win32file.PURGE_TXABORT |
                                 win32file.PURGE_RXABORT |
@@ -149,13 +155,11 @@ class Driver:
         if Patterns.ERROR.search(received) is not None:
             match Patterns.HEX_VALUE.search(Patterns.ERROR.search(received).group()).group():
                 case Error.COMMAND:
-                    raise OSError(
-                        f"Packet length != 7 characters ('\n' excluded) from {self.port_name}")
+                    raise OSError(f"Packet length != 7 characters ('\n' excluded) from {self.port_name}")
                 case Error.PARAMETER:
                     raise OSError(f"Error converting the hex parameter from {self.port_name}")
                 case Error.COMMAND:
-                    raise OSError(
-                        f"Request consists of an unknown/invalid command from {self.port_name}")
+                    raise OSError(f"Request consists of an unknown/invalid command from {self.port_name}")
                 case Error.UNKNOWN_COMMAND:
                     raise OSError(f"Unknown command from {self.port_name}")
 
@@ -176,8 +180,7 @@ class Driver:
                 self.running.wait()
                 if self.ready_write.wait(timeout=Driver.MAX_RESPONSE_TIME):
                     self.last_written_message = self._write_buffer.get(block=True)
-                    win32file.WriteFile(self.device, self.last_written_message
-                                        + Driver.TERMINATION_SYMBOL,
+                    win32file.WriteFile(self.device, self.last_written_message + Driver.TERMINATION_SYMBOL,
                                         overlapped)
                     self.ready_write.clear()
     else:
@@ -212,9 +215,7 @@ class Driver:
         def close(self) -> None:
             if self.device is not None:
                 self.connected.clear()
-                time.sleep(0.01)
                 win32file.CloseHandle(self.device)
-                self.device = None
     else:
         def close(self) -> None:
             if self.file_descriptor != -1:
@@ -228,19 +229,24 @@ class Driver:
             """
             overlapped = win32file.OVERLAPPED()
             overlapped.hEvent = win32event.CreateEvent(None, 1, 0, None)
+            dwEvtMask = 0
+            buffer_size = 4096
             while self.connected.is_set():
                 self.running.wait()
-                rc, mask = win32file.WaitCommEvent(self.device, overlapped)
-                if rc == 0:
-                    win32event.SetEvent(overlapped.hEvent)
-                flags, comstat = win32file.ClearCommError(self.device)
-                rc, data = win32file.ReadFile(self.device, comstat.cbInQue, overlapped)
-                win32event.WaitForSingleObject(overlapped.hEvent, win32event.INFINITE)
-                self.received_data.put(data.tobytes().decode())
+                # rc, mask = win32file.WaitCommEvent(self.device, overlapped)
+                # if rc == 0:
+                #    win32event.SetEvent(overlapped.hEvent)
+                # flags, comstat = win32file.ClearCommError(self.device)
+                # rc, data = win32file.ReadFile(self.device, comstat.cbInQue, overlapped)
+                # win32event.WaitForSingleObject(overlapped.hEvent, win32event.INFINITE)
+                win32event.WaitCommEvent(self.device, dwEvtMask, overlapped)
+                if dwEvtMask & win32con.EV_RXCHAR:
+                    _, data = win32file.ReadFile(self.device, buffer_size, None)
+                    self.received_data.put(data.tobytes().decode())
     else:
         def _receive(self, signum, frame) -> None:
             """
-            Receiver signal handler for IO event. This function is chosen on a Unix based sytem.
+            Receiver signal handler for IO event. This function is chosen on a Unix based system.
             """
             buffer_size = os.stat(self.file_descriptor).st_size
             self.received_data.put(os.read(self.file_descriptor, buffer_size).decode())

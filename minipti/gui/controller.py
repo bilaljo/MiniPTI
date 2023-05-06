@@ -21,14 +21,12 @@ class MainApplication(QtWidgets.QApplication):
         threading.excepthook = self.thread_exception
 
     def close(self) -> None:
-        time.sleep(0.01)
         model.Motherboard.driver.close()
         self.view.close()
 
     def thread_exception(self, args) -> None:
         if args.exc_type == KeyError:
-            QtWidgets.QMessageBox.critical(self.view, "File Error",
-                                           "Invalid file given or missing headers.")
+            QtWidgets.QMessageBox.critical(self.view, "File Error", "Invalid file given or missing headers.")
         elif args.exc_type == TimeoutError:
             QtWidgets.QMessageBox.critical(self.view, "Timeout Error", "Timeout Error")
         else:
@@ -157,17 +155,15 @@ class Home:
 
     def plot_dc(self) -> None:
         try:
-            model.process_dc_data(
-                self.get_file_path(
-                    "Decimation", "CSV File (*.csv);; TXT File (*.txt);; All Files (*)"))
+            model.process_dc_data(self.get_file_path("Decimation",
+                                                     "CSV File (*.csv);; TXT File (*.txt);; All Files (*)"))
         except KeyError:
             QtWidgets.QMessageBox.critical(self.view, "Plotting Error", "Invalid data given. Could not plot.")
 
     def plot_characterisation(self) -> None:
         try:
             model.process_characterization_data(
-                self.get_file_path(
-                    "Characterisation", "CSV File (*.csv);; TXT File (*.txt);; All Files (*)"))
+                self.get_file_path("Characterisation", "CSV File (*.csv);; TXT File (*.txt);; All Files (*)"))
         except KeyError:
             QtWidgets.QMessageBox.critical(self.view, "Plotting Error", "Invalid data given. Could not plot.")
 
@@ -194,9 +190,9 @@ class Home:
         self.main_app.quit()
 
     def shutdown_by_button(self) -> None:
-        close = QtWidgets.QMessageBox.question(
-            self.view, "QUIT", "Are you sure you want to shutdown?",
-            QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No)
+        close = QtWidgets.QMessageBox.question(self.view, "QUIT", "Are you sure you want to shutdown?",
+                                               QtWidgets.QMessageBox.StandardButton.Yes
+                                               | QtWidgets.QMessageBox.StandardButton.No)
         if close == QtWidgets.QMessageBox.StandardButton.Yes:
             self.shutdown()
 
@@ -408,8 +404,8 @@ class Tec:
         self.tec.save_configuration()
 
     def load_configuration(self) -> None:
-        if filepath := _driver_config_file_path(last_directory=self.tec.config_path,
-                                                parent=self.view, device="Tec Driver"):
+        if filepath := _driver_config_file_path(last_directory=self.tec.config_path, parent=self.view,
+                                                device="Tec Driver"):
             self.tec.config_path = filepath
         else:
             return
