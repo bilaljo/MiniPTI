@@ -5,7 +5,7 @@ minipti/__pycache__
 minipti/gui/__pycache__
 minipti/algorithm/__pycache__
 minipti/hardware/__pycache__
-minipti/*.log
+*.log
 venv
 *.csv
 *.h5
