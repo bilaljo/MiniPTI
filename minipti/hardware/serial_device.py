@@ -13,7 +13,7 @@ import pywintypes
 
 if platform.system() == "Windows":
     import win32con
-    from win32 import win32file, win32event
+    from win32 import win32file
 else:
     import signal
 import serial
@@ -103,10 +103,8 @@ class Driver:
             win32file.SetCommMask(self.device, win32file.EV_RXCHAR)
             win32file.SetupComm(self.device, 4096, 4096)
             win32file.PurgeComm(self.device,
-                                win32file.PURGE_TXABORT |
-                                win32file.PURGE_RXABORT |
-                                win32file.PURGE_TXCLEAR |
-                                win32file.PURGE_RXCLEAR)
+                                win32file.PURGE_TXABORT | win32file.PURGE_RXABORT
+                                | win32file.PURGE_TXCLEAR | win32file.PURGE_RXCLEAR)
             self.connected.set()
             logging.info(f"Connected with {self.device_name}")
         else:
@@ -164,6 +162,9 @@ class Driver:
                     raise OSError(f"Unknown command from {self.port_name}")
 
     def write(self, message: str | bytes | bytearray) -> bool:
+        """
+        Sends data to the serial device if connected and no acknowledge is pending.
+        """
         while self.connected.is_set():
             self.running.wait()
             if isinstance(message, str):
@@ -175,13 +176,11 @@ class Driver:
 
     if platform.system() == "Windows":
         def _write(self) -> None:
-            overlapped = win32file.OVERLAPPED()
             while self.connected.is_set():
                 self.running.wait()
                 if self.ready_write.wait(timeout=Driver.MAX_RESPONSE_TIME):
                     self.last_written_message = self._write_buffer.get(block=True)
-                    win32file.WriteFile(self.device, self.last_written_message + Driver.TERMINATION_SYMBOL,
-                                        overlapped)
+                    win32file.WriteFile(self.device, self.last_written_message + Driver.TERMINATION_SYMBOL, None)
                     self.ready_write.clear()
     else:
         def _write(self) -> None:
@@ -189,8 +188,7 @@ class Driver:
                 self.running.wait()
                 if self.ready_write.wait(timeout=Driver.MAX_RESPONSE_TIME):
                     self.last_written_message = self._write_buffer.get(block=True)
-                    os.write(self.file_descriptor,
-                             (self.last_written_message + Driver.TERMINATION_SYMBOL).encode())
+                    os.write(self.file_descriptor, (self.last_written_message + Driver.TERMINATION_SYMBOL).encode())
                     self.ready_write.clear()
 
     def _check_ack(self, data: str) -> bool:
@@ -222,28 +220,31 @@ class Driver:
                 os.close(self.file_descriptor)
 
     if platform.system() == "Windows":
+        """
+        Serial Port Reading Implementation on Windows.
+        """
         def _receive(self) -> None:
             """
-            Receiver thread for incoming data. Blocks until new data is ready to read.
-            This function is chosen on a Windows based system.
+            Receiver thread for incoming data. The WaitComEvent method blocks the thread until a specific event occured.
+            The event we are looking for has event mask value EV_RXCHAR. It is set, when a character (or more) is put
+            into the input buffer.
+            If the EV_RXCHAR event occurred the data can be read. While reading, a memoryview object is returned.
             """
-            overlapped = win32file.OVERLAPPED()
-            overlapped.hEvent = win32event.CreateEvent(None, 1, 0, None)
-            dwEvtMask = 0
             buffer_size = 4096
             while self.connected.is_set():
                 self.running.wait()
-                # rc, mask = win32file.WaitCommEvent(self.device, overlapped)
-                # if rc == 0:
-                #    win32event.SetEvent(overlapped.hEvent)
-                # flags, comstat = win32file.ClearCommError(self.device)
-                # rc, data = win32file.ReadFile(self.device, comstat.cbInQue, overlapped)
-                # win32event.WaitForSingleObject(overlapped.hEvent, win32event.INFINITE)
-                win32event.WaitCommEvent(self.device, dwEvtMask, overlapped)
-                if dwEvtMask & win32con.EV_RXCHAR:
-                    _, data = win32file.ReadFile(self.device, buffer_size, None)
+                rc, mask = win32file.WaitCommEvent(self.device, None)
+                if rc == 0:
+                    logging.error("Error while waiting to new data occourced")
+                if mask & win32con.EV_RXCHAR:
+                    rc, data = win32file.ReadFile(self.device, buffer_size, None)
+                    if rc == 0:
+                        logging.error("Could not read serial data")
                     self.received_data.put(data.tobytes().decode())
     else:
+        """
+        Serial Port Reading Implementation on Unix.
+        """
         def _receive(self, signum, frame) -> None:
             """
             Receiver signal handler for IO event. This function is chosen on a Unix based system.
