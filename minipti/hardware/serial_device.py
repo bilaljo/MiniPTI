@@ -69,12 +69,10 @@ class Driver:
     else:
         def find_port(self) -> None:
             for port in list_ports.comports():
-                self.file_descriptor = os.open(path=port.device,
-                                               flags=os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
+                self.file_descriptor = os.open(path=port.device, flags=os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
                 if self.file_descriptor == -1 or not os.isatty(self.file_descriptor):
                     continue
-                os.write(self.file_descriptor,
-                         Command.HARDWARE_ID + Driver.TERMINATION_SYMBOL.encode())
+                os.write(self.file_descriptor, Command.HARDWARE_ID + Driver.TERMINATION_SYMBOL.encode())
                 hardware_id = self.get_hardware_id()
                 if hardware_id is not None and hardware_id == self.device_id:
                     self.port_name = port.device
@@ -86,29 +84,34 @@ class Driver:
                     self.file_descriptor = -1  # Reset it since we found no valid one
             raise OSError("Could not find {self.device_name}")
 
-    def open(self) -> None:
-        if self.port_name:
-            try:
-                self.device = win32file.CreateFile(self.port_name,
-                                                   win32con.GENERIC_READ | win32con.GENERIC_WRITE,
-                                                   0,
-                                                   None,
-                                                   win32con.OPEN_EXISTING,
-                                                   win32con.FILE_ATTRIBUTE_NORMAL,
-                                                   None)
-            except pywintypes.error:
-                logging.error(f"Could not connect with {self.device_name}")
-                logging.info("The COM port of the device cannot be found anymore")
+    if platform.system() == "Windows":
+        def open(self) -> None:
+            if self.port_name:
+                try:
+                    self.device = win32file.CreateFile(self.port_name,
+                                                       win32con.GENERIC_READ | win32con.GENERIC_WRITE,
+                                                       0,
+                                                       None,
+                                                       win32con.OPEN_EXISTING,
+                                                       win32con.FILE_ATTRIBUTE_NORMAL,
+                                                       None)
+                except pywintypes.error:
+                    logging.error(f"Could not connect with {self.device_name}")
+                    logging.info("The COM port of the device cannot be found anymore")
 
-            win32file.SetCommMask(self.device, win32file.EV_RXCHAR)
-            win32file.SetupComm(self.device, 4096, 4096)
-            win32file.PurgeComm(self.device,
-                                win32file.PURGE_TXABORT | win32file.PURGE_RXABORT
-                                | win32file.PURGE_TXCLEAR | win32file.PURGE_RXCLEAR)
-            self.connected.set()
-            logging.info(f"Connected with {self.device_name}")
-        else:
-            raise OSError("Could not find {self.device_name}")
+                win32file.SetCommMask(self.device, win32file.EV_RXCHAR)
+                win32file.SetupComm(self.device, 4096, 4096)
+                win32file.PurgeComm(self.device,
+                                    win32file.PURGE_TXABORT | win32file.PURGE_RXABORT
+                                    | win32file.PURGE_TXCLEAR | win32file.PURGE_RXCLEAR)
+                self.connected.set()
+                logging.info(f"Connected with {self.device_name}")
+            else:
+                raise OSError("Could not find {self.device_name}")
+    else:
+        def open(self) -> None:
+            self.file_descriptor = os.open(path=self.port_name, flags=os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
+
 
     def run(self) -> None:
         threading.Thread(target=self._write, daemon=True).start()
