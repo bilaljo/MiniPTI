@@ -9,7 +9,7 @@ import time
 from dataclasses import dataclass
 from enum import Enum
 
-import pywintypes
+from PyQt5 import QtCore, QtSerialPort
 
 if platform.system() == "Windows":
     import win32con
@@ -20,7 +20,7 @@ import serial
 from serial.tools import list_ports
 
 
-class Driver:
+class Driver(QtCore.QObject):
     _QUEUE_SIZE = 15
     MAX_RESPONSE_TIME = 500e-3  # 100 ms response time
 
@@ -29,6 +29,7 @@ class Driver:
     _START_DATA_FRAME = 1
 
     def __init__(self):
+        QtCore.QObject.__init__(self)
         self.received_data = queue.Queue(maxsize=Driver._QUEUE_SIZE)
         self.device = None
         self.connected = threading.Event()
@@ -40,7 +41,8 @@ class Driver:
         self.data = queue.Queue()
         self.running = threading.Event()
         if platform.system() == "Windows":
-            self.device = None
+            self.device = QtSerialPort.QSerialPort()
+            self.device.readyRead.connect(self._receive)
         else:
             signal.signal(signal.SIGIO, self._receive)
             self.file_descriptor = -1
@@ -59,7 +61,8 @@ class Driver:
                 self.received_data.put(device.read(available_bytes))
                 hardware_id = self.get_hardware_id()
                 if hardware_id == self.device_id:
-                    self.port_name = port.device
+                    self.port_name = device.port
+                    self.device.setPortName(device.port)
                     logging.info(f"Found {self.device_name} at {self.port_name}")
                     device.close()
                     break
@@ -73,8 +76,7 @@ class Driver:
                                                flags=os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
                 if self.file_descriptor == -1 or not os.isatty(self.file_descriptor):
                     continue
-                os.write(self.file_descriptor,
-                         Command.HARDWARE_ID + Driver.TERMINATION_SYMBOL.encode())
+                os.write(self.file_descriptor,  Command.HARDWARE_ID + Driver.TERMINATION_SYMBOL.encode())
                 hardware_id = self.get_hardware_id()
                 if hardware_id is not None and hardware_id == self.device_id:
                     self.port_name = port.device
@@ -88,23 +90,7 @@ class Driver:
 
     def open(self) -> None:
         if self.port_name:
-            try:
-                self.device = win32file.CreateFile(self.port_name,
-                                                   win32con.GENERIC_READ | win32con.GENERIC_WRITE,
-                                                   0,
-                                                   None,
-                                                   win32con.OPEN_EXISTING,
-                                                   win32con.FILE_ATTRIBUTE_NORMAL,
-                                                   None)
-            except pywintypes.error:
-                logging.error(f"Could not connect with {self.device_name}")
-                logging.info("The COM port of the device cannot be found anymore")
-
-            win32file.SetCommMask(self.device, win32file.EV_RXCHAR)
-            win32file.SetupComm(self.device, 4096, 4096)
-            win32file.PurgeComm(self.device,
-                                win32file.PURGE_TXABORT | win32file.PURGE_RXABORT
-                                | win32file.PURGE_TXCLEAR | win32file.PURGE_RXCLEAR)
+            self.device.open(QtSerialPort.QSerialPort.ReadWrite)
             self.connected.set()
             logging.info(f"Connected with {self.device_name}")
         else:
@@ -112,8 +98,6 @@ class Driver:
 
     def run(self) -> None:
         threading.Thread(target=self._write, daemon=True).start()
-        if platform.system() == "Windows":
-            threading.Thread(target=self._receive, daemon=True).start()
         threading.Thread(target=self._read, daemon=True).start()
 
     def _read(self):
@@ -204,16 +188,16 @@ class Driver:
 
     if platform.system() == "Windows":
         def is_open(self) -> bool:
-            return self.device is not None
+            return self.device.isOpen()
     else:
         def is_open(self) -> bool:
             return self.file_descriptor != -1
 
     if platform.system() == "Windows":
         def close(self) -> None:
-            if self.device is not None:
+            if self.device.isOpen():
                 self.connected.clear()
-                win32file.CloseHandle(self.device)
+                self.device.close()
     else:
         def close(self) -> None:
             if self.file_descriptor != -1:
@@ -224,23 +208,9 @@ class Driver:
         Serial Port Reading Implementation on Windows.
         """
         def _receive(self) -> None:
-            """
-            Receiver thread for incoming data. The WaitComEvent method blocks the thread until a specific event occured.
-            The event we are looking for has event mask value EV_RXCHAR. It is set, when a character (or more) is put
-            into the input buffer.
-            If the EV_RXCHAR event occurred the data can be read. While reading, a memoryview object is returned.
-            """
-            buffer_size = 4096
-            while self.connected.is_set():
-                self.running.wait()
-                rc, mask = win32file.WaitCommEvent(self.device, None)
-                if rc == 0:
-                    logging.error("Error while waiting to new data occourced")
-                if mask & win32con.EV_RXCHAR:
-                    rc, data = win32file.ReadFile(self.device, buffer_size, None)
-                    if rc == 0:
-                        logging.error("Could not read serial data")
-                    self.received_data.put(data.tobytes().decode())
+            data: QtCore.QByteArray = self.device.readAll()
+            self.received_data.put(data.data().decode())
+
     else:
         """
         Serial Port Reading Implementation on Unix.

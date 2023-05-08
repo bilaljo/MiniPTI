@@ -224,10 +224,13 @@ class Driver(serial_device.Driver):
 
     def encode_data(self) -> None:
         split_data = (self._buffer + self.received_data.get(block=True)).split("\n")
-        for data in split_data:
-            if data[0] == "D" and len(data) == 4110:
+        for i in range(len(split_data) - 1):
+            data = split_data[i]
+            if not data:
+                continue
+            if data[:2] == "00" and len(data) == 4110:
                 self._encode_daq(data)
-            elif data[0] == "B" and len(data) == 40:
+            elif data[:2] == "01" and len(data) == 40:
                 self._encode_bms(data)
             elif data[0] == "S" and len(data) == 7:
                 self._check_ack(data)

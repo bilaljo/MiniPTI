@@ -73,18 +73,17 @@ class MainWindow(QtWidgets.QMainWindow):
         return tab
 
     def _init_tabs(self):
-        self.tabs = Tab(
-            home=Home(self, self.main_controller),
-            pump_laser=self._init_pump_laser_tab(),
-            probe_laser=self._init_probe_laser_tab(),
-            dc=QtWidgets.QTabWidget(),
-            amplitudes=QtWidgets.QTabWidget(),
-            output_phases=QtWidgets.QTabWidget(),
-            sensitivity=QtWidgets.QTabWidget(),
-            symmetry=QtWidgets.QTabWidget(),
-            interferometric_phase=QtWidgets.QTabWidget(),
-            pti_signal=QtWidgets.QTabWidget()
-        )
+        self.tabs = Tab(home=Home(self, self.main_controller),
+                        pump_laser=self._init_pump_laser_tab(),
+                        probe_laser=self._init_probe_laser_tab(),
+                        dc=QtWidgets.QTabWidget(),
+                        amplitudes=QtWidgets.QTabWidget(),
+                        output_phases=QtWidgets.QTabWidget(),
+                        sensitivity=QtWidgets.QTabWidget(),
+                        symmetry=QtWidgets.QTabWidget(),
+                        interferometric_phase=QtWidgets.QTabWidget(),
+                        pti_signal=QtWidgets.QTabWidget()
+                        )
         self.tab_bar.addTab(self.tabs.home, "Home")
         self.tab_bar.addTab(self.tabs.pump_laser, "Pump Laser")
         self.tab_bar.addTab(self.tabs.probe_laser, "Probe Laser")
@@ -721,15 +720,11 @@ class Tec(QtWidgets.QWidget, _Frames, _CreateButton):
         self.frames["pid Configuration"].layout().addWidget(self.text_fields.p_value, 0, 1)
         self.text_fields.p_value.editingFinished.connect(self.p_value_changed)
 
-        self.frames["pid Configuration"].layout().addWidget(
-            QtWidgets.QLabel("I<sub>1</sub> Value"), 1, 0
-        )
+        self.frames["pid Configuration"].layout().addWidget(QtWidgets.QLabel("I<sub>1</sub> Value"), 1, 0)
         self.frames["pid Configuration"].layout().addWidget(self.text_fields.i_value[0], 1, 1)
         self.text_fields.i_value[0].editingFinished.connect(self.i_1_value_changed)
 
-        self.frames["pid Configuration"].layout().addWidget(
-            QtWidgets.QLabel("I<sub>2</sub> Value"), 2, 0
-        )
+        self.frames["pid Configuration"].layout().addWidget(QtWidgets.QLabel("I<sub>2</sub> Value"), 2, 0)
         self.frames["pid Configuration"].layout().addWidget(self.text_fields.i_value[1], 2, 1)
         self.text_fields.i_value[1].editingFinished.connect(self.i_2_value_changed)
 
