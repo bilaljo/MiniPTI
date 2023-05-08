@@ -4,6 +4,7 @@ import os
 import platform
 import queue
 import re
+import sys
 import threading
 import time
 from dataclasses import dataclass
@@ -152,16 +153,29 @@ class Driver:
             hardware_id = hardware_id.group()
             return Patterns.HEX_VALUE.search(hardware_id).group()
 
-    def command_error_handing(self, received: str) -> None:
-        if Patterns.ERROR.search(received) is not None:
-            match Patterns.HEX_VALUE.search(Patterns.ERROR.search(received).group()).group():
-                case Error.COMMAND:
+    if sys.version_info.minor > 9:
+        def command_error_handing(self, received: str) -> None:
+            if Patterns.ERROR.search(received) is not None:
+                match Patterns.HEX_VALUE.search(Patterns.ERROR.search(received).group()).group():
+                    case Error.COMMAND:
+                        raise OSError(f"Packet length != 7 characters ('\n' excluded) from {self.port_name}")
+                    case Error.PARAMETER:
+                        raise OSError(f"Error converting the hex parameter from {self.port_name}")
+                    case Error.COMMAND:
+                        raise OSError(f"Request consists of an unknown/invalid command from {self.port_name}")
+                    case Error.UNKNOWN_COMMAND:
+                        raise OSError(f"Unknown command from {self.port_name}")
+    else:
+        def command_error_handing(self, received: str) -> None:
+            if Patterns.ERROR.search(received) is not None:
+                error = Patterns.HEX_VALUE.search(Patterns.ERROR.search(received).group()).group()
+                if error == Error.COMMAND:
                     raise OSError(f"Packet length != 7 characters ('\n' excluded) from {self.port_name}")
-                case Error.PARAMETER:
+                elif error == Error.PARAMETER:
                     raise OSError(f"Error converting the hex parameter from {self.port_name}")
-                case Error.COMMAND:
+                elif error == Error.COMMAND:
                     raise OSError(f"Request consists of an unknown/invalid command from {self.port_name}")
-                case Error.UNKNOWN_COMMAND:
+                elif error == Error.UNKNOWN_COMMAND:
                     raise OSError(f"Unknown command from {self.port_name}")
 
     def write(self, message: str | bytes | bytearray) -> bool:

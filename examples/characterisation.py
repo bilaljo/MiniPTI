@@ -15,13 +15,13 @@ if __name__ == "__main__":
 
     # Using the default settings values
     characterization = minipti.algorithm.interferometry.Characterization(
-        interferometry=interferometer)
+        interferometer=interferometer)
     characterization()
     print(characterization)
 
     # Without default values
     characterization = minipti.algorithm.interferometry.Characterization(
-        interferometry=interferometer
+        interferometer=interferometer
     )
     characterization.use_settings = False
     characterization()

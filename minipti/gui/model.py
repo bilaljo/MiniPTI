@@ -393,10 +393,10 @@ class Calculation:
         self.current_time = 0
         self.interferometry = Interferometry(algorithm.interferometry.Interferometer(),
                                              algorithm.interferometry.Characterization())
-        self.interferometry.characterization.interferometry = self.interferometry.interferometer
+        self.interferometry.characterization.interferometer = self.interferometry.interferometer
         self.pti = PTI(algorithm.pti.Decimation(),
                        algorithm.pti.Inversion(interferometer=self.interferometry.interferometer))
-        self.interferometry.characterization.interferometry = self.interferometry.interferometer
+        self.interferometry.characterization.interferometer = self.interferometry.interferometer
         self._destination_folder = os.getcwd()
         self.save_raw_data = False
 

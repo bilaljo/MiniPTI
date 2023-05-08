@@ -27,7 +27,7 @@ class TestInterferometer(unittest.TestCase):
             settings_path=settings)
         self.interferometry.load_settings()
         self.characterisation = minipti.algorithm.interferometry.Characterization(
-            interferometry=self.interferometry)
+            interferometer=self.interferometry)
         self.interferometry.decimation_filepath = f"{self.base_dir}/Decimation_Comercial.csv"
         data = pd.read_csv(self.interferometry.decimation_filepath)
         self.dc_data = data[[f"DC CH{i}" for i in range(1, 4)]].to_numpy().T
@@ -43,9 +43,9 @@ class TestInterferometer(unittest.TestCase):
         according to this formula.
         """
         signals = []
-        amplitudes = self.characterisation.interferometry.amplitudes
-        output_phases = self.characterisation.interferometry.output_phases
-        offsets = self.characterisation.interferometry.offsets
+        amplitudes = self.characterisation.interferometer.amplitudes
+        output_phases = self.characterisation.interferometer.output_phases
+        offsets = self.characterisation.interferometer.offsets
         for i in range(3):
             signals.append(amplitudes[i] * np.cos(phases - output_phases[i]) + offsets[i])
         return np.array(signals)
