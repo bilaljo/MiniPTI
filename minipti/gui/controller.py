@@ -3,6 +3,7 @@ import logging
 import os
 import sys
 import threading
+import time
 import typing
 
 from PyQt5 import QtWidgets
@@ -21,7 +22,10 @@ class MainApplication(QtWidgets.QApplication):
         #threading.excepthook = self.thread_exception
 
     def close(self) -> None:
+        model.Motherboard.driver.running.clear()
         model.Motherboard.driver.close()
+        model.PumpLaser.driver.close()
+        model.Tec.close()
         self.view.close()
         QCoreApplication.quit()
 
