@@ -25,7 +25,8 @@ https://pypi.org/project/minipti
 
 The library can be split into sub-libraries:
 
-#### 1. Interferometry
+## Algorithm
+#### 1. Algorithm.Interferometry
 
 The Interferometry library provides algorithms to characterise a 3x3 coupler interferometer (
 calculating the output
@@ -57,7 +58,7 @@ The picture below shows the basic file structure and the public members of the c
 <img alt="flowchart" src="https://raw.githubusercontent.com/bilaljo/MiniPTI/0dad7516c4a8105e1fcbecc22dcb905d3a4bee11/images/flowchart.svg">
 </p>
 
-## **Decimation**
+## **Algorithm.PTI.Decimation**
 
 The measured data for decimation is in binary file format generated from LabView.
 It is good practice to use the decimation object with the ```with``` statement so that the binary
@@ -85,7 +86,7 @@ for i in range(3):
 pd.DataFrame(output_data).to_csv("Decimation.csv")
 ```
 
-## **Interferometry**
+## **Algorithm.Interferometry**
 
 The interferometry provides an API for calculating the interferometric phase and characterising the
 interferometer

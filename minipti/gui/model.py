@@ -6,7 +6,6 @@ import itertools
 import logging
 import os
 import platform
-import queue
 import subprocess
 import threading
 import time
@@ -71,26 +70,26 @@ class SettingsTable(QtCore.QAbstractTableModel):
         return super().headerData(section, orientation, role)
 
     @property
-    def table_data(self):
+    def table_data(self) -> pd.DataFrame:
         return self._data
 
     @table_data.setter
-    def table_data(self, data):
+    def table_data(self, data) -> None:
         self._data = data
 
     @property
-    def file_path(self):
+    def file_path(self) -> str:
         return self._file_path
 
     @file_path.setter
-    def file_path(self, file_path: str):
+    def file_path(self, file_path: str) -> None:
         if os.path.exists(file_path):
             self._file_path = file_path
 
-    def save(self):
+    def save(self) -> None:
         self._data.to_csv(self.file_path, index_label="Setting", index=True)
 
-    def load(self):
+    def load(self) -> None:
         self.table_data = pd.read_csv(self.file_path, index_col="Setting")
 
     def update_settings_parameters(self, interferometer: algorithm.interferometry.Interferometer):
@@ -99,13 +98,13 @@ class SettingsTable(QtCore.QAbstractTableModel):
         self.table_data.loc["Offset [V]"] = interferometer.offsets
 
     def update_settings_paths(self, interferometer: algorithm.interferometry.Interferometer,
-                              inversion: algorithm.pti.Inversion):
+                              inversion: algorithm.pti.Inversion) -> None:
         interferometer.settings_path = self.file_path
         inversion.settings_path = self.file_path
         interferometer.load_settings()
         inversion.load_response_phase()
 
-    def setup_settings_file(self):
+    def setup_settings_file(self) -> None:
         # If no settings found, a new empty file is created filled with NaN.
         algorithm_dir: str = f"{os.path.dirname(os.path.dirname(__file__))}/algorithm"
         if not os.path.exists(f"{algorithm_dir}/configs/settings.csv"):
@@ -183,7 +182,7 @@ class Buffer:
     def __getitem__(self, key):
         return getattr(self, key.casefold().replace(" ", "_"))
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key, value) -> None:
         setattr(self, key.casefold().replace(" ", "_"), value)
 
     def __iter__(self):
@@ -286,7 +285,7 @@ class TecBuffer(Buffer):
         self.actual_value: list[deque] = [deque(maxlen=Buffer.QUEUE_SIZE),
                                           deque(maxlen=Buffer.QUEUE_SIZE)]
 
-    def append(self, tec_data: hardware.tec.Data):
+    def append(self, tec_data: hardware.tec.Data) -> None:
         self.set_point[TecBuffer.PUMP_LASER].append(tec_data.set_point.pump_laser)
         self.set_point[TecBuffer.PROBE_LASER].append(tec_data.set_point.probe_laser)
         self.actual_value[TecBuffer.PUMP_LASER].append(tec_data.actual_temperature.pump_laser)
@@ -423,7 +422,7 @@ class Calculation:
         self.interferometry.characterization.init_online = True
         self.interferometry.interferometer.load_settings()
 
-        def calculate_characterization():
+        def calculate_characterization() -> None:
             while Motherboard.driver.running.is_set():
                 self.interferometry.characterization()
                 self.characterisation_buffer.append(self.interferometry.characterization,
@@ -440,7 +439,8 @@ class Calculation:
                 self.pti.inversion.dc_signals = self.pti.decimation.dc_signals
                 signals.decimation_live.emit(self.pti_buffer)
                 self.pti.inversion()
-                self.interferometry.characterization.add_phase(self.interferometry.interferometer.phase)
+                self.interferometry.characterization.add_phase(
+                    self.interferometry.interferometer.phase)
                 self.dc_signals.append(copy.deepcopy(self.pti.decimation.dc_signals))
                 if self.interferometry.characterization.enough_values:
                     self.interferometry.characterization.signals = copy.deepcopy(self.dc_signals)
@@ -457,7 +457,8 @@ class Calculation:
         inversion_thread.start()
         return characterization_thread, inversion_thread
 
-    def calculate_characterisation(self, dc_file_path: str, use_settings=False, settings_path="") -> None:
+    def calculate_characterisation(self, dc_file_path: str, use_settings=False,
+                                   settings_path="") -> None:
         self.interferometry.interferometer.decimation_filepath = dc_file_path
         self.interferometry.interferometer.settings_path = settings_path
         self.interferometry.characterization.use_settings = use_settings
@@ -546,7 +547,7 @@ class Serial:
         self.fire_configuration_change()
 
     @staticmethod
-    def _incoming_data():
+    def _incoming_data() -> None:
         """
         Listens to incoming data and emits them as signals to the view as long a serial connection
         is established.
@@ -604,7 +605,7 @@ class Motherboard(Serial):
         return self.driver.config.valve.duty_cycle
 
     @valve_duty_cycle.setter
-    def valve_duty_cycle(self, duty_cycle: int):
+    def valve_duty_cycle(self, duty_cycle: int) -> None:
         if not 0 < self.driver.config.valve.duty_cycle < 100:
             raise ValueError("Invalid value for duty cycle")
         self.driver.config.valve.duty_cycle = duty_cycle
@@ -614,7 +615,7 @@ class Motherboard(Serial):
         return self.driver.config.valve.automatic_switch
 
     @automatic_valve_switch.setter
-    def automatic_valve_switch(self, automatic_switch: bool):
+    def automatic_valve_switch(self, automatic_switch: bool) -> None:
         self.driver.config.valve.automatic_switch = automatic_switch
         if automatic_switch:
             self.driver.automatic_switch.set()
@@ -915,7 +916,7 @@ class Tec(Serial):
             return self.driver.probe_laser_enabled
 
     @enabled.setter
-    def enabled(self, state):
+    def enabled(self, state) -> None:
         if self.laser == "Pump Laser":
             self.driver.pump_laser_enabled = state
             tec_signals["Pump Laser"].enabled.emit(state)
@@ -928,7 +929,7 @@ class Tec(Serial):
         return Tec.driver.config_path
 
     @config_path.setter
-    def config_path(self, config_path: str):
+    def config_path(self, config_path: str) -> None:
         Tec.driver.config_path = config_path
 
     @staticmethod
@@ -1020,7 +1021,7 @@ class Tec(Serial):
         return self.driver[self.laser].mode.cooling
 
     @cooling.setter
-    def cooling(self, mode: bool):
+    def cooling(self, mode: bool) -> None:
         if mode:
             self.driver[self.laser].mode.heating = False
             self.driver[self.laser].mode.cooling = True
@@ -1036,7 +1037,7 @@ class Tec(Serial):
         return self.driver[self.laser].mode.heating
 
     @heating.setter
-    def heating(self, mode: bool):
+    def heating(self, mode: bool) -> None:
         if mode:
             self.driver[self.laser].mode.heating = True
             self.driver[self.laser].mode.cooling = False
@@ -1047,7 +1048,7 @@ class Tec(Serial):
             tec_signals[self.laser].mode.emit(TecMode.COOLING)
             self.driver.set_mode(self.laser)
 
-    def fire_configuration_change(self):
+    def fire_configuration_change(self) -> None:
         tec_signals[self.laser].d_value.emit(self.d_value)
         tec_signals[self.laser].p_value.emit(self.p_value)
         tec_signals[self.laser].i_1_value.emit(self.i_2_value)
@@ -1086,17 +1087,19 @@ def _process_data(file_path: str, headers: list[str, ...]) -> pd.DataFrame:
     return data
 
 
-def process_dc_data(dc_file_path: str):
+def process_dc_data(dc_file_path: str) -> None:
     headers = [f"DC CH{i}" for i in range(1, 4)]
     try:
         data = _process_data(dc_file_path, headers)
     except KeyError:
         headers = [f"PD{i}" for i in range(1, 4)]
         data = _process_data(dc_file_path, headers)
+    except FileNotFoundError:
+        return
     signals.decimation.emit(data)
 
 
-def process_inversion_data(inversion_file_path: str):
+def process_inversion_data(inversion_file_path: str) -> None:
     try:
         headers = ["Interferometric Phase", "Sensitivity CH1", "Sensitivity CH2", "Sensitivity CH3",
                    "Total Sensitivity", "PTI Signal"]
@@ -1106,14 +1109,19 @@ def process_inversion_data(inversion_file_path: str):
         headers = ["Sensitivity CH1", "Sensitivity CH2", "Sensitivity CH3",
                    "Total Sensitivity", "Interferometric Phase"]
         data = _process_data(inversion_file_path, headers)
+    except FileNotFoundError:
+        return
     signals.inversion.emit(data)
 
 
-def process_characterization_data(characterization_file_path: str):
+def process_characterization_data(characterization_file_path: str) -> None:
     headers = [f"Amplitude CH{i}" for i in range(1, 4)]
     headers += [f"Output Phase CH{i}" for i in range(1, 4)]
     headers += [f"Offset CH{i}" for i in range(1, 4)]
-    data = _process_data(characterization_file_path, headers)
+    try:
+        data = _process_data(characterization_file_path, headers)
+    except FileNotFoundError:
+        return
     signals.characterization.emit(data)
 
 

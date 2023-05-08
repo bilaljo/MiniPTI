@@ -10,11 +10,11 @@ import time
 from dataclasses import dataclass
 from enum import Enum
 
-import pywintypes
 
 if platform.system() == "Windows":
     import win32con
     from win32 import win32file
+    import pywintypes
 else:
     import signal
 import serial
