@@ -1,12 +1,12 @@
 import abc
 import logging
 import os
+import sys
 import threading
-import time
 import typing
 
 from PyQt5 import QtWidgets
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QCoreApplication
 
 from .. import hardware
 from . import model
@@ -18,11 +18,12 @@ class MainApplication(QtWidgets.QApplication):
         QtWidgets.QApplication.__init__(self, argv)
         self.logging_model = model.Logging()
         self.view = view.MainWindow(self)
-        threading.excepthook = self.thread_exception
+        #threading.excepthook = self.thread_exception
 
     def close(self) -> None:
         model.Motherboard.driver.close()
         self.view.close()
+        QCoreApplication.quit()
 
     def thread_exception(self, args) -> None:
         if args.exc_type == KeyError:
@@ -201,7 +202,7 @@ class Home:
             self.mother_board_model.shutdown_event.wait()
             self.shutdown()
 
-        threading.Thread(target=shutdown_low_energy).start()
+        threading.Thread(target=shutdown_low_energy, daemon=True).start()
 
     def connect_devices(self) -> None:
         try:

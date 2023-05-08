@@ -451,14 +451,13 @@ class Calculation:
                 self.pti_buffer.append(self.pti, self.interferometry.interferometer)
                 signals.inversion_live.emit(self.pti_buffer)
 
-        characterization_thread = threading.Thread(target=calculate_characterization)
-        inversion_thread = threading.Thread(target=calculate_inversion)
+        characterization_thread = threading.Thread(target=calculate_characterization, daemon=True)
+        inversion_thread = threading.Thread(target=calculate_inversion, daemon=True)
         characterization_thread.start()
         inversion_thread.start()
         return characterization_thread, inversion_thread
 
-    def calculate_characterisation(self, dc_file_path: str, use_settings=False,
-                                   settings_path="") -> None:
+    def calculate_characterisation(self, dc_file_path: str, use_settings=False, settings_path="") -> None:
         self.interferometry.interferometer.decimation_filepath = dc_file_path
         self.interferometry.interferometer.settings_path = settings_path
         self.interferometry.characterization.use_settings = use_settings
