@@ -12,6 +12,7 @@ from typing import Sequence, Union
 from commentedconfigparser import CommentedConfigParser
 from fastcrc import crc16
 
+import minipti.algorithm.pti
 from . import serial_device
 
 
@@ -88,7 +89,7 @@ class Driver(serial_device.Driver):
 
     _CHANNELS = 3
     REF_PERIOD = 100
-    NUMBER_OF_SAMPLES = 8000
+    NUMBER_OF_SAMPLES = minipti.algorithm.pti.Decimation.SAMPLES
 
     def __init__(self):
         serial_device.Driver.__init__(self)

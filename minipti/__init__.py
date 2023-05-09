@@ -1,4 +1,7 @@
-from . import hardware
+try:
+    from . import hardware
+except ModuleNotFoundError:
+    pass
 from . import algorithm
 from . import json_parser
 try:
