@@ -784,16 +784,15 @@ class PumpLaser(Laser):
         PumpLaser._set_indices(dac_number=1, dac=self.dac_2_matrix)
 
     def update_dac_mode(self, dac: hardware.laser.DAC, channel: int, mode: int) -> None:
-        match mode:
-            case Mode.CONTINUOUS_WAVE:
-                dac.continuous_wave[channel] = True
-                dac.pulsed_mode[channel] = False
-            case Mode.PULSED:
-                dac.continuous_wave[channel] = False
-                dac.pulsed_mode[channel] = True
-            case Mode.DISABLED:
-                dac.continuous_wave[channel] = False
-                dac.pulsed_mode[channel] = False
+        if mode == Mode.CONTINUOUS_WAVE:
+            dac.continuous_wave[channel] = True
+            dac.pulsed_mode[channel] = False
+        elif mode == Mode.PULSED:
+            dac.continuous_wave[channel] = False
+            dac.pulsed_mode[channel] = True
+        elif mode == Mode.DISABLED:
+            dac.continuous_wave[channel] = False
+            dac.pulsed_mode[channel] = False
         self.driver.set_dac_matrix()
 
     def fire_configuration_change(self) -> None:
@@ -873,13 +872,12 @@ class ProbeLaser(Laser):
 
     @probe_laser_mode.setter
     def probe_laser_mode(self, mode: ProbeLaserMode) -> None:
-        match mode:
-            case ProbeLaserMode.CONSTANT_CURRENT:
-                self.driver.probe_laser.constant_current = True
-                self.driver.probe_laser.constant_light = False
-            case ProbeLaserMode.CONSTANT_LIGHT:
-                self.driver.probe_laser.constant_current = False
-                self.driver.probe_laser.constant_light = True
+        if mode == ProbeLaserMode.CONSTANT_CURRENT:
+            self.driver.probe_laser.constant_current = True
+            self.driver.probe_laser.constant_light = False
+        elif mode == ProbeLaserMode.CONSTANT_LIGHT:
+            self.driver.probe_laser.constant_current = False
+            self.driver.probe_laser.constant_light = True
         self.driver.set_probe_laser_mode()
         self.fire_laser_mode_signal()
 

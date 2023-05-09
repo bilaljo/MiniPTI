@@ -218,53 +218,42 @@ class Driver(serial_device.Driver):
         for received in received_data.split(Driver.TERMINATION_SYMBOL):
             if not received:
                 continue
-            match received[0]:
-                case "N":
-                    logging.error(f"Invalid command {received}")
-                    self.ready_write.set()
-                case "S" | "C":
-                    last_written = self.last_written_message
-                    if received != last_written and received != last_written.capitalize():
-                        logging.error(
-                            f"Received message {received} message, expected {last_written}")
-                    else:
-                        logging.debug(f"Command {received} successfully applied")
-                    self.ready_write.set()
-                case "T":
-                    data_frame = received.split("\t")[Driver._START_DATA_FRAME:]
-                    status_byte_frame = int(
-                        data_frame[13])  # 13 is the index according to the protocol
-                    for error in Status.ERROR:
-                        if error[Status.VALUE] & status_byte_frame:
-                            logging.error(f"Got \"{error[Status.TEXT]}\" from TEC Driver")
-                    set_point: Temperature = Temperature(
-                        pump_laser=float(
-                            data_frame[_TemperatureIndex.SET_POINT[Driver.PUMP_LASER]]),
-                        probe_laser=float(
-                            data_frame[_TemperatureIndex.SET_POINT[Driver.PROBE_LASER]]))
-                    match self.temperature_element:
-                        case TemperatureElement.PT1000:
-                            actual_temperature: Temperature = Temperature(
-                                pump_laser=float(
-                                    data_frame[_TemperatureIndex.PT100B[Driver.PUMP_LASER]]),
-                                probe_laser=float(
-                                    data_frame[_TemperatureIndex.PT100B[Driver.PROBE_LASER]]))
-                        case TemperatureElement.KT:
-                            actual_temperature: Temperature = Temperature(
-                                pump_laser=float(
-                                    data_frame[_TemperatureIndex.KT[Driver.PUMP_LASER]]),
-                                probe_laser=float(
-                                    data_frame[_TemperatureIndex.KT[Driver.PROBE_LASER]]))
-                        case TemperatureElement.NTC:
-                            actual_temperature: Temperature = Temperature(
-                                pump_laser=float(
-                                    data_frame[_TemperatureIndex.NTC[Driver.PUMP_LASER]]),
-                                probe_laser=float(
-                                    data_frame[_TemperatureIndex.NTC[Driver.PROBE_LASER]]))
-                        case _:
-                            raise ValueError("Invalid Temperatur Element")
-                    self.data.put(Data(set_point, actual_temperature))
-                case _:  # Broken data frame without header char
-                    logging.error("Received invalid package without header")
-                    self.ready_write.set()
-                    continue
+            identifier = received[0]
+            if identifier == "N":
+                logging.error(f"Invalid command {received}")
+                self.ready_write.set()
+            elif identifier == "S" or identifier == "C":
+                last_written = self.last_written_message
+                if received != last_written and received != last_written.capitalize():
+                    logging.error(f"Received message {received} message, expected {last_written}")
+                else:
+                    logging.debug(f"Command {received} successfully applied")
+                self.ready_write.set()
+            elif identifier == "T":
+                data_frame = received.split("\t")[Driver._START_DATA_FRAME:]
+                status_byte_frame = int(data_frame[13])  # 13 is the index according to the protocol
+                for error in Status.ERROR:
+                    if error[Status.VALUE] & status_byte_frame:
+                        logging.error(f"Got \"{error[Status.TEXT]}\" from TEC Driver")
+                set_point: Temperature = Temperature(
+                    pump_laser=float(data_frame[_TemperatureIndex.SET_POINT[Driver.PUMP_LASER]]),
+                    probe_laser=float(data_frame[_TemperatureIndex.SET_POINT[Driver.PROBE_LASER]]))
+                if self.temperature_element == TemperatureElement.PT1000:
+                    actual_temperature: Temperature = Temperature(
+                        pump_laser=float(data_frame[_TemperatureIndex.PT100B[Driver.PUMP_LASER]]),
+                        probe_laser=float(data_frame[_TemperatureIndex.PT100B[Driver.PROBE_LASER]]))
+                elif self.temperature_element == TemperatureElement.KT:
+                    actual_temperature: Temperature = Temperature(
+                        pump_laser=float(data_frame[_TemperatureIndex.KT[Driver.PUMP_LASER]]),
+                        probe_laser=float(data_frame[_TemperatureIndex.KT[Driver.PROBE_LASER]]))
+                elif self.temperature_element == TemperatureElement.NTC:
+                    actual_temperature: Temperature = Temperature(
+                        pump_laser=float(data_frame[_TemperatureIndex.NTC[Driver.PUMP_LASER]]),
+                        probe_laser=float(data_frame[_TemperatureIndex.NTC[Driver.PROBE_LASER]]))
+                else:
+                    raise ValueError("Invalid Temperatur Element")
+                self.data.put(Data(set_point, actual_temperature))
+            else:  # Broken data frame without header char
+                logging.error("Received invalid package without header")
+                self.ready_write.set()
+                continue

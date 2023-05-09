@@ -118,47 +118,25 @@ class Driver(serial_device.Driver):
                       "Probe Laser": dataclasses.asdict(self.probe_laser)}
             configuration.write(json_parser.to_json(lasers) + "\n")
 
-    if sys.version_info.minor > 9:
-        def encode_data(self) -> None:
-            received_data = self.received_data.get(block=True)  # type: str
-            for received in received_data.split(Driver.TERMINATION_SYMBOL):
-                if not received:
-                    continue
-                match received[0]:
-                    case "N":
-                        logging.error(f"Invalid command {received}")
-                        self.ready_write.set()
-                    case "S" | "C":
-                        self._check_ack(received_data)
-                    case "L":
-                        data_frame = received.split("\t")[Driver._START_DATA_FRAME:self.end_data_frame]
-                        self.data.put(Data(pump_laser_current=float(data_frame[0]),
-                                           pump_laser_voltage=float(data_frame[1]),
-                                           probe_laser_current=float(data_frame[2])))
-                    case _:  # Broken data frame without header char
-                        logging.error("Received invalid package without header")
-                        self.ready_write.set()
-                        continue
-    else:
-        def encode_data(self) -> None:
-            received_data = self.received_data.get(block=True)  # type: str
-            for received in received_data.split(Driver.TERMINATION_SYMBOL):
-                if not received:
-                    continue
-                if received[0] == "N":
-                    logging.error(f"Invalid command {received}")
-                    self.ready_write.set()
-                elif received[0] == "S" or received[0] == "C":
-                    self._check_ack(received_data)
-                elif received[0] == "L":
-                    data_frame = received.split("\t")[Driver._START_DATA_FRAME:self.end_data_frame]
-                    self.data.put(Data(pump_laser_current=float(data_frame[0]),
-                                       pump_laser_voltage=float(data_frame[1]),
-                                       probe_laser_current=float(data_frame[2])))
-                else:  # Broken data frame without header char
-                    logging.error("Received invalid package without header")
-                    self.ready_write.set()
-                    continue
+    def encode_data(self) -> None:
+        received_data = self.received_data.get(block=True)  # type: str
+        for received in received_data.split(Driver.TERMINATION_SYMBOL):
+            if not received:
+                continue
+            if received[0] == "N":
+                logging.error(f"Invalid command {received}")
+                self.ready_write.set()
+            elif received[0] == "S" or received[0] == "C":
+                self._check_ack(received_data)
+            elif received[0] == "L":
+                data_frame = received.split("\t")[Driver._START_DATA_FRAME:self.end_data_frame]
+                self.data.put(Data(pump_laser_current=float(data_frame[0]),
+                                    pump_laser_voltage=float(data_frame[1]),
+                                    probe_laser_current=float(data_frame[2])))
+            else:  # Broken data frame without header char
+                logging.error("Received invalid package without header")
+                self.ready_write.set()
+                continue
 
     def _process_data(self) -> None:
         while self.connected.is_set():

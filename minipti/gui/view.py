@@ -487,27 +487,15 @@ class PumpLaser(QtWidgets.QWidget, _Frames, _CreateButton):
             self.mode_matrix[0][i].currentIndexChanged.connect(self.controller.update_dac1(i))
             self.mode_matrix[1][i].currentIndexChanged.connect(self.controller.update_dac2(i))
 
-    if sys.version_info.minor > 9:
-        @QtCore.pyqtSlot(int, list)
-        def _update_dac_matrix(self, dac_number: int, configuration: typing.Annotated[list[int], 3]) -> None:
-            for channel in range(3):
-                match configuration[channel]:
-                    case model.Mode.CONTINUOUS_WAVE:
-                        self.mode_matrix[dac_number][channel].setCurrentIndex(ModeIndices.CONTINUOUS_WAVE)
-                    case model.Mode.PULSED:
-                        self.mode_matrix[dac_number][channel].setCurrentIndex(ModeIndices.PULSED)
-                    case model.Mode.DISABLED:
-                        self.mode_matrix[dac_number][channel].setCurrentIndex(ModeIndices.DISABLED)
-    else:
-        @QtCore.pyqtSlot(int, list)
-        def _update_dac_matrix(self, dac_number: int, configuration: typing.Annotated[list[int], 3]) -> None:
-            for channel in range(3):
-                if configuration[channel] == model.Mode.CONTINUOUS_WAVE:
-                        self.mode_matrix[dac_number][channel].setCurrentIndex(ModeIndices.CONTINUOUS_WAVE)
-                elif configuration[channel] == model.Mode.PULSED:
-                    self.mode_matrix[dac_number][channel].setCurrentIndex(ModeIndices.PULSED)
-                elif configuration[channel] == model.Mode.DISABLED:
-                    self.mode_matrix[dac_number][channel].setCurrentIndex(ModeIndices.DISABLED)
+    @QtCore.pyqtSlot(int, list)
+    def _update_dac_matrix(self, dac_number: int, configuration: typing.Annotated[list[int], 3]) -> None:
+        for channel in range(3):
+            if configuration[channel] == model.Mode.CONTINUOUS_WAVE:
+                    self.mode_matrix[dac_number][channel].setCurrentIndex(ModeIndices.CONTINUOUS_WAVE)
+            elif configuration[channel] == model.Mode.PULSED:
+                self.mode_matrix[dac_number][channel].setCurrentIndex(ModeIndices.PULSED)
+            elif configuration[channel] == model.Mode.DISABLED:
+                self.mode_matrix[dac_number][channel].setCurrentIndex(ModeIndices.DISABLED)
 
     @QtCore.pyqtSlot(int, float)
     def _update_voltage_slider(self, index: int, value: float) -> None:
