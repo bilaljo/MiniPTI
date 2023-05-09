@@ -46,7 +46,8 @@ class Driver:
     def find_port(self) -> None:
         for port in list_ports.comports():
             try:
-                device = serial.Serial(port.device, timeout=Driver.MAX_RESPONSE_TIME)
+                device = serial.Serial(port.device, timeout=Driver.MAX_RESPONSE_TIME,
+                                       write_timeout=Driver.MAX_RESPONSE_TIME)
             except serial.SerialException:
                 continue
             device.write(Command.HARDWARE_ID + Driver.TERMINATION_SYMBOL.encode())
@@ -89,8 +90,12 @@ class Driver:
                 raise OSError("Could not find {self.device_name}")
     else:
         def open(self) -> None:
-            signal.signal(signal.SIGIO, self._receive)
-            self.file_descriptor = os.open(path=self.port_name, flags=os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
+            if self.file_descriptor != -1:
+                signal.signal(signal.SIGIO, self._receive)
+                self.file_descriptor = os.open(path=self.port_name, flags=os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
+                logging.info(f"Connected with {self.device_name}")
+            else:
+                raise OSError("Could not find {self.device_name}")
 
     def run(self) -> None:
         threading.Thread(target=self._write, daemon=True).start()

@@ -221,7 +221,7 @@ class Home:
             model.Tec.open()
             model.Tec.process_measured_data()
         except OSError:
-            logging.error("Could not connect with Laser Driver")
+            logging.error("Could not connect with Tec Driver")
 
     def enable_probe_laser(self) -> None:
         if not self.probe_laser.connected:
@@ -313,7 +313,7 @@ class Laser:
 
     def load_configuration(self) -> None:
         if filepath := _driver_config_file_path(last_directory=self.laser.config_path,
-                                                parent=self.parent, device="Laser Serial"):
+                                                parent=self.parent, device="Laser Driver"):
             self.laser.config_path = filepath
         else:
             return
@@ -329,7 +329,7 @@ class Laser:
     @abc.abstractmethod
     def fire_configuration_change(self) -> None:
         """
-        By initialisation of the Laser Serial Object (on which the laser model relies) the
+        By initialisation of the Laser Driver Object (on which the laser model relies) the
         configuration is already set and do not fire events to update the GUI. This function is
         hence only called once to manually activate the firing.
         """
