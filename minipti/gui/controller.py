@@ -173,15 +173,15 @@ class Home:
     @staticmethod
     def find_devices() -> None:
         try:
-            model.Motherboard.driver.find_port()
+            model.Motherboard.find_port()
         except OSError:
             logging.error("Could not find Motherboard")
         try:
-            model.Laser.driver.find_port()
+            model.Laser.find_port()
         except OSError:
             logging.error("Could not find Laser Driver")
         try:
-            model.Tec.driver.find_port()
+            model.Tec.find_port()
         except OSError:
             logging.error("Could not find TEC Driver")
 

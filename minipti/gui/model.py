@@ -517,6 +517,10 @@ class Serial:
     driver = hardware.serial_device.Driver()
 
     @staticmethod
+    def find_port() -> None:
+        Serial.driver.find_port()
+
+    @staticmethod
     def open() -> None:
         """
         Connects to a serial device and listens to incoming data.
