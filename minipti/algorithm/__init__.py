@@ -1,2 +1,5 @@
 from . import interferometry
-from . import pti
+try:
+    from . import pti
+except ModuleNotFoundError:
+    pass
