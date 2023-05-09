@@ -316,7 +316,7 @@ class Signals(QtCore.QObject):
     settings_pti = QtCore.pyqtSignal()
     logging_update = QtCore.pyqtSignal(deque)
     daq_running = QtCore.pyqtSignal()
-    settings = QtCore.pyqtSignal(pd.DataFrame)
+    settings = QtCore.pyqtSignal(algorithm.interferometry.Interferometer)
     destination_folder_changed = QtCore.pyqtSignal(str)
     battery_state = QtCore.pyqtSignal(Battery)
     valve_change = QtCore.pyqtSignal(hardware.motherboard.Valve)

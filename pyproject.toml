@@ -17,7 +17,6 @@ classifiers = [
 
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements.txt"]}
-optional-dependencies = {file = ["requirements_gui.txt"]}
 
 [project.urls]
 "Homepage" = "https://www.fhnw.ch/en/about-fhnw/schools/school-of-engineering/institutes/institute-for-sensors-and-electronics/aerosol-measurement-technology"
