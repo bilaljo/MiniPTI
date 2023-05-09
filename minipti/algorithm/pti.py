@@ -7,13 +7,13 @@ import os
 from collections.abc import Generator
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Union
 
 import h5py
 import numpy as np
 import pandas as pd
 from nptyping import NDArray, UInt16, Int16, Shape
 
-import minipti.hardware
 import minipti.algorithm.interferometry as interferometry
 
 
@@ -40,14 +40,13 @@ class Inversion:
 
     SYMMETRIC_MINIMUM = 1.154 - 1  # We subtract 1 to shift the optimum to 1
 
-    def __init__(
-            self, response_phases=None, sign=1, interferometer=None,
-            settings_path=f"{os.path.dirname(__file__)}/configs/settings.csv"):
+    def __init__(self, response_phases=None, sign=1, interferometer=None,
+                 settings_path=f"{os.path.dirname(__file__)}/configs/settings.csv"):
         super().__init__()
         self.response_phases = response_phases
-        self.pti_signal: float | np.ndarray = 0
+        self.pti_signal: Union[float, np.ndarray] = 0
         self.sensitivity: np.ndarray = np.empty(0)
-        self.symmetry: float | np.ndarray = 0
+        self.symmetry: Union[float, np.ndarray] = 0
         self.decimation_file_delimiter = ","
         self.dc_signals = np.empty(shape=3)
         self.settings_path = settings_path
@@ -214,7 +213,7 @@ class Decimation:
     """
     REF_VOLTAGE: float = 3.3  # V
     REF_PERIOD: int = 100  # Samples
-    SAMPLES: int = minipti.hardware.motherboard.Driver.NUMBER_OF_SAMPLES
+    SAMPLES: int = 8000
     DC_RESOLUTION: int = (1 << 12) - 1  # 12 Bit ADC
     AC_RESOLUTION: int = (1 << (16 - 1)) - 1  # 16 bit ADC with 2 complement
     AMPLIFICATION: int = 100  # Theoretical value given by the hardware
@@ -222,16 +221,14 @@ class Decimation:
     UNTIL_MICRO_SECONDS = -3
 
     def __init__(self):
-        self.dc_coupled: NDArray[Shape["3", f"{Decimation.SAMPLES}"], UInt16] | None = None
-        self.ac_coupled: NDArray[Shape["3", f"{Decimation.SAMPLES}"], Int16] | None = None
-        self.dc_signals: np.ndarray | None = None
+        self.dc_coupled: Union[NDArray[Shape["3", f"{Decimation.SAMPLES}"], UInt16], None] = None
+        self.ac_coupled: Union[NDArray[Shape["3", f"{Decimation.SAMPLES}"], Int16], None] = None
+        self.dc_signals: Union[np.ndarray, None] = None
         self.lock_in: LockIn = LockIn(np.empty(shape=3), np.empty(shape=3))
-        self.ref: NDArray[Shape["1", f"{Decimation.SAMPLES}"], UInt16] | None = None
+        self.ref: Union[NDArray[Shape["1", f"{Decimation.SAMPLES}"], UInt16], None] = None
         self.save_raw_data: bool = False
-        self.in_phase: np.ndarray = np.cos(2 * np.pi / Decimation.REF_PERIOD *
-                                           np.arange(0, Decimation.SAMPLES))
-        self.quadrature: np.ndarray = np.sin(2 * np.pi / Decimation.REF_PERIOD *
-                                             np.arange(0, Decimation.SAMPLES))
+        self.in_phase: np.ndarray = np.cos(2 * np.pi / Decimation.REF_PERIOD * np.arange(0, Decimation.SAMPLES))
+        self.quadrature: np.ndarray = np.sin(2 * np.pi / Decimation.REF_PERIOD * np.arange(0, Decimation.SAMPLES))
         self.destination_folder: str = "."
         self.file_path: str = ""
         self.init_header: bool = True

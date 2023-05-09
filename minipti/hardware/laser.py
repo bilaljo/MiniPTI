@@ -2,9 +2,8 @@ import dataclasses
 import json
 import logging
 import os
-import sys
 from dataclasses import dataclass
-from typing import Annotated
+from typing import Annotated, Union
 
 import dacite
 
@@ -36,9 +35,8 @@ class PumpLaser:
     @staticmethod
     def bit_to_voltage(bits: int) -> float:
         # 0.8 is an interpolation constant without any practical meaning.
-        return 0.8 * PumpLaser._RESISTOR / (
-                bits * PumpLaser._DIGITAL_POT / PumpLaser.NUMBER_OF_STEPS
-                + PumpLaser._PRE_RESISTOR) + 0.8
+        return 0.8 * PumpLaser._RESISTOR / (bits * PumpLaser._DIGITAL_POT / PumpLaser.NUMBER_OF_STEPS
+                                            + PumpLaser._PRE_RESISTOR) + 0.8
 
     @staticmethod
     def voltage_to_bit(voltage: float) -> int:
@@ -89,8 +87,8 @@ class Driver(serial_device.Driver):
 
     def __init__(self):
         serial_device.Driver.__init__(self)
-        self.pump_laser: None | PumpLaser = None
-        self.probe_laser: None | ProbeLaser = None
+        self.pump_laser: Union[PumpLaser, None] = None
+        self.probe_laser: Union[ProbeLaser, None] = None
         self.config_path: str = f"{os.path.dirname(__file__)}/configs/laser.json"
         self.probe_laser_initialized: bool = False
         self.pump_laser_initialized: bool = False

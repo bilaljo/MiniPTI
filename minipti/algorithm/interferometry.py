@@ -8,6 +8,7 @@ import logging
 import os
 import threading
 import typing
+from typing import Union
 from collections import defaultdict
 
 import numpy as np
@@ -27,7 +28,7 @@ class Interferometer:
                  amplitudes=np.empty(shape=3), offsets=np.empty(shape=3)):
         self.settings_path = settings_path
         self.decimation_filepath = decimation_filepath
-        self.phase: float | np.ndarray = 0
+        self.phase: Union[float, np.ndarray] = 0
         self._output_phases = output_phases
         self._amplitudes = amplitudes
         self._offsets = offsets
@@ -102,7 +103,7 @@ class Interferometer:
         with self._locks["Output Phases"]:
             self._output_phases = output_phases
 
-    def read_decimation(self) -> pd.DataFrame | None:
+    def read_decimation(self) -> Union[pd.DataFrame, None]:
         try:
             with open(self.decimation_filepath, "r", encoding="UTF-8") as csv_file:
                 dc_delimiter = str(csv.Sniffer().sniff(csv_file.readline()).delimiter)

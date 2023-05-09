@@ -10,6 +10,7 @@ import subprocess
 import threading
 import time
 import typing
+from typing import Union
 from collections import deque
 from dataclasses import dataclass, asdict
 from datetime import datetime
@@ -45,7 +46,7 @@ class SettingsTable(QtCore.QAbstractTableModel):
     def columnCount(self, parent=None) -> int:
         return self._data.shape[1]
 
-    def data(self, index, role: int = ...) -> str | None:
+    def data(self, index, role: int = ...) -> Union[str, None]:
         if index.isValid():
             if role == QtCore.Qt.DisplayRole or role == QtCore.Qt.EditRole:
                 value = self._data.at[
@@ -148,7 +149,7 @@ class Logging(logging.Handler):
         signals.logging_update.emit(self.logging_messages)
 
 
-def find_delimiter(file_path: str) -> str | None:
+def find_delimiter(file_path: str) -> typing.Union[str, None]:
     delimiter_sniffer = csv.Sniffer()
     if not file_path:
         return

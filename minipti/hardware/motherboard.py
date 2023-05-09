@@ -7,7 +7,7 @@ import threading
 import time
 from collections import deque
 from dataclasses import dataclass, asdict
-from typing import Sequence
+from typing import Sequence, Union
 
 from commentedconfigparser import CommentedConfigParser
 from fastcrc import crc16
@@ -17,9 +17,9 @@ from . import serial_device
 
 @dataclass
 class DAQData:
-    ref_signal: queue.Queue | deque | Sequence
-    ac_coupled: queue.Queue | deque | Sequence
-    dc_coupled: queue.Queue | deque | Sequence
+    ref_signal: Union[queue.Queue, deque, Sequence]
+    ac_coupled: Union[queue.Queue, deque, Sequence]
+    dc_coupled: Union[queue.Queue, deque, Sequence]
 
 
 _Samples = deque[int]
@@ -102,7 +102,7 @@ class Driver(serial_device.Driver):
                                        [deque(), deque(), deque()])
         self._sample_numbers = deque(maxlen=2)
         self.synchronize = False
-        self.config: MotherBoardConfig | None = None
+        self.config: Union[MotherBoardConfig, None] = None
         self.shutdown = threading.Event()
         self.config_path = f"{os.path.dirname(__file__)}/configs/motherboard.conf"
         self.config_parser = CommentedConfigParser()

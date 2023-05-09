@@ -2,9 +2,8 @@ import abc
 import collections
 import enum
 import functools
-import sys
 import typing
-from typing import NamedTuple
+from typing import NamedTuple, Union
 
 import pandas as pd
 import pyqtgraph as pg
@@ -27,7 +26,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.main_controller = main_controller
         self.tab_bar = QtWidgets.QTabWidget(self)
         self.setCentralWidget(self.tab_bar)
-        self.tabs: None | Tab = None
+        self.tabs: Union[Tab, None] = None
         self.current_pump_laser = PumpLaserCurrent()
         self.current_probe_laser = ProbeLaserCurrent()
         self.temperature_probe_laser = TecTemperature(laser="Probe Laser")

@@ -92,8 +92,8 @@ class Driver(serial_device.Driver):
 
     def __init__(self, laser=""):
         serial_device.Driver.__init__(self)
-        self.probe_laser: None | Tec = None
-        self.pump_laser: None | Tec = None
+        self.probe_laser: typing.Union[Tec, None] = None
+        self.pump_laser: typing.Union[Tec, None] = None
         self.used_laser: str = laser
         self.config_path: str = f"{os.path.dirname(__file__)}/configs/tec.json"
         self.temperature_element: TemperatureElement = TemperatureElement.NTC

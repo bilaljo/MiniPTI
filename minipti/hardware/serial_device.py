@@ -8,7 +8,7 @@ import threading
 import time
 from dataclasses import dataclass
 from enum import Enum
-
+from typing import Union
 
 if platform.system() == "Windows":
     import win32con
@@ -127,7 +127,7 @@ class Driver:
 
     @property
     @abc.abstractmethod
-    def device_id(self) -> str | int:
+    def device_id(self) -> Union[str, int]:
         ...
 
     @property
@@ -142,7 +142,7 @@ class Driver:
                          f" received_data={self.received_data})"
         return representation
 
-    def get_hardware_id(self) -> bytes | None:
+    def get_hardware_id(self) -> Union[bytes, None]:
         try:
             received_data: bytes = self.received_data.get(timeout=Driver.MAX_RESPONSE_TIME)
             hardware_id = Patterns.HARDWARE_ID.search(received_data)
@@ -164,7 +164,7 @@ class Driver:
             elif error == Error.UNKNOWN_COMMAND:
                 raise OSError(f"Unknown command from {self.port_name}")
 
-    def write(self, message: str | bytes | bytearray) -> bool:
+    def write(self, message: Union[str, bytes, bytearray]) -> bool:
         """
         Sends data to the serial device if connected and no acknowledge is pending.
         """
