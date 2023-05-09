@@ -39,50 +39,29 @@ class Driver:
         self.last_written_message = ""
         self.data = queue.Queue()
         self.running = threading.Event()
-        if platform.system() == "Windows":
-            self.device = None
-        else:
-            signal.signal(signal.SIGIO, self._receive)
+        self.device = None
+        if platform.system() != "Windows":
             self.file_descriptor = -1
-            self.device = None
 
-    if platform.system() == "Windows":
-        def find_port(self) -> None:
-            for port in list_ports.comports():
-                try:
-                    device = serial.Serial(port.device, timeout=Driver.MAX_RESPONSE_TIME)
-                except serial.SerialException:
-                    continue
-                device.write(Command.HARDWARE_ID + Driver.TERMINATION_SYMBOL.encode())
-                time.sleep(0.1)
-                available_bytes = device.in_waiting
-                self.received_data.put(device.read(available_bytes))
-                hardware_id = self.get_hardware_id()
-                if hardware_id == self.device_id:
-                    self.port_name = port.device
-                    logging.info(f"Found {self.device_name} at {self.port_name}")
-                    device.close()
-                    break
-                else:
-                    device.close()
-            raise OSError("Could not find {self.device_name}")
-    else:
-        def find_port(self) -> None:
-            for port in list_ports.comports():
-                self.file_descriptor = os.open(path=port.device, flags=os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
-                if self.file_descriptor == -1 or not os.isatty(self.file_descriptor):
-                    continue
-                os.write(self.file_descriptor, Command.HARDWARE_ID + Driver.TERMINATION_SYMBOL.encode())
-                hardware_id = self.get_hardware_id()
-                if hardware_id is not None and hardware_id == self.device_id:
-                    self.port_name = port.device
-                    logging.info(f"Found {self.device_name} at {self.port_name}")
-                    os.close(self.file_descriptor)
-                    break
-                else:
-                    os.close(self.file_descriptor)
-                    self.file_descriptor = -1  # Reset it since we found no valid one
-            raise OSError("Could not find {self.device_name}")
+    def find_port(self) -> None:
+        for port in list_ports.comports():
+            try:
+                device = serial.Serial(port.device, timeout=Driver.MAX_RESPONSE_TIME)
+            except serial.SerialException:
+                continue
+            device.write(Command.HARDWARE_ID + Driver.TERMINATION_SYMBOL.encode())
+            time.sleep(0.1)
+            available_bytes = device.in_waiting
+            self.received_data.put(device.read(available_bytes))
+            hardware_id = self.get_hardware_id()
+            if hardware_id == self.device_id:
+                self.port_name = port.device
+                logging.info(f"Found {self.device_name} at {self.port_name}")
+                device.close()
+                break
+            else:
+                device.close()
+        raise OSError("Could not find {self.device_name}")
 
     if platform.system() == "Windows":
         def open(self) -> None:
@@ -110,8 +89,8 @@ class Driver:
                 raise OSError("Could not find {self.device_name}")
     else:
         def open(self) -> None:
+            signal.signal(signal.SIGIO, self._receive)
             self.file_descriptor = os.open(path=self.port_name, flags=os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
-
 
     def run(self) -> None:
         threading.Thread(target=self._write, daemon=True).start()
