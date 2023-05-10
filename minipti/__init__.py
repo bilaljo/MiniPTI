@@ -1,7 +1,7 @@
 try:
     from . import hardware
 except ModuleNotFoundError:
-    pass
+    pass  # Hardware not needed
 from . import algorithm
 from . import json_parser
 try:
