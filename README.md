@@ -14,10 +14,61 @@ pip install minipti
 # 2. Usage and GUI
 The GUI can be used via
 ```bash
-python -m minipti.
+python -m minipti
 ```
+
+## 2.1 Home Tab
 <p style="text-align: center;">
-<img alt="flowchart" src="images/gui_home.png">
+<img alt="flowchart" src="images/gui/home.png">
+</p>
+
+## 2.2 Pump Laser Section
+### 2.2.1 Pump Laser Driver Tab
+
+### 2.2.2 Pump Laser Tec Driver Tab
+<p style="text-align: center;">
+<img alt="flowchart" src="images/gui/pump_tec.png">
+</p>
+
+## 2.3 Probe Laser Section
+### 2.3.1 Probe Laser Driver Tab
+
+### 2.3.1 Probe Laser Driver Tab
+
+## 2.3 Plotting Tabs
+### 2.3.1 DC Signals
+<p style="text-align: center;">
+<img alt="flowchart" src="images/gui/dc_tab.png">
+</p>
+
+### 2.3.2 Amplitudes
+<p style="text-align: center;">
+<img alt="flowchart" src="images/gui/amplitudes_tab.png">
+</p>
+
+### 2.3.3 Output Phases
+<p style="text-align: center;">
+<img alt="flowchart" src="images/gui/output_phases_tab.png">
+</p>
+
+### 2.3.4 Interferometric Phase
+<p style="text-align: center;">
+<img alt="flowchart" src="images/gui/phase_tab.png">
+</p>
+
+### 2.3.5 Sensitivity
+<p style="text-align: center;">
+<img alt="flowchart" src="images/gui/sensitivity_tab.png">
+</p>
+
+### 2.3.6 Symmetry
+<p style="text-align: center;">
+<img alt="flowchart" src="images/gui/symmetry_tab.png">
+</p>
+
+### 2.3.7 PTI Signal
+<p style="text-align: center;">
+<img alt="flowchart" src="images/gui/pti_signal_tab.png">
 </p>
 
 # 3. libraries
