@@ -13,7 +13,7 @@ import minipti
 
 class TestInterferometer(unittest.TestCase):
     """
-    Tests with sample data if the characteristic values of the interferometer fit the the measured
+    Tests with sample data if the characteristic values of the interferometer fit the measured
     intensities well (according to a tolerance) enough.
     """
     MAX_ERROR_PHASE = 1e-6  # Corresponds to µV range
@@ -39,7 +39,7 @@ class TestInterferometer(unittest.TestCase):
         always the form
         I(φ) = A * cos(φ - α) + B
         with amplitude A, phase φ, output phase α, Offset B and intensity I(φ). Given the
-        characteric parameters (A, B, α) and interferometric phase the intensity can be reonstructed
+        characteristic parameters (A, B, α) and interferometric phase the intensity can be reconstructed
         according to this formula.
         """
         signals = []
@@ -52,28 +52,25 @@ class TestInterferometer(unittest.TestCase):
 
     def test_interferometer_parameters(self):
         """
-        Tests for given fixed interferometric phase if the reconstruction is approximatly
+        Tests for given fixed interferometric phase if the reconstruction is approximately
         equal to the measured intensities.
         """
         self.characterisation.use_settings = False
         self.characterisation._signals = self.dc_data
-        self.characterisation(live=False)
+        self.characterisation.characterise()
         self.interferometry.calculate_phase(self.dc_data.T)
         settings = pd.read_csv(f"{self.base_dir}/settings.csv", index_col="Setting")
-        self.assertTrue((np.abs(settings.loc["Output Phases [deg]"]
-                                - self.interferometry.output_phases)
+        self.assertTrue((np.abs(settings.loc["Output Phases [deg]"] - self.interferometry.output_phases)
                          < np.deg2rad(TestInterferometer.MAX_ERROR_PARAMETERS)).any())
-        self.assertTrue((np.abs(settings.loc["Amplitude [V]"]
-                                - self.interferometry.amplitudes)
+        self.assertTrue((np.abs(settings.loc["Amplitude [V]"] - self.interferometry.amplitudes)
                          < TestInterferometer.MAX_ERROR_PARAMETERS).any())
-        self.assertTrue((np.abs(settings.loc["Offset [V]"]
-                                - self.interferometry.offsets)
+        self.assertTrue((np.abs(settings.loc["Offset [V]"] - self.interferometry.offsets)
                          < TestInterferometer.MAX_ERROR_PARAMETERS).any())
 
     def test_interferometer_phase(self):
         """
-        Tests whethere by given fixed characteristic parameters the interferometric phase can be
-        correctly calculaed, i.e. the signal reconstructed.
+        Tests whereby given fixed characteristic parameters the interferometric phase can be
+        correctly calculated, i.e. the signal reconstructed.
         """
         self.interferometry.calculate_phase(self.dc_data.T)
         reconstructed_signal = self._reconstruct_signal(self.interferometry.phase)
