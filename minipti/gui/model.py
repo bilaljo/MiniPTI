@@ -425,7 +425,7 @@ class Calculation:
 
         def calculate_characterization() -> None:
             while Motherboard.driver.running.is_set():
-                self.interferometry.characterization()
+                self.interferometry.characterization.characterise(live=True)
                 self.characterisation_buffer.append(self.interferometry.characterization,
                                                     self.interferometry.interferometer)
                 signals.characterization_live.emit(self.characterisation_buffer)
@@ -435,16 +435,15 @@ class Calculation:
                 self.pti.decimation.ref = np.array(Motherboard.driver.ref_signal)
                 self.pti.decimation.dc_coupled = np.array(Motherboard.driver.dc_coupled)
                 self.pti.decimation.ac_coupled = np.array(Motherboard.driver.ac_coupled)
-                self.pti.decimation()
+                self.pti.decimation.decimate()
                 self.pti.inversion.lock_in = self.pti.decimation.lock_in
                 self.pti.inversion.dc_signals = self.pti.decimation.dc_signals
                 signals.decimation_live.emit(self.pti_buffer)
-                self.pti.inversion()
-                self.interferometry.characterization.add_phase(
-                    self.interferometry.interferometer.phase)
+                self.pti.inversion.invert(live=True)
+                self.interferometry.characterization.add_phase(self.interferometry.interferometer.phase)
                 self.dc_signals.append(copy.deepcopy(self.pti.decimation.dc_signals))
                 if self.interferometry.characterization.enough_values:
-                    self.interferometry.characterization.signals = copy.deepcopy(self.dc_signals)
+                    self.interferometry.characterization._signals = copy.deepcopy(self.dc_signals)
                     self.interferometry.characterization.phases = copy.deepcopy(
                         self.interferometry.characterization.tracking_phase)
                     self.interferometry.characterization.event.set()
@@ -464,18 +463,18 @@ class Calculation:
         self.interferometry.interferometer.settings_path = settings_path
         self.interferometry.characterization.use_settings = use_settings
         self.interferometry.characterization.use_settings = use_settings
-        self.interferometry.characterization(live=False)
+        self.interferometry.characterization.characterise()
         signals.settings.emit(self.interferometry.interferometer)
 
     def calculate_decimation(self, decimation_path: str) -> None:
         self.pti.decimation.file_path = decimation_path
-        self.pti.decimation(live=False)
+        self.pti.decimation.decimate()
 
     def calculate_inversion(self, settings_path: str, inversion_path: str) -> None:
         self.interferometry.interferometer.decimation_filepath = inversion_path
         self.interferometry.interferometer.settings_path = settings_path
         self.interferometry.interferometer.load_settings()
-        self.pti.inversion(live=False)
+        self.pti.inversion.invert()
 
     @staticmethod
     def kelvin_to_celsius(temperature: float) -> float:
@@ -554,7 +553,7 @@ class Serial:
     @staticmethod
     def _incoming_data() -> None:
         """
-        Listens to incoming data and emits them as signals to the view as long a serial connection
+        Listens to incoming data and emits them as _signals to the view as long a serial connection
         is established.
         """
 

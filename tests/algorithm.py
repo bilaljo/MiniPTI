@@ -56,7 +56,7 @@ class TestInterferometer(unittest.TestCase):
         equal to the measured intensities.
         """
         self.characterisation.use_settings = False
-        self.characterisation.signals = self.dc_data
+        self.characterisation._signals = self.dc_data
         self.characterisation(live=False)
         self.interferometry.calculate_phase(self.dc_data.T)
         settings = pd.read_csv(f"{self.base_dir}/settings.csv", index_col="Setting")

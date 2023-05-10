@@ -195,7 +195,7 @@ class Inversion:
             logging.info("Could not write data. Missing values are: %s at %s.",
                          str(output_data)[1:-1], str(time_stamp))
 
-    def __call__(self, live=True) -> None:
+    def invert(self, live=False) -> None:
         if live:
             self._calculate_online()
         else:
@@ -241,8 +241,8 @@ class Decimation:
         if self.save_raw_data:
             self.save()
         self.dc_coupled = self.dc_coupled * Decimation.REF_VOLTAGE / Decimation.DC_RESOLUTION
-        self.ac_coupled = self.ac_coupled * Decimation.REF_VOLTAGE / (
-                    Decimation.AMPLIFICATION * Decimation.AC_RESOLUTION)
+        self.ac_coupled = self.ac_coupled * Decimation.REF_VOLTAGE / (Decimation.AMPLIFICATION
+                                                                      * Decimation.AC_RESOLUTION)
 
     def save(self) -> None:
         with h5py.File(f"{self.destination_folder}/raw_data.h5", "a") as h5f:
@@ -262,15 +262,14 @@ class Decimation:
 
     def calculate_dc(self) -> None:
         """
-        Applies a low pass to the DC-coupled signals and decimate it to 1 s values.
+        Applies a low pass to the DC-coupled _signals and decimate it to 1 s values.
         """
         self.dc_signals = np.mean(self.dc_coupled, axis=1)
 
     def common_mode_noise_reduction(self) -> None:
         noise_factor = np.sum(self.ac_coupled, axis=0) / sum(self.dc_signals)
         for channel in range(3):
-            self.ac_coupled[channel] = self.ac_coupled[channel] - noise_factor * self.dc_signals[
-                channel]
+            self.ac_coupled[channel] = self.ac_coupled[channel] - noise_factor * self.dc_signals[channel]
 
     def lock_in_amplifier(self) -> None:
         ac_x = np.mean(self.ac_coupled * self.in_phase, axis=1)
@@ -297,7 +296,7 @@ class Decimation:
             logging.info("Could not write data. Missing values are: %s at %s.",
                          str(output_data)[1:-1], str(time_stamp))
 
-    def __call__(self, live=True) -> None:
+    def decimate(self, live=True) -> None:
         if self.init_header:
             with h5py.File(f"{self.destination_folder}/raw_data.h5", "a") as _:
                 pass  # File created
@@ -306,8 +305,8 @@ class Decimation:
                 output_data[f"Lock In Amplitude CH{channel + 1}"] = "V"
                 output_data[f"Lock In Phase CH{channel + 1}"] = "deg"
                 output_data[f"DC CH{channel + 1}"] = "V"
-            pd.DataFrame(output_data, index=["s"]).to_csv(
-                f"{self.destination_folder}/Decimation.csv", index_label="Time")
+            pd.DataFrame(output_data, index=["s"]).to_csv(f"{self.destination_folder}/Decimation.csv",
+                                                          index_label="Time")
             self.init_header = False
         if live:
             self.process_raw_data()
