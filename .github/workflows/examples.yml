@@ -20,8 +20,10 @@ jobs:
       - name: Install Packages |
         run: python -m pip install --upgrade pip
              pip install fastcrc numpy pandas scipy dacite pyserial h5py nptyping[complete] \
-             beartype commented-configparser green
-      - name: Run Hardware Tests
-        run: green tests/hardware.py
-      - name: Run Algorithm Tests
-        run: green tests/algorithm.py
+             beartype commented-configparser
+      - name: Run Characterisation Example
+        run: examples/characterisation.py
+      - name: Run Interferometer Example
+        run: examples/interferometer.py
+      - name: Run PTI Inversion Example
+        run: examples/pti_inversion.py
