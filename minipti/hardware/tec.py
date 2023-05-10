@@ -107,7 +107,7 @@ class Driver(serial_device.Driver):
         raise KeyError("Can only subscribe Pump Laser or Probe Laser")
 
     @property
-    def device_id(self):
+    def device_id(self) -> bytes:
         return Driver.HARDWARE_ID
 
     @property

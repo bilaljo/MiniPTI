@@ -228,7 +228,7 @@ class Home:
             QtWidgets.QMessageBox.critical(self.view, "IO Error",
                                            "Cannot enable Probe Laser. Probe Laser is not connected.")
             logging.error("Cannot enable Probe Laser")
-            logging.info("Probe Laser is not connected")
+            logging.warning("Probe Laser is not connected")
         else:
             self.probe_laser.enabled = not self.probe_laser.enabled
             logging.debug(f"{'Enabled' if self.probe_laser.enabled else 'Disabled'} Probe Laser")
@@ -238,7 +238,7 @@ class Home:
             QtWidgets.QMessageBox.critical(self.view, "IO Error",
                                            "Cannot enable Pump Laser. Pump Laser is not connected.")
             logging.error("Cannot enable Pump Laser")
-            logging.info("Pump Laser is not connected")
+            logging.warning("Pump Laser is not connected")
         else:
             self.pump_laser.enabled = not self.pump_laser.enabled
             logging.debug(f"{'Enabled' if self.pump_laser.enabled else 'Disabled'} Probe Laser")
@@ -248,7 +248,7 @@ class Home:
             QtWidgets.QMessageBox.critical(self.view, "IO Error",
                                            "Cannot enable Tec Driver of Pump Laser. Tec Driver is not connected.")
             logging.error("Cannot enable Tec Driver of Pump Laser")
-            logging.info("Tec Driver is not connected")
+            logging.warning("Tec Driver is not connected")
         else:
             self.pump_laser_tec.enabled = not self.pump_laser_tec.enabled
             self.pump_laser.enabled = not self.pump_laser.enabled

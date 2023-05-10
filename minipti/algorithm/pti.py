@@ -192,8 +192,8 @@ class Inversion:
                 f"{self.destination_folder}/PTI_Inversion.csv", mode="a",
                 index_label="Time", header=False)
         except PermissionError:
-            logging.info("Could not write data. Missing values are: %s at %s.",
-                         str(output_data)[1:-1], str(time_stamp))
+            logging.warning("Could not write data. Missing values are: %s at %s.",
+                            str(output_data)[1:-1], str(time_stamp))
 
     def invert(self, live=False) -> None:
         if live:
@@ -293,8 +293,8 @@ class Decimation:
                 f"{self.destination_folder}/Decimation.csv", mode="a",
                 index_label="Time", header=False)
         except PermissionError:
-            logging.info("Could not write data. Missing values are: %s at %s.",
-                         str(output_data)[1:-1], str(time_stamp))
+            logging.warning("Could not write data. Missing values are: %s at %s.",
+                            str(output_data)[1:-1], str(time_stamp))
 
     def decimate(self, live=True) -> None:
         if self.init_header:

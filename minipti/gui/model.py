@@ -515,23 +515,23 @@ class Serial:
 
     driver = hardware.serial_device.Driver()
 
-    @staticmethod
-    def find_port() -> None:
-        Serial.driver.find_port()
+    @classmethod
+    def find_port(cls) -> None:
+        cls.driver.find_port()
 
-    @staticmethod
-    def open() -> None:
+    @classmethod
+    def open(cls) -> None:
         """
         Connects to a serial device and listens to incoming data.
         """
-        Serial.driver.open()
+        cls.driver.open()
 
-    @staticmethod
-    def close() -> None:
+    @classmethod
+    def close(cls) -> None:
         """
         Disconnects to a serial device and stops listening to data
         """
-        Serial.driver.close()
+        cls.driver.close()
 
     @staticmethod
     @abc.abstractmethod
@@ -575,10 +575,10 @@ class Motherboard(Serial):
     def connected(self) -> bool:
         return self.driver.connected.is_set()
 
-    @staticmethod
-    def open() -> None:
-        Motherboard.driver.open()
-        Motherboard.driver.run()
+    @classmethod
+    def open(cls) -> None:
+        cls.driver.open()
+        cls.driver.run()
 
     def run(self) -> bool:
         if not self.driver.connected.is_set():

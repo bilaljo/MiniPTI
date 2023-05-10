@@ -6,6 +6,7 @@ import queue
 import threading
 import time
 from collections import deque
+from configparser import ConfigParser
 from dataclasses import dataclass, asdict
 from typing import Sequence, Union
 
@@ -84,7 +85,7 @@ class Driver(serial_device.Driver):
     _PACKAGE_SIZE = 4110
     _WORD_SIZE = 32
 
-    ID = b"0001"
+    HARDWARE_ID = b"0001"
     NAME = "Motherboard"
 
     _CHANNELS = 3
@@ -106,14 +107,14 @@ class Driver(serial_device.Driver):
         self.config: Union[MotherBoardConfig, None] = None
         self.shutdown = threading.Event()
         self.config_path = f"{os.path.dirname(__file__)}/configs/motherboard.conf"
-        self.config_parser = CommentedConfigParser()
+        self.config_parser = ConfigParser()
         self.automatic_switch = threading.Event()
         self.bypass = False
         self.load_config()
 
     @property
     def device_id(self) -> bytes:
-        return Driver.ID
+        return Driver.HARDWARE_ID
 
     @property
     def device_name(self) -> str:

@@ -111,7 +111,7 @@ class Driver:
 
     @property
     @abc.abstractmethod
-    def device_id(self) -> Union[str, int]:
+    def device_id(self) -> bytes:
         ...
 
     @property
@@ -120,10 +120,11 @@ class Driver:
         ...
 
     def __repr__(self) -> str:
+        name_space = os.path.splitext(os.path.basename(__file__))[0]
         class_name = self.__class__.__name__
-        representation = f"{class_name}(termination_symbol={Driver.TERMINATION_SYMBOL}," \
-                         f" device_id={self.device_id}, port_name={self.port_name}," \
-                         f" received_data={self.received_data})"
+        representation = f"{name_space}.{class_name}(device_name={self.device_name}," \
+                         f" termination_symbol=\\n, device_id={self.device_id}," \
+                         f" port_name={self.port_name})"
         return representation
 
     def get_hardware_id(self) -> Union[bytes, None]:

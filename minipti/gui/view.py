@@ -44,32 +44,40 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _init_pump_laser_tab(self) -> QtWidgets.QTabWidget:
         tab = QtWidgets.QTabWidget()
+        sub_layout = QtWidgets.QSplitter()
         pump_laser = PumpLaser()
         pump_laser_tab = QtWidgets.QTabWidget()
         pump_laser_tab.setLayout(QtWidgets.QHBoxLayout())
-        pump_laser_tab.layout().addWidget(pump_laser)
-        pump_laser_tab.layout().addWidget(self.current_pump_laser.window)
-        tab.addTab(pump_laser_tab, "Laser Serial")
+        sub_layout.insertWidget(0, pump_laser)
+        sub_layout.insertWidget(1, self.current_pump_laser.window)
+        pump_laser_tab.layout().addWidget(sub_layout)
+        tab.addTab(pump_laser_tab, "Laser Driver")
+        sub_layout = QtWidgets.QSplitter()
         tec_tab = QtWidgets.QTabWidget()
         tec_tab.setLayout(QtWidgets.QHBoxLayout())
-        tec_tab.layout().addWidget(Tec(laser="Pump Laser"))
-        tec_tab.layout().addWidget(self.temperature_pump_laser.window)
-        tab.addTab(tec_tab, "Tec Serial")
+        sub_layout.insertWidget(0, Tec(laser="Pump Laser"))
+        sub_layout.insertWidget(1, self.temperature_pump_laser.window)
+        tec_tab.layout().addWidget(sub_layout)
+        tab.addTab(tec_tab, "Tec Driver")
         return tab
 
     def _init_probe_laser_tab(self) -> QtWidgets.QTabWidget:
         tab = QtWidgets.QTabWidget()
+        sub_layout = QtWidgets.QSplitter()
         probe_laser = ProbeLaser()
         probe_laser_tab = QtWidgets.QTabWidget()
         probe_laser_tab.setLayout(QtWidgets.QHBoxLayout())
-        probe_laser_tab.layout().addWidget(probe_laser)
-        probe_laser_tab.layout().addWidget(self.current_probe_laser.window)
-        tab.addTab(probe_laser_tab, "Laser Serial")
+        sub_layout.insertWidget(0, probe_laser)
+        sub_layout.insertWidget(1, self.current_probe_laser.window)
+        probe_laser_tab.layout().addWidget(sub_layout)
+        tab.addTab(probe_laser_tab, "Laser Driver")
+        sub_layout = QtWidgets.QSplitter()
         tec_tab = QtWidgets.QTabWidget()
         tec_tab.setLayout(QtWidgets.QHBoxLayout())
-        tec_tab.layout().addWidget(Tec(laser="Probe Laser"))
-        tec_tab.layout().addWidget(self.temperature_probe_laser.window)
-        tab.addTab(tec_tab, "Tec Serial")
+        sub_layout.insertWidget(0, Tec(laser="Probe Laser"))
+        sub_layout.insertWidget(1, self.temperature_probe_laser.window)
+        tec_tab.layout().addWidget(sub_layout)
+        tab.addTab(tec_tab, "Tec Driver")
         return tab
 
     def _init_tabs(self):
@@ -82,8 +90,7 @@ class MainWindow(QtWidgets.QMainWindow):
                         sensitivity=QtWidgets.QTabWidget(),
                         symmetry=QtWidgets.QTabWidget(),
                         interferometric_phase=QtWidgets.QTabWidget(),
-                        pti_signal=QtWidgets.QTabWidget()
-                        )
+                        pti_signal=QtWidgets.QTabWidget())
         self.tab_bar.addTab(self.tabs.home, "Home")
         self.tab_bar.addTab(self.tabs.pump_laser, "Pump Laser")
         self.tab_bar.addTab(self.tabs.probe_laser, "Probe Laser")
@@ -204,8 +211,7 @@ class Home(QtWidgets.QTabWidget, _Frames, _CreateButton):
         self.logging_window = QtWidgets.QLabel()
         model.signals.logging_update.connect(self.logging_update)
         self._init_frames()
-        self.settings = SettingsView(parent=self.frames["Setting"],
-                                     settings_model=self.controller.settings_model)
+        self.settings = SettingsView(parent=self.frames["Setting"], settings_model=self.controller.settings_model)
         self.frames["Setting"].layout().addWidget(self.settings)
         self.scroll = QtWidgets.QScrollArea(widgetResizable=True)
         self.scroll.setWidgetResizable(True)
@@ -296,13 +302,12 @@ class Home(QtWidgets.QTabWidget, _Frames, _CreateButton):
         self.create_button(master=sub_layout, title="Inversion", slot=self.controller.plot_inversion)
         self.create_button(master=sub_layout, title="Characterisation", slot=self.controller.plot_characterisation)
 
-        # Serial buttons
+        # Driver buttons
         sub_layout = QtWidgets.QWidget(parent=self.frames["Drivers"])
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
         self.frames["Drivers"].layout().addWidget(sub_layout)
         self.create_button(master=sub_layout, title="Scan Ports", slot=self.controller.find_devices)
-        self.create_button(master=sub_layout, title="Connect Devices",
-                           slot=self.controller.connect_devices)
+        self.create_button(master=sub_layout, title="Connect Devices", slot=self.controller.connect_devices)
 
         # Output File Location
         sub_layout = QtWidgets.QWidget(parent=self.frames["File Path"])
@@ -451,15 +456,13 @@ class PumpLaser(QtWidgets.QWidget, _Frames, _CreateButton):
         self.driver_voltage = Slider(minimum=PumpLaser.MIN_DRIVER_BIT, maximum=PumpLaser.MAX_DRIVER_BIT, unit="V")
         self.current = [Slider(minimum=PumpLaser.MIN_CURRENT, maximum=PumpLaser.MAX_CURRENT, unit="Bit"),
                         Slider(minimum=PumpLaser.MIN_CURRENT, maximum=PumpLaser.MAX_CURRENT, unit="Bit")]
-        self.mode_matrix = [
-            [QtWidgets.QComboBox() for _ in range(3)], [QtWidgets.QComboBox() for _ in range(3)]
-        ]
+        self.mode_matrix = [[QtWidgets.QComboBox() for _ in range(3)], [QtWidgets.QComboBox() for _ in range(3)]]
         self.controller = controller.PumpLaser(self)
         self._init_frames()
         self._init_current_configuration()
         self._init_voltage_configuration()
         self._init_buttons()
-        self.frames["Serial Voltage"].layout().addWidget(self.driver_voltage)
+        self.frames["Driver Voltage"].layout().addWidget(self.driver_voltage)
         self.frames["Measured Values"].layout().addWidget(self.current_display)
         self.frames["Measured Values"].layout().addWidget(self.voltage_display)
         self._init_signals()
@@ -508,7 +511,7 @@ class PumpLaser(QtWidgets.QWidget, _Frames, _CreateButton):
 
     def _init_frames(self) -> None:
         self.create_frame(master=self, title="Measured Values", x_position=1, y_position=0)
-        self.create_frame(master=self, title="Serial Voltage", x_position=2, y_position=0)
+        self.create_frame(master=self, title="Driver Voltage", x_position=2, y_position=0)
         for i in range(1, 3):
             self.create_frame(master=self, title=f"Current {i}", x_position=i + 2, y_position=0)
         self.create_frame(master=self, title="Configuration", x_position=5, y_position=0)
@@ -1010,10 +1013,9 @@ class TecTemperature(_Plotting):
 
     def __init__(self, laser: str):
         _Plotting.__init__(self)
-        self.curves = [
-            self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="Setpoint Temperature"),
-            self.plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="Measured Temperature")
-        ]
+        self.curves = [self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="Setpoint Temperature"),
+                       self.plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="Measured Temperature")
+                       ]
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="Temperature [°C]")
         if laser == "Pump Laser":

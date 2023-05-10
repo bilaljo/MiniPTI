@@ -283,8 +283,9 @@ class Characterization:
                 else:
                     self._characterise_interferometer()
                 last_index = i + 1
-                self.clear()
             yield i
+            if self.enough_values:
+                self.clear()
         return last_index
 
     def _characterise_interferometer(self) -> None:
@@ -335,8 +336,7 @@ class Characterization:
         for channel in range(3):
             output_phase_deg = np.rad2deg(self.interferometer.output_phases[channel])
             output_data[f"Output Phase CH{channel + 1}"].append(output_phase_deg)
-            output_data[f"Amplitude CH{channel + 1}"].append(
-                self.interferometer.amplitudes[channel])
+            output_data[f"Amplitude CH{channel + 1}"].append(self.interferometer.amplitudes[channel])
             output_data[f"Offset CH{channel + 1}"].append(self.interferometer.offsets[channel])
 
     def _calculate_offline(self, dc_signals=None):
@@ -357,7 +357,9 @@ class Characterization:
         while True:
             try:
                 i = next(process_characterisation)
-                time_stamps.append(i)
+                if self.enough_values:
+                    time_stamps.append(i)
+                    self._add_characterised_data(output_data)
             except StopIteration as ex:
                 last_index = ex.value
                 break
