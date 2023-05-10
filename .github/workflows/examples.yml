@@ -22,8 +22,8 @@ jobs:
              pip install fastcrc numpy pandas scipy dacite pyserial h5py nptyping[complete] \
              beartype commented-configparser
       - name: Run Characterisation Example
-        run: examples/characterisation.py
+        run: python3 examples/characterisation.py
       - name: Run Interferometer Example
-        run: examples/interferometer.py
+        run: python3 examples/interferometer.py
       - name: Run PTI Inversion Example
-        run: examples/pti_inversion.py
+        run: python3 examples/pti_inversion.py
