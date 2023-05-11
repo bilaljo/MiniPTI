@@ -5,7 +5,7 @@ dependencies = [
     "pandas"
 ]
 name = "minipti"
-version = "1.9.0"
+version = "1.9.1"
 authors = [
     { name = "Jonas Bilal", email = "jonasbilal@outlook.com" },
 ]
