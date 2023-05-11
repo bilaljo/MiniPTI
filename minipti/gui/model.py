@@ -1076,8 +1076,11 @@ def _process_data(file_path: str, headers: list[str, ...]) -> pd.DataFrame:
     delimiter = find_delimiter(file_path)
     try:
         data = pd.read_csv(file_path, delimiter=delimiter, skiprows=[1], index_col="Time")
-    except ValueError:  # Data isn't saved with any index
-        data = pd.read_csv(file_path, delimiter=delimiter, skiprows=[1])
+    except ValueError:
+        try:
+            data = pd.read_csv(file_path, delimiter=delimiter, skiprows=[1], index_col="Time Stamp")
+        except ValueError:  # Data isn't saved with any index
+            data = pd.read_csv(file_path, delimiter=delimiter, skiprows=[1])
     for header in headers:
         for header_data in data.columns:
             if header == header_data:

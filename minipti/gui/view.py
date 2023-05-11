@@ -830,9 +830,9 @@ class DC(_Plotting):
     def update_data(self, data: pd.DataFrame) -> None:
         for channel in range(3):
             try:
-                self.curves[channel].setData(data[f"DC CH{channel + 1}"])
+                self.curves[channel].setData(data[f"DC CH{channel + 1}"].to_numpy())
             except KeyError:
-                self.curves[channel].setData(data[f"PD{channel + 1}"])
+                self.curves[channel].setData(data[f"PD{channel + 1}"].to_numpy())
 
     def update_data_live(self, data: model.PTIBuffer) -> None:
         for channel in range(3):
@@ -858,7 +858,7 @@ class Amplitudes(_Plotting):
 
     def update_data(self, data: pd.DataFrame) -> None:
         for channel in range(3):
-            self.curves[channel].setData(data[f"Amplitude CH{channel + 1}"])
+            self.curves[channel].setData(data.index, data[f"Amplitude CH{channel + 1}"].to_numpy())
 
     def update_data_live(self, data: model.CharacterisationBuffer) -> None:
         for channel in range(3):
@@ -879,7 +879,7 @@ class OutputPhases(_Plotting):
 
     def update_data(self, data: pd.DataFrame) -> None:
         for channel in range(2):
-            self.curves[channel].setData(data[f"Output Phase CH{channel + 2}"])
+            self.curves[channel].setData(data.index, data[f"Output Phase CH{channel + 2}"].to_numpy())
 
     def update_data_live(self, data: model.CharacterisationBuffer) -> None:
         for channel in range(2):
@@ -896,7 +896,7 @@ class InterferometricPhase(_Plotting):
         model.signals.inversion_live.connect(self.update_data_live)
 
     def update_data(self, data: pd.DataFrame) -> None:
-        self.curves.setData(data["Interferometric Phase"])
+        self.curves.setData(data["Interferometric Phase"].to_numpy())
 
     def update_data_live(self, data: model.PTIBuffer) -> None:
         self.curves.setData(data.time, data.interferometric_phase)
@@ -915,7 +915,7 @@ class Sensitivity(_Plotting):
 
     def update_data(self, data: pd.DataFrame) -> None:
         for channel in range(3):
-            self.curves[channel].setData(data[f"Sensitivity CH{channel + 1}"])
+            self.curves[channel].setData(data[f"Sensitivity CH{channel + 1}"].to_numpy())
 
     def update_data_live(self, data: model.PTIBuffer) -> None:
         for channel in range(3):
@@ -935,8 +935,8 @@ class Symmetry(_Plotting):
         model.signals.characterization_live.connect(self.update_data_live)
 
     def update_data(self, data: pd.DataFrame) -> None:
-        self.curves[0].setData(data["Symmetry"])
-        self.curves[1].setData(data["Relative Symmetry"])
+        self.curves[0].setData(data.index, data["Symmetry"].to_numpy())
+        self.curves[1].setData(data.index, data["Relative Symmetry"].to_numpy())
 
     def update_data_live(self, data: model.CharacterisationBuffer) -> None:
         self.curves[0].setData(data.time, data.symmetry)
@@ -955,8 +955,8 @@ class PTISignal(_Plotting):
 
     def update_data(self, data: pd.DataFrame) -> None:
         try:
-            self.curves["PTI Signal"].setData(data["PTI Signal"])
-            self.curves["PTI Signal Mean"].setData(data["PTI Signal 60 s Mean"])
+            self.curves["PTI Signal"].setData(data["PTI Signal"].to_numpy())
+            self.curves["PTI Signal Mean"].setData(data["PTI Signal 60 s Mean"].to_numpy())
         except KeyError:
             pass
 
