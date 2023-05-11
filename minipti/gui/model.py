@@ -224,17 +224,14 @@ class PTIBuffer(Buffer):
         self.dc_values = [deque(maxlen=Buffer.QUEUE_SIZE) for _ in range(PTIBuffer.CHANNELS)]
         self.interferometric_phase = deque(maxlen=Buffer.QUEUE_SIZE)
         self.sensitivity = [deque(maxlen=Buffer.QUEUE_SIZE) for _ in range(PTIBuffer.CHANNELS)]
-        self.symmetry = deque(maxlen=Buffer.QUEUE_SIZE)
         self.pti_signal = deque(maxlen=Buffer.QUEUE_SIZE)
         self.pti_signal_mean = deque(maxlen=Buffer.QUEUE_SIZE)
         self._pti_signal_mean_queue = deque(maxlen=PTIBuffer.MEAN_SIZE)
 
-    def append(self, pti_data: PTI,
-               interferometer: algorithm.interferometry.Interferometer) -> None:
+    def append(self, pti_data: PTI, interferometer: algorithm.interferometry.Interferometer) -> None:
         for i in range(3):
             self.dc_values[i].append(pti_data.decimation.dc_signals[i])
             self.sensitivity[i].append(pti_data.inversion.sensitivity[i])
-        self.symmetry.append(pti_data.inversion.symmetry)
         self.interferometric_phase.append(interferometer.phase)
         self.pti_signal.append(pti_data.inversion.pti_signal)
         self._pti_signal_mean_queue.append(pti_data.inversion.pti_signal)
@@ -249,8 +246,9 @@ class CharacterisationBuffer(Buffer):
         Buffer.__init__(self)
         # The first channel has always the phase 0 by definition hence it is not needed.
         self.output_phases = [deque(maxlen=Buffer.QUEUE_SIZE) for _ in range(self.CHANNELS - 1)]
-        self.amplitudes = [deque(maxlen=Buffer.QUEUE_SIZE) for _ in
-                           range(CharacterisationBuffer.CHANNELS)]
+        self.amplitudes = [deque(maxlen=Buffer.QUEUE_SIZE) for _ in range(CharacterisationBuffer.CHANNELS)]
+        self.symmetry = deque(maxlen=Buffer.QUEUE_SIZE)
+        self.relative_symmetry = deque(maxlen=Buffer.QUEUE_SIZE)
 
     def append(self, characterization: algorithm.interferometry.Characterization,
                interferometer: algorithm.interferometry.Interferometer) -> None:
@@ -258,6 +256,8 @@ class CharacterisationBuffer(Buffer):
             self.amplitudes[i].append(interferometer.amplitudes[i])
         for i in range(2):
             self.output_phases[i].append(interferometer.output_phases[i + 1])
+        self.symmetry.append(interferometer.absoloute_symmetry)
+        self.relative_symmetry.append(interferometer.relative_symmetry)
         self.time.append(characterization.time_stamp)
 
 
@@ -435,7 +435,7 @@ class Calculation:
                 self.pti.decimation.ref = np.array(Motherboard.driver.ref_signal)
                 self.pti.decimation.dc_coupled = np.array(Motherboard.driver.dc_coupled)
                 self.pti.decimation.ac_coupled = np.array(Motherboard.driver.ac_coupled)
-                self.pti.decimation.decimate()
+                self.pti.decimation.decimate(live=True)
                 self.pti.inversion.lock_in = self.pti.decimation.lock_in
                 self.pti.inversion.dc_signals = self.pti.decimation.dc_signals
                 signals.decimation_live.emit(self.pti_buffer)
@@ -457,11 +457,9 @@ class Calculation:
         inversion_thread.start()
         return characterization_thread, inversion_thread
 
-    def calculate_characterisation(self, dc_file_path: str, use_settings=False,
-                                   settings_path="") -> None:
+    def calculate_characterisation(self, dc_file_path: str, use_settings=False, settings_path="") -> None:
         self.interferometry.interferometer.decimation_filepath = dc_file_path
         self.interferometry.interferometer.settings_path = settings_path
-        self.interferometry.characterization.use_settings = use_settings
         self.interferometry.characterization.use_settings = use_settings
         self.interferometry.characterization.characterise()
         signals.settings.emit(self.interferometry.interferometer)
@@ -1103,13 +1101,11 @@ def process_dc_data(dc_file_path: str) -> None:
 
 def process_inversion_data(inversion_file_path: str) -> None:
     try:
-        headers = ["Interferometric Phase", "Sensitivity CH1", "Sensitivity CH2", "Sensitivity CH3",
-                   "Total Sensitivity", "PTI Signal"]
+        headers = ["Interferometric Phase", "Sensitivity CH1", "Sensitivity CH2", "Sensitivity CH3", "PTI Signal"]
         data = _process_data(inversion_file_path, headers)
         data["PTI Signal 60 s Mean"] = running_average(data["PTI Signal"], mean_size=60)
     except KeyError:
-        headers = ["Sensitivity CH1", "Sensitivity CH2", "Sensitivity CH3",
-                   "Total Sensitivity", "Interferometric Phase"]
+        headers = ["Sensitivity CH1", "Sensitivity CH2", "Sensitivity CH3", "Interferometric Phase"]
         data = _process_data(inversion_file_path, headers)
     except FileNotFoundError:
         return
@@ -1120,6 +1116,7 @@ def process_characterization_data(characterization_file_path: str) -> None:
     headers = [f"Amplitude CH{i}" for i in range(1, 4)]
     headers += [f"Output Phase CH{i}" for i in range(1, 4)]
     headers += [f"Offset CH{i}" for i in range(1, 4)]
+    headers += ["Symmetry", "Relative Symmetry"]
     try:
         data = _process_data(characterization_file_path, headers)
     except FileNotFoundError:

@@ -868,11 +868,10 @@ class Amplitudes(_Plotting):
 class OutputPhases(_Plotting):
     def __init__(self):
         _Plotting.__init__(self)
-        self.curves = [
-            self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="Output Phase CH2",
-                                  brush=pg.mkBrush(_MatplotlibColors.ORANGE)),
-            self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.GREEN), name="Output Phase CH3",
-                                  brush=pg.mkBrush(_MatplotlibColors.GREEN))]
+        self.curves = [self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="Output Phase CH2",
+                                             brush=pg.mkBrush(_MatplotlibColors.ORANGE)),
+                       self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.GREEN), name="Output Phase CH3",
+                                             brush=pg.mkBrush(_MatplotlibColors.GREEN))]
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="Output Phase [deg]")
         model.signals.characterization.connect(self.update_data)
@@ -906,9 +905,9 @@ class InterferometricPhase(_Plotting):
 class Sensitivity(_Plotting):
     def __init__(self):
         _Plotting.__init__(self)
-        self.curves = [self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE)),
-                       self.plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE)),
-                       self.plot.plot(pen=pg.mkPen(_MatplotlibColors.GREEN))]
+        self.curves = [self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="CH1"),
+                       self.plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="CH2"),
+                       self.plot.plot(pen=pg.mkPen(_MatplotlibColors.GREEN), name="CH3")]
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="Sensitivity [V/rad]")
         model.signals.inversion.connect(self.update_data)
@@ -926,25 +925,29 @@ class Sensitivity(_Plotting):
 class Symmetry(_Plotting):
     def __init__(self):
         _Plotting.__init__(self)
-        self.curves = self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE))
+        self.curves = [self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="Absolute Symmetry",
+                                             brush=pg.mkBrush(_MatplotlibColors.BLUE)),
+                       self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="Relative Symmetry",
+                                             brush=pg.mkBrush(_MatplotlibColors.ORANGE))]
         self.plot.setLabel(axis="bottom", text="Time [s]")
-        self.plot.setLabel(axis="left", text="Symmetry [1]")
-        model.signals.inversion.connect(self.update_data)
-        model.signals.inversion_live.connect(self.update_data_live)
+        self.plot.setLabel(axis="left", text="Symmetry [%]")
+        model.signals.characterization.connect(self.update_data)
+        model.signals.characterization_live.connect(self.update_data_live)
 
     def update_data(self, data: pd.DataFrame) -> None:
-        self.curves.setData(data[f"Symmetry"])
+        self.curves[0].setData(data["Symmetry"])
+        self.curves[1].setData(data["Relative Symmetry"])
 
-    def update_data_live(self, data: model.PTIBuffer) -> None:
-        self.curves.setData(data.time, data.symmetry)
+    def update_data_live(self, data: model.CharacterisationBuffer) -> None:
+        self.curves[0].setData(data.time, data.symmetry)
+        self.curves[1].setData(data.time, data.relative_symmetry)
 
 
 class PTISignal(_Plotting):
     def __init__(self):
         _Plotting.__init__(self)
-        self.curves = {
-            "PTI Signal": self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="1 s", size=6),
-            "PTI Signal Mean": self.plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="60 s Mean")}
+        self.curves = {"PTI Signal": self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="1 s", size=6),
+                       "PTI Signal Mean": self.plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="60 s Mean")}
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="PTI Signal [µrad]")
         model.signals.inversion.connect(self.update_data)
@@ -1014,8 +1017,7 @@ class TecTemperature(_Plotting):
     def __init__(self, laser: str):
         _Plotting.__init__(self)
         self.curves = [self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="Setpoint Temperature"),
-                       self.plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="Measured Temperature")
-                       ]
+                       self.plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="Measured Temperature")]
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="Temperature [°C]")
         if laser == "Pump Laser":
