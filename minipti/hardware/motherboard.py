@@ -10,10 +10,8 @@ from configparser import ConfigParser
 from dataclasses import dataclass, asdict
 from typing import Sequence, Union
 
-from commentedconfigparser import CommentedConfigParser
 from fastcrc import crc16
 
-import minipti.algorithm.pti
 from . import serial_device
 
 
@@ -69,8 +67,15 @@ class Valve:
 
 
 @dataclass
+class DAQ:
+    number_of_samples: int
+    ref_period: int
+
+
+@dataclass
 class MotherBoardConfig:
     valve: Valve
+    daq: DAQ
 
 
 class Driver(serial_device.Driver):
@@ -89,8 +94,6 @@ class Driver(serial_device.Driver):
     NAME = "Motherboard"
 
     _CHANNELS = 3
-    REF_PERIOD = 100
-    NUMBER_OF_SAMPLES = minipti.algorithm.pti.Decimation.SAMPLES
 
     def __init__(self):
         serial_device.Driver.__init__(self)
@@ -106,7 +109,7 @@ class Driver(serial_device.Driver):
         self.synchronize = False
         self.config: Union[MotherBoardConfig, None] = None
         self.shutdown = threading.Event()
-        self.config_path = f"{os.path.dirname(__file__)}/configs/motherboard.conf"
+        self.config_path = f"{os.path.dirname(__file__)}/configs/motherboard.ini"
         self.config_parser = ConfigParser()
         self.automatic_switch = threading.Event()
         self.bypass = False
@@ -173,9 +176,10 @@ class Driver(serial_device.Driver):
         self.config_parser.read(self.config_path)
         valve_config = Valve(automatic_switch=self.config_parser.getboolean("Valve", "automatic_switch"),
                              period=self.config_parser.getint("Valve", "period"),
-                             duty_cycle=self.config_parser.getint("Valve", "duty_cycle"),
-                             )
-        self.config = MotherBoardConfig(valve_config)
+                             duty_cycle=self.config_parser.getint("Valve", "duty_cycle"))
+        daq_config = DAQ(number_of_samples=self.config_parser.getint("DAQ", "number_of_samples"),
+                         ref_period=self.config_parser.getint("DAQ", "ref_period"))
+        self.config = MotherBoardConfig(valve_config, daq_config)
         if valve_config.automatic_switch:
             self.automatic_switch.set()
 
@@ -313,13 +317,13 @@ class Driver(serial_device.Driver):
 
     def _synchronize_with_ref(self, ref_signal: _Samples, ac_coupled: list[_Samples],
                               dc_coupled: list[_Samples]) -> None:
-        while sum(itertools.islice(ref_signal, 0, Driver.REF_PERIOD // 2)):
+        while sum(itertools.islice(ref_signal, 0, self.config.daq.ref_period // 2)):
             ref_signal.popleft()
             for channel in range(Driver._CHANNELS):
                 ac_coupled[channel].popleft()
                 dc_coupled[channel].popleft()
             dc_coupled[3].popleft()
-        if len(ref_signal) < Driver.REF_PERIOD // 2:
+        if len(ref_signal) < self.config.daq.ref_period // 2:
             return
         self.synchronize = False
 
@@ -329,10 +333,10 @@ class Driver(serial_device.Driver):
         samples.
         """
         self._package_data.DAQ.ref_signal.put([self._encoded_buffer.ref_signal.popleft()
-                                               for _ in range(Driver.NUMBER_OF_SAMPLES)])
+                                               for _ in range(self.config.daq.number_of_samples)])
         dc_package = [[], [], []]
         ac_package = [[], [], []]
-        for _ in itertools.repeat(None, Driver.NUMBER_OF_SAMPLES):
+        for _ in itertools.repeat(None, self.config.daq.number_of_samples):
             for channel in range(Driver._CHANNELS):
                 dc_package[channel].append(self._encoded_buffer.dc_coupled[channel].popleft())
                 ac_package[channel].append(self._encoded_buffer.ac_coupled[channel].popleft())
@@ -358,7 +362,7 @@ class Driver(serial_device.Driver):
         self._sample_numbers = deque(maxlen=2)
         while self.connected.is_set():
             self.encode_data()
-            if len(self._encoded_buffer.ref_signal) >= Driver.NUMBER_OF_SAMPLES:
+            if len(self._encoded_buffer.ref_signal) >= self.config.daq.number_of_samples:
                 self.build_sample_package()
 
     def automatic_valve_change(self) -> None:

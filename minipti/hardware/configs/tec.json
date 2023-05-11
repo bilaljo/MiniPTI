@@ -1,42 +1,36 @@
 {
-  "Pump Laser": {
-    "mode": {
-      "cooling": true,
-      "heating": false
+    "Pump Laser": {
+        "mode": {
+            "heating": false,
+            "cooling": true
+        },
+        "pid": {
+            "proportional_value": 4,
+            "integral_value": [3, 12],
+            "derivative_value": 12
+        },
+        "system_parameter": {
+            "setpoint_temperature": 1,
+            "loop_time": 4,
+            "reference_resistor": 3,
+            "max_power": 4
+        }
     },
-    "pid": {
-      "proportional_value": 4,
-      "integral_value": [
-        3,
-        12
-      ],
-      "derivative_value": 12
-    },
-    "system_parameter": {
-      "setpoint_temperature": 1,
-      "loop_time": 4,
-      "reference_resistor": 3,
-      "max_power": 4
+    "Probe Laser": {
+        "mode": {
+            "heating": false,
+            "cooling": true
+        },
+        "pid": {
+            "proportional_value": 12,
+            "integral_value": [0, 0],
+            "derivative_value": 4
+        },
+        "system_parameter": {
+            "setpoint_temperature": 2.5,
+            "loop_time": 5,
+            "reference_resistor": 5,
+            "max_power": 0.3
+        }
     }
-  },
-  "Probe Laser": {
-    "mode": {
-      "cooling": true,
-      "heating": false
-    },
-    "pid": {
-      "proportional_value": 12,
-      "integral_value": [
-        0,
-        0
-      ],
-      "derivative_value": 4
-    },
-    "system_parameter": {
-      "setpoint_temperature": 2.5,
-      "loop_time": 5,
-      "reference_resistor": 5,
-      "max_power": 0.3
-    }
-  }
 }
