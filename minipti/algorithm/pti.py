@@ -33,12 +33,12 @@ class Inversion:
     MICRO_RAD = 1e6
     LOCK_IN_HEADERS = [([f"X{i}" for i in range(1, 4)], [f"Y{i}" for i in range(1, 4)]),
                        ([f"x{i}" for i in range(1, 4)], [f"y{i}" for i in range(1, 4)]),
-                       ([f"Lock in Amplitude CH{i}" for i in range(1, 4)],
-                        [f"Lock in Phase CH{i}" for i in range(1, 4)]),
+                       ([f"Lock In Amplitude CH{i}" for i in range(1, 4)],
+                        [f"Lock In Phase CH{i}" for i in range(1, 4)]),
                        ([f"AC CH{i}" for i in range(1, 4)],
                         [f"AC Phase CH{i}" for i in range(1, 4)])]
 
-    def __init__(self, response_phases=None, sign=1, interferometer=None,
+    def __init__(self, response_phases=None, sign=-1, interferometer=None,
                  settings_path=f"{os.path.dirname(__file__)}/configs/settings.csv"):
         self.response_phases = response_phases
         self.pti_signal: Union[float, np.ndarray] = 0
@@ -85,7 +85,7 @@ class Inversion:
             response_phase = self.response_phases[channel]
             demodulated_signal = self.lock_in.amplitude[channel] * np.cos(self.lock_in.phase[channel] - response_phase)
             pti_signal += demodulated_signal * sign
-        self.pti_signal = -pti_signal / np.sum(self.sensitivity, axis=0) * Inversion.MICRO_RAD
+        self.pti_signal = -pti_signal / np.sum(self.sensitivity, axis=0) * Inversion.MICRO_RAD * self.sign
 
     def calculate_sensitivity(self) -> None:
         try:
