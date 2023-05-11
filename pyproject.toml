@@ -1,5 +1,9 @@
 [project]
-dynamic = ["dependencies"]
+dependencies = [
+    "numpy",
+    "scipy",
+    "pandas"
+]
 name = "minipti"
 version = "1.9.0"
 authors = [
@@ -15,8 +19,24 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 
-[tool.setuptools.dynamic]
-dependencies = {file = ["requirements.txt"]}
+[project.optional-dependencies]
+algorithm = [
+    "minipti",
+    "beartype",
+    "dacite",
+    "h5py",
+    "nptyping",
+]
+
+gui = [
+    "minipti[algorithm]",
+    # Hardware
+    "fastcrc",
+    "pyserial",
+    # GUI
+    "PyQt5",
+    "pyqtgraph"
+]
 
 [project.urls]
 "Homepage" = "https://www.fhnw.ch/en/about-fhnw/schools/school-of-engineering/institutes/institute-for-sensors-and-electronics/aerosol-measurement-technology"
