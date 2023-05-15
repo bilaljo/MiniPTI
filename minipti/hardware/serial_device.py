@@ -45,46 +45,43 @@ class Driver:
     def find_port(self) -> None:
         for port in list_ports.comports():
             try:
-                device = serial.Serial(port.device, timeout=Driver.MAX_RESPONSE_TIME,
-                                       write_timeout=Driver.MAX_RESPONSE_TIME)
+                with serial.Serial(port.device, timeout=Driver.MAX_RESPONSE_TIME,
+                                   write_timeout=Driver.MAX_RESPONSE_TIME) as device:
+                    device.write(Command.HARDWARE_ID + Driver.TERMINATION_SYMBOL.encode())
+                    time.sleep(0.1)
+                    available_bytes = device.in_waiting
+                    self.received_data.put(device.read(available_bytes))
+                    hardware_id = self.get_hardware_id()
+                    if hardware_id == self.device_id:
+                        self.port_name = port.device
+                        logging.info(f"Found {self.device_name} at {self.port_name}")
+                        break
             except serial.SerialException:
                 continue
-            device.write(Command.HARDWARE_ID + Driver.TERMINATION_SYMBOL.encode())
-            time.sleep(0.1)
-            available_bytes = device.in_waiting
-            self.received_data.put(device.read(available_bytes))
-            hardware_id = self.get_hardware_id()
-            if hardware_id == self.device_id:
-                self.port_name = port.device
-                logging.info(f"Found {self.device_name} at {self.port_name}")
-                device.close()
-                break
-            else:
-                device.close()
-        raise OSError("Could not find {self.device_name}")
+        else:
+            raise OSError("Could not find {self.device_name}")
 
     if platform.system() == "Windows":
         def open(self) -> None:
             if self.port_name:
                 try:
-                    self.device = win32file.CreateFile(self.port_name,
+                    self.device = win32file.CreateFile("\\\\.\\" + self.port_name,
                                                        win32con.GENERIC_READ | win32con.GENERIC_WRITE,
                                                        0,
                                                        None,
                                                        win32con.OPEN_EXISTING,
                                                        win32con.FILE_ATTRIBUTE_NORMAL,
                                                        None)
-                except pywintypes.error:
-                    logging.error(f"Could not connect with {self.device_name}")
-                    logging.info("The COM port of the device cannot be found anymore")
-
-                win32file.SetCommMask(self.device, win32file.EV_RXCHAR)
-                win32file.SetupComm(self.device, 4096, 4096)
-                win32file.PurgeComm(self.device,
-                                    win32file.PURGE_TXABORT | win32file.PURGE_RXABORT
-                                    | win32file.PURGE_TXCLEAR | win32file.PURGE_RXCLEAR)
-                self.connected.set()
-                logging.info(f"Connected with {self.device_name}")
+                except pywintypes.error as e:
+                    raise OSError("Could not find {self.device_name}")
+                else:
+                    win32file.SetCommMask(self.device, win32file.EV_RXCHAR)
+                    win32file.SetupComm(self.device, 4096, 4096)
+                    win32file.PurgeComm(self.device,
+                                        win32file.PURGE_TXABORT | win32file.PURGE_RXABORT
+                                        | win32file.PURGE_TXCLEAR | win32file.PURGE_RXCLEAR)
+                    self.connected.set()
+                    logging.info(f"Connected with {self.device_name}")
             else:
                 raise OSError("Could not find {self.device_name}")
     else:
@@ -161,20 +158,24 @@ class Driver:
             return True
         return False
 
+    @staticmethod
+    def _mesage_to_stream(message: str) -> bytes:
+        return message.encode()
+
     if platform.system() == "Windows":
         def _write(self) -> None:
             while self.connected.is_set():
                 if self.ready_write.wait(timeout=Driver.MAX_RESPONSE_TIME):
-                    self.last_written_message = self._write_buffer.get(block=True)
-                    win32file.WriteFile(self.device, self.last_written_message + Driver.TERMINATION_SYMBOL, None)
+                    self.last_written_message = self._write_buffer.get(block=True) + Driver.TERMINATION_SYMBOL
+                    win32file.WriteFile(self.device, self._mesage_to_stream(self.last_written_message), None)
                     self.ready_write.clear()
     else:
         def _write(self) -> None:
             while self.connected.is_set():
                 if self.ready_write.wait(timeout=Driver.MAX_RESPONSE_TIME):
                     self.last_written_message = self._write_buffer.get(block=True)
-                    os.write(self.file_descriptor, (self.last_written_message + Driver.TERMINATION_SYMBOL).encode())
-                    self.ready_write.clear()
+                    os.write(self.file_descriptor, self._mesage_to_stream(self.last_written_message))
+                self.ready_write.clear()
 
     def _check_ack(self, data: str) -> bool:
         last_written = self.last_written_message

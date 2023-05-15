@@ -531,9 +531,9 @@ class Serial:
         """
         cls.driver.close()
 
-    @staticmethod
+    @classmethod
     @abc.abstractmethod
-    def save_configuration() -> None:
+    def save_configuration(cls) -> None:
         ...
 
     @abc.abstractmethod
@@ -548,16 +548,16 @@ class Serial:
     def load_configuration(self) -> None:
         self.fire_configuration_change()
 
-    @staticmethod
-    def _incoming_data() -> None:
+    @classmethod
+    def _incoming_data(cls) -> None:
         """
         Listens to incoming data and emits them as _signals to the view as long a serial connection
         is established.
         """
 
-    @staticmethod
-    def process_measured_data() -> threading.Thread:
-        processing_thread = threading.Thread(target=Serial._incoming_data, daemon=True)
+    @classmethod
+    def process_measured_data(cls) -> threading.Thread:
+        processing_thread = threading.Thread(target=cls._incoming_data, daemon=True)
         processing_thread.start()
         return processing_thread
 
@@ -638,9 +638,9 @@ class Motherboard(Serial):
         Motherboard.driver.load_config()
         self.fire_configuration_change()
 
-    @staticmethod
-    def save_configuration() -> None:
-        Motherboard.driver.save_config()
+    @classmethod
+    def save_configuration(cls) -> None:
+        cls.driver.save_config()
 
     @property
     def config_path(self) -> str:
@@ -664,22 +664,27 @@ class Laser(Serial):
         Serial.__init__(self)
         self.config_path = "hardware/configs/laser.json"
 
+    @classmethod
+    def open(cls) -> None:
+        cls.driver.open()
+        cls.driver.run()
+
     def load_configuration(self) -> None:
         Laser.driver.load_configuration()
         self.fire_configuration_change()
 
-    @staticmethod
-    def save_configuration() -> None:
-        Laser.driver.save_configuration()
+    @classmethod
+    def save_configuration(cls) -> None:
+        cls.driver.save_configuration()
 
     @staticmethod
     def apply_configuration() -> None:
         Laser.driver.apply_configuration()
 
-    @staticmethod
-    def _incoming_data():
-        while Laser.driver.running.is_set():
-            received_data = Laser.driver.data.get(block=True)
+    @classmethod
+    def _incoming_data(cls):
+        while cls.driver.connected.is_set():
+            received_data = cls.driver.data.get(block=True)
             Laser.buffer.append(received_data)
             laser_signals.data.emit(Laser.buffer)
             laser_signals.data_display.emit(received_data)
@@ -904,6 +909,11 @@ class Tec(Serial):
         Serial.__init__(self)
         self.laser = laser
 
+    @classmethod
+    def open(cls) -> None:
+        cls.driver.open()
+        cls.driver.run()
+
     @property
     def connected(self) -> bool:
         return self.driver.connected.is_set()
@@ -932,9 +942,9 @@ class Tec(Serial):
     def config_path(self, config_path: str) -> None:
         Tec.driver.config_path = config_path
 
-    @staticmethod
-    def save_configuration() -> None:
-        Tec.driver.save_configuration()
+    @classmethod
+    def save_configuration(cls) -> None:
+        cls.driver.save_configuration()
 
     def load_configuration(self) -> None:
         Tec.driver.load_config()
@@ -1062,11 +1072,12 @@ class Tec(Serial):
         else:
             tec_signals[self.laser].mode.emit(TecMode.HEATING)
 
-    def _incoming_data(self) -> None:
-        while self.driver.connected.is_set():
-            received_data = Tec.driver.data.get(block=True)
-            Tec._buffer.append(received_data)
-            signals.tec_data.emit(Tec._buffer)
+    @classmethod
+    def _incoming_data(cls) -> None:
+        while cls.driver.connected.is_set():
+            received_data = cls.driver.data.get(block=True)
+            cls._buffer.append(received_data)
+            signals.tec_data.emit(cls._buffer)
             signals.tec_data_display.emit(received_data)
 
 
