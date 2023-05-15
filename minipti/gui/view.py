@@ -171,6 +171,8 @@ class _CreateButton:
         self.buttons = {}  # type: dict[str, QtWidgets.QPushButton]
 
     def create_button(self, master, title, slot, master_title="") -> None:
+        if master_title:
+            master_title += " "
         self.buttons[master_title + title] = QtWidgets.QPushButton(master, text=title)
         self.buttons[master_title + title].clicked.connect(slot)
         master.layout().addWidget(self.buttons[master_title + title])
