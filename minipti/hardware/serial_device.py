@@ -103,29 +103,36 @@ class Driver:
                 signal.signal(signal.SIGIO, self._receive)
                 self.file_descriptor = os.open(path=self.port_name,
                                                flags=os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK | os.O_SYNC)
-                attributes = termios.tcgetattr(self.file_descriptor)
-                attributes[TTYIndex.CFLAG] &= ~termios.CSIZE
-                attributes[TTYIndex.CFLAG] |= termios.CS8
-                attributes[TTYIndex.IFLAG] &= ~(termios.IGNBRK | termios. BRKINT | termios. PARMRK)
-                attributes[TTYIndex.IFLAG] &= ~(termios.ISTRIP | termios.INLCR | termios.IGNCR | termios.ICRNL)
-                attributes[TTYIndex.LFLAG] = 0
-                attributes[TTYIndex.OFLAG] = 0
-                attributes[TTYIndex.CC][termios.VMIN] = 0
-                attributes[TTYIndex.CC][termios.VTIME] = 5
-                attributes[TTYIndex.IFLAG] &= ~(termios.IXON | termios.IXOFF | termios.IXANY)
-                attributes[TTYIndex.CFLAG] |= (termios.CLOCAL | termios.CREAD)
-                attributes[TTYIndex.CFLAG] &= ~termios.PARENB
-                attributes[TTYIndex.CFLAG] &= ~termios.CSTOPB
-                attributes[TTYIndex.CFLAG] &= ~termios.CRTSCTS
-                attributes[TTYIndex.CFLAG] &= ~termios.ICANON
-                attributes[TTYIndex.CFLAG] &= ~termios.ECHO
-                attributes[TTYIndex.CFLAG] &= ~termios.ECHOE
-                attributes[TTYIndex.CFLAG] &= ~termios.ECHONL
-                attributes[TTYIndex.CFLAG] &= ~termios.ISIG
-                attributes[TTYIndex.OFLAG] &= ~termios.OPOST
+                # Setting up the flags is based on the pyserial library
+                # https://github.com/pyserial/pyserial/blob/master/serial/serialposix.py#L383
+                old_attribute = termios.tcgetattr(self.file_descriptor)
+                iflag, oflag, cflag, lflag, ispeed, ospeed, cc = old_attribute
+                cflag |= (termios.CLOCAL | termios.CREAD)
+                lflag &= ~(termios.ICANON | termios.ECHO | termios.ECHOE | termios.ECHOK | termios.ECHONL |
+                           termios.ISIG | termios.IEXTEN)
+                oflag &= ~(termios.OPOST | termios.ONLCR | termios.OCRNL)
+                iflag &= ~(termios.INLCR | termios.IGNCR | termios.ICRNL | termios.IGNBRK)
+                if hasattr(termios, 'IUCLC'):
+                    iflag &= ~termios.IUCLC
+                if hasattr(termios, 'PARMRK'):
+                    iflag &= ~termios.PARMRK
 
-                attributes[TTYIndex.OFLAG] &= ~termios.ONLCR
-                termios.tcsetattr(self.file_descriptor, termios.TCSANOW, attributes)
+                cflag |= termios.CS8
+                iflag &= ~(termios.INPCK | termios.ISTRIP)
+                cflag &= ~(termios.PARENB | termios.PARODD)
+                if hasattr(termios, 'IXANY'):
+                    iflag &= ~(termios.IXON | termios.IXOFF | termios.IXANY)
+                else:
+                    iflag &= ~(termios.IXON | termios.IXOFF)
+                if hasattr(termios, 'CRTSCTS'):
+                    cflag &= ~termios.CRTSCTS
+                elif hasattr(termios, 'CNEW_RTSCTS'):  # try it with alternate constant name
+                    cflag &= ~termios.CNEW_RTSCTS
+                cc[termios.VMIN] = 0  # Non-blocking
+                cc[termios.VTIME] = Driver.MAX_RESPONSE_TIME * 1000  # Uses ms as unit per default
+                new_attribute = [iflag, oflag, cflag, lflag, ispeed, ospeed, cc]
+                if new_attribute != old_attribute:
+                    termios.tcsetattr(self.file_descriptor, termios.TCSANOW, new_attribute)
                 self.connected.set()
                 logging.info(f"Connected with {self.device_name}")
             else:

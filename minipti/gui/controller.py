@@ -37,7 +37,7 @@ class MainApplication(QtWidgets.QApplication):
 
 
 class Home:
-    def __init__(self, parent, main_app: QtWidgets.QApplication):
+    def __init__(self, parent: view.MainWindow, main_app: QtWidgets.QApplication):
         self.view = parent
         self.main_app = main_app
         self.settings_model = model.SettingsTable()
@@ -62,7 +62,7 @@ class Home:
         except ValueError as error:
             info_text = "Value must be a positive integer"
             logging.error(str(error))
-            logging.info(info_text)
+            logging.warning(info_text)
             QtWidgets.QMessageBox.critical(self.view, "Valve Error", f"{str(error)}. {info_text}")
 
     def update_valve_duty_cycle(self, duty_cycle: str) -> None:
@@ -72,7 +72,7 @@ class Home:
         except ValueError as error:
             info_text = "Value must be an integer between 0 and 100"
             logging.error(str(error))
-            logging.info(info_text)
+            logging.warning(info_text)
             QtWidgets.QMessageBox.critical(self.view, "Valve Error", f"{str(error)}. {info_text}")
 
     def update_automatic_valve_switch(self, automatic_valve_switch: bool) -> None:
@@ -230,7 +230,11 @@ class Home:
             logging.error("Cannot enable Probe Laser")
             logging.warning("Probe Laser is not connected")
         else:
-            self.probe_laser.enabled = not self.probe_laser.enabled
+            if not self.probe_laser.enabled:
+                self.view.current_probe_laser.clear()
+                self.probe_laser.enabled = True
+            else:
+                self.probe_laser.enabled = False
             logging.debug(f"{'Enabled' if self.probe_laser.enabled else 'Disabled'} Probe Laser")
 
     def enable_pump_laser(self) -> None:
@@ -240,8 +244,12 @@ class Home:
             logging.error("Cannot enable Pump Laser")
             logging.warning("Pump Laser is not connected")
         else:
-            self.pump_laser.enabled = not self.pump_laser.enabled
-            logging.debug(f"{'Enabled' if self.pump_laser.enabled else 'Disabled'} Probe Laser")
+            if not self.pump_laser.enabled:
+                self.view.current_pump_laser.clear()
+                self.pump_laser.enabled = True
+            else:
+                self.pump_laser.enabled = False
+                logging.debug(f"{'Enabled' if self.pump_laser.enabled else 'Disabled'} Probe Laser")
 
     def enable_tec_pump_laser(self) -> None:
         if not self.pump_laser_tec.connected:
@@ -250,8 +258,11 @@ class Home:
             logging.error("Cannot enable Tec Driver of Pump Laser")
             logging.warning("Tec Driver is not connected")
         else:
-            self.pump_laser_tec.enabled = not self.pump_laser_tec.enabled
-            self.pump_laser.enabled = not self.pump_laser.enabled
+            if not self.pump_laser_tec.enabled:
+                self.view.temperature_pump_laser.clear()
+                self.pump_laser_tec.enabled = True
+            else:
+                self.pump_laser_tec.enabled = False
             logging.debug(f"{'Enabled' if self.pump_laser_tec.enabled else 'Disabled'} Tec Driver of Pump Laser")
 
     def enable_tec_probe_laser(self) -> None:
@@ -259,9 +270,13 @@ class Home:
             QtWidgets.QMessageBox.critical(self.view, "IO Error",
                                            "Cannot enable Tec Driver of Probe Laser. Tec Driver is not connected.")
             logging.error("Cannot enable Tec Driver of Probe Laser")
-            logging.info("Tec Driver is not connected")
+            logging.warning("Tec Driver is not connected")
         else:
-            self.probe_laser_tec.enabled = not self.probe_laser_tec.enabled
+            if not self.probe_laser_tec.enabled:
+                self.view.temperature_probe_laser.clear()
+                self.probe_laser_tec.enabled = True
+            else:
+                self.probe_laser_tec.enabled = False
             logging.debug(f"{'Enabled' if self.probe_laser_tec.enabled else 'Disabled'} Tec Driver of Probe Laser")
 
     def run_measurement(self) -> None:
@@ -270,7 +285,14 @@ class Home:
                 QtWidgets.QMessageBox.critical(self.view, "IO Error",
                                                "Cannot run measurement. Motherboard is not connected.")
                 return
-            self.mother_board_model.run()
+            # Reset all measurement plots
+            self.view.dc.clear()
+            self.view.amplitudes.clear()
+            self.view.output_phases.clear()
+            self.view.interferometric_phase.clear()
+            self.view.sensitivity.clear()
+            self.view.symmetry.clear()
+            self.view.pti_signal.clear()
             self.calculation_model.live_calculation()
             view.toggle_button(True, self.view.buttons["Run Measurement"])
             self.daq_enabled = True

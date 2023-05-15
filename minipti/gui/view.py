@@ -149,7 +149,7 @@ class Tab(NamedTuple):
 
 class _Frames:
     def __init__(self):
-        self.frames = {}  # type: dict[str, QtWidgets.QGroupBox]
+        self.frames = {}  # type: dict[str, Union[QtWidgets.QGroupBox, QtWidgets.QDockWidget]]
 
     def create_frame(self, master: QtWidgets.QWidget, title, x_position, y_position,
                      x_span=1, y_span=1) -> None:
@@ -217,7 +217,7 @@ class Home(QtWidgets.QTabWidget, _Frames, _CreateButton):
         self.frames["Setting"].layout().addWidget(self.settings)
         self.scroll = QtWidgets.QScrollArea(widgetResizable=True)
         self.scroll.setWidgetResizable(True)
-        self.frames["Log"] = QtWidgets.QDockWidget('Log', self)
+        self.frames["Log"] = QtWidgets.QDockWidget("Log", self)
         self.scroll.setWidget(self.logging_window)
         self.frames["Log"].setWidget(self.scroll)
         self.frames["Battery"] = QtWidgets.QDockWidget("Battery", self)
@@ -231,6 +231,7 @@ class Home(QtWidgets.QTabWidget, _Frames, _CreateButton):
         self.frames["Battery"].setWidget(sub_layout)
         self.scroll.setWidget(self.logging_window)
         main_window.addDockWidget(Qt.BottomDockWidgetArea, self.frames["Log"])
+        self.frames["Log"].show()
         main_window.addDockWidget(Qt.BottomDockWidgetArea, self.frames["Battery"])
         main_window.setCorner(Qt.BottomRightCorner, Qt.RightDockWidgetArea)
         self.destination_folder = QtWidgets.QLabel(self.controller.calculation_model.destination_folder)
@@ -366,7 +367,6 @@ class Home(QtWidgets.QTabWidget, _Frames, _CreateButton):
         self.logging_window.setText("".join(log_queue))
 
     def _init_raw_data_button(self) -> None:
-        self.save_raw_data.setChecked(self.controller.calculation_model.save_raw_data)
         self.save_raw_data.stateChanged.connect(self.controller.calculation_model.set_raw_data_saving)
 
     def _init_valves(self) -> None:
@@ -558,7 +558,7 @@ class ProbeLaser(QtWidgets.QWidget, _CreateButton, _Frames):
         self.controller = controller.ProbeLaser(self)
         self.laser_mode = QtWidgets.QComboBox()
         self.photo_gain = QtWidgets.QComboBox()
-        self.current_display = QtWidgets.QLabel("0 mA")
+        self.current_display = QtWidgets.QLabel("0")
         self._init_frames()
         self._init_slider()
         self._init_buttons()
@@ -581,15 +581,15 @@ class ProbeLaser(QtWidgets.QWidget, _CreateButton, _Frames):
 
     @QtCore.pyqtSlot(hardware.laser.Data)
     def _update_current(self, value: hardware.laser.Data) -> None:
-        self.current_display.setText(str(value.probe_laser_current) + " mA")
+        self.current_display.setText(str(value.probe_laser_current))
 
     @functools.singledispatchmethod
     def _update_max_current(self, value: int):
-        self.max_current_display.setText(str(value) + " mA")
+        self.max_current_display.setText(str(value))
 
     @_update_max_current.register
     def _(self, value: float):
-        self.max_current_display.setText(str(round(value, 2)) + " mA")
+        self.max_current_display.setText(str(round(value, 2)))
 
     def _max_current_changed(self) -> None:
         return self.controller.update_max_current_probe_laser(self.max_current_display.text())
@@ -807,6 +807,10 @@ class _Plotting(pg.PlotWidget):
         self.plot.addLegend()
 
     @abc.abstractmethod
+    def clear(self) -> None:
+        ...
+
+    @abc.abstractmethod
     def update_data(self, data: pd.DataFrame) -> None:
         ...
 
@@ -837,6 +841,11 @@ class DC(_Plotting):
         for channel in range(3):
             self.curves[channel].setData(data.dc_values[channel])
 
+    def clear(self) -> None:
+        self.curves = [self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="DC CH1"),
+                       self.plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="DC CH2"),
+                       self.plot.plot(pen=pg.mkPen(_MatplotlibColors.GREEN), name="DC CH3")]
+
 
 class Amplitudes(_Plotting):
     def __init__(self):
@@ -863,6 +872,17 @@ class Amplitudes(_Plotting):
         for channel in range(3):
             self.curves[channel].setData(data.time, data.amplitudes[channel])
 
+    def clear(self) -> None:
+        self.curves = [self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.BLUE),
+                                             brush=pg.mkBrush(_MatplotlibColors.BLUE),
+                                             name="Amplitude CH1"),
+                       self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.ORANGE),
+                                             brush=pg.mkBrush(_MatplotlibColors.ORANGE),
+                                             name="Amplitude CH2"),
+                       self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.GREEN),
+                                             brush=pg.mkBrush(_MatplotlibColors.GREEN),
+                                             name="Amplitude CH3")]
+
 
 class OutputPhases(_Plotting):
     def __init__(self):
@@ -884,6 +904,12 @@ class OutputPhases(_Plotting):
         for channel in range(2):
             self.curves[channel].setData(data.time, data.output_phases[channel])
 
+    def clear(self) -> None:
+        self.curves = [self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="Output Phase CH2",
+                                             brush=pg.mkBrush(_MatplotlibColors.ORANGE)),
+                       self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.GREEN), name="Output Phase CH3",
+                                             brush=pg.mkBrush(_MatplotlibColors.GREEN))]
+
 
 class InterferometricPhase(_Plotting):
     def __init__(self):
@@ -899,6 +925,9 @@ class InterferometricPhase(_Plotting):
 
     def update_data_live(self, data: model.PTIBuffer) -> None:
         self.curves.setData(data.time, data.interferometric_phase)
+
+    def clear(self) -> None:
+        self.curves = self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE))
 
 
 class Sensitivity(_Plotting):
@@ -920,6 +949,11 @@ class Sensitivity(_Plotting):
         for channel in range(3):
             self.curves[channel].setData(data.time, data.sensitivity[channel])
 
+    def clear(self) -> None:
+        self.curves = [self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="CH1"),
+                       self.plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="CH2"),
+                       self.plot.plot(pen=pg.mkPen(_MatplotlibColors.GREEN), name="CH3")]
+
 
 class Symmetry(_Plotting):
     def __init__(self):
@@ -940,6 +974,12 @@ class Symmetry(_Plotting):
     def update_data_live(self, data: model.CharacterisationBuffer) -> None:
         self.curves[0].setData(data.time, data.symmetry)
         self.curves[1].setData(data.time, data.relative_symmetry)
+
+    def clear(self) -> None:
+        self.curves = [self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="Absolute Symmetry",
+                                             brush=pg.mkBrush(_MatplotlibColors.BLUE)),
+                       self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="Relative Symmetry",
+                                             brush=pg.mkBrush(_MatplotlibColors.ORANGE))]
 
 
 class PTISignal(_Plotting):
@@ -963,6 +1003,10 @@ class PTISignal(_Plotting):
         self.curves["PTI Signal"].setData(data.time, data.pti_signal)
         self.curves["PTI Signal Mean"].setData(data.time, data.pti_signal_mean)
 
+    def clear(self) -> None:
+        self.curves = {"PTI Signal": self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="1 s", size=6),
+                       "PTI Signal Mean": self.plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="60 s Mean")}
+
 
 class PumpLaserCurrent(_Plotting):
     def __init__(self):
@@ -977,6 +1021,9 @@ class PumpLaserCurrent(_Plotting):
 
     def update_data_live(self, data: model.LaserBuffer) -> None:
         self.curves.setData(data.time, data.pump_laser_current)
+
+    def clear(self) -> None:
+        self.curves = self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE))
 
 
 class PumpLaserVoltage(_Plotting):
@@ -993,6 +1040,9 @@ class PumpLaserVoltage(_Plotting):
     def update_data_live(self, data: model.LaserBuffer) -> None:
         self.curves.setData(data.time, data.pump_laser_voltage)
 
+    def clear(self) -> None:
+        self.curves = self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE))
+
 
 class ProbeLaserCurrent(_Plotting):
     def __init__(self):
@@ -1007,6 +1057,9 @@ class ProbeLaserCurrent(_Plotting):
 
     def update_data_live(self, data: model.LaserBuffer) -> None:
         self.curves.setData(data.time, data.probe_laser_current)
+
+    def clear(self) -> None:
+        self.curves = self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE))
 
 
 class TecTemperature(_Plotting):
@@ -1031,3 +1084,7 @@ class TecTemperature(_Plotting):
     def update_data_live(self, data: model.TecBuffer) -> None:
         self.curves[TecTemperature.ACTUAL].setData(data.time, data.actual_value[self.laser])
         self.curves[TecTemperature.MEASURAED].setData(data.time, data.set_point[self.laser])
+
+    def clear(self) -> None:
+        self.curves = [self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="Setpoint Temperature"),
+                       self.plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="Measured Temperature")]

@@ -14,7 +14,7 @@
         }
     },
     "Probe Laser": {
-        "max_current_mA": 13,
+        "max_current_mA": 14,
         "current_bits": 123,
         "constant_current": false,
         "constant_light": true,

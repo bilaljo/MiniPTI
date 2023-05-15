@@ -7,6 +7,7 @@ import logging
 import os
 import platform
 import subprocess
+import sys
 import threading
 import time
 import typing
@@ -129,9 +130,13 @@ class Logging(logging.Handler):
     def __init__(self):
         logging.Handler.__init__(self)
         self.logging_messages = deque(maxlen=Logging.LOGGING_HISTORY)
-        self.formatter = logging.Formatter('%(levelname)s %(asctime)s: %(message)s\n',
+        self.formatter = logging.Formatter('%(levelname) s%(asctime)s [%(threadName)-12.12s]   %(message)s\n',
                                            datefmt='%Y-%m-%d %H:%M:%S')
         logging.getLogger().addHandler(self)
+
+        logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(self.formatter)
 
     def emit(self, record: logging.LogRecord) -> None:
         log = self.format(record)

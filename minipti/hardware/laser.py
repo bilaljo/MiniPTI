@@ -184,9 +184,8 @@ class Driver(serial_device.Driver):
     def set_probe_laser_current(self) -> None:
         current_mA = ProbeLaser.bit_to_current(self.probe_laser.current_bits)
         if current_mA > self.probe_laser.max_current_mA:
-            logging.error(
-                f"Current exceeds maximum current of {self.probe_laser.max_current_mA} mA")
-            logging.info(f"Setting it to maximum value of {self.probe_laser.max_current_mA} mA")
+            logging.error(f"Current exceeds maximum current of {self.probe_laser.max_current_mA} mA")
+            logging.warning(f"Setting it to maximum value of {self.probe_laser.max_current_mA} mA")
             current = ProbeLaser.current_to_bit(self.probe_laser.max_current_mA)
         else:
             current = self.probe_laser.current_bits
