@@ -93,6 +93,7 @@ class Driver:
             if self.port_name:
                 signal.signal(signal.SIGIO, self._receive)
                 self.file_descriptor = os.open(path=self.port_name, flags=os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
+                self.connected.set()
                 logging.info(f"Connected with {self.device_name}")
             else:
                 raise OSError("Could not find {self.device_name}")
