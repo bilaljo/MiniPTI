@@ -536,12 +536,9 @@ class PumpLaser(QtWidgets.QWidget, _Frames, _CreateButton):
 
         config = QtWidgets.QWidget()
         config.setLayout(QtWidgets.QHBoxLayout())
-        self.create_button(master=config, title="Save Configuration",
-                           slot=self.controller.save_configuration)
-        self.create_button(master=config, title="Load Configuration",
-                           slot=self.controller.load_configuration)
-        self.create_button(master=config, title="Apply Configuration",
-                           slot=self.controller.apply_configuration)
+        self.create_button(master=config, title="Save Configuration",  slot=self.controller.save_configuration)
+        self.create_button(master=config, title="Load Configuration",  slot=self.controller.load_configuration)
+        self.create_button(master=config, title="Apply Configuration", slot=self.controller.apply_configuration)
         self.frames["Configuration"].layout().addWidget(config, 4, 0)
 
 

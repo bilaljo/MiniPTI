@@ -158,24 +158,18 @@ class Driver:
             return True
         return False
 
-    @staticmethod
-    def _mesage_to_stream(message: str) -> bytes:
-        return message.encode()
-
-    if platform.system() == "Windows":
-        def _write(self) -> None:
-            while self.connected.is_set():
-                if self.ready_write.wait(timeout=Driver.MAX_RESPONSE_TIME):
-                    self.last_written_message = self._write_buffer.get(block=True) + Driver.TERMINATION_SYMBOL
-                    win32file.WriteFile(self.device, self._mesage_to_stream(self.last_written_message), None)
-                    self.ready_write.clear()
-    else:
-        def _write(self) -> None:
-            while self.connected.is_set():
-                if self.ready_write.wait(timeout=Driver.MAX_RESPONSE_TIME):
-                    self.last_written_message = self._write_buffer.get(block=True)
-                    os.write(self.file_descriptor, self._mesage_to_stream(self.last_written_message))
+    def _write(self) -> None:
+        while self.connected.is_set():
+            if self.ready_write.wait(timeout=Driver.MAX_RESPONSE_TIME):
+                self.last_written_message = self._write_buffer.get(block=True) + Driver.TERMINATION_SYMBOL
+                self._transfer()
                 self.ready_write.clear()
+
+    def _transfer(self) -> None:
+        if platform.system() == "Windows":
+            win32file.WriteFile(self.device, self.last_written_message.encode(), None)
+        else:
+            os.write(self.file_descriptor, self.last_written_message.encode())
 
     def _check_ack(self, data: str) -> bool:
         last_written = self.last_written_message
