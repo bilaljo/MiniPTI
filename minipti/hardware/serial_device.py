@@ -104,18 +104,27 @@ class Driver:
                 self.file_descriptor = os.open(path=self.port_name,
                                                flags=os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK | os.O_SYNC)
                 attributes = termios.tcgetattr(self.file_descriptor)
-                attributes[TTYIndex.CFLAG] = (attributes[TTYIndex.CFLAG] & ~termios.CSIZE) | termios.CS8
-                attributes[TTYIndex.IFLAG] &= termios.IGNBRK
+                attributes[TTYIndex.CFLAG] &= ~termios.CSIZE
+                attributes[TTYIndex.CFLAG] |= termios.CS8
+                attributes[TTYIndex.IFLAG] &= ~(termios.IGNBRK | termios. BRKINT | termios. PARMRK)
+                attributes[TTYIndex.IFLAG] &= ~(termios.ISTRIP | termios.INLCR | termios.IGNCR | termios.ICRNL)
                 attributes[TTYIndex.LFLAG] = 0
                 attributes[TTYIndex.OFLAG] = 0
                 attributes[TTYIndex.CC][termios.VMIN] = 0
                 attributes[TTYIndex.CC][termios.VTIME] = 5
                 attributes[TTYIndex.IFLAG] &= ~(termios.IXON | termios.IXOFF | termios.IXANY)
                 attributes[TTYIndex.CFLAG] |= (termios.CLOCAL | termios.CREAD)
-                attributes[TTYIndex.CFLAG] &= ~(termios.PARENB | termios.PARODD)
-                attributes[TTYIndex.CFLAG] |= 0  # No parity
+                attributes[TTYIndex.CFLAG] &= ~termios.PARENB
                 attributes[TTYIndex.CFLAG] &= ~termios.CSTOPB
                 attributes[TTYIndex.CFLAG] &= ~termios.CRTSCTS
+                attributes[TTYIndex.CFLAG] &= ~termios.ICANON
+                attributes[TTYIndex.CFLAG] &= ~termios.ECHO
+                attributes[TTYIndex.CFLAG] &= ~termios.ECHOE
+                attributes[TTYIndex.CFLAG] &= ~termios.ECHONL
+                attributes[TTYIndex.CFLAG] &= ~termios.ISIG
+                attributes[TTYIndex.OFLAG] &= ~termios.OPOST
+
+                attributes[TTYIndex.OFLAG] &= ~termios.ONLCR
                 termios.tcsetattr(self.file_descriptor, termios.TCSANOW, attributes)
                 self.connected.set()
                 logging.info(f"Connected with {self.device_name}")
