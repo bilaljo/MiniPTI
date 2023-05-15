@@ -476,7 +476,7 @@ class PumpLaser(QtWidgets.QWidget, _Frames, _CreateButton):
         model.laser_signals.matrix_dac.connect(self._update_dac_matrix)
         model.laser_signals.data_display.connect(self._update_current_voltage)
 
-    @QtCore.pyqtSlot()
+    @QtCore.pyqtSlot(hardware.laser.Data)
     def _update_current_voltage(self, value: hardware.laser.Data) -> None:
         self.current_display.setText(str(value.pump_laser_current) + " mA")
         self.voltage_display.setText(str(value.pump_laser_voltage) + " V")
