@@ -1,4 +1,5 @@
 import abc
+import enum
 import logging
 import os
 import platform
@@ -19,6 +20,17 @@ else:
     import termios
 import serial
 from serial.tools import list_ports
+
+
+if platform.system() != "Windows":
+    class TTYIndex(enum.IntEnum):
+        IFLAG = 0
+        OFLAG = 1
+        CFLAG = 2
+        LFLAG = 3
+        ISPEED = 4
+        OSPEED = 5
+        CC = 6
 
 
 class Driver:
@@ -89,17 +101,21 @@ class Driver:
         def open(self) -> None:
             if self.port_name:
                 signal.signal(signal.SIGIO, self._receive)
-                self.file_descriptor = os.open(path=self.port_name, flags=os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK |
-                                                                          os.O_SYNC)
+                self.file_descriptor = os.open(path=self.port_name,
+                                               flags=os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK | os.O_SYNC)
                 attributes = termios.tcgetattr(self.file_descriptor)
-                attributes[0] = (attributes[0] & ~termios.CSIZE) | termios.CS8
-                attributes[3] = 0
-                attributes[1] = 0
-                attributes[2] |= (termios.CLOCAL | termios.CREAD)
-                attributes[2] &= ~(termios.PARENB | termios.PARODD)
-                attributes[2] |= 0  # No parity
-                attributes[2] &= ~termios.CSTOPB
-                attributes[2] &= ~termios.CRTSCTS
+                attributes[TTYIndex.CFLAG] = (attributes[TTYIndex.CFLAG] & ~termios.CSIZE) | termios.CS8
+                attributes[TTYIndex.IFLAG] &= termios.IGNBRK
+                attributes[TTYIndex.LFLAG] = 0
+                attributes[TTYIndex.OFLAG] = 0
+                attributes[TTYIndex.CC][termios.VMIN] = 0
+                attributes[TTYIndex.CC][termios.VTIME] = 5
+                attributes[TTYIndex.IFLAG] &= ~(termios.IXON | termios.IXOFF | termios.IXANY)
+                attributes[TTYIndex.CFLAG] |= (termios.CLOCAL | termios.CREAD)
+                attributes[TTYIndex.CFLAG] &= ~(termios.PARENB | termios.PARODD)
+                attributes[TTYIndex.CFLAG] |= 0  # No parity
+                attributes[TTYIndex.CFLAG] &= ~termios.CSTOPB
+                attributes[TTYIndex.CFLAG] &= ~termios.CRTSCTS
                 termios.tcsetattr(self.file_descriptor, termios.TCSANOW, attributes)
                 self.connected.set()
                 logging.info(f"Connected with {self.device_name}")
