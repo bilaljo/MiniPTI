@@ -237,8 +237,10 @@ class Driver(serial_device.Driver):
         self._probe_laser_enabled = state
         if state:
             self._enable_probe_laser()
+            self.running.set()
         else:
             self._disable_probe_laser()
+            self.running.clear()
 
     def _enable_probe_laser(self):
         if self.probe_laser_initialized:

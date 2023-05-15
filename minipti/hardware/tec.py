@@ -191,9 +191,11 @@ class Driver(serial_device.Driver):
             self.set_mode("Probe Laser")
             self.write(f"SL10001")
             self._tec_pump_laser_enabled = True
+            self.running.set()
         else:
             self.write(f"SL10000")
             self._tec_pump_laser_enabled = False
+            self.running.clear()
 
     @property
     def probe_laser_enabled(self) -> bool:
@@ -205,9 +207,11 @@ class Driver(serial_device.Driver):
             self.set_mode("Probe Laser")
             self.write(f"SL20001")
             self._tec_probe_laser_enabled = True
+            self.running.set()
         else:
             self.write(f"SL20000")
             self._tec_probe_laser_enabled = False
+            self.running.clear()
 
     def _process_data(self) -> None:
         while self.connected.is_set():
