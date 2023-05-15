@@ -129,8 +129,8 @@ class Driver(serial_device.Driver):
             elif received[0] == "L":
                 data_frame = received.split("\t")[Driver._START_DATA_FRAME:self.end_data_frame]
                 self.data.put(Data(pump_laser_current=float(data_frame[0]),
-                                    pump_laser_voltage=float(data_frame[1]),
-                                    probe_laser_current=float(data_frame[2])))
+                                   pump_laser_voltage=float(data_frame[1]),
+                                   probe_laser_current=float(data_frame[2])))
             else:  # Broken data frame without header char
                 logging.error("Received invalid package without header")
                 self.ready_write.set()
@@ -237,10 +237,8 @@ class Driver(serial_device.Driver):
         self._probe_laser_enabled = state
         if state:
             self._enable_probe_laser()
-            self.running.set()
         else:
             self._disable_probe_laser()
-            self.running.clear()
 
     def _enable_probe_laser(self):
         if self.probe_laser_initialized:

@@ -38,7 +38,6 @@ class Driver:
         self.ready_write.set()
         self.last_written_message = ""
         self.data = queue.Queue()
-        self.running = threading.Event()
         self.device = None
         if platform.system() != "Windows":
             self.file_descriptor = -1
@@ -155,7 +154,6 @@ class Driver:
         Sends data to the serial device if connected and no acknowledge is pending.
         """
         while self.connected.is_set():
-            self.running.wait()
             if isinstance(message, str):
                 self._write_buffer.put(message, block=False)
             else:
@@ -166,7 +164,6 @@ class Driver:
     if platform.system() == "Windows":
         def _write(self) -> None:
             while self.connected.is_set():
-                self.running.wait()
                 if self.ready_write.wait(timeout=Driver.MAX_RESPONSE_TIME):
                     self.last_written_message = self._write_buffer.get(block=True)
                     win32file.WriteFile(self.device, self.last_written_message + Driver.TERMINATION_SYMBOL, None)
@@ -174,7 +171,6 @@ class Driver:
     else:
         def _write(self) -> None:
             while self.connected.is_set():
-                self.running.wait()
                 if self.ready_write.wait(timeout=Driver.MAX_RESPONSE_TIME):
                     self.last_written_message = self._write_buffer.get(block=True)
                     os.write(self.file_descriptor, (self.last_written_message + Driver.TERMINATION_SYMBOL).encode())
@@ -214,14 +210,13 @@ class Driver:
         """
         def _receive(self) -> None:
             """
-            Receiver thread for incoming data. The WaitComEvent method blocks the thread until a specific event occured.
-            The event we are looking for has event mask value EV_RXCHAR. It is set, when a character (or more) is put
-            into the input buffer.
+            Receiver thread for incoming data. The WaitComEvent method blocks the thread until a specific event
+            occurred. The event we are looking for has event mask value EV_RXCHAR. It is set, when a character
+             (or more) is put into the input buffer.
             If the EV_RXCHAR event occurred the data can be read. While reading, a memoryview object is returned.
             """
             while self.connected.is_set():
                 try:
-                    self.running.wait()
                     rc, mask = win32file.WaitCommEvent(self.device, None)
                     flags, comstat = win32file.ClearCommError(self.device)
                     rc, data = win32file.ReadFile(self.device, comstat.cbInQue, None)

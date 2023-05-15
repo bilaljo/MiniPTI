@@ -113,6 +113,7 @@ class Driver(serial_device.Driver):
         self.config_parser = ConfigParser()
         self.automatic_switch = threading.Event()
         self.bypass = False
+        self.running = threading.Event()
         self.load_config()
 
     @property
@@ -361,6 +362,7 @@ class Driver(serial_device.Driver):
         self._encoded_buffer = DAQData(deque(), [deque(), deque(), deque()], [deque(), deque(), deque()])
         self._sample_numbers = deque(maxlen=2)
         while self.connected.is_set():
+            self.running.wait()
             self.encode_data()
             if len(self._encoded_buffer.ref_signal) >= self.config.daq.number_of_samples:
                 self.build_sample_package()
