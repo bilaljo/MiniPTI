@@ -209,7 +209,7 @@ class Home(QtWidgets.QTabWidget, _Frames, _CreateButton):
         _Frames.__init__(self)
         _CreateButton.__init__(self)
         self.setLayout(QtWidgets.QGridLayout())
-        self.controller = controller.Home(self, main_app)
+        self.controller = controller.Home(self, main_window, main_app)
         self.logging_window = QtWidgets.QLabel()
         model.signals.logging_update.connect(self.logging_update)
         self._init_frames()

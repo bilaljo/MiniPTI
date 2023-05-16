@@ -37,9 +37,10 @@ class MainApplication(QtWidgets.QApplication):
 
 
 class Home:
-    def __init__(self, parent: view.MainWindow, main_app: QtWidgets.QApplication):
+    def __init__(self, parent, main_window: QtWidgets.QMainWindow, main_app: QtWidgets.QApplication):
         self.view = parent
         self.main_app = main_app
+        self.main_window = main_window
         self.settings_model = model.SettingsTable()
         self.calculation_model = model.Calculation()
         self.mother_board_model = model.Motherboard()
@@ -102,8 +103,7 @@ class Home:
     def load_settings(self):
         file_path = QtWidgets.QFileDialog.getOpenFileName(self.view, caption="Load SettingsTable",
                                                           filter="CSV File (*.csv);;"
-                                                                 " TXT File (*.txt);; All Files (*);;"
-                                                          )
+                                                                 " TXT File (*.txt);; All Files (*);;")
         if file_path:
             self.settings_model.file_path = file_path[0]  # The actual file path
             self.settings_model.load()
@@ -151,8 +151,7 @@ class Home:
     def plot_inversion(self) -> None:
         try:
             model.process_inversion_data(self.get_file_path("Inversion",
-                                                            "CSV File (*.csv);; TXT File (*.txt);; All Files (*)")
-                                         )
+                                                            "CSV File (*.csv);; TXT File (*.txt);; All Files (*)"))
         except KeyError:
             QtWidgets.QMessageBox.critical(self.view, "Plotting Error", "Invalid data given. Could not plot.")
 
@@ -231,7 +230,7 @@ class Home:
             logging.warning("Probe Laser is not connected")
         else:
             if not self.probe_laser.enabled:
-                self.view.current_probe_laser.clear()
+                self.main_window.current_probe_laser.clear()
                 self.probe_laser.enabled = True
             else:
                 self.probe_laser.enabled = False
@@ -245,7 +244,7 @@ class Home:
             logging.warning("Pump Laser is not connected")
         else:
             if not self.pump_laser.enabled:
-                self.view.current_pump_laser.clear()
+                self.main_window.current_pump_laser.clear()
                 self.pump_laser.enabled = True
             else:
                 self.pump_laser.enabled = False
@@ -259,7 +258,7 @@ class Home:
             logging.warning("Tec Driver is not connected")
         else:
             if not self.pump_laser_tec.enabled:
-                self.view.temperature_pump_laser.clear()
+                self.main_window.temperature_pump_laser.clear()
                 self.pump_laser_tec.enabled = True
             else:
                 self.pump_laser_tec.enabled = False
@@ -273,7 +272,7 @@ class Home:
             logging.warning("Tec Driver is not connected")
         else:
             if not self.probe_laser_tec.enabled:
-                self.view.temperature_probe_laser.clear()
+                self.main_window.temperature_probe_laser.clear()
                 self.probe_laser_tec.enabled = True
             else:
                 self.probe_laser_tec.enabled = False
@@ -286,13 +285,13 @@ class Home:
                                                "Cannot run measurement. Motherboard is not connected.")
                 return
             # Reset all measurement plots
-            self.view.dc.clear()
-            self.view.amplitudes.clear()
-            self.view.output_phases.clear()
-            self.view.interferometric_phase.clear()
-            self.view.sensitivity.clear()
-            self.view.symmetry.clear()
-            self.view.pti_signal.clear()
+            self.main_window.dc.clear()
+            self.main_window.amplitudes.clear()
+            self.main_window.output_phases.clear()
+            self.main_window.interferometric_phase.clear()
+            self.main_window.sensitivity.clear()
+            self.main_window.symmetry.clear()
+            self.main_window.pti_signal.clear()
             self.calculation_model.live_calculation()
             view.toggle_button(True, self.view.buttons["Run Measurement"])
             self.daq_enabled = True

@@ -7,6 +7,7 @@ import queue
 import re
 import threading
 import time
+from array import array
 from dataclasses import dataclass
 from enum import Enum
 
@@ -273,8 +274,10 @@ class Driver:
             """
             Receiver signal handler for IO event. This function is chosen on a Unix based system.
             """
-            buffer_size = os.stat(self.file_descriptor).st_size
-            self.received_data.put(os.read(self.file_descriptor, buffer_size).decode())
+            # buffer_size = os.stat(self.file_descriptor).st_size
+            buf = array('h', [0])
+            fcntl.ioctl(self.file_descriptor, termios.FIONREAD, buf)
+            self.received_data.put(os.read(self.file_descriptor, buf[0]).decode())
 
     @abc.abstractmethod
     def encode_data(self) -> None:
