@@ -103,7 +103,7 @@ class Driver:
         def open(self) -> None:
             if self.port_name:
                 self.file_descriptor = os.open(path=self.port_name,
-                                               flags=os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK | os.O_SYNC)
+                                               flags=os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
                 # Setting up the flags is based on the pyserial library
                 # https://github.com/pyserial/pyserial/blob/master/serial/serialposix.py#L383
                 old_attribute = termios.tcgetattr(self.file_descriptor)
@@ -134,9 +134,9 @@ class Driver:
                 new_attribute = [iflag, oflag, cflag, lflag, ispeed, ospeed, cc]
                 if new_attribute != old_attribute:
                     termios.tcsetattr(self.file_descriptor, termios.TCSANOW, new_attribute)
-                self.connected.set()
-                fcntl.fcntl(self.file_descriptor, fcntl.F_SETFL, os.O_ASYNC)
+                fcntl.fcntl(self.file_descriptor, fcntl.F_SETFL, os.O_NDELAY | os.O_ASYNC)
                 signal.signal(signal.SIGIO, self._receive)
+                self.connected.set()
                 logging.info(f"Connected with {self.device_name}")
             else:
                 raise OSError("Could not find {self.device_name}")
