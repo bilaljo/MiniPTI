@@ -130,13 +130,13 @@ class Logging(logging.Handler):
     def __init__(self):
         logging.Handler.__init__(self)
         self.logging_messages = deque(maxlen=Logging.LOGGING_HISTORY)
-        self.formatter = logging.Formatter('%(levelname) s%(asctime)s [%(threadName)-12.12s]   %(message)s\n',
+        self.formatter = logging.Formatter('[%(threadName)s] %(levelname)s %(asctime)s: %(message)s',
                                            datefmt='%Y-%m-%d %H:%M:%S')
         logging.getLogger().addHandler(self)
-
-        logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
+        root_logger = logging.getLogger()
         console_handler = logging.StreamHandler()
         console_handler.setFormatter(self.formatter)
+        root_logger.addHandler(console_handler)
 
     def emit(self, record: logging.LogRecord) -> None:
         log = self.format(record)
