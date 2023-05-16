@@ -9,6 +9,7 @@ import threading
 import time
 from dataclasses import dataclass
 from enum import Enum
+
 from typing import Union
 
 if platform.system() == "Windows":
@@ -18,6 +19,7 @@ if platform.system() == "Windows":
 else:
     import signal
     import termios
+    import fcntl
 import serial
 from serial.tools import list_ports
 
@@ -100,7 +102,6 @@ class Driver:
     else:
         def open(self) -> None:
             if self.port_name:
-                signal.signal(signal.SIGIO, self._receive)
                 self.file_descriptor = os.open(path=self.port_name,
                                                flags=os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK | os.O_SYNC)
                 # Setting up the flags is based on the pyserial library
@@ -134,6 +135,8 @@ class Driver:
                 if new_attribute != old_attribute:
                     termios.tcsetattr(self.file_descriptor, termios.TCSANOW, new_attribute)
                 self.connected.set()
+                fcntl.fcntl(self.file_descriptor, fcntl.F_SETFL, os.O_ASYNC)
+                signal.signal(signal.SIGIO, self._receive)
                 logging.info(f"Connected with {self.device_name}")
             else:
                 raise OSError("Could not find {self.device_name}")
