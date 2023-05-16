@@ -5,6 +5,7 @@ import os
 import platform
 import queue
 import re
+import struct
 import threading
 import time
 from array import array
@@ -12,6 +13,8 @@ from dataclasses import dataclass
 from enum import Enum
 
 from typing import Union
+
+import numpy as np
 
 if platform.system() == "Windows":
     import win32con
@@ -43,6 +46,8 @@ class Driver:
     TERMINATION_SYMBOL = "\n"
     NUMBER_OF_HEX_BYTES = 4
     _START_DATA_FRAME = 1
+    if platform.system() != "Windows":
+        _TIOCM_zero_str = struct.pack('I', 0)
 
     def __init__(self):
         self.received_data = queue.Queue(maxsize=Driver._QUEUE_SIZE)
@@ -274,10 +279,9 @@ class Driver:
             """
             Receiver signal handler for IO event. This function is chosen on a Unix based system.
             """
-            # buffer_size = os.stat(self.file_descriptor).st_size
-            buf = array('h', [0])
-            fcntl.ioctl(self.file_descriptor, termios.FIONREAD, buf)
-            self.received_data.put(os.read(self.file_descriptor, buf[0]).decode())
+            buffer = fcntl.ioctl(self.file_descriptor, termios.TIOCINQ, Driver._TIOCM_zero_str)
+            in_waiting = np.frombuffer(buffer, dtype=int)
+            self.received_data.put(os.read(self.file_descriptor, in_waiting).decode())
 
     @abc.abstractmethod
     def encode_data(self) -> None:
