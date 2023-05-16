@@ -4,6 +4,7 @@ import csv
 import enum
 import itertools
 import logging
+import multiprocessing
 import os
 import platform
 import subprocess
@@ -560,10 +561,15 @@ class Serial:
         """
 
     @classmethod
-    def process_measured_data(cls) -> threading.Thread:
-        processing_thread = threading.Thread(target=cls._incoming_data, daemon=True)
-        processing_thread.start()
-        return processing_thread
+    def process_measured_data(cls) -> Union[threading.Thread, multiprocessing.Process]:
+        if platform.system() == "Windows":
+            processing_thread = threading.Thread(target=cls._incoming_data, daemon=True)
+            processing_thread.start()
+            return processing_thread
+        else:
+            processing_thread = multiprocessing.Process(target=cls._incoming_data, daemon=True)
+            processing_thread.start()
+            return processing_thread
 
 
 class Motherboard(Serial):

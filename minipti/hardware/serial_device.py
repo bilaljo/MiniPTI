@@ -1,6 +1,7 @@
 import abc
 import enum
 import logging
+import multiprocessing
 import os
 import platform
 import queue
@@ -143,10 +144,13 @@ class Driver:
                 raise OSError("Could not find {self.device_name}")
 
     def run(self) -> None:
-        threading.Thread(target=self._write, daemon=True).start()
         if platform.system() == "Windows":
+            threading.Thread(target=self._write, daemon=True).start()
             threading.Thread(target=self._receive, daemon=True).start()
-        threading.Thread(target=self._read, daemon=True).start()
+            threading.Thread(target=self._read, daemon=True).start()
+        else:
+            multiprocessing.Process(target=self._write, daemon=True).start()
+            multiprocessing.Process(target=self._read, daemon=True).start()
 
     def _read(self):
         try:

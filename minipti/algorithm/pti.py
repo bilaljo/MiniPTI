@@ -237,7 +237,7 @@ class Decimation:
     def get_raw_data(self) -> Generator[None, None, None]:
         with h5py.File(self.file_path, "r") as h5f:
             for sample_package in h5f.values():
-                self.dc_coupled = np.array(sample_package["DC"]).T
+                self.dc_coupled = np.array(sample_package["pa"]).T
                 self.ac_coupled = np.array(sample_package["AC"]).T
                 yield None
 
