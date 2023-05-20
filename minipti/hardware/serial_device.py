@@ -8,9 +8,9 @@ import re
 import struct
 import threading
 import time
-from array import array
 from dataclasses import dataclass
 from enum import Enum
+import traceback
 
 from typing import Union
 
@@ -28,15 +28,9 @@ import serial
 from serial.tools import list_ports
 
 
-if platform.system() != "Windows":
-    class TTYIndex(enum.IntEnum):
-        IFLAG = 0
-        OFLAG = 1
-        CFLAG = 2
-        LFLAG = 3
-        ISPEED = 4
-        OSPEED = 5
-        CC = 6
+def _print_stack_frame() -> None:
+    for line in traceback.format_stack():
+        logging.debug(line)
 
 
 class Driver:
@@ -80,6 +74,7 @@ class Driver:
             except serial.SerialException:
                 continue
         else:
+            _print_stack_frame()
             raise OSError("Could not find {self.device_name}")
 
     if platform.system() == "Windows":
@@ -94,7 +89,9 @@ class Driver:
                                                        win32con.FILE_ATTRIBUTE_NORMAL,
                                                        None)
                 except pywintypes.error as e:
-                    raise OSError("Could not find {self.device_name}")
+                    logging.debug("Error caused by %s", e)
+                    _print_stack_frame()
+                    raise OSError("Could not find %s", self.device_name)
                 else:
                     win32file.SetCommMask(self.device, win32file.EV_RXCHAR)
                     win32file.SetupComm(self.device, 4096, 4096)
@@ -102,9 +99,10 @@ class Driver:
                                         win32file.PURGE_TXABORT | win32file.PURGE_RXABORT
                                         | win32file.PURGE_TXCLEAR | win32file.PURGE_RXCLEAR)
                     self.connected.set()
-                    logging.info(f"Connected with {self.device_name}")
+                    logging.info("Connected with %s", self.device_name)
             else:
-                raise OSError("Could not find {self.device_name}")
+                _print_stack_frame()
+                raise OSError("Could not find %s", self.device_name)
     else:
         def open(self) -> None:
             if self.port_name:
@@ -145,6 +143,7 @@ class Driver:
                 self.connected.set()
                 logging.info(f"Connected with {self.device_name}")
             else:
+                _print_stack_frame()
                 raise OSError("Could not find {self.device_name}")
 
     def run(self) -> None:
@@ -152,6 +151,7 @@ class Driver:
         if platform.system() == "Windows":
             threading.Thread(target=self._receive, daemon=True).start()
         threading.Thread(target=self._read, daemon=True).start()
+        logging.debug("Started proccessing of data from %s", self.device_name)
 
     def _read(self):
         try:
@@ -216,6 +216,7 @@ class Driver:
             if self.ready_write.wait(timeout=Driver.MAX_RESPONSE_TIME):
                 self.last_written_message = self._write_buffer.get(block=True) + Driver.TERMINATION_SYMBOL
                 self._transfer()
+                logging.debug("%s written to %s", self.last_written_message, self.device_name)
                 self.ready_write.clear()
 
     def _transfer(self) -> None:
@@ -227,10 +228,11 @@ class Driver:
     def _check_ack(self, data: str) -> bool:
         last_written = self.last_written_message
         if data != last_written and data != last_written.capitalize():
-            logging.error(f"Received message {data} message, expected {last_written}")
+            logging.error("Received message %s message, expected  %s", data, self.last_written_message)
+            _print_stack_frame()
             success = False
         else:
-            logging.debug(f"Command {data} successfully applied")
+            logging.debug("Command %s successfully applied", data)
             success = True
         self.ready_write.set()
         return success
@@ -247,10 +249,12 @@ class Driver:
             if self.device is not None:
                 self.connected.clear()
                 win32file.CloseHandle(self.device)
+                logging.info("Closed connection to %s", self.device_name)
     else:
         def close(self) -> None:
             if self.file_descriptor != -1:
                 os.close(self.file_descriptor)
+                logging.info("Closed connection to %s", self.device_name)
 
     if platform.system() == "Windows":
         """
@@ -269,8 +273,11 @@ class Driver:
                     flags, comstat = win32file.ClearCommError(self.device)
                     rc, data = win32file.ReadFile(self.device, comstat.cbInQue, None)
                     self.received_data.put(data.decode())
-                except pywintypes.error:
-                    logging.error(f"Connection to {self.device_name} lost")
+                    logging.debug("Data received")
+                except pywintypes.error as e:
+                    logging.error("Connection to %s lost", self.device_name)
+                    logging.debug("Error caused by %s", e)
+                    _print_stack_frame()
     else:
         """
         Serial Port Reading Implementation on Unix.
@@ -279,9 +286,15 @@ class Driver:
             """
             Receiver signal handler for IO event. This function is chosen on a Unix based system.
             """
-            buffer = fcntl.ioctl(self.file_descriptor, termios.TIOCINQ, Driver._TIOCM_zero_str)
-            in_waiting = np.frombuffer(buffer, dtype=int)
-            self.received_data.put(os.read(self.file_descriptor, in_waiting).decode())
+            try:
+                buffer = fcntl.ioctl(self.file_descriptor, termios.TIOCINQ, Driver._TIOCM_zero_str)
+                in_waiting = np.frombuffer(buffer, dtype=int)[0]
+                self.received_data.put(os.read(self.file_descriptor, in_waiting).decode())
+                logging.debug("Data received")
+            except OSError as e:
+                logging.error("Connection to %s lost", self.device_name)
+                logging.debug("Error caused by %s", e)
+                _print_stack_frame()
 
     @abc.abstractmethod
     def encode_data(self) -> None:
