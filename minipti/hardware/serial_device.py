@@ -24,6 +24,7 @@ else:
     import signal
     import termios
     import fcntl
+    import multiprocessing
 import serial
 from serial.tools import list_ports
 
@@ -44,18 +45,25 @@ class Driver:
         _TIOCM_zero_str = struct.pack('I', 0)
 
     def __init__(self):
-        self.received_data = queue.Queue(maxsize=Driver._QUEUE_SIZE)
         self.device = None
         self.connected = threading.Event()
         self.port_name = ""
-        self._write_buffer = queue.Queue()
+        if platform.system() == "Windows":
+            self._write_buffer = queue.Queue()
+            self.data = queue.Queue()
+            self.received_data = queue.Queue(maxsize=Driver._QUEUE_SIZE)
+        else:
+            # On linux we can spawn easily new proccesses and take advantage of multicore systems.
+            self._write_buffer = multiprocessing.Queue()
+            self.data = multiprocessing.Queue()
+            self.received_data = multiprocessing.Queue(maxsize=Driver._QUEUE_SIZE)
         self.ready_write = threading.Event()
         self.ready_write.set()
         self.last_written_message = ""
-        self.data = queue.Queue()
         self.device = None
         if platform.system() != "Windows":
             self.file_descriptor = -1
+            self.new_data_queue = multiprocessing.Queue()
 
     def find_port(self) -> None:
         for port in list_ports.comports():
@@ -106,8 +114,7 @@ class Driver:
     else:
         def open(self) -> None:
             if self.port_name:
-                self.file_descriptor = os.open(path=self.port_name,
-                                               flags=os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
+                self.file_descriptor = os.open(path=self.port_name, flags=os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
                 # Setting up the flags is based on the pyserial library
                 # https://github.com/pyserial/pyserial/blob/master/serial/serialposix.py#L383
                 old_attribute = termios.tcgetattr(self.file_descriptor)
@@ -134,12 +141,12 @@ class Driver:
                 elif hasattr(termios, 'CNEW_RTSCTS'):  # try it with alternate constant name
                     cflag &= ~termios.CNEW_RTSCTS
                 cc[termios.VMIN] = 0  # Non-blocking
-                cc[termios.VTIME] = Driver.MAX_RESPONSE_TIME * 1000  # Uses ms as unit per default
+                cc[termios.VTIME] = int(Driver.MAX_RESPONSE_TIME * 1000)  # Uses ms as unit per default
                 new_attribute = [iflag, oflag, cflag, lflag, ispeed, ospeed, cc]
                 if new_attribute != old_attribute:
                     termios.tcsetattr(self.file_descriptor, termios.TCSANOW, new_attribute)
                 fcntl.fcntl(self.file_descriptor, fcntl.F_SETFL, os.O_NDELAY | os.O_ASYNC)
-                signal.signal(signal.SIGIO, self._receive)
+                signal.signal(signal.SIGIO, lambda frame: self.new_data_queue.queue(1))
                 self.connected.set()
                 logging.info(f"Connected with {self.device_name}")
             else:
@@ -147,11 +154,14 @@ class Driver:
                 raise OSError("Could not find {self.device_name}")
 
     def run(self) -> None:
-        threading.Thread(target=self._write, daemon=True).start()
         if platform.system() == "Windows":
+            threading.Thread(target=self._write, daemon=True).start()
             threading.Thread(target=self._receive, daemon=True).start()
-        threading.Thread(target=self._read, daemon=True).start()
-        logging.debug("Started proccessing of data from %s", self.device_name)
+            threading.Thread(target=self._read, daemon=True).start()
+        else:
+            multiprocessing.Process(target=self._write, daemon=True).start()
+            multiprocessing.Process(target=self._receive, daemon=True).start()
+            multiprocessing.Process(target=self._read, daemon=True).start()
 
     def _read(self):
         try:
@@ -284,17 +294,16 @@ class Driver:
         """
         def _receive(self, signum, frame) -> None:
             """
-            Receiver signal handler for IO event. This function is chosen on a Unix based system.
+            This thread (on Windows) or process (on Linux) sleeps until the new serial data event awakes it
             """
-            try:
-                buffer = fcntl.ioctl(self.file_descriptor, termios.TIOCINQ, Driver._TIOCM_zero_str)
+            while self.connected.is_set():
+                # If many serial events got triggered of this port while procceding the old events we put them into a
+                # queue so that they do not go lost.
+                self.new_data_queue.get(block=True)
+                buffer = fcntl.ioctl(self.file_descriptor, termios.TIOCINQ)
                 in_waiting = np.frombuffer(buffer, dtype=int)[0]
-                self.received_data.put(os.read(self.file_descriptor, in_waiting).decode())
-                logging.debug("Data received")
-            except OSError as e:
-                logging.error("Connection to %s lost", self.device_name)
-                logging.debug("Error caused by %s", e)
-                _print_stack_frame()
+                if in_waiting:
+                    self.received_data.put(os.read(self.file_descriptor, in_waiting).decode())
 
     @abc.abstractmethod
     def encode_data(self) -> None:
