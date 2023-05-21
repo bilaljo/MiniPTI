@@ -189,11 +189,12 @@ class Characterization:
     MAX_ITERATIONS = 30
     STEP_SIZE = 100
 
-    def __init__(self, interferometer=Interferometer(), use_settings=True):
+    def __init__(self, interferometer=Interferometer(), use_configuration=True, use_parameters=True):
         self.interferometer = interferometer
         self.tracking_phase = []
         self._occurred_phases = np.full(Characterization.STEP_SIZE, False)
-        self.use_settings = use_settings
+        self.use_configuration = use_configuration
+        self.use_parameters = use_parameters
         self.time_stamp = 0
         self.event = threading.Event()
         self.destination_folder = os.getcwd()
@@ -203,7 +204,7 @@ class Characterization:
 
     def __repr__(self) -> str:
         class_name = self.__class__.__name__
-        representation = f"{class_name}(signals={self._signals}, use_settings={self.use_settings}," \
+        representation = f"{class_name}(signals={self._signals}, use_settings={self.use_configuration}," \
                          f"destination_folder={self.destination_folder}, phases={np.array(self.phases)}," \
                          f" init_headers={self.init_headers}, tracking_phase={np.array(self.tracking_phase)}" \
                          f" time_stamp={self.time_stamp}, interferometer={self.interferometer})"
@@ -272,7 +273,7 @@ class Characterization:
         self.event.clear()
 
     def _init_parameters(self, dc_signals=None) -> None:
-        if self.use_settings:
+        if self.use_configuration:
             settings = pd.read_csv(self.interferometer.settings_path, index_col="Setting")
             self.interferometer.output_phases = np.deg2rad(settings.loc["Output Phases [deg]"])
             self.interferometer.amplitudes = settings.loc["Amplitude [V]"]
@@ -285,7 +286,7 @@ class Characterization:
     def process_characterisation(self, dc_signals: np.ndarray) -> Generator[int, None, int]:
         last_index: int = 0
         data_length = dc_signals.size // 3  # 3 Channels
-        if self.use_settings:
+        if self.use_configuration:
             self._init_parameters()
         else:
             self._init_parameters(dc_signals)
@@ -295,9 +296,9 @@ class Characterization:
             if self.enough_values:
                 self._signals = dc_signals[last_index:i + 1].T
                 self.phases = self.tracking_phase
-                if not self.use_settings:
+                if not self.use_parameters:
                     self._iterate_characterization()
-                    self.use_settings = True  # For next time these values can be used now
+                    self.use_parameters = True  # For next time these values can be used now
                 else:
                     self._characterise_interferometer()
                 self.calculate_symmetry()

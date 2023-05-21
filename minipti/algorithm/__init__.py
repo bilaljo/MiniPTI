@@ -1,5 +1,5 @@
 from . import interferometry
 try:
     from . import pti
-except ModuleNotFoundError:
+except (ModuleNotFoundError, ImportError):
     pass

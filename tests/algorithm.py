@@ -55,7 +55,7 @@ class TestInterferometer(unittest.TestCase):
         Tests for given fixed interferometric phase if the reconstruction is approximately
         equal to the measured intensities.
         """
-        self.characterisation.use_settings = False
+        self.characterisation.use_configuration = False
         self.characterisation._signals = self.dc_data
         self.characterisation.characterise()
         self.interferometry.calculate_phase(self.dc_data.T)

@@ -464,7 +464,7 @@ class Calculation:
     def calculate_characterisation(self, dc_file_path: str, use_settings=False, settings_path="") -> None:
         self.interferometry.interferometer.decimation_filepath = dc_file_path
         self.interferometry.interferometer.settings_path = settings_path
-        self.interferometry.characterization.use_settings = use_settings
+        self.interferometry.characterization.use_configuration = use_settings
         self.interferometry.characterization.characterise()
         signals.settings.emit(self.interferometry.interferometer)
 
