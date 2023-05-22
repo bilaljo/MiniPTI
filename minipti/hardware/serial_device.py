@@ -223,7 +223,8 @@ class Driver:
         if platform.system() == "Windows":
             win32file.WriteFile(self.device, self.last_written_message.encode(), None)
         else:
-            os.write(self.file_descriptor, self.last_written_message.encode())
+            # os.write(self.file_descriptor, self.last_written_message.encode())
+            self.device.write(self.last_written_message.encode())
 
     def _check_ack(self, data: str) -> bool:
         last_written = self.last_written_message
@@ -238,11 +239,13 @@ class Driver:
         return success
 
     if platform.system() == "Windows":
+        @property
         def is_open(self) -> bool:
             return self.device is not None
     else:
+        @property
         def is_open(self) -> bool:
-            return self.file_descriptor != -1
+            return self.device.is_open # self.file_descriptor != -1
 
     if platform.system() == "Windows":
         def close(self) -> None:
@@ -252,7 +255,7 @@ class Driver:
                 logging.info("Closed connection to %s", self.device_name)
     else:
         def close(self) -> None:
-            if self.file_descriptor != -1:
+            if self.device.is_open:
                 os.close(self.file_descriptor)
                 logging.info("Closed connection to %s", self.device_name)
 
@@ -297,7 +300,7 @@ class Driver:
                 in_waiting = self.device.in_waiting
                 if in_waiting:
                     # self.received_data.put(os.read(self.file_descriptor, in_waiting).decode())
-                    self.received_data.put(self.device.read(in_waiting))
+                    self.received_data.put(self.device.read(in_waiting).decode())
                 time.sleep(0.01)
 
     @abc.abstractmethod
