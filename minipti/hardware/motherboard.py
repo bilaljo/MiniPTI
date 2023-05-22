@@ -166,6 +166,10 @@ class Driver(serial_device.Driver):
 
     def clear_buffer(self) -> None:
         self._buffer = ""
+        self._package_data = PackageData(DAQData(queue.Queue(maxsize=Driver._QUEUE_SIZE),
+                                                 queue.Queue(maxsize=Driver._QUEUE_SIZE),
+                                                 queue.Queue(maxsize=Driver._QUEUE_SIZE)),
+                                         queue.Queue(maxsize=Driver._QUEUE_SIZE))
 
     @staticmethod
     def _binary_to_2_complement(number: int, byte_length: int) -> int:
@@ -227,6 +231,7 @@ class Driver(serial_device.Driver):
         self._encoded_buffer.ref_signal = deque()
         self._encoded_buffer.dc_coupled = [deque(), deque(), deque()]
         self._encoded_buffer.ac_coupled = [deque(), deque(), deque()]
+
         self._sample_numbers = deque(maxlen=2)
 
     def encode_data(self) -> None:
@@ -253,11 +258,11 @@ class Driver(serial_device.Driver):
             - The last 4 bytes represent a CRC checksum in hex decimal
         """
         if not Driver._crc_check(data, "DAQ"):
-            self._reset()  # The data is not trustful, and it should be waited for new
+            self.reset()  # The data is not trustful, and it should be waited for new
             return
         self._sample_numbers.append(data[Driver._PACKAGE_SIZE_START_INDEX:Driver._PACKAGE_SIZE_END_INDEX])
         if len(self._sample_numbers) > 1 and not self._check_package_difference():
-            self._reset()
+            self.reset()
         ref_signal, ac_coupled, dc_coupled = Driver._encode(data)
         if self.synchronize:
             self._synchronize_with_ref(ref_signal, ac_coupled, dc_coupled)

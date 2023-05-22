@@ -6,5 +6,5 @@ from . import algorithm
 from . import json_parser
 try:
     from . import gui
-except ModuleNotFoundError:
+except (ModuleNotFoundError, ImportError):
     pass  # In case the GUI is not needed

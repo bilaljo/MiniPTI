@@ -8,9 +8,9 @@ import re
 import struct
 import threading
 import time
-from array import array
 from dataclasses import dataclass
 from enum import Enum
+import traceback
 
 from typing import Union
 
@@ -24,19 +24,14 @@ else:
     import signal
     import termios
     import fcntl
+    import multiprocessing
 import serial
 from serial.tools import list_ports
 
 
-if platform.system() != "Windows":
-    class TTYIndex(enum.IntEnum):
-        IFLAG = 0
-        OFLAG = 1
-        CFLAG = 2
-        LFLAG = 3
-        ISPEED = 4
-        OSPEED = 5
-        CC = 6
+def _print_stack_frame() -> None:
+    for line in traceback.format_stack():
+        logging.debug(line)
 
 
 class Driver:
@@ -50,18 +45,25 @@ class Driver:
         _TIOCM_zero_str = struct.pack('I', 0)
 
     def __init__(self):
-        self.received_data = queue.Queue(maxsize=Driver._QUEUE_SIZE)
         self.device = None
         self.connected = threading.Event()
         self.port_name = ""
-        self._write_buffer = queue.Queue()
+        if platform.system() == "Windows":
+            self._write_buffer = queue.Queue()
+            self.data = queue.Queue()
+            self.received_data = queue.Queue(maxsize=Driver._QUEUE_SIZE)
+        else:
+            # On linux we can spawn easily new proccesses and take advantage of multicore systems.
+            self._write_buffer = multiprocessing.Queue()
+            self.data = multiprocessing.Queue()
+            self.received_data = multiprocessing.Queue(maxsize=Driver._QUEUE_SIZE)
         self.ready_write = threading.Event()
         self.ready_write.set()
         self.last_written_message = ""
-        self.data = queue.Queue()
         self.device = None
         if platform.system() != "Windows":
             self.file_descriptor = -1
+            self.new_data_queue = multiprocessing.Queue()
 
     def find_port(self) -> None:
         for port in list_ports.comports():
@@ -80,6 +82,7 @@ class Driver:
             except serial.SerialException:
                 continue
         else:
+            _print_stack_frame()
             raise OSError("Could not find {self.device_name}")
 
     if platform.system() == "Windows":
@@ -94,7 +97,9 @@ class Driver:
                                                        win32con.FILE_ATTRIBUTE_NORMAL,
                                                        None)
                 except pywintypes.error as e:
-                    raise OSError("Could not find {self.device_name}")
+                    logging.debug("Error caused by %s", e)
+                    _print_stack_frame()
+                    raise OSError("Could not find %s", self.device_name)
                 else:
                     win32file.SetCommMask(self.device, win32file.EV_RXCHAR)
                     win32file.SetupComm(self.device, 4096, 4096)
@@ -102,14 +107,14 @@ class Driver:
                                         win32file.PURGE_TXABORT | win32file.PURGE_RXABORT
                                         | win32file.PURGE_TXCLEAR | win32file.PURGE_RXCLEAR)
                     self.connected.set()
-                    logging.info(f"Connected with {self.device_name}")
+                    logging.info("Connected with %s", self.device_name)
             else:
-                raise OSError("Could not find {self.device_name}")
+                _print_stack_frame()
+                raise OSError("Could not find %s", self.device_name)
     else:
         def open(self) -> None:
             if self.port_name:
-                self.file_descriptor = os.open(path=self.port_name,
-                                               flags=os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
+                self.file_descriptor = os.open(path=self.port_name, flags=os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
                 # Setting up the flags is based on the pyserial library
                 # https://github.com/pyserial/pyserial/blob/master/serial/serialposix.py#L383
                 old_attribute = termios.tcgetattr(self.file_descriptor)
@@ -127,17 +132,22 @@ class Driver:
                 new_attribute = [iflag, oflag, cflag, lflag, ispeed, ospeed, cc]
                 termios.tcsetattr(self.file_descriptor, termios.TCSANOW, new_attribute)
                 fcntl.fcntl(self.file_descriptor, fcntl.F_SETFL, os.O_NDELAY | os.O_ASYNC)
-                signal.signal(signal.SIGIO, self._receive)
+                signal.signal(signal.SIGIO, lambda frame: self.new_data_queue.queue(1))
                 self.connected.set()
                 logging.info(f"Connected with {self.device_name}")
             else:
+                _print_stack_frame()
                 raise OSError("Could not find {self.device_name}")
 
     def run(self) -> None:
-        threading.Thread(target=self._write, daemon=True).start()
         if platform.system() == "Windows":
+            threading.Thread(target=self._write, daemon=True).start()
             threading.Thread(target=self._receive, daemon=True).start()
-        threading.Thread(target=self._read, daemon=True).start()
+            threading.Thread(target=self._read, daemon=True).start()
+        else:
+            multiprocessing.Process(target=self._write, daemon=True).start()
+            multiprocessing.Process(target=self._receive, daemon=True).start()
+            multiprocessing.Process(target=self._read, daemon=True).start()
 
     def _read(self):
         try:
@@ -202,6 +212,7 @@ class Driver:
             if self.ready_write.wait(timeout=Driver.MAX_RESPONSE_TIME):
                 self.last_written_message = self._write_buffer.get(block=True) + Driver.TERMINATION_SYMBOL
                 self._transfer()
+                logging.debug("%s written to %s", self.last_written_message, self.device_name)
                 self.ready_write.clear()
 
     def _transfer(self) -> None:
@@ -213,10 +224,11 @@ class Driver:
     def _check_ack(self, data: str) -> bool:
         last_written = self.last_written_message
         if data != last_written and data != last_written.capitalize():
-            logging.error(f"Received message {data} message, expected {last_written}")
+            logging.error("Received message %s message, expected  %s", data, self.last_written_message)
+            _print_stack_frame()
             success = False
         else:
-            logging.debug(f"Command {data} successfully applied")
+            logging.debug("Command %s successfully applied", data)
             success = True
         self.ready_write.set()
         return success
@@ -233,10 +245,12 @@ class Driver:
             if self.device is not None:
                 self.connected.clear()
                 win32file.CloseHandle(self.device)
+                logging.info("Closed connection to %s", self.device_name)
     else:
         def close(self) -> None:
             if self.file_descriptor != -1:
                 os.close(self.file_descriptor)
+                logging.info("Closed connection to %s", self.device_name)
 
     if platform.system() == "Windows":
         """
@@ -255,19 +269,27 @@ class Driver:
                     flags, comstat = win32file.ClearCommError(self.device)
                     rc, data = win32file.ReadFile(self.device, comstat.cbInQue, None)
                     self.received_data.put(data.decode())
-                except pywintypes.error:
-                    logging.error(f"Connection to {self.device_name} lost")
+                    logging.debug("Data received")
+                except pywintypes.error as e:
+                    logging.error("Connection to %s lost", self.device_name)
+                    logging.debug("Error caused by %s", e)
+                    _print_stack_frame()
     else:
         """
         Serial Port Reading Implementation on Unix.
         """
         def _receive(self, signum, frame) -> None:
             """
-            Receiver signal handler for IO event. This function is chosen on a Unix based system.
+            This thread (on Windows) or process (on Linux) sleeps until the new serial data event awakes it
             """
-            buffer = fcntl.ioctl(self.file_descriptor, termios.TIOCINQ, Driver._TIOCM_zero_str)
-            in_waiting = np.frombuffer(buffer, dtype=int)
-            self.received_data.put(os.read(self.file_descriptor, in_waiting).decode())
+            while self.connected.is_set():
+                # If many serial events got triggered of this port while procceding the old events we put them into a
+                # queue so that they do not go lost.
+                self.new_data_queue.get(block=True)
+                buffer = fcntl.ioctl(self.file_descriptor, termios.TIOCINQ)
+                in_waiting = np.frombuffer(buffer, dtype=int)[0]
+                if in_waiting:
+                    self.received_data.put(os.read(self.file_descriptor, in_waiting).decode())
 
     @abc.abstractmethod
     def encode_data(self) -> None:

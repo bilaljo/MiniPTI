@@ -22,7 +22,7 @@ def default_settings_save_to_csv() -> None:
 def without_default_settings_save_to_csv() -> None:
     interferometer = interferometry.Interferometer(settings_path="examples/sample_configs/settings.csv")
     interferometer.decimation_filepath = "examples/sample_data/Decimation_Comercial.csv"
-    characterization = interferometry.Characterization(interferometer=interferometer, use_settings=False)
+    characterization = interferometry.Characterization(interferometer=interferometer, use_configuration=False)
     characterization.characterise()
     print(characterization)
 
@@ -31,7 +31,7 @@ def default_settings_without_save_to_csv() -> None:
     interferometer = interferometry.Interferometer(settings_path="examples/sample_configs/settings.csv")
     interferometer.load_settings()
     characterization = interferometry.Characterization(interferometer=interferometer)
-    characterization.use_settings = False
+    characterization.use_configuration = False
     data = pd.read_csv("examples/sample_data/Decimation_Comercial.csv")
     dc_signals = data[[f"DC CH{i}" for i in range(1, 4)]].to_numpy()
     for _ in characterization.process_characterisation(dc_signals):
@@ -40,7 +40,7 @@ def default_settings_without_save_to_csv() -> None:
 
 def wihtout_default_settings_without_save_to_csv() -> None:
     interferometer = interferometry.Interferometer()
-    characterization = interferometry.Characterization(interferometer=interferometer, use_settings=False)
+    characterization = interferometry.Characterization(interferometer=interferometer, use_configuration=False)
     data = pd.read_csv("examples/sample_data/Decimation_Comercial.csv")
     dc_signals = data[[f"DC CH{i}" for i in range(1, 4)]].to_numpy()
     for _ in characterization.process_characterisation(dc_signals):
