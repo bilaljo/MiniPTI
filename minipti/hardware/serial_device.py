@@ -114,32 +114,18 @@ class Driver:
                 # https://github.com/pyserial/pyserial/blob/master/serial/serialposix.py#L383
                 old_attribute = termios.tcgetattr(self.file_descriptor)
                 iflag, oflag, cflag, lflag, ispeed, ospeed, cc = old_attribute
-                cflag |= (termios.CLOCAL | termios.CREAD)
-                lflag &= ~(termios.ICANON | termios.ECHO | termios.ECHOE | termios.ECHOK | termios.ECHONL |
-                           termios.ISIG | termios.IEXTEN)
-                oflag &= ~(termios.OPOST | termios.ONLCR | termios.OCRNL)
-                iflag &= ~(termios.INLCR | termios.IGNCR | termios.ICRNL | termios.IGNBRK)
-                if hasattr(termios, 'IUCLC'):
-                    iflag &= ~termios.IUCLC
-                if hasattr(termios, 'PARMRK'):
-                    iflag &= ~termios.PARMRK
 
+                cflag &= ~termios.PARENB
+                cflag &= ~termios.CSTOPB
+                cflag &= ~termios.CSIZE
                 cflag |= termios.CS8
-                iflag &= ~(termios.INPCK | termios.ISTRIP)
-                cflag &= ~(termios.PARENB | termios.PARODD)
-                if hasattr(termios, 'IXANY'):
-                    iflag &= ~(termios.IXON | termios.IXOFF | termios.IXANY)
-                else:
-                    iflag &= ~(termios.IXON | termios.IXOFF)
-                if hasattr(termios, 'CRTSCTS'):
-                    cflag &= ~termios.CRTSCTS
-                elif hasattr(termios, 'CNEW_RTSCTS'):  # try it with alternate constant name
-                    cflag &= ~termios.CNEW_RTSCTS
-                cc[termios.VMIN] = 0  # Non-blocking
-                cc[termios.VTIME] = Driver.MAX_RESPONSE_TIME * 1000  # Uses ms as unit per default
+                cflag |= (termios.CLOCAL | termios.CREAD)
+                cflag &= ~(termios.ICANON | termios.ECHO | termios.ECHOE | termios.ISIG)
+                iflag &= ~(termios.IXON | termios.IXOFF | termios.IXANY)
+                oflag &= ~termios.OPOST
+
                 new_attribute = [iflag, oflag, cflag, lflag, ispeed, ospeed, cc]
-                if new_attribute != old_attribute:
-                    termios.tcsetattr(self.file_descriptor, termios.TCSANOW, new_attribute)
+                termios.tcsetattr(self.file_descriptor, termios.TCSANOW, new_attribute)
                 fcntl.fcntl(self.file_descriptor, fcntl.F_SETFL, os.O_NDELAY | os.O_ASYNC)
                 signal.signal(signal.SIGIO, self._receive)
                 self.connected.set()
