@@ -30,6 +30,7 @@ from serial.tools import list_ports
 
 
 def _print_stack_frame() -> None:
+    return
     for line in traceback.format_stack():
         logging.debug(line)
 
@@ -117,6 +118,7 @@ class Driver:
                 self.file_descriptor = os.open(path=self.port_name, flags=os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
                 # Setting up the flags is based on the pyserial library
                 # https://github.com/pyserial/pyserial/blob/master/serial/serialposix.py#L383
+                """
                 old_attribute = termios.tcgetattr(self.file_descriptor)
                 iflag, oflag, cflag, lflag, ispeed, ospeed, cc = old_attribute
 
@@ -132,7 +134,9 @@ class Driver:
                 new_attribute = [iflag, oflag, cflag, lflag, ispeed, ospeed, cc]
                 termios.tcsetattr(self.file_descriptor, termios.TCSANOW, new_attribute)
                 fcntl.fcntl(self.file_descriptor, fcntl.F_SETFL, os.O_NDELAY | os.O_ASYNC)
-                signal.signal(signal.SIGIO, lambda frame: self.new_data_queue.queue(1))
+                signal.signal(signal.SIGIO, lambda signum, frame: self.new_data_queue.put(1))
+                """
+                self.device = serial.Serial(self.port_name)
                 self.connected.set()
                 logging.info(f"Connected with {self.device_name}")
             else:
@@ -278,18 +282,23 @@ class Driver:
         """
         Serial Port Reading Implementation on Unix.
         """
-        def _receive(self, signum, frame) -> None:
+        def _receive(self) -> None:
             """
             This thread (on Windows) or process (on Linux) sleeps until the new serial data event awakes it
             """
             while self.connected.is_set():
                 # If many serial events got triggered of this port while procceding the old events we put them into a
                 # queue so that they do not go lost.
+                """
                 self.new_data_queue.get(block=True)
-                buffer = fcntl.ioctl(self.file_descriptor, termios.TIOCINQ)
-                in_waiting = np.frombuffer(buffer, dtype=int)[0]
+                buffer = fcntl.ioctl(self.file_descriptor, termios.TIOCINQ, Driver._TIOCM_zero_str)
+                in_waiting = struct.unpack("I", buffer)[0] #np.frombuffer(buffer, dtype=int)[0]
+                """
+                in_waiting = self.device.in_waiting
                 if in_waiting:
-                    self.received_data.put(os.read(self.file_descriptor, in_waiting).decode())
+                    # self.received_data.put(os.read(self.file_descriptor, in_waiting).decode())
+                    self.received_data.put(self.device.read(in_waiting))
+                time.sleep(0.01)
 
     @abc.abstractmethod
     def encode_data(self) -> None:
