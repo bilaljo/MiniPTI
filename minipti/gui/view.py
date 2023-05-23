@@ -248,6 +248,7 @@ class Home(QtWidgets.QTabWidget, _Frames, _CreateButton):
         self._init_valves()
         self._init_signals()
         self.controller.fire_motherboard_configuration_change()
+        model.signals.battery_state.connect(self.update_battery_state)
 
     def update_destination_folder(self) -> None:
         self.destination_folder.setText(self.controller.calculation_model.destination_folder)

@@ -293,6 +293,7 @@ class Home:
             self.main_window.symmetry.clear()
             self.main_window.pti_signal.clear()
             self.calculation_model.live_calculation()
+            self.calculation_model.process_bms_data()
             view.toggle_button(True, self.view.buttons["Run Measurement"])
             self.daq_enabled = True
         else:

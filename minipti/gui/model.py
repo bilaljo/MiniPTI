@@ -485,22 +485,20 @@ class Calculation:
                  "Charging Battery": "bool",
                  "Minutes Left": "min", "Charging Level": "%", "Temperature": "°C", "Current": "mA",
                  "Voltage": "V", "Full Charge Capacity": "mAh", "Remaining Charge Capacity": "mAh"}
-        pd.DataFrame(units).to_csv(self._destination_folder + "/BMS.csv")
+        pd.DataFrame(units, index=["s"]).to_csv(self._destination_folder + "/BMS.csv")
 
         def incoming_data() -> None:
             while Motherboard.driver.running.is_set():
-                bms_data: hardware.motherboard.BMSData = Motherboard.driver.bms
-                bms_data.battery_temperature = Calculation.kelvin_to_celsius(
-                    bms_data.battery_temperature)
+                bms_data = Motherboard.driver.bms
+                bms_data.battery_temperature = Calculation.kelvin_to_celsius(bms_data.battery_temperature)
                 signals.battery_state.emit(Battery(bms_data.battery_percentage, bms_data.minutes_left))
                 now = datetime.now()
-                output_data = {"Date": str(now.strftime("%Y-%m-%d")),
-                               "Time": str(now.strftime("%H:%M:%S"))}
-                for key, value in asdict(bms_data).values():
+                output_data = {"Time": str(now.strftime("%H:%M:%S"))}
+                for key, value in asdict(bms_data).items():
                     output_data[key.replace("_", " ").title()] = value
-                pd.DataFrame(output_data).to_csv(self._destination_folder + "/BMS.csv",
+                pd.DataFrame(output_data, index=[str(now.strftime("%Y-%m-%d"))]).to_csv(self._destination_folder + "/BMS.csv",
                                                  header=False, mode="a")
-        threading.Thread(target=incoming_data).start()
+        threading.Thread(target=incoming_data, daemon=True).start()
 
 
 class ProbeLaserMode(enum.IntEnum):
@@ -1081,6 +1079,7 @@ class Tec(Serial):
             cls._buffer.append(received_data)
             signals.tec_data.emit(cls._buffer)
             signals.tec_data_display.emit(received_data)
+            time.sleep(1)
 
 
 def _process_data(file_path: str, headers: list[str, ...]) -> pd.DataFrame:

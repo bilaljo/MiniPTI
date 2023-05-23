@@ -43,7 +43,7 @@ class Driver:
         self.port_name = ""
         self._write_buffer = queue.Queue()
         self.data = queue.Queue()
-        self.received_data = queue.Queue(maxsize=Driver._QUEUE_SIZE)
+        self.received_data = queue.Queue()
         self.ready_write = threading.Event()
         self.connected = threading.Event()
         self.ready_write.set()
