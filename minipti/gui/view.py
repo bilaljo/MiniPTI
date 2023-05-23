@@ -840,12 +840,11 @@ class DC(_Plotting):
 
     def update_data_live(self, data: model.PTIBuffer) -> None:
         for channel in range(3):
-            self.curves[channel].setData(data.dc_values[channel])
+            self.curves[channel].setData(data.time, data.dc_values[channel])
 
     def clear(self) -> None:
-        self.curves = [self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="DC CH1"),
-                       self.plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="DC CH2"),
-                       self.plot.plot(pen=pg.mkPen(_MatplotlibColors.GREEN), name="DC CH3")]
+        for channel in range(3):
+            self.curves[channel].setData([])
 
 
 class Amplitudes(_Plotting):

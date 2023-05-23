@@ -85,7 +85,10 @@ class Inversion:
             response_phase = self.response_phases[channel]
             demodulated_signal = self.lock_in.amplitude[channel] * np.cos(self.lock_in.phase[channel] - response_phase)
             pti_signal += demodulated_signal * sign
-        self.pti_signal = -pti_signal / np.sum(self.sensitivity, axis=0) * Inversion.MICRO_RAD * self.sign
+        try:
+            self.pti_signal = -pti_signal / np.sum(self.sensitivity, axis=0) * Inversion.MICRO_RAD * self.sign
+        except RuntimeWarning:
+            self.pti_signal = 0
 
     def calculate_sensitivity(self) -> None:
         try:
@@ -213,6 +216,8 @@ class Decimation:
         self.destination_folder: str = "."
         self.file_path: str = ""
         self.init_header: bool = True
+        if os.path.exists(f"{self.destination_folder}/raw_data.h5"):
+            os.remove(f"{self.destination_folder}/raw_data.h5")
 
     def process_raw_data(self) -> None:
         """

@@ -23,11 +23,9 @@ class TestInterferometer(unittest.TestCase):
         unittest.TestCase.__init__(self)
         self.base_dir = f"{os.path.dirname(__file__)}/sample_data/algorithm"
         settings = f"{self.base_dir}/settings.csv"
-        self.interferometry = minipti.algorithm.interferometry.Interferometer(
-            settings_path=settings)
+        self.interferometry = minipti.algorithm.interferometry.Interferometer(settings_path=settings)
         self.interferometry.load_settings()
-        self.characterisation = minipti.algorithm.interferometry.Characterization(
-            interferometer=self.interferometry)
+        self.characterisation = minipti.algorithm.interferometry.Characterization(interferometer=self.interferometry)
         self.interferometry.decimation_filepath = f"{self.base_dir}/Decimation_Comercial.csv"
         data = pd.read_csv(self.interferometry.decimation_filepath)
         self.dc_data = data[[f"DC CH{i}" for i in range(1, 4)]].to_numpy().T
@@ -56,6 +54,7 @@ class TestInterferometer(unittest.TestCase):
         equal to the measured intensities.
         """
         self.characterisation.use_configuration = False
+
         self.characterisation._signals = self.dc_data
         self.characterisation.characterise()
         self.interferometry.calculate_phase(self.dc_data.T)
@@ -74,8 +73,7 @@ class TestInterferometer(unittest.TestCase):
         """
         self.interferometry.calculate_phase(self.dc_data.T)
         reconstructed_signal = self._reconstruct_signal(self.interferometry.phase)
-        self.assertTrue((np.abs(
-            reconstructed_signal - self.dc_data) < TestInterferometer.MAX_ERROR_PHASE).any())
+        self.assertTrue((np.abs(reconstructed_signal - self.dc_data) < TestInterferometer.MAX_ERROR_PHASE).any())
 
     def tearDown(self) -> None:
         data_path: str = f"{os.path.dirname(__file__)}"

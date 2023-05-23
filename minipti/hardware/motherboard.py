@@ -257,11 +257,11 @@ class Driver(serial_device.Driver):
             - The last 4 bytes represent a CRC checksum in hex decimal
         """
         if not Driver._crc_check(data, "DAQ"):
-            self.reset()  # The data is not trustful, and it should be waited for new
+            self._reset()  # The data is not trustful, and it should be waited for new
             return
         self._sample_numbers.append(data[Driver._PACKAGE_SIZE_START_INDEX:Driver._PACKAGE_SIZE_END_INDEX])
         if len(self._sample_numbers) > 1 and not self._check_package_difference():
-            self.reset()
+            self._reset()
         ref_signal, ac_coupled, dc_coupled = Driver._encode(data)
         if self.synchronize:
             self._synchronize_with_ref(ref_signal, ac_coupled, dc_coupled)
