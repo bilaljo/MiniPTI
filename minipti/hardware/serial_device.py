@@ -65,7 +65,10 @@ class Driver:
                     device.write(Command.HARDWARE_ID + Driver.TERMINATION_SYMBOL.encode())
                     time.sleep(0.1)
                     available_bytes = device.in_waiting
-                    self.received_data.put(device.read(available_bytes))
+                    if platform.system() == "Windows":
+                        self.received_data.put(device.read(available_bytes))
+                    else:
+                        Driver.received_data.put(device.read(available_bytes))
                     hardware_id = self.get_hardware_id()
                     if hardware_id == self.device_id:
                         self.port_name = port.device
@@ -151,7 +154,10 @@ class Driver:
 
     def get_hardware_id(self) -> Union[bytes, None]:
         try:
-            received_data: bytes = self.received_data.get(timeout=Driver.MAX_RESPONSE_TIME)
+            if platform.system() == "Windows":
+                received_data: bytes = self.received_data.get(timeout=Driver.MAX_RESPONSE_TIME)
+            else:
+                received_data: bytes = Driver.received_data.get(timeout=Driver.MAX_RESPONSE_TIME)
             hardware_id = Patterns.HARDWARE_ID.search(received_data)
         except queue.Empty:
             return
