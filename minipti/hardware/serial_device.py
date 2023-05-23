@@ -8,15 +8,13 @@ from dataclasses import dataclass
 from enum import Enum
 import traceback
 from typing import Union
+import threading
+import queue
 
 if platform.system() == "Windows":
     import win32con
     from win32 import win32file
     import pywintypes
-    import threading
-    import queue
-else:
-    import multiprocessing
 import serial
 from serial.tools import list_ports
 
@@ -43,20 +41,11 @@ class Driver:
     def __init__(self):
         self.device = None
         self.port_name = ""
-        if platform.system() == "Windows":
-            self._write_buffer = queue.Queue()
-            self.data = queue.Queue()
-            self.received_data = queue.Queue(maxsize=Driver._QUEUE_SIZE)
-            self.ready_write = threading.Event()
-            self.connected = threading.Event()
-        else:
-            # On linux we can spawn easily new processes and take advantage of multicore systems.
-            self.manager: multiprocessing.Manager = multiprocessing.Manager()
-            self._write_buffer = self.manager.Queue()
-            self.data = self.manager.Queue()
-            self.received_data = self.manager.Queue(maxsize=Driver._QUEUE_SIZE)
-            self.ready_write = multiprocessing.Event()
-            self.connected = multiprocessing.Event()
+        self._write_buffer = queue.Queue()
+        self.data = queue.Queue()
+        self.received_data = queue.Queue(maxsize=Driver._QUEUE_SIZE)
+        self.ready_write = threading.Event()
+        self.connected = threading.Event()
         self.ready_write.set()
         self.last_written_message = ""
         if platform.system() == "Windows":
@@ -125,14 +114,9 @@ class Driver:
                 raise OSError("Could not find %s", self.device_name)
 
     def run(self) -> None:
-        if platform.system() == "Windows":
-            threading.Thread(target=self._write, daemon=True).start()
-            threading.Thread(target=self._receive, daemon=True).start()
-            threading.Thread(target=self._read, daemon=True).start()
-        else:
-            multiprocessing.Process(target=self._write, daemon=True).start()
-            multiprocessing.Process(target=self._receive, daemon=True).start()
-            multiprocessing.Process(target=self._read, daemon=True).start()
+        threading.Thread(target=self._write, daemon=True).start()
+        threading.Thread(target=self._receive, daemon=True).start()
+        threading.Thread(target=self._read, daemon=True).start()
 
     def _read(self):
         try:
@@ -235,8 +219,9 @@ class Driver:
                 logging.info("Closed connection to %s", self.device_name)
     else:
         def close(self) -> None:
-            if self.device.is_open:
+            if self.file_descriptor != -1:
                 os.close(self.file_descriptor)
+                self.connected.clear()
                 logging.info("Closed connection to %s", self.device_name)
 
     if platform.system() == "Windows":
@@ -273,7 +258,7 @@ class Driver:
                 try:
                     self.received_data.put(os.read(self.file_descriptor, Driver.IO_BUFFER_SIZE).decode())
                     logging.debug("Data received")
-                except pywintypes.error as e:
+                except OSError as e:
                     logging.error("Connection to %s lost", self.device_name)
                     logging.debug("Error caused by %s", e)
                     _print_stack_frame()

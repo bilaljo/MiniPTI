@@ -37,7 +37,7 @@ class MainApplication(QtWidgets.QApplication):
 
 
 class Home:
-    def __init__(self, parent, main_window: QtWidgets.QMainWindow, main_app: QtWidgets.QApplication):
+    def __init__(self, parent, main_window: view.MainWindow, main_app: QtWidgets.QApplication):
         self.view = parent
         self.main_app = main_app
         self.main_window = main_window

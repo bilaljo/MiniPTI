@@ -285,10 +285,8 @@ class TecBuffer(Buffer):
 
     def __init__(self):
         Buffer.__init__(self)
-        self.set_point: list[deque] = [deque(maxlen=Buffer.QUEUE_SIZE),
-                                       deque(maxlen=Buffer.QUEUE_SIZE)]
-        self.actual_value: list[deque] = [deque(maxlen=Buffer.QUEUE_SIZE),
-                                          deque(maxlen=Buffer.QUEUE_SIZE)]
+        self.set_point: list[deque] = [deque(maxlen=Buffer.QUEUE_SIZE), deque(maxlen=Buffer.QUEUE_SIZE)]
+        self.actual_value: list[deque] = [deque(maxlen=Buffer.QUEUE_SIZE), deque(maxlen=Buffer.QUEUE_SIZE)]
 
     def append(self, tec_data: hardware.tec.Data) -> None:
         self.set_point[TecBuffer.PUMP_LASER].append(tec_data.set_point.pump_laser)

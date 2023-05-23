@@ -231,7 +231,6 @@ class Driver(serial_device.Driver):
         self._encoded_buffer.ref_signal = deque()
         self._encoded_buffer.dc_coupled = [deque(), deque(), deque()]
         self._encoded_buffer.ac_coupled = [deque(), deque(), deque()]
-
         self._sample_numbers = deque(maxlen=2)
 
     def encode_data(self) -> None:
