@@ -39,7 +39,7 @@ class Driver:
     _START_DATA_FRAME = 1
     IO_BUFFER_SIZE = 4096
 
-    if platform.system() == "Windows":
+    if platform.system() != "Windows":
         received_data = multiprocessing.Queue()
         file_descriptor = -1
         connected = multiprocessing.Event()
