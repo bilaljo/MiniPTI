@@ -98,7 +98,10 @@ class Inversion:
         for channel in range(3):
             amplitude = self.interferometer.amplitudes[channel]
             output_phase = self.interferometer.output_phases[channel]
-            self.sensitivity[channel] = amplitude * np.abs(np.sin(self.interferometer.phase - output_phase))
+            try:
+                self.sensitivity[channel] = amplitude * np.abs(np.sin(self.interferometer.phase - output_phase))
+            except RuntimeWarning:
+                self.sensitivity[channel] = 0
 
     def _calculate_offline(self) -> None:
         data = self.interferometer.read_decimation()

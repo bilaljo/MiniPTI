@@ -1,5 +1,6 @@
 import abc
 import logging
+import multiprocessing
 import os
 import platform
 import re
@@ -38,20 +39,23 @@ class Driver:
     _START_DATA_FRAME = 1
     IO_BUFFER_SIZE = 4096
 
+    if platform.system() != "Windows":
+        received_data = multiprocessing.Queue()
+        file_descriptor = -1
+        connected = multiprocessing.Event()
+
     def __init__(self):
         self.device = None
         self.port_name = ""
         self._write_buffer = queue.Queue()
         self.data = queue.Queue()
-        self.received_data = queue.Queue(maxsize=Driver._QUEUE_SIZE)
         self.ready_write = threading.Event()
-        self.connected = threading.Event()
         self.ready_write.set()
         self.last_written_message = ""
         if platform.system() == "Windows":
             self.device = None
-        else:
-            self.file_descriptor = -1
+            self.connected = threading.Event()
+            self.received_data = queue.Queue()
 
     def find_port(self) -> None:
         for port in list_ports.comports():
@@ -61,7 +65,10 @@ class Driver:
                     device.write(Command.HARDWARE_ID + Driver.TERMINATION_SYMBOL.encode())
                     time.sleep(0.1)
                     available_bytes = device.in_waiting
-                    self.received_data.put(device.read(available_bytes))
+                    if platform.system() == "Windows":
+                        self.received_data.put(device.read(available_bytes))
+                    else:
+                        Driver.received_data.put(device.read(available_bytes))
                     hardware_id = self.get_hardware_id()
                     if hardware_id == self.device_id:
                         self.port_name = port.device
@@ -102,7 +109,7 @@ class Driver:
         def open(self) -> None:
             if self.port_name and not self.is_open:
                 try:
-                    self.file_descriptor = os.open(path=self.port_name, flags=os.O_RDWR)
+                    Driver.file_descriptor = os.open(path=self.port_name, flags=os.O_RDWR)
                 except OSError as e:
                     logging.debug("Error caused by %s", e)
                     _print_stack_frame()
@@ -115,7 +122,10 @@ class Driver:
 
     def run(self) -> None:
         threading.Thread(target=self._write, daemon=True).start()
-        threading.Thread(target=self._receive, daemon=True).start()
+        if platform.system() == "Windows":
+            threading.Thread(target=self._receive, daemon=True).start()
+        else:
+            multiprocessing.Process(target=self._receive, daemon=True).start()
         threading.Thread(target=self._read, daemon=True).start()
 
     def _read(self):
@@ -144,7 +154,10 @@ class Driver:
 
     def get_hardware_id(self) -> Union[bytes, None]:
         try:
-            received_data: bytes = self.received_data.get(timeout=Driver.MAX_RESPONSE_TIME)
+            if platform.system() == "Windows":
+                received_data: bytes = self.received_data.get(timeout=Driver.MAX_RESPONSE_TIME)
+            else:
+                received_data: bytes = Driver.received_data.get(timeout=Driver.MAX_RESPONSE_TIME)
             hardware_id = Patterns.HARDWARE_ID.search(received_data)
         except queue.Empty:
             return
@@ -254,9 +267,9 @@ class Driver:
             """
             This threads blocks until data on the serial port is available.
             """
-            while self.connected.is_set():
+            while Driver.connected.is_set():
                 try:
-                    self.received_data.put(os.read(self.file_descriptor, Driver.IO_BUFFER_SIZE).decode())
+                    Driver.received_data.put(os.read(Driver.file_descriptor, Driver.IO_BUFFER_SIZE).decode())
                     logging.debug("Data received")
                     if self.device_name == "Laser" or self.device_name == "Tec":
                         time.sleep(1)
