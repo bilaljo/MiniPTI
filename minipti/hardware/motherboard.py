@@ -27,17 +27,17 @@ _Samples = deque[int]
 
 class BMS(enum.IntEnum):
     SHUTDOWN = 0xFF
-    SHUTDOWN_INDEX = 2
-    VALID_IDENTIFIER_INDEX = 4
-    EXTERNAL_DC_POWER_INDEX = 6
-    CHARGING_INDEX = 8
-    MINUTES_LEFT_INDEX = 10
-    BATTERY_PERCENTAGE_INDEX = 14
-    BATTERY_TEMPERATURE_INDEX = 16
-    CURRENT_INDEX = 20
-    VOLTAGE_INDEX = 24
-    FULL_CHARGED_CAPACITY_INDEX = 28
-    REMAINING_CAPACITY_INDEX = 32
+    SHUTDOWN_INDEX = 1
+    VALID_IDENTIFIER_INDEX = 3
+    EXTERNAL_DC_POWER_INDEX = 5
+    CHARGING_INDEX = 7
+    MINUTES_LEFT_INDEX = 9
+    BATTERY_PERCENTAGE_INDEX = 13
+    BATTERY_TEMPERATURE_INDEX = 15
+    CURRENT_INDEX = 19
+    VOLTAGE_INDEX = 23
+    FULL_CHARGED_CAPACITY_INDEX = 27
+    REMAINING_CAPACITY_INDEX = 31
 
 
 @dataclass
@@ -84,10 +84,10 @@ class Driver(serial_device.Driver):
     system. The data is accordingly to a defined protocol encoded and build into a packages of
     samples.
     """
-    _PACKAGE_SIZE_START_INDEX = 2
-    _PACKAGE_SIZE_END_INDEX = 10
+    _PACKAGE_SIZE_START_INDEX = 1
+    _PACKAGE_SIZE_END_INDEX = 9
     _CRC_START_INDEX = 4
-    _PACKAGE_SIZE = 4110
+    _PACKAGE_SIZE = 4109
     _WORD_SIZE = 32
 
     HARDWARE_ID = b"0001"
@@ -239,9 +239,9 @@ class Driver(serial_device.Driver):
             data = split_data[i]
             if not data:
                 continue
-            if data[:2] == "00" and len(data) == 4110:
+            if data[0] == "D" and len(data) == 4109:
                 self._encode_daq(data)
-            elif data[:2] == "01" and len(data) == 40:
+            elif data[0] == "B" and len(data) == 39:
                 self._encode_bms(data)
             elif data[0] == "S" and len(data) == 7:
                 self._check_ack(data)

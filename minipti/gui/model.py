@@ -326,6 +326,7 @@ class Signals(QtCore.QObject):
     bypass = QtCore.pyqtSignal(bool)
     tec_data = QtCore.pyqtSignal(Buffer)
     tec_data_display = QtCore.pyqtSignal(hardware.tec.Data)
+    clear_dc = QtCore.pyqtSignal()
 
     def __init__(self):
         QtCore.QObject.__init__(self)

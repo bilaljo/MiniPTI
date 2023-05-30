@@ -831,6 +831,7 @@ class DC(_Plotting):
         self.plot.setLabel(axis="left", text="Intensity [V]")
         model.signals.decimation.connect(self.update_data)
         model.signals.decimation_live.connect(self.update_data_live)
+        model.signals.clear_dc.connect(self.clear)
 
     def update_data(self, data: pd.DataFrame) -> None:
         for channel in range(3):
@@ -844,8 +845,9 @@ class DC(_Plotting):
             self.curves[channel].setData(data.time, data.dc_values[channel])
 
     def clear(self) -> None:
-        for channel in range(3):
-            self.curves[channel].setData([])
+        self.curves = [self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="DC CH1"),
+                       self.plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="DC CH2"),
+                       self.plot.plot(pen=pg.mkPen(_MatplotlibColors.GREEN), name="DC CH3")]
 
 
 class Amplitudes(_Plotting):
@@ -874,15 +876,8 @@ class Amplitudes(_Plotting):
             self.curves[channel].setData(data.time, data.amplitudes[channel])
 
     def clear(self) -> None:
-        self.curves = [self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.BLUE),
-                                             brush=pg.mkBrush(_MatplotlibColors.BLUE),
-                                             name="Amplitude CH1"),
-                       self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.ORANGE),
-                                             brush=pg.mkBrush(_MatplotlibColors.ORANGE),
-                                             name="Amplitude CH2"),
-                       self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.GREEN),
-                                             brush=pg.mkBrush(_MatplotlibColors.GREEN),
-                                             name="Amplitude CH3")]
+        for curve in self.curves:
+            self.curves[channel].setData([])
 
 
 class OutputPhases(_Plotting):
@@ -907,7 +902,7 @@ class OutputPhases(_Plotting):
 
     def clear(self) -> None:
         for curve in self.curves:
-            curve.clear()
+            self.curves[channel].setData([])
 
 
 class InterferometricPhase(_Plotting):
@@ -1086,3 +1081,4 @@ class TecTemperature(_Plotting):
     def clear(self) -> None:
         self.curves = [self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="Setpoint Temperature"),
                        self.plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="Measured Temperature")]
+

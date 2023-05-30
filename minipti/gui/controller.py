@@ -52,7 +52,7 @@ class Home:
         self.last_file_path = os.getcwd()
         self.settings_model.setup_settings_file()
         self.find_devices()
-        self.connect_devices()
+        #self.connect_devices()
 
     def update_bypass(self) -> None:
         self.mother_board_model.bypass = not self.mother_board_model.bypass
@@ -287,12 +287,12 @@ class Home:
                 return
             # Reset all measurement plots
             self.main_window.dc.clear()
-            self.main_window.amplitudes.clear()
-            self.main_window.output_phases.clear()
-            self.main_window.interferometric_phase.clear()
-            self.main_window.sensitivity.clear()
-            self.main_window.symmetry.clear()
-            self.main_window.pti_signal.clear()
+            #self.main_window.amplitudes.window.clear()
+            #self.main_window.output_phases.window.clear()
+            #self.main_window.interferometric_phase.window.clear()
+            #self.main_window.sensitivity.window.clear()
+            #self.main_window.symmetry.window.clear()
+            #self.main_window.pti_signal.window.clear()
             self.calculation_model.live_calculation()
             self.calculation_model.process_bms_data()
             view.toggle_button(True, self.view.buttons["Run Measurement"])
