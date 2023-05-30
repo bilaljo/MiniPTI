@@ -905,10 +905,8 @@ class OutputPhases(_Plotting):
             self.curves[channel].setData(data.time, data.output_phases[channel])
 
     def clear(self) -> None:
-        self.curves = [self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="Output Phase CH2",
-                                             brush=pg.mkBrush(_MatplotlibColors.ORANGE)),
-                       self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.GREEN), name="Output Phase CH3",
-                                             brush=pg.mkBrush(_MatplotlibColors.GREEN))]
+        for curve in self.curves:
+            curve.clear()
 
 
 class InterferometricPhase(_Plotting):
@@ -927,7 +925,7 @@ class InterferometricPhase(_Plotting):
         self.curves.setData(data.time, data.interferometric_phase)
 
     def clear(self) -> None:
-        self.curves = self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE))
+        self.curves.clear()
 
 
 class Sensitivity(_Plotting):
@@ -950,9 +948,8 @@ class Sensitivity(_Plotting):
             self.curves[channel].setData(data.time, data.sensitivity[channel])
 
     def clear(self) -> None:
-        self.curves = [self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="CH1"),
-                       self.plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="CH2"),
-                       self.plot.plot(pen=pg.mkPen(_MatplotlibColors.GREEN), name="CH3")]
+        for curve in self.curves:
+            curve.clear()
 
 
 class Symmetry(_Plotting):

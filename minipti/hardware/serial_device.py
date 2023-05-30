@@ -75,7 +75,7 @@ class Driver:
 
     if platform.system() == "Windows":
         def open(self) -> None:
-            if self.port_name:
+            if self.port_name and not self.is_open:
                 try:
                     self.device = win32file.CreateFile("\\\\.\\" + self.port_name,
                                                        win32con.GENERIC_READ | win32con.GENERIC_WRITE,
@@ -100,7 +100,7 @@ class Driver:
                 raise OSError("Could not find %s", self.device_name)
     else:
         def open(self) -> None:
-            if self.port_name:
+            if self.port_name and not self.is_open:
                 try:
                     self.file_descriptor = os.open(path=self.port_name, flags=os.O_RDWR)
                 except OSError as e:
@@ -258,10 +258,13 @@ class Driver:
                 try:
                     self.received_data.put(os.read(self.file_descriptor, Driver.IO_BUFFER_SIZE).decode())
                     logging.debug("Data received")
+                    if self.device_name == "Laser" or self.device_name == "Tec":
+                        time.sleep(1)
                 except OSError as e:
-                    logging.error("Connection to %s lost", self.device_name)
-                    logging.debug("Error caused by %s", e)
-                    _print_stack_frame()
+                    if self.is_open:
+                        logging.error("Connection to %s lost", self.device_name)
+                        logging.debug("Error caused by %s", e)
+                        _print_stack_frame()
 
     @abc.abstractmethod
     def encode_data(self) -> None:

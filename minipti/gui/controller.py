@@ -52,6 +52,7 @@ class Home:
         self.last_file_path = os.getcwd()
         self.settings_model.setup_settings_file()
         self.find_devices()
+        self.connect_devices()
 
     def update_bypass(self) -> None:
         self.mother_board_model.bypass = not self.mother_board_model.bypass
