@@ -13,7 +13,7 @@ logging.disable()
 
 class DAQTest(unittest.TestCase):
     """
-    Base class for DAQ related unit tests. It provied a method to check the packages that the
+    Base class for DAQ related unit tests. It provided a method to check the packages that the
     DAQ generates.
     """
     driver = minipti.hardware.motherboard.Driver()
@@ -138,7 +138,7 @@ class MotherBoardBMS(unittest.TestCase):
         bms_data = self.driver.bms
         self.assertTrue(bms_data.external_dc_power)
         self.assertTrue(bms_data.charging)
-        self.assertEqual(bms_data.minutes_left, 65535)
+        self.assertEqual(bms_data.minutes_left, float("inf"))
         self.assertEqual(bms_data.battery_percentage, 89)
         self.assertEqual(bms_data.battery_temperature, 2959)
         self.assertEqual(bms_data.battery_current, 30)
@@ -157,7 +157,7 @@ class MotherBoardBMS(unittest.TestCase):
 
     def test_bms_2_incomplete_package_1(self) -> None:
         """
-        A BMS package that is not completed yet (no terminiation symbol encountered).
+        A BMS package that is not completed yet (no termination symbol encountered).
         """
         self.driver.received_data.put(self.received_data_bms[1])
         self.driver.encode_data()
@@ -186,10 +186,9 @@ class MotherBoardBMS(unittest.TestCase):
         """
         Tests a package that consists with a full package plus a not yet completed one.
         """
-        self.driver.received_data.put(
-            self.received_data_bms[4][:40] + "\n" + self.received_data_bms[4][40:])
+        self.driver.received_data.put(self.received_data_bms[4][:39] + "\n" + self.received_data_bms[4][39:])
         self.driver.encode_data()
-        self.assertEqual(self.driver.buffer_size, len(self.received_data_bms[4][40:]))
+        self.assertEqual(self.driver.buffer_size, len(self.received_data_bms[4][39:]))
         self._bms_check_1()
         self.driver.clear_buffer()
 
