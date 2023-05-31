@@ -87,10 +87,10 @@ class MotherBoardDAQ(DAQTest):
         If the package contains completely valid package and yet not finished
         the not finished package will be put into the buffer.
         """
-        self.driver.received_data.put(self.received_data_daq[5][:4110] + "\n"
-                                      + self.received_data_daq[5][4110:])
+        self.driver.received_data.put(self.received_data_daq[5][:4109] + "\n"
+                                      + self.received_data_daq[5][4109:])
         self.driver.encode_data()
-        self.assertEqual(self.driver.buffer_size, len(self.received_data_daq[5][4110:]))
+        self.assertEqual(self.driver.buffer_size, len(self.received_data_daq[5][4109:]))
         self._package_test(1)
 
     def test_daq_7_package_lost(self) -> None:
@@ -99,10 +99,10 @@ class MotherBoardDAQ(DAQTest):
         not confirm with the current package number. This causes that the
         buffer will be cleared and the total number of packages does not change.
         """
-        self.driver.received_data.put(self.received_data_daq[6][:4110] + "\n"
-                                      + self.received_data_daq[6][4110:])
+        self.driver.received_data.put(self.received_data_daq[6][:4109] + "\n"
+                                      + self.received_data_daq[6][4109:])
         self.driver.encode_data()
-        self.assertEqual(self.driver.buffer_size, len(self.received_data_daq[6][4110:]))
+        self.assertEqual(self.driver.buffer_size, len(self.received_data_daq[6][4109:]))
         self._package_test(1)
         self.driver.received_data.put(self.received_data_daq[7] + "\n")
         self.driver.encode_data()
