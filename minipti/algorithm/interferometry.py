@@ -412,7 +412,7 @@ class Characterization:
             characterised_data[f"Output Phase CH{1 + i}"] = np.rad2deg(self.interferometer.output_phases[i])
             characterised_data[f"Amplitude CH{1 + i}"] = self.interferometer.amplitudes[i]
             characterised_data[f"Offset CH{1 + i}"] = self.interferometer.offsets[i]
-        pd.DataFrame(characterised_data, index=[self.time_stamp]).to_csv(
-            f"{self.destination_folder}/Characterisation.csv",
-            mode="a", header=False, index_label="Time Stamp")
+        file_destination = f"{self.destination_folder}/Characterisation.csv"
+        pd.DataFrame(characterised_data, index=[self.time_stamp]).to_csv(file_destination, mode="a", header=False,
+                                                                         index_label="Time Stamp")
         self.clear()

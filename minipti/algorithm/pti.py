@@ -86,7 +86,7 @@ class Inversion:
             demodulated_signal = self.lock_in.amplitude[channel] * np.cos(self.lock_in.phase[channel] - response_phase)
             pti_signal += demodulated_signal * sign
         total_sensitivty = np.sum(self.sensitivity, axis=0)
-        self.pti_signal = np.devide(-pti_signal, total_sensitivty, out=np.full_like(pti_signal, np.nan),
+        self.pti_signal = np.divide(-pti_signal, total_sensitivty, out=np.full_like(pti_signal, np.nan),
                                     where=total_sensitivty != 0)
         self.pti_signal *= Inversion.MICRO_RAD * self.sign
 
