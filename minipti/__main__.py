@@ -3,8 +3,9 @@ from minipti import gui
 
 
 def main():
-    logging.basicConfig(level=logging.DEBUG, format='%(levelname)s %(asctime)s: %(message)s',
-                        filename="pti.log", filemode="a")
+    logging.basicConfig(level=logging.DEBUG, format="[%(threadName)s] %(levelname)s %(asctime)s: %(message)s",
+                        datefmt="%Y-%m-%d %H:%M:%S", filename="pti.log", filemode="a")
+    logging.captureWarnings(True)
     app = gui.controller.MainApplication(argv=[])
     logging.info("Started Program")
     app.exec_()

@@ -3,6 +3,7 @@ API for characterisation and phases of an interferometer.
 """
 
 import csv
+import functools
 import itertools
 import logging
 import os
@@ -188,6 +189,7 @@ class Characterization:
     """
     MAX_ITERATIONS = 30
     STEP_SIZE = 100
+    CHANNELS = 3
 
     def __init__(self, interferometer=Interferometer(), use_configuration=True, use_parameters=True):
         self.interferometer = interferometer
@@ -231,6 +233,11 @@ class Characterization:
         self.interferometer.relative_symmetry = relative_symmetry
 
     def characterise(self, live=False) -> None:
+        """
+        Charactersies the interferometer either live (with data from the motherboard) or offline.
+        Args:
+            live (bool): Decides if running live with motherboard connected or offline with already measured data.
+        """
         if self.init_headers:
             units = {}
             # The output data has no headers and relies on this order
@@ -272,24 +279,26 @@ class Characterization:
         self._occurred_phases = np.full(Characterization.STEP_SIZE, False)
         self.event.clear()
 
-    def _init_parameters(self, dc_signals=None) -> None:
-        if self.use_configuration:
-            settings = pd.read_csv(self.interferometer.settings_path, index_col="Setting")
-            self.interferometer.output_phases = np.deg2rad(settings.loc["Output Phases [deg]"])
-            self.interferometer.amplitudes = settings.loc["Amplitude [V]"]
-            self.interferometer.offsets = settings.loc["Offset [V]"]
-        else:
-            self.interferometer.calculate_offsets(dc_signals)
-            self.interferometer.calculate_amplitudes(dc_signals)
-            self.interferometer.output_phases = np.array([0, 2 * np.pi / 3, 4 * np.pi / 3])
+    def _load_settings(self) -> None:
+        settings = pd.read_csv(self.interferometer.settings_path, index_col="Setting")
+        self.interferometer.output_phases = np.deg2rad(settings.loc["Output Phases [deg]"])
+        self.interferometer.amplitudes = settings.loc["Amplitude [V]"]
+        self.interferometer.offsets = settings.loc["Offset [V]"]
+        self.use_parameters = True
+
+    def _estimate_settings(self, dc_signals: np.ndarray) -> None:
+        self.interferometer.calculate_offsets(dc_signals)
+        self.interferometer.calculate_amplitudes(dc_signals)
+        self.interferometer.output_phases = np.array([0, 2 * np.pi / 3, 4 * np.pi / 3])
+        self.use_parameters = False
 
     def process_characterisation(self, dc_signals: np.ndarray) -> Generator[int, None, int]:
         last_index: int = 0
-        data_length = dc_signals.size // 3  # 3 Channels
+        data_length: int = dc_signals.size // Characterization.CHANNELS  # 3 Channels
         if self.use_configuration:
-            self._init_parameters()
+            self._load_settings()
         else:
-            self._init_parameters(dc_signals)
+            self._estimate_settings(dc_signals)
         for i in range(data_length):
             self.interferometer.calculate_phase(dc_signals[i])
             self.add_phase(self.interferometer.phase)

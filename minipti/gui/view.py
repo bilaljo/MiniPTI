@@ -2,7 +2,6 @@ import abc
 import collections
 import enum
 import functools
-import logging
 import typing
 from typing import NamedTuple, Union
 
@@ -344,7 +343,7 @@ class Home(QtWidgets.QTabWidget, _Frames, _CreateButton):
         sub_layout = QtWidgets.QWidget(parent=self.frames["Measurement"])
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
         self.frames["Measurement"].layout().addWidget(sub_layout)
-        self.create_button(master=sub_layout, title="Run Measurement", slot=self.controller.run_measurement)
+        self.create_button(master=sub_layout, title="Run Measurement", slot=self.controller.enable_motherboard)
         self.create_button(master=sub_layout, title="Clean Air", slot=self.controller.update_bypass)
 
         # Pump Laser
@@ -673,22 +672,16 @@ class Tec(QtWidgets.QWidget, _Frames, _CreateButton):
 
     def _init_signals(self) -> None:
         model.signals.tec_data_display.connect(self.update_temperature)
-        model.tec_signals[self.laser].p_value.connect(
-            Tec._update_text_field(self.text_fields.p_value))
-        model.tec_signals[self.laser].i_1_value.connect(
-            Tec._update_text_field(self.text_fields.i_value[0]))
-        model.tec_signals[self.laser].i_2_value.connect(
-            Tec._update_text_field(self.text_fields.i_value[1]))
-        model.tec_signals[self.laser].d_value.connect(
-            Tec._update_text_field(self.text_fields.d_value))
+        model.tec_signals[self.laser].p_value.connect(Tec._update_text_field(self.text_fields.p_value))
+        model.tec_signals[self.laser].i_1_value.connect(Tec._update_text_field(self.text_fields.i_value[0]))
+        model.tec_signals[self.laser].i_2_value.connect(Tec._update_text_field(self.text_fields.i_value[1]))
+        model.tec_signals[self.laser].d_value.connect(Tec._update_text_field(self.text_fields.d_value))
         model.tec_signals[self.laser].setpoint_temperature.connect(
             Tec._update_text_field(self.text_fields.setpoint_temperature))
-        model.tec_signals[self.laser].loop_time.connect(
-            Tec._update_text_field(self.text_fields.loop_time))
+        model.tec_signals[self.laser].loop_time.connect(Tec._update_text_field(self.text_fields.loop_time))
         model.tec_signals[self.laser].reference_resistor.connect(
             Tec._update_text_field(self.text_fields.reference_resistor))
-        model.tec_signals[self.laser].max_power.connect(
-            Tec._update_text_field(self.text_fields.max_power))
+        model.tec_signals[self.laser].max_power.connect(Tec._update_text_field(self.text_fields.max_power))
         model.tec_signals[self.laser].mode.connect(self.update_mode)
 
     def _init_frames(self) -> None:
@@ -698,8 +691,8 @@ class Tec(QtWidgets.QWidget, _Frames, _CreateButton):
         self.create_frame(master=self, title="Configuration", x_position=3, y_position=0)
 
     @staticmethod
+    @QtCore.pyqtSlot(float)
     def _update_text_field(text_field: QtWidgets.QLineEdit):
-        @QtCore.pyqtSlot(float)
         def update(value: float):
             text_field.setText(str(round(value, 2)))
 
@@ -813,17 +806,23 @@ class _Plotting(pg.PlotWidget):
         ...
 
     @abc.abstractmethod
-    def update_data(self, data: pd.DataFrame) -> None:
-        ...
-
-    @abc.abstractmethod
     def update_data_live(self, data: model.Buffer) -> None:
         ...
 
 
-class DC(_Plotting):
-    def __init__(self):
+class _DAQPlots(_Plotting):
+    def __int__(self):
         _Plotting.__init__(self)
+        model.signals.clear_daq_plots.connect(self.clear)
+
+    @abc.abstractmethod
+    def update_data(self, data: pd.DataFrame) -> None:
+        ...
+
+
+class DC(_DAQPlots):
+    def __init__(self):
+        _DAQPlots.__init__(self)
         self.curves = [self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="DC CH1"),
                        self.plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="DC CH2"),
                        self.plot.plot(pen=pg.mkPen(_MatplotlibColors.GREEN), name="DC CH3")]
@@ -831,7 +830,6 @@ class DC(_Plotting):
         self.plot.setLabel(axis="left", text="Intensity [V]")
         model.signals.decimation.connect(self.update_data)
         model.signals.decimation_live.connect(self.update_data_live)
-        model.signals.clear_dc.connect(self.clear)
 
     def update_data(self, data: pd.DataFrame) -> None:
         for channel in range(3):
@@ -844,15 +842,16 @@ class DC(_Plotting):
         for channel in range(3):
             self.curves[channel].setData(data.time, data.dc_values[channel])
 
+    @QtCore.pyqtSlot()
     def clear(self) -> None:
         self.curves = [self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="DC CH1"),
                        self.plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="DC CH2"),
                        self.plot.plot(pen=pg.mkPen(_MatplotlibColors.GREEN), name="DC CH3")]
 
 
-class Amplitudes(_Plotting):
+class Amplitudes(_DAQPlots):
     def __init__(self):
-        _Plotting.__init__(self)
+        _DAQPlots.__init__(self)
         self.curves = [self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.BLUE),
                                              brush=pg.mkBrush(_MatplotlibColors.BLUE),
                                              name="Amplitude CH1"),
@@ -875,14 +874,22 @@ class Amplitudes(_Plotting):
         for channel in range(3):
             self.curves[channel].setData(data.time, data.amplitudes[channel])
 
+    @QtCore.pyqtSlot()
     def clear(self) -> None:
-        for curve in self.curves:
-            self.curves[channel].setData([])
+        self.curves = [self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.BLUE),
+                                             brush=pg.mkBrush(_MatplotlibColors.BLUE),
+                                             name="Amplitude CH1"),
+                       self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.ORANGE),
+                                             brush=pg.mkBrush(_MatplotlibColors.ORANGE),
+                                             name="Amplitude CH2"),
+                       self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.GREEN),
+                                             brush=pg.mkBrush(_MatplotlibColors.GREEN),
+                                             name="Amplitude CH3")]
 
 
-class OutputPhases(_Plotting):
+class OutputPhases(_DAQPlots):
     def __init__(self):
-        _Plotting.__init__(self)
+        _DAQPlots.__init__(self)
         self.curves = [self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="Output Phase CH2",
                                              brush=pg.mkBrush(_MatplotlibColors.ORANGE)),
                        self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.GREEN), name="Output Phase CH3",
@@ -900,14 +907,17 @@ class OutputPhases(_Plotting):
         for channel in range(2):
             self.curves[channel].setData(data.time, data.output_phases[channel])
 
+    @QtCore.pyqtSlot()
     def clear(self) -> None:
-        for curve in self.curves:
-            self.curves[channel].setData([])
+        self.curves = [self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="Output Phase CH2",
+                                             brush=pg.mkBrush(_MatplotlibColors.ORANGE)),
+                       self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.GREEN), name="Output Phase CH3",
+                                             brush=pg.mkBrush(_MatplotlibColors.GREEN))]
 
 
-class InterferometricPhase(_Plotting):
+class InterferometricPhase(_DAQPlots):
     def __init__(self):
-        _Plotting.__init__(self)
+        _DAQPlots.__init__(self)
         self.curves = self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE))
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="Interferometric Phase [rad]")
@@ -920,13 +930,14 @@ class InterferometricPhase(_Plotting):
     def update_data_live(self, data: model.PTIBuffer) -> None:
         self.curves.setData(data.time, data.interferometric_phase)
 
+    @QtCore.pyqtSlot()
     def clear(self) -> None:
-        self.curves.clear()
+        self.curves = self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE))
 
 
-class Sensitivity(_Plotting):
+class Sensitivity(_DAQPlots):
     def __init__(self):
-        _Plotting.__init__(self)
+        _DAQPlots.__init__(self)
         self.curves = [self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="CH1"),
                        self.plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="CH2"),
                        self.plot.plot(pen=pg.mkPen(_MatplotlibColors.GREEN), name="CH3")]
@@ -943,14 +954,16 @@ class Sensitivity(_Plotting):
         for channel in range(3):
             self.curves[channel].setData(data.time, data.sensitivity[channel])
 
+    @QtCore.pyqtSlot()
     def clear(self) -> None:
-        for curve in self.curves:
-            curve.clear()
+        self.curves = [self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="CH1"),
+                       self.plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="CH2"),
+                       self.plot.plot(pen=pg.mkPen(_MatplotlibColors.GREEN), name="CH3")]
 
 
-class Symmetry(_Plotting):
+class Symmetry(_DAQPlots):
     def __init__(self):
-        _Plotting.__init__(self)
+        _DAQPlots.__init__(self)
         self.curves = [self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="Absolute Symmetry",
                                              brush=pg.mkBrush(_MatplotlibColors.BLUE)),
                        self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="Relative Symmetry",
@@ -968,6 +981,7 @@ class Symmetry(_Plotting):
         self.curves[0].setData(data.time, data.symmetry)
         self.curves[1].setData(data.time, data.relative_symmetry)
 
+    @QtCore.pyqtSlot()
     def clear(self) -> None:
         self.curves = [self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="Absolute Symmetry",
                                              brush=pg.mkBrush(_MatplotlibColors.BLUE)),
@@ -975,9 +989,9 @@ class Symmetry(_Plotting):
                                              brush=pg.mkBrush(_MatplotlibColors.ORANGE))]
 
 
-class PTISignal(_Plotting):
+class PTISignal(_DAQPlots):
     def __init__(self):
-        _Plotting.__init__(self)
+        _DAQPlots.__init__(self)
         self.curves = {"PTI Signal": self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="1 s", size=6),
                        "PTI Signal Mean": self.plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="60 s Mean")}
         self.plot.setLabel(axis="bottom", text="Time [s]")
@@ -996,6 +1010,7 @@ class PTISignal(_Plotting):
         self.curves["PTI Signal"].setData(data.time, data.pti_signal)
         self.curves["PTI Signal Mean"].setData(data.time, data.pti_signal_mean)
 
+    @QtCore.pyqtSlot()
     def clear(self) -> None:
         self.curves = {"PTI Signal": self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="1 s", size=6),
                        "PTI Signal Mean": self.plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="60 s Mean")}
@@ -1008,31 +1023,12 @@ class PumpLaserCurrent(_Plotting):
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="Current [mA]")
         model.laser_signals.data.connect(self.update_data_live)
-
-    def update_data(self, data: pd.DataFrame) -> None:
-        raise NotImplementedError
+        model.laser_signals.clear_pumplaser.connect(self.clear)
 
     def update_data_live(self, data: model.LaserBuffer) -> None:
         self.curves.setData(data.time, data.pump_laser_current)
 
-    def clear(self) -> None:
-        self.curves = self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE))
-
-
-class PumpLaserVoltage(_Plotting):
-    def __init__(self):
-        _Plotting.__init__(self)
-        self.curves = self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE))
-        self.plot.setLabel(axis="bottom", text="Time [s]")
-        self.plot.setLabel(axis="left", text="Voltage [V]")
-        model.laser_signals.data.connect(self.update_data_live)
-
-    def update_data(self, data: pd.DataFrame) -> None:
-        raise NotImplementedError("There is no need to plot laser data offline")
-
-    def update_data_live(self, data: model.LaserBuffer) -> None:
-        self.curves.setData(data.time, data.pump_laser_voltage)
-
+    @QtCore.pyqtSlot()
     def clear(self) -> None:
         self.curves = self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE))
 
@@ -1044,9 +1040,7 @@ class ProbeLaserCurrent(_Plotting):
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="Current [mA]")
         model.laser_signals.data.connect(self.update_data_live)
-
-    def update_data(self, data: pd.DataFrame) -> None:
-        raise NotImplementedError("There is no need to plot laser data offline")
+        model.laser_signals.clear_probelaser.connect(self.clear)
 
     def update_data_live(self, data: model.LaserBuffer) -> None:
         self.curves.setData(data.time, data.probe_laser_current)
@@ -1067,12 +1061,11 @@ class TecTemperature(_Plotting):
         self.plot.setLabel(axis="left", text="Temperature [°C]")
         if laser == "Pump Laser":
             self.laser = model.TecBuffer.PUMP_LASER
+            model.tec_signals.pump_laser.clear_plots.connect(self.clear)
         else:
             self.laser = model.TecBuffer.PROBE_LASER
+            model.tec_signals.probe_laser.clear_plots.connect(self.clear)
         model.signals.tec_data.connect(self.update_data_live)
-
-    def update_data(self, data: pd.DataFrame) -> None:
-        raise NotImplementedError("There is no need to plot laser data offline")
 
     def update_data_live(self, data: model.TecBuffer) -> None:
         self.curves[TecTemperature.ACTUAL].setData(data.time, data.actual_value[self.laser])
@@ -1081,4 +1074,3 @@ class TecTemperature(_Plotting):
     def clear(self) -> None:
         self.curves = [self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="Setpoint Temperature"),
                        self.plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="Measured Temperature")]
-

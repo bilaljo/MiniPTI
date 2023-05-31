@@ -44,7 +44,7 @@ class BMS(enum.IntEnum):
 class BMSData:
     external_dc_power: bool
     charging: bool
-    minutes_left: int
+    minutes_left: Union[int, float]
     battery_percentage: int
     battery_temperature: float  # °C
     battery_current: int  # mA
@@ -285,7 +285,7 @@ class Driver(serial_device.Driver):
             return
         if int(data[BMS.SHUTDOWN_INDEX:BMS.SHUTDOWN_INDEX + 2], base=16) < BMS.SHUTDOWN:
             self.shutdown.set()
-        if not int(data[BMS.VALID_IDENTIFIER_INDEX: BMS.VALID_IDENTIFIER_INDEX + 2], base=16):
+        if not int(data[BMS.VALID_IDENTIFIER_INDEX:BMS.VALID_IDENTIFIER_INDEX + 2], base=16):
             logging.error("Invalid package from BMS")
             return
         bms = BMSData(
@@ -299,8 +299,9 @@ class Driver(serial_device.Driver):
             battery_voltage=int(data[BMS.VOLTAGE_INDEX: BMS.VOLTAGE_INDEX + 4], base=16),
             full_charged_capacity=int(data[BMS.FULL_CHARGED_CAPACITY_INDEX:BMS.FULL_CHARGED_CAPACITY_INDEX + 4],
                                       base=16),
-            remaining_capacity=int(data[BMS.REMAINING_CAPACITY_INDEX:BMS.REMAINING_CAPACITY_INDEX + 4], base=16)
-        )
+            remaining_capacity=int(data[BMS.REMAINING_CAPACITY_INDEX:BMS.REMAINING_CAPACITY_INDEX + 4], base=16))
+        if bms.charging:
+            bms.minutes_left = float("inf")
         self._package_data.BMS.put(bms)
 
     @staticmethod

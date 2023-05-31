@@ -40,16 +40,16 @@ class Inversion:
 
     def __init__(self, response_phases=None, sign=-1, interferometer=None,
                  settings_path=f"{os.path.dirname(__file__)}/configs/settings.csv"):
-        self.response_phases = response_phases
+        self.response_phases: np.ndarray = response_phases
         self.pti_signal: Union[float, np.ndarray] = 0
         self.sensitivity: np.ndarray = np.empty(shape=3)
-        self.dc_signals = np.empty(shape=3)
-        self.settings_path = settings_path
+        self.dc_signals: np.ndarray = np.empty(shape=3)
+        self.settings_path: str = settings_path
         self.lock_in = LockIn(np.empty(shape=3), np.empty(shape=3))
-        self.init_header = True
-        self.sign = sign  # Makes the pti signal positive if it isn't
-        self.interferometer = interferometer
-        self.destination_folder = os.getcwd()
+        self.init_header: bool = True
+        self.sign: int = sign  # Makes the pti signal positive if it isn't
+        self.interferometer: interferometry.Interferometer = interferometer
+        self.destination_folder: str = os.getcwd()
         self.load_response_phase()
 
     def __repr__(self) -> str:
@@ -85,10 +85,10 @@ class Inversion:
             response_phase = self.response_phases[channel]
             demodulated_signal = self.lock_in.amplitude[channel] * np.cos(self.lock_in.phase[channel] - response_phase)
             pti_signal += demodulated_signal * sign
-        try:
-            self.pti_signal = -pti_signal / np.sum(self.sensitivity, axis=0) * Inversion.MICRO_RAD * self.sign
-        except RuntimeWarning:
-            self.pti_signal = 0
+        total_sensitivty = np.sum(self.sensitivity, axis=0)
+        self.pti_signal = np.devide(-pti_signal, total_sensitivty, out=np.full_like(pti_signal, np.nan),
+                                    where=total_sensitivty != 0)
+        self.pti_signal *= Inversion.MICRO_RAD * self.sign
 
     def calculate_sensitivity(self) -> None:
         try:
@@ -98,10 +98,7 @@ class Inversion:
         for channel in range(3):
             amplitude = self.interferometer.amplitudes[channel]
             output_phase = self.interferometer.output_phases[channel]
-            try:
-                self.sensitivity[channel] = amplitude * np.abs(np.sin(self.interferometer.phase - output_phase))
-            except RuntimeWarning:
-                self.sensitivity[channel] = 0
+            self.sensitivity[channel] = amplitude * np.abs(np.sin(self.interferometer.phase - output_phase))
 
     def _calculate_offline(self) -> None:
         data = self.interferometer.read_decimation()
@@ -219,8 +216,6 @@ class Decimation:
         self.destination_folder: str = "."
         self.file_path: str = ""
         self.init_header: bool = True
-        if os.path.exists(f"{self.destination_folder}/raw_data.h5"):
-            os.remove(f"{self.destination_folder}/raw_data.h5")
 
     def process_raw_data(self) -> None:
         """
@@ -234,7 +229,7 @@ class Decimation:
                                                                       * Decimation.AC_RESOLUTION)
 
     def save(self) -> None:
-        with h5py.File(f"{self.destination_folder}/raw_data.h5", "a") as h5f:
+        with h5py.File(f"{self.destination_folder}/raw_data.hdf5", "a") as h5f:
             now = datetime.now()
             time_stamp = str(now.strftime("%Y-%m-%d %H:%M:%S:%S.%f")[:Decimation.UNTIL_MICRO_SECONDS])
             h5f.create_group(time_stamp)
@@ -287,7 +282,7 @@ class Decimation:
 
     def decimate(self, live=False) -> None:
         if self.init_header:
-            with h5py.File(f"{self.destination_folder}/raw_data.h5", "a") as _:
+            with h5py.File(f"{self.destination_folder}/raw_data.hdf5", "w") as _:
                 pass  # File created
             output_data = {}
             for channel in range(3):

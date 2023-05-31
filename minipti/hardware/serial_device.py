@@ -1,13 +1,11 @@
 import abc
 import logging
-import multiprocessing
 import os
 import platform
 import re
 import time
 from dataclasses import dataclass
 from enum import Enum
-import traceback
 from typing import Union
 import threading
 import queue
@@ -18,7 +16,6 @@ if platform.system() == "Windows":
     import pywintypes
 import serial
 from serial.tools import list_ports
-
 
 
 class Driver:
@@ -34,6 +31,7 @@ class Driver:
     NUMBER_OF_HEX_BYTES = 4
     _START_DATA_FRAME = 1
     IO_BUFFER_SIZE = 4096
+    SEARCH_ATTEMPTS = 2
 
     def __init__(self):
         self.device = None
@@ -47,29 +45,30 @@ class Driver:
             self.device = None
         else:
             self.file_descriptor = -1
-            self.closing = threading.Event()
+            self.file_descriptor_lock = threading.Lock()
         self.connected = threading.Event()
         self.received_data = queue.Queue()
 
     def find_port(self) -> None:
-        for port in list_ports.comports():
-            try:
-                with serial.Serial(port.device, timeout=Driver.MAX_RESPONSE_TIME,
-                                   write_timeout=Driver.MAX_RESPONSE_TIME) as device:
-                    device.write(Command.HARDWARE_ID + Driver.TERMINATION_SYMBOL.encode())
-                    time.sleep(0.1)
-                    available_bytes = device.in_waiting
-                    if platform.system() == "Windows":
-                        self.received_data.put(device.read(available_bytes))
-                    else:
-                        self.received_data.put(device.read(available_bytes))
-                    hardware_id = self.get_hardware_id()
-                    if hardware_id == self.device_id:
-                        self.port_name = port.device
-                        logging.info(f"Found {self.device_name} at {self.port_name}")
-                        break
-            except serial.SerialException:
-                continue
+        for _ in range(Driver.SEARCH_ATTEMPTS):
+            for port in list_ports.comports():
+                try:
+                    with serial.Serial(port.device, timeout=Driver.MAX_RESPONSE_TIME,
+                                       write_timeout=Driver.MAX_RESPONSE_TIME) as device:
+                        device.write(Command.HARDWARE_ID + Driver.TERMINATION_SYMBOL.encode())
+                        time.sleep(0.1)
+                        available_bytes = device.in_waiting
+                        if platform.system() == "Windows":
+                            self.received_data.put(device.read(available_bytes))
+                        else:
+                            self.received_data.put(device.read(available_bytes))
+                        hardware_id = self.get_hardware_id()
+                        if hardware_id == self.device_id:
+                            self.port_name = port.device
+                            logging.info(f"Found {self.device_name} at {self.port_name}")
+                            break
+                except serial.SerialException:
+                    continue
         else:
             raise OSError("Could not find {self.device_name}")
 
@@ -184,7 +183,8 @@ class Driver:
         if platform.system() == "Windows":
             win32file.WriteFile(self.device, self.last_written_message.encode(), None)
         else:
-            os.write(self.file_descriptor, self.last_written_message.encode())
+            with self.file_descriptor_lock:
+                os.write(self.file_descriptor, self.last_written_message.encode())
 
     def _check_ack(self, data: str) -> bool:
         last_written = self.last_written_message[:-1]
@@ -215,9 +215,9 @@ class Driver:
     else:
         def close(self) -> None:
             if self.file_descriptor != -1:
-                self.closing.set()
-                os.close(self.file_descriptor)
                 self.connected.clear()
+                with self.file_descriptor_lock:
+                    os.close(self.file_descriptor)
                 logging.info("Closed connection to %s", self.device_name)
 
     if platform.system() == "Windows":
@@ -233,8 +233,8 @@ class Driver:
             """
             while self.connected.is_set():
                 try:
-                    rc, mask = win32file.WaitCommEvent(self.device, None)
-                    flags, comstat = win32file.ClearCommError(self.device)
+                    win32file.WaitCommEvent(self.device, None)
+                    _, comstat = win32file.ClearCommError(self.device)
                     rc, data = win32file.ReadFile(self.device, comstat.cbInQue, None)
                     self.received_data.put(data.decode())
                     logging.debug("Data received")
@@ -251,16 +251,15 @@ class Driver:
             """
             while self.connected.is_set():
                 try:
-                    self.received_data.put(os.read(self.file_descriptor, Driver.IO_BUFFER_SIZE).decode())
-                    #logging.debug("Data received")
+                    with self.file_descriptor_lock:
+                        received = os.read(self.file_descriptor, Driver.IO_BUFFER_SIZE)
+                    self.received_data.put(received.decode())
                     if self.device_name == "Laser" or self.device_name == "Tec":
+                        # Workaround for rasperry pi because the data comes to fast for it
                         time.sleep(1)
                 except OSError as e:
-                    if not self.closing.is_set():
-                        logging.error("Connection to %s lost", self.device_name)
-                        logging.debug("Error caused by %s", e)
-                    else:
-                        return
+                    logging.error("Connection to %s lost", self.device_name)
+                    logging.debug("Error caused by %s", e)
 
     @abc.abstractmethod
     def encode_data(self) -> None:
