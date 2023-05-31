@@ -125,7 +125,7 @@ class Driver(serial_device.Driver):
                 logging.error(f"Invalid command {received}")
                 self.ready_write.set()
             elif received[0] == "S" or received[0] == "C":
-                self._check_ack(received_data)
+                self._check_ack(received)
             elif received[0] == "L":
                 data_frame = received.split("\t")[Driver._START_DATA_FRAME:self.end_data_frame]
                 self.data.put(Data(pump_laser_current=float(data_frame[0]),

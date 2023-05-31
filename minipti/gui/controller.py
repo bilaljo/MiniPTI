@@ -18,7 +18,7 @@ class MainApplication(QtWidgets.QApplication):
         QtWidgets.QApplication.__init__(self, argv)
         self.logging_model = model.Logging()
         self.view = view.MainWindow(self)
-        # threading.excepthook = self.thread_exception
+        threading.excepthook = self.thread_exception
 
     def close(self) -> None:
         model.Motherboard.driver.running.clear()
@@ -38,29 +38,31 @@ class MainApplication(QtWidgets.QApplication):
 
 
 class Home:
-    def __init__(self, parent, main_window: view.MainWindow, main_app: QtWidgets.QApplication):
+    def __init__(self, parent, main_app: QtWidgets.QApplication):
         self.view = parent
         self.main_app = main_app
-        self.main_window = main_window
         self.settings_model = model.SettingsTable()
         self.calculation_model = model.Calculation()
-        self.mother_board_model = model.Motherboard()
+        self.motherboard = model.Motherboard()
         self.pump_laser = model.PumpLaser()
         self.probe_laser = model.ProbeLaser()
         self.pump_laser_tec = model.Tec("Pump Laser")
         self.probe_laser_tec = model.Tec("Probe Laser")
-        self.daq_enabled = False
         self.last_file_path = os.getcwd()
         self.settings_model.setup_settings_file()
+        threading.Thread(target=self._init_devices, daemon=True, name="Init Devices Thread").start()
+
+    def _init_devices(self) -> None:
         self.find_devices()
+        self.connect_devices()
 
     def update_bypass(self) -> None:
-        self.mother_board_model.bypass = not self.mother_board_model.bypass
+        self.motherboard.bypass = not self.motherboard.bypass
 
     def update_valve_period(self, period: str) -> None:
         period = _string_to_int(period)
         try:
-            self.mother_board_model.valve_period = period
+            self.motherboard.valve_period = period
         except ValueError as error:
             info_text = "Value must be a positive integer"
             logging.error(str(error))
@@ -70,7 +72,7 @@ class Home:
     def update_valve_duty_cycle(self, duty_cycle: str) -> None:
         duty_cycle = _string_to_int(duty_cycle)
         try:
-            self.mother_board_model.valve_duty_cycle = duty_cycle
+            self.motherboard.valve_duty_cycle = duty_cycle
         except ValueError as error:
             info_text = "Value must be an integer between 0 and 100"
             logging.error(str(error))
@@ -78,16 +80,15 @@ class Home:
             QtWidgets.QMessageBox.critical(self.view, "Valve Error", f"{str(error)}. {info_text}")
 
     def update_automatic_valve_switch(self, automatic_valve_switch: bool) -> None:
-        self.mother_board_model.automatic_valve_switch = automatic_valve_switch
+        self.motherboard.automatic_valve_switch = automatic_valve_switch
 
     def fire_motherboard_configuration_change(self) -> None:
-        self.mother_board_model.fire_configuration_change()
+        self.motherboard.fire_configuration_change()
 
     def set_destination_folder(self) -> None:
         destination_folder = QtWidgets.QFileDialog.getExistingDirectory(self.view, "Destination Folder",
                                                                         self.calculation_model.destination_folder,
-                                                                        QtWidgets.QFileDialog.ShowDirsOnly
-                                                                        )
+                                                                        QtWidgets.QFileDialog.ShowDirsOnly)
         if destination_folder:
             self.calculation_model.destination_folder = destination_folder
 
@@ -116,11 +117,11 @@ class Home:
     def load_motherboard_configuration(self) -> None:
         if file_path := self.get_file_path("Valve", "CONF File (*.conf);; All Files (*)"):
             try:
-                self.mother_board_model.config_path = file_path[0]
+                self.motherboard.config_path = file_path[0]
             except ValueError as error:
                 logging.error(error)
             else:
-                self.mother_board_model.load_configuration()
+                self.motherboard.load_configuration()
 
     def calculate_decimation(self) -> None:
         decimation_file_path = self.get_file_path("Decimation", "HDF5 File (*.hdf5);; All Files (*)")
@@ -201,7 +202,7 @@ class Home:
 
     def await_shutdown(self):
         def shutdown_low_energy() -> None:
-            self.mother_board_model.shutdown_event.wait()
+            self.motherboard.shutdown_event.wait()
             self.shutdown()
 
         threading.Thread(target=shutdown_low_energy, daemon=True).start()
@@ -221,7 +222,22 @@ class Home:
             model.Tec.open()
             model.Tec.process_measured_data()
         except OSError:
-            logging.error("Could not connect with Tec Driver")
+            logging.error("Could not connect with TEC Driver")
+
+    def enable_motherboard(self) -> None:
+        if not self.motherboard.connected:
+            QtWidgets.QMessageBox.critical(self.view, "IO Error",
+                                           "Cannot enable Motherboard. Probe Laser is not connected.")
+            logging.error("Cannot enable Motherboard")
+            logging.warning("Motherboard is not connected")
+        else:
+            if not self.motherboard.running:
+                self.motherboard.running = True
+                self.calculation_model.process_daq_data()
+                self.calculation_model.process_bms_data()
+            else:
+                self.motherboard.running = False
+            logging.debug("%s Motherboard", "Enabled" if self.motherboard.running else "Disabled")
 
     def enable_probe_laser(self) -> None:
         if not self.probe_laser.connected:
@@ -231,7 +247,6 @@ class Home:
             logging.warning("Probe Laser is not connected")
         else:
             if not self.probe_laser.enabled:
-                self.main_window.current_probe_laser.clear()
                 self.probe_laser.enabled = True
             else:
                 self.probe_laser.enabled = False
@@ -245,7 +260,6 @@ class Home:
             logging.warning("Pump Laser is not connected")
         else:
             if not self.pump_laser.enabled:
-                self.main_window.current_pump_laser.clear()
                 self.pump_laser.enabled = True
             else:
                 self.pump_laser.enabled = False
@@ -259,7 +273,6 @@ class Home:
             logging.warning("Tec Driver is not connected")
         else:
             if not self.pump_laser_tec.enabled:
-                self.main_window.temperature_pump_laser.clear()
                 self.pump_laser_tec.enabled = True
             else:
                 self.pump_laser_tec.enabled = False
@@ -273,37 +286,13 @@ class Home:
             logging.warning("Tec Driver is not connected")
         else:
             if not self.probe_laser_tec.enabled:
-                self.main_window.temperature_probe_laser.clear()
                 self.probe_laser_tec.enabled = True
             else:
                 self.probe_laser_tec.enabled = False
             logging.debug(f"{'Enabled' if self.probe_laser_tec.enabled else 'Disabled'} Tec Driver of Probe Laser")
 
-    def run_measurement(self) -> None:
-        if not self.daq_enabled:
-            if not self.mother_board_model.run():
-                QtWidgets.QMessageBox.critical(self.view, "IO Error",
-                                               "Cannot run measurement. Motherboard is not connected.")
-                return
-            # Reset all measurement plots
-            self.main_window.dc.clear()
-            self.main_window.amplitudes.clear()
-            self.main_window.output_phases.clear()
-            self.main_window.interferometric_phase.clear()
-            self.main_window.sensitivity.clear()
-            self.main_window.symmetry.clear()
-            self.main_window.pti_signal.clear()
-            self.calculation_model.live_calculation()
-            self.calculation_model.process_bms_data()
-            view.toggle_button(True, self.view.buttons["Run Measurement"])
-            self.daq_enabled = True
-        else:
-            view.toggle_button(False, self.view.buttons["Run Measurement"])
-            self.mother_board_model.stop()
-            self.daq_enabled = False
-
     def set_clean_air(self, bypass: bool) -> None:
-        self.mother_board_model.bypass = bypass
+        self.motherboard.bypass = bypass
 
 
 def _string_to_float(string_value: str) -> float:

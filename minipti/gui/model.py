@@ -129,8 +129,8 @@ class Logging(logging.Handler):
     def __init__(self):
         logging.Handler.__init__(self)
         self.logging_messages = deque(maxlen=Logging.LOGGING_HISTORY)
-        self.formatter = logging.Formatter('[%(threadName)s] %(levelname)s %(asctime)s: %(message)s',
-                                           datefmt='%Y-%m-%d %H:%M:%S')
+        self.formatter = logging.Formatter("[%(threadName)s] %(levelname)s %(asctime)s: %(message)s",
+                                           datefmt="%Y-%m-%d %H:%M:%S")
         logging.getLogger().addHandler(self)
         root_logger = logging.getLogger()
         console_handler = logging.StreamHandler()
@@ -326,6 +326,7 @@ class Signals(QtCore.QObject):
     bypass = QtCore.pyqtSignal(bool)
     tec_data = QtCore.pyqtSignal(Buffer)
     tec_data_display = QtCore.pyqtSignal(hardware.tec.Data)
+    clear_daq_plots = QtCore.pyqtSignal()
 
     def __init__(self):
         QtCore.QObject.__init__(self)
@@ -344,6 +345,8 @@ class LaserSignals(QtCore.QObject):
     data_display = QtCore.pyqtSignal(hardware.laser.Data)
     pump_laser_enabled = QtCore.pyqtSignal(bool)
     probe_laser_enabled = QtCore.pyqtSignal(bool)
+    clear_pumplaser = QtCore.pyqtSignal()
+    clear_probelaser = QtCore.pyqtSignal()
 
     def __init__(self):
         QtCore.QObject.__init__(self)
@@ -366,20 +369,22 @@ class TecSignals(QtCore.QObject):
     reference_resistor = QtCore.pyqtSignal(float)
     max_power = QtCore.pyqtSignal(float)
     enabled = QtCore.pyqtSignal(bool)
+    clear_plots = QtCore.pyqtSignal()
 
     def __init__(self):
         QtCore.QObject.__init__(self)
 
 
 def shutdown_procedure() -> None:
-    Motherboard.driver.close()
     Laser.driver.close()
     Tec.driver.close()
     time.sleep(0.5)  # Give the calculations threads time to finish their write operation
     if platform.system() == "Windows":
         subprocess.run(r"shutdown /s /t 1", shell=True)
     else:
-        subprocess.run("sleep 0.5s && echo poweroff", shell=True)
+        # TODO: Implement shutdown
+        Motherboard.shutdown()
+        subprocess.run("sleep 0.5s && poweroff", shell=True)
 
 
 class Calculation:
@@ -419,7 +424,7 @@ class Calculation:
         self._destination_folder = folder
         signals.destination_folder_changed.emit(folder)
 
-    def live_calculation(self) -> tuple[threading.Thread, threading.Thread]:
+    def process_daq_data(self) -> tuple[threading.Thread, threading.Thread]:
         self.pti.inversion.init_header = True
         self.pti.decimation.init_header = True
         self.interferometry.characterization.init_online = True
@@ -496,8 +501,8 @@ class Calculation:
                 output_data = {"Time": str(now.strftime("%H:%M:%S"))}
                 for key, value in asdict(bms_data).items():
                     output_data[key.replace("_", " ").title()] = value
-                pd.DataFrame(output_data, index=[str(now.strftime("%Y-%m-%d"))]).to_csv(self._destination_folder + "/BMS.csv",
-                                                 header=False, mode="a")
+                bms_data_frame = pd.DataFrame(output_data, index=[str(now.strftime("%Y-%m-%d"))])
+                bms_data_frame.to_csv(self._destination_folder + "/BMS.csv", header=False, mode="a")
         threading.Thread(target=incoming_data, daemon=True).start()
 
 
@@ -568,6 +573,7 @@ class Motherboard(Serial):
     def __init__(self):
         Serial.__init__(self)
         self.bms_data: tuple[float, float] = (0, 0)
+        self._running = False
 
     @property
     def connected(self) -> bool:
@@ -578,15 +584,20 @@ class Motherboard(Serial):
         cls.driver.open()
         cls.driver.run()
 
-    def run(self) -> bool:
-        if not self.driver.connected.is_set():
-            return False
+    @property
+    def running(self) -> bool:
+        return self._running
+
+    @running.setter
+    def running(self, running):
+        self._running = running
+        if running:
+            # Before we start a new run, we clear all old data
+            signals.clear_daq_plots.emit()
+        else:
+            self.driver.running.clear()
         self.driver.reset()
         self.driver.running.set()
-        return True
-
-    def stop(self) -> None:
-        self.driver.running.clear()
 
     @property
     def shutdown_event(self) -> threading.Event:
@@ -633,6 +644,10 @@ class Motherboard(Serial):
     def bypass(self, state: bool) -> None:
         self.driver.bypass = state
         signals.bypass.emit(state)
+
+    @staticmethod
+    def shutdown() -> None:
+        Motherboard.driver.write("")
 
     def load_configuration(self) -> None:
         Motherboard.driver.load_config()
@@ -724,9 +739,11 @@ class PumpLaser(Laser):
         return self.driver.pump_laser_enabled
 
     @enabled.setter
-    def enabled(self, state: bool):
-        self.driver.pump_laser_enabled = state
-        laser_signals.pump_laser_enabled.emit(state)
+    def enabled(self, enable: bool):
+        if enable:
+            laser_signals.clear_pumplaser.emit()
+        self.driver.pump_laser_enabled = enable
+        laser_signals.pump_laser_enabled.emit(enable)
 
     @property
     def current_bits_dac_1(self) -> int:
@@ -840,9 +857,11 @@ class ProbeLaser(Laser):
         return self.driver.probe_laser_enabled
 
     @enabled.setter
-    def enabled(self, state: bool) -> None:
-        self.driver.probe_laser_enabled = state
-        laser_signals.probe_laser_enabled.emit(state)
+    def enabled(self, enable: bool) -> None:
+        if enable:
+            laser_signals.clear_probelaser.emit()
+        self.driver.probe_laser_enabled = enable
+        laser_signals.probe_laser_enabled.emit(enable)
 
     @property
     def photo_diode_gain(self) -> int:
@@ -926,13 +945,17 @@ class Tec(Serial):
             return self.driver.probe_laser_enabled
 
     @enabled.setter
-    def enabled(self, state) -> None:
+    def enabled(self, enable) -> None:
         if self.laser == "Pump Laser":
-            self.driver.pump_laser_enabled = state
-            tec_signals["Pump Laser"].enabled.emit(state)
+            if enable:
+                tec_signals.pump_laser.clear_plots.emit()
+            self.driver.pump_laser_enabled = enable
+            tec_signals["Pump Laser"].enabled.emit(enable)
         else:
-            self.driver.probe_laser_enabled = state
-            tec_signals["Probe Laser"].enabled.emit(state)
+            if enable:
+                tec_signals.probe_laser.clear_plots.emit()
+            self.driver.probe_laser_enabled = enable
+            tec_signals["Probe Laser"].enabled.emit(enable)
 
     @property
     def config_path(self) -> str:
