@@ -37,10 +37,9 @@ class MainApplication(QtWidgets.QApplication):
 
 
 class Home:
-    def __init__(self, parent, main_window: view.MainWindow, main_app: QtWidgets.QApplication):
+    def __init__(self, parent, main_app: QtWidgets.QApplication):
         self.view = parent
         self.main_app = main_app
-        self.main_window = main_window
         self.settings_model = model.SettingsTable()
         self.calculation_model = model.Calculation()
         self.motherboard = model.Motherboard()
@@ -247,7 +246,6 @@ class Home:
             logging.warning("Probe Laser is not connected")
         else:
             if not self.probe_laser.enabled:
-                self.main_window.current_probe_laser.clear()
                 self.probe_laser.enabled = True
             else:
                 self.probe_laser.enabled = False
@@ -261,7 +259,6 @@ class Home:
             logging.warning("Pump Laser is not connected")
         else:
             if not self.pump_laser.enabled:
-                self.main_window.current_pump_laser.clear()
                 self.pump_laser.enabled = True
             else:
                 self.pump_laser.enabled = False
@@ -275,7 +272,6 @@ class Home:
             logging.warning("Tec Driver is not connected")
         else:
             if not self.pump_laser_tec.enabled:
-                self.main_window.temperature_pump_laser.clear()
                 self.pump_laser_tec.enabled = True
             else:
                 self.pump_laser_tec.enabled = False
@@ -289,7 +285,6 @@ class Home:
             logging.warning("Tec Driver is not connected")
         else:
             if not self.probe_laser_tec.enabled:
-                self.main_window.temperature_probe_laser.clear()
                 self.probe_laser_tec.enabled = True
             else:
                 self.probe_laser_tec.enabled = False
