@@ -1,4 +1,5 @@
 import abc
+import functools
 import logging
 import os
 import threading
@@ -17,7 +18,7 @@ class MainApplication(QtWidgets.QApplication):
         QtWidgets.QApplication.__init__(self, argv)
         self.logging_model = model.Logging()
         self.view = view.MainWindow(self)
-        #threading.excepthook = self.thread_exception
+        # threading.excepthook = self.thread_exception
 
     def close(self) -> None:
         model.Motherboard.driver.running.clear()
@@ -361,6 +362,8 @@ class PumpLaser(Laser):
     def __init__(self, parent):
         Laser.__init__(self, parent)
         self.laser = model.PumpLaser()
+        self.update_dac_1 = functools.partialmethod(self.update_dac, self.laser.dac_1_matrix)
+        self.update_dac_2 = functools.partialmethod(self.update_dac, self.laser.dac_2_matrix)
 
     def update_driver_voltage(self, bits: int) -> None:
         if bits != self.laser.driver_bits:
@@ -374,17 +377,8 @@ class PumpLaser(Laser):
         if self.laser.current_bits_dac_1 != bits:
             self.laser.current_bits_dac_2 = bits
 
-    def update_dac1(self, channel: int) -> typing.Callable[[int], None]:
-        def set_matrix(mode: int) -> None:
-            self.laser.update_dac_mode(self.laser.dac_1_matrix, channel, mode)
-
-        return set_matrix
-
-    def update_dac2(self, channel: int) -> typing.Callable[[int], None]:
-        def set_matrix(mode: int) -> None:
-            self.laser.update_dac_mode(self.laser.dac_2_matrix, channel, mode)
-
-        return set_matrix
+    def update_dac(self, dac: hardware.laser.DAC, channel: int, mode: int) -> None:
+        self.laser.update_dac_mode(dac, channel, mode)
 
     def fire_configuration_change(self) -> None:
         self.laser.fire_configuration_change()

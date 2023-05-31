@@ -490,14 +490,16 @@ class PumpLaser(QtWidgets.QWidget, _Frames, _CreateButton):
         self.current[0].slider.valueChanged.connect(self.controller.update_current_dac1)
         self.current[1].slider.valueChanged.connect(self.controller.update_current_dac2)
         for i in range(3):
-            self.mode_matrix[0][i].currentIndexChanged.connect(self.controller.update_dac1(i))
-            self.mode_matrix[1][i].currentIndexChanged.connect(self.controller.update_dac2(i))
+            self.mode_matrix[0][i].currentIndexChanged.connect(functools.partialmethod(self.controller.update_dac_1,
+                                                                                       channel=i))
+            self.mode_matrix[0][i].currentIndexChanged.connect(functools.partialmethod(self.controller.update_dac_2,
+                                                                                       channel=i))
 
     @QtCore.pyqtSlot(int, list)
     def _update_dac_matrix(self, dac_number: int, configuration: typing.Annotated[list[int], 3]) -> None:
         for channel in range(3):
             if configuration[channel] == model.Mode.CONTINUOUS_WAVE:
-                    self.mode_matrix[dac_number][channel].setCurrentIndex(ModeIndices.CONTINUOUS_WAVE)
+                self.mode_matrix[dac_number][channel].setCurrentIndex(ModeIndices.CONTINUOUS_WAVE)
             elif configuration[channel] == model.Mode.PULSED:
                 self.mode_matrix[dac_number][channel].setCurrentIndex(ModeIndices.PULSED)
             elif configuration[channel] == model.Mode.DISABLED:
@@ -1064,7 +1066,7 @@ class ProbeLaserCurrent(_Plotting):
 
 
 class TecTemperature(_Plotting):
-    ACTUAL = 0
+    SET_POINT = 0
     MEASURAED = 1
 
     def __init__(self, laser: str):
@@ -1083,7 +1085,7 @@ class TecTemperature(_Plotting):
         raise NotImplementedError("There is no need to plot laser data offline")
 
     def update_data_live(self, data: model.TecBuffer) -> None:
-        self.curves[TecTemperature.ACTUAL].setData(data.time, data.actual_value[self.laser])
+        self.curves[TecTemperature.SET_POINT].setData(data.time, data.actual_value[self.laser])
         self.curves[TecTemperature.MEASURAED].setData(data.time, data.set_point[self.laser])
 
     def clear(self) -> None:

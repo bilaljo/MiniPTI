@@ -165,7 +165,7 @@ class Driver(serial_device.Driver):
 
     def set_reference_resistor_value(self, laser: str):
         tec: Tec = self[laser]
-        reference_resistor_value = tec.system_parameter.reference_resistor
+        reference_resistor_value = tec.system_parameter.reference_resistor * 10
         reference_resistor_value_hex = f"{reference_resistor_value:0{Driver._NUMBER_OF_DIGITS}X}"
         channel = 1 if laser == "Pump Laser" else 2
         self.write(f"SC{channel}" + reference_resistor_value_hex)
@@ -234,7 +234,7 @@ class Driver(serial_device.Driver):
                 status_byte_frame = int(data_frame[13])  # 13 is the index according to the protocol
                 for error in Status.ERROR:
                     if error[Status.VALUE] & status_byte_frame:
-                        logging.error(f"Got \"{error[Status.TEXT]}\" from TEC Driver")
+                        logging.error("Got \"%s\" from TEC Driver", error[Status.TEXT])
                 set_point: Temperature = Temperature(
                     pump_laser=float(data_frame[_TemperatureIndex.SET_POINT[Driver.PUMP_LASER]]),
                     probe_laser=float(data_frame[_TemperatureIndex.SET_POINT[Driver.PROBE_LASER]]))
@@ -252,6 +252,8 @@ class Driver(serial_device.Driver):
                         probe_laser=float(data_frame[_TemperatureIndex.NTC[Driver.PROBE_LASER]]))
                 else:
                     raise ValueError("Invalid Temperatur Element")
+                actual_temperature.probe_laser = (actual_temperature.probe_laser - 32.768) / 100
+                actual_temperature.pump_laser = (actual_temperature.probe_laser - 32.768) / 100
                 self.data.put(Data(set_point, actual_temperature))
             else:  # Broken data frame without header char
                 logging.error("Received invalid package without header")
