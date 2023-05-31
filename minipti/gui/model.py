@@ -260,7 +260,7 @@ class CharacterisationBuffer(Buffer):
             self.amplitudes[i].append(interferometer.amplitudes[i])
         for i in range(2):
             self.output_phases[i].append(interferometer.output_phases[i + 1])
-        self.symmetry.append(interferometer.absoloute_symmetry)
+        self.symmetry.append(interferometer.absolute_symmetry)
         self.relative_symmetry.append(interferometer.relative_symmetry)
         self.time.append(characterization.time_stamp)
 
@@ -382,9 +382,8 @@ def shutdown_procedure() -> None:
     if platform.system() == "Windows":
         subprocess.run(r"shutdown /s /t 1", shell=True)
     else:
-        # TODO: Implement shutdown
-        Motherboard.shutdown()
         subprocess.run("sleep 0.5s && poweroff", shell=True)
+    Motherboard.shutdown()
 
 
 class Calculation:
@@ -647,7 +646,7 @@ class Motherboard(Serial):
 
     @staticmethod
     def shutdown() -> None:
-        Motherboard.driver.write("")
+        Motherboard.driver.write("SHD0001")
 
     def load_configuration(self) -> None:
         Motherboard.driver.load_config()
@@ -1028,8 +1027,13 @@ class Tec(Serial):
 
     @loop_time.setter
     def loop_time(self, loop_time: float) -> None:
-        self.driver[self.laser].system_parameter.loop_time = loop_time
-        self.driver.set_loop_time_value(self.laser)
+        min_loop_time: float = hardware.tec.Driver.MIN_LOOP_TIME
+        max_loop_time: float = hardware.tec.Driver.MAX_LOOP_TIME
+        if min_loop_time <= loop_time <= max_loop_time:
+            self.driver[self.laser].system_parameter.loop_time = loop_time
+            self.driver.set_loop_time_value(self.laser)
+        else:
+            raise ValueError(f"Loop time should between {min_loop_time} and {max_loop_time} but is {loop_time}")
 
     @property
     def reference_resistor(self) -> float:

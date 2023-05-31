@@ -487,10 +487,8 @@ class PumpLaser(QtWidgets.QWidget, _Frames, _CreateButton):
         self.current[0].slider.valueChanged.connect(self.controller.update_current_dac1)
         self.current[1].slider.valueChanged.connect(self.controller.update_current_dac2)
         for i in range(3):
-            self.mode_matrix[0][i].currentIndexChanged.connect(functools.partialmethod(self.controller.update_dac_1,
-                                                                                       channel=i))
-            self.mode_matrix[0][i].currentIndexChanged.connect(functools.partialmethod(self.controller.update_dac_2,
-                                                                                       channel=i))
+            self.mode_matrix[0][i].currentIndexChanged.connect(self.controller.update_dac1(i))
+            self.mode_matrix[1][i].currentIndexChanged.connect(self.controller.update_dac2(i))
 
     @QtCore.pyqtSlot(int, list)
     def _update_dac_matrix(self, dac_number: int, configuration: typing.Annotated[list[int], 3]) -> None:
@@ -732,7 +730,7 @@ class Tec(QtWidgets.QWidget, _Frames, _CreateButton):
         self.frames["System Settings"].layout().addWidget(self.text_fields.setpoint_temperature, 0, 1)
         self.text_fields.setpoint_temperature.editingFinished.connect(self.setpoint_temperature_changed)
 
-        self.frames["System Settings"].layout().addWidget(QtWidgets.QLabel("Loop Time"), 1, 0)
+        self.frames["System Settings"].layout().addWidget(QtWidgets.QLabel("Loop Time [ms]"), 1, 0)
         self.frames["System Settings"].layout().addWidget(self.text_fields.loop_time, 1, 1)
         self.text_fields.loop_time.editingFinished.connect(self.loop_time_changed)
 
@@ -1068,8 +1066,8 @@ class TecTemperature(_Plotting):
         model.signals.tec_data.connect(self.update_data_live)
 
     def update_data_live(self, data: model.TecBuffer) -> None:
-        self.curves[TecTemperature.SET_POINT].setData(data.time, data.actual_value[self.laser])
-        self.curves[TecTemperature.MEASURAED].setData(data.time, data.set_point[self.laser])
+        self.curves[TecTemperature.SET_POINT].setData(data.time, data.set_point[self.laser])
+        self.curves[TecTemperature.MEASURAED].setData(data.time, data.actual_value[self.laser])
 
     def clear(self) -> None:
         self.curves = [self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="Setpoint Temperature"),

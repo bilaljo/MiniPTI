@@ -88,6 +88,8 @@ class Driver(serial_device.Driver):
     NAME = "Tec"
     PROBE_LASER = 0
     PUMP_LASER = 1
+    MIN_LOOP_TIME = 25  # 25 ms
+    MAX_LOOP_TIME = 5000  # 5 s
     _NUMBER_OF_DIGITS = serial_device.Driver.NUMBER_OF_HEX_BYTES
 
     def __init__(self, laser=""):
