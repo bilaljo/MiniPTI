@@ -15,6 +15,10 @@ from collections import deque
 from dataclasses import dataclass, asdict
 from datetime import datetime
 
+if platform.system() != "Windows":
+    import multiprocessing
+import multiprocessing_logging
+
 import numpy as np
 import pandas as pd
 from PyQt5 import QtCore
@@ -128,6 +132,8 @@ class Logging(logging.Handler):
 
     def __init__(self):
         logging.Handler.__init__(self)
+        if platform.system() != "Windows":
+            multiprocessing_logging.install_mp_handler()
         self.logging_messages = deque(maxlen=Logging.LOGGING_HISTORY)
         self.formatter = logging.Formatter("[%(threadName)s] %(levelname)s %(asctime)s: %(message)s",
                                            datefmt="%Y-%m-%d %H:%M:%S")
@@ -379,11 +385,11 @@ def shutdown_procedure() -> None:
     Laser.driver.close()
     Tec.driver.close()
     time.sleep(0.5)  # Give the calculations threads time to finish their write operation
+    Motherboard.shutdown()
     if platform.system() == "Windows":
         subprocess.run(r"shutdown /s /t 1", shell=True)
     else:
         subprocess.run("sleep 0.5s && poweroff", shell=True)
-    Motherboard.shutdown()
 
 
 class Calculation:
@@ -527,6 +533,10 @@ class Serial:
         Connects to a serial device and listens to incoming data.
         """
         cls.driver.open()
+        if platform.system() == "Windows":
+            cls.driver.run()
+        else:
+            multiprocessing.Process(target=cls.driver.run, daemon=True).start()
 
     @classmethod
     def close(cls) -> None:
@@ -678,11 +688,6 @@ class Laser(Serial):
         Serial.__init__(self)
         self.config_path = "hardware/configs/laser.json"
 
-    @classmethod
-    def open(cls) -> None:
-        cls.driver.open()
-        cls.driver.run()
-
     def load_configuration(self) -> None:
         Laser.driver.load_configuration()
         self.fire_configuration_change()
@@ -698,7 +703,7 @@ class Laser(Serial):
     @classmethod
     def _incoming_data(cls):
         while cls.driver.connected.is_set():
-            received_data = cls.driver.data.get(block=True)
+            received_data = cls.driver.data.recv()
             Laser.buffer.append(received_data)
             laser_signals.data.emit(Laser.buffer)
             laser_signals.data_display.emit(received_data)
@@ -926,11 +931,6 @@ class Tec(Serial):
     def __init__(self, laser: str):
         Serial.__init__(self)
         self.laser = laser
-
-    @classmethod
-    def open(cls) -> None:
-        cls.driver.open()
-        cls.driver.run()
 
     @property
     def connected(self) -> bool:

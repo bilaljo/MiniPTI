@@ -1,5 +1,6 @@
 import abc
 import logging
+import multiprocessing
 import os
 import platform
 import re
@@ -14,6 +15,8 @@ if platform.system() == "Windows":
     import win32con
     from win32 import win32file
     import pywintypes
+else:
+    import multiprocessing
 import serial
 from serial.tools import list_ports
 
@@ -31,21 +34,24 @@ class Driver:
     NUMBER_OF_HEX_BYTES = 4
     _START_DATA_FRAME = 1
     IO_BUFFER_SIZE = 4096
-    SEARCH_ATTEMPTS = 2
+    SEARCH_ATTEMPTS = 3
 
     def __init__(self):
         self.device = None
         self.port_name = ""
         self._write_buffer = queue.Queue()
-        self.data = queue.Queue()
+        if platform.system() == "Windows":
+            self.data = queue.Queue()
+        else:
+            self.data = multiprocessing.Queue()
         self.ready_write = threading.Event()
         self.ready_write.set()
         self.last_written_message = ""
         if platform.system() == "Windows":
             self.device = None
         else:
-            self.file_descriptor = -1
-            self.file_descriptor_lock = threading.Lock()
+            self.file_descriptor = multiprocessing.Value("i", -1)
+            self.file_descriptor_lock = multiprocessing.Lock()
         self.connected = threading.Event()
         self.received_data = queue.Queue()
 
@@ -99,7 +105,7 @@ class Driver:
         def open(self) -> None:
             if self.port_name and not self.is_open:
                 try:
-                    self.file_descriptor = os.open(path=self.port_name, flags=os.O_RDWR)
+                    self.file_descriptor.value = os.open(path=self.port_name, flags=os.O_RDWR)
                 except OSError as e:
                     logging.debug("Error caused by %s", e)
                     raise OSError("Could not find %s", self.device_name)
@@ -184,7 +190,7 @@ class Driver:
             win32file.WriteFile(self.device, self.last_written_message.encode(), None)
         else:
             with self.file_descriptor_lock:
-                os.write(self.file_descriptor, self.last_written_message.encode())
+                os.write(self.file_descriptor.value, self.last_written_message.encode())
 
     def _check_ack(self, data: str) -> bool:
         last_written = self.last_written_message[:-1]
@@ -204,7 +210,7 @@ class Driver:
     else:
         @property
         def is_open(self) -> bool:
-            return self.file_descriptor != -1
+            return self.file_descriptor.value != -1
 
     if platform.system() == "Windows":
         def close(self) -> None:
@@ -214,10 +220,10 @@ class Driver:
                 logging.info("Closed connection to %s", self.device_name)
     else:
         def close(self) -> None:
-            if self.file_descriptor != -1:
+            if self.file_descriptor.value != -1:
                 self.connected.clear()
                 with self.file_descriptor_lock:
-                    os.close(self.file_descriptor)
+                    os.close(self.file_descriptor.value)
                 logging.info("Closed connection to %s", self.device_name)
 
     if platform.system() == "Windows":
@@ -252,11 +258,8 @@ class Driver:
             while self.connected.is_set():
                 try:
                     with self.file_descriptor_lock:
-                        received = os.read(self.file_descriptor, Driver.IO_BUFFER_SIZE)
+                        received = os.read(self.file_descriptor.value, Driver.IO_BUFFER_SIZE)
                     self.received_data.put(received.decode())
-                    if self.device_name == "Laser" or self.device_name == "Tec":
-                        # Workaround for rasperry pi because the data comes to fast for it
-                        time.sleep(1)
                 except OSError as e:
                     logging.error("Connection to %s lost", self.device_name)
                     logging.debug("Error caused by %s", e)

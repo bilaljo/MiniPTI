@@ -16,8 +16,8 @@
     "Probe Laser": {
         "max_current_mA": 14,
         "current_bits": 123,
-        "constant_current": false,
-        "constant_light": true,
-        "photo_diode_gain": 3
+        "constant_current": true,
+        "constant_light": false,
+        "photo_diode_gain": 1
     }
 }
