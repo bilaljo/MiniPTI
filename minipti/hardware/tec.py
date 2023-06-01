@@ -155,9 +155,8 @@ class Driver(serial_device.Driver):
         setpoint_temperature: float = tec.system_parameter.setpoint_temperature
         # Given by hardware; °C -> Bit
         setpoint_temperature = setpoint_temperature * 100 + 32.768
-        setpoint_temperature_hex = f"{setpoint_temperature:0{Driver._NUMBER_OF_DIGITS}X}"
         channel = 1 if laser == "Pump Laser" else 2
-        self.write(f"SS{channel}" + setpoint_temperature_hex)
+        self.write(f"SS{channel}" + str(round(setpoint_temperature, 4)))
 
     def set_loop_time_value(self, laser: str):
         tec: Tec = self[laser]

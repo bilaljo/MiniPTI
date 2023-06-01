@@ -676,10 +676,12 @@ class Tec(QtWidgets.QWidget, _Frames, _CreateButton):
         model.tec_signals[self.laser].d_value.connect(Tec._update_text_field(self.text_fields.d_value))
         model.tec_signals[self.laser].setpoint_temperature.connect(
             Tec._update_text_field(self.text_fields.setpoint_temperature))
-        model.tec_signals[self.laser].loop_time.connect(Tec._update_text_field(self.text_fields.loop_time))
+        model.tec_signals[self.laser].loop_time.connect(Tec._update_text_field(self.text_fields.loop_time,
+                                                                               floating=False))
         model.tec_signals[self.laser].reference_resistor.connect(
             Tec._update_text_field(self.text_fields.reference_resistor))
-        model.tec_signals[self.laser].max_power.connect(Tec._update_text_field(self.text_fields.max_power))
+        model.tec_signals[self.laser].max_power.connect(Tec._update_text_field(self.text_fields.max_power,
+                                                                               floating=False))
         model.tec_signals[self.laser].mode.connect(self.update_mode)
 
     def _init_frames(self) -> None:
@@ -689,10 +691,16 @@ class Tec(QtWidgets.QWidget, _Frames, _CreateButton):
         self.create_frame(master=self, title="Configuration", x_position=3, y_position=0)
 
     @staticmethod
-    @QtCore.pyqtSlot(float)
-    def _update_text_field(text_field: QtWidgets.QLineEdit):
-        def update(value: float):
-            text_field.setText(str(round(value, 2)))
+    def _update_text_field(text_field: QtWidgets.QLineEdit, floating=True):
+
+        if floating:
+            @QtCore.pyqtSlot(float)
+            def update(value: float) -> None:
+                text_field.setText(str(round(value, 2)))
+        else:
+            @QtCore.pyqtSlot(int)
+            def update(value: int) -> None:
+                text_field.setText(str(value))
 
         return update
 

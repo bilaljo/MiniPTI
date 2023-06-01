@@ -430,33 +430,32 @@ class Tec:
         self.tec.apply_configuration()
 
     def update_d_value(self, d_value: str) -> None:
-        self.tec.d_value = _string_to_float(d_value)
+        self.tec.d_value = _string_to_int(d_value)
 
     def update_i_1_value(self, i_1_value: str) -> None:
-        self.tec.i_1_value = _string_to_float(i_1_value)
+        self.tec.i_1_value = _string_to_int(i_1_value)
 
     def update_i_2_value(self, i_2_value: str) -> None:
-        self.tec.i_2_value = _string_to_float(i_2_value)
+        self.tec.i_2_value = _string_to_int(i_2_value)
 
     def update_p_value(self, p_value: str) -> None:
-        self.tec.p_value = _string_to_float(p_value)
+        self.tec.p_value = _string_to_int(p_value)
 
     def update_setpoint_temperature(self, setpoint_temperature: str) -> None:
         self.tec.setpoint_temperature = _string_to_float(setpoint_temperature)
 
     def update_loop_time(self, loop_time: str) -> None:
-        loop_time = _string_to_float(loop_time)
+        loop_time = _string_to_int(loop_time)
         try:
             self.tec.loop_time = loop_time
         except ValueError as e:
             QtWidgets.QMessageBox.critical(self.view, "TEC Error", str(e))
-            model.tec_signals[self.laser].loop_time.emit(self.tec.loop_time)
 
     def update_reference_resistor(self, reference_resistor: str) -> None:
         self.tec.reference_resistor = _string_to_float(reference_resistor)
 
     def update_max_power(self, max_power: str) -> None:
-        self.tec.max_power = _string_to_float(max_power)
+        self.tec.max_power = _string_to_int(max_power)
 
     def set_heating(self) -> None:
         self.tec.heating = True

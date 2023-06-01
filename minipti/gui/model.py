@@ -360,14 +360,14 @@ class TecMode(enum.IntEnum):
 @dataclass(init=False, frozen=True)
 class TecSignals(QtCore.QObject):
     mode = QtCore.pyqtSignal(TecMode)
-    p_value = QtCore.pyqtSignal(float)
-    d_value = QtCore.pyqtSignal(float)
-    i_1_value = QtCore.pyqtSignal(float)
-    i_2_value = QtCore.pyqtSignal(float)
+    p_value = QtCore.pyqtSignal(int)
+    d_value = QtCore.pyqtSignal(int)
+    i_1_value = QtCore.pyqtSignal(int)
+    i_2_value = QtCore.pyqtSignal(int)
     setpoint_temperature = QtCore.pyqtSignal(float)
-    loop_time = QtCore.pyqtSignal(float)
+    loop_time = QtCore.pyqtSignal(int)
     reference_resistor = QtCore.pyqtSignal(float)
-    max_power = QtCore.pyqtSignal(float)
+    max_power = QtCore.pyqtSignal(int)
     enabled = QtCore.pyqtSignal(bool)
     clear_plots = QtCore.pyqtSignal()
 
@@ -990,7 +990,7 @@ class Tec(Serial):
         return self.driver[self.laser].pid.integral_value[0]
 
     @i_1_value.setter
-    def i_1_value(self, i_value: float) -> None:
+    def i_1_value(self, i_value: int) -> None:
         self.driver[self.laser].pid.integral_value[0] = i_value
         self.driver.set_pid_i_value(self.laser, 0)
 
@@ -1022,18 +1022,22 @@ class Tec(Serial):
         self.driver.set_setpoint_temperature_value(self.laser)
 
     @property
-    def loop_time(self) -> float:
+    def loop_time(self) -> int:
         return self.driver[self.laser].system_parameter.loop_time
 
     @loop_time.setter
-    def loop_time(self, loop_time: float) -> None:
-        min_loop_time: float = hardware.tec.Driver.MIN_LOOP_TIME
-        max_loop_time: float = hardware.tec.Driver.MAX_LOOP_TIME
-        if min_loop_time <= loop_time <= max_loop_time:
+    def loop_time(self, loop_time: int) -> None:
+        min_loop_time: int = hardware.tec.Driver.MIN_LOOP_TIME
+        max_loop_time: int = hardware.tec.Driver.MAX_LOOP_TIME
+        if isinstance(loop_time, int) and min_loop_time <= loop_time <= max_loop_time:
             self.driver[self.laser].system_parameter.loop_time = loop_time
             self.driver.set_loop_time_value(self.laser)
         else:
-            raise ValueError(f"Loop time should between {min_loop_time} and {max_loop_time} but is {loop_time}")
+            tec_signals[self.laser].loop_time.emit(self.loop_time)
+            if not isinstance(loop_time, int):
+                raise ValueError(f"Loop time must be an integer value")
+            else:
+                raise ValueError(f"Loop time should between {min_loop_time} and {max_loop_time} but is {loop_time}")
 
     @property
     def reference_resistor(self) -> float:

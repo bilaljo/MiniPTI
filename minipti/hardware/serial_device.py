@@ -66,7 +66,7 @@ class Driver:
                         if hardware_id == self.device_id:
                             self.port_name = port.device
                             logging.info(f"Found {self.device_name} at {self.port_name}")
-                            break
+                            return
                 except serial.SerialException:
                     continue
         else:
