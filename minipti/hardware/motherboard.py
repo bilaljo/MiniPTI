@@ -98,10 +98,10 @@ class Driver(serial_device.Driver):
     def __init__(self):
         serial_device.Driver.__init__(self)
         self.connected = threading.Event()
-        self._package_data = PackageData(DAQData(queue.Queue(maxsize=Driver._QUEUE_SIZE),
-                                                 queue.Queue(maxsize=Driver._QUEUE_SIZE),
-                                                 queue.Queue(maxsize=Driver._QUEUE_SIZE)),
-                                         queue.Queue(maxsize=Driver._QUEUE_SIZE))
+        self.data = PackageData(DAQData(queue.Queue(maxsize=Driver._QUEUE_SIZE),
+                                        queue.Queue(maxsize=Driver._QUEUE_SIZE),
+                                        queue.Queue(maxsize=Driver._QUEUE_SIZE)),
+                                queue.Queue(maxsize=Driver._QUEUE_SIZE))
         self._buffer = ""
         self._encoded_buffer = DAQData(deque(), [deque(), deque(), deque()],
                                        [deque(), deque(), deque()])
@@ -126,19 +126,19 @@ class Driver(serial_device.Driver):
 
     @property
     def bms(self) -> BMSData:
-        return self._package_data.BMS.get(block=True)
+        return self.data.BMS.get(block=True)
 
     @property
     def ref_signal(self) -> deque:
-        return self._package_data.DAQ.ref_signal.get(block=True)
+        return self.data.DAQ.ref_signal.get(block=True)
 
     @property
     def dc_coupled(self) -> deque:
-        return self._package_data.DAQ.dc_coupled.get(block=True)
+        return self.data.DAQ.dc_coupled.get(block=True)
 
     @property
     def ac_coupled(self) -> deque:
-        return self._package_data.DAQ.ac_coupled.get(block=True)
+        return self.data.DAQ.ac_coupled.get(block=True)
 
     @property
     def buffer_size(self) -> int:
@@ -158,7 +158,7 @@ class Driver(serial_device.Driver):
 
     @property
     def bms_package_empty(self) -> bool:
-        return self._package_data.BMS.empty()
+        return self.data.BMS.empty()
 
     @property
     def saved_sample_numbers(self) -> int:
@@ -166,10 +166,10 @@ class Driver(serial_device.Driver):
 
     def clear_buffer(self) -> None:
         self._buffer = ""
-        self._package_data = PackageData(DAQData(queue.Queue(maxsize=Driver._QUEUE_SIZE),
-                                                 queue.Queue(maxsize=Driver._QUEUE_SIZE),
-                                                 queue.Queue(maxsize=Driver._QUEUE_SIZE)),
-                                         queue.Queue(maxsize=Driver._QUEUE_SIZE))
+        self.data = PackageData(DAQData(queue.Queue(maxsize=Driver._QUEUE_SIZE),
+                                        queue.Queue(maxsize=Driver._QUEUE_SIZE),
+                                        queue.Queue(maxsize=Driver._QUEUE_SIZE)),
+                                queue.Queue(maxsize=Driver._QUEUE_SIZE))
 
     @staticmethod
     def _binary_to_2_complement(number: int, byte_length: int) -> int:
@@ -303,7 +303,7 @@ class Driver(serial_device.Driver):
             remaining_capacity=int(data[BMS.REMAINING_CAPACITY_INDEX:BMS.REMAINING_CAPACITY_INDEX + 4], base=16))
         if bms.charging:
             bms.minutes_left = float("inf")
-        self._package_data.BMS.put(bms)
+        self.data.BMS.put(bms)
 
     @staticmethod
     def _crc_check(data: str, source) -> bool:
@@ -339,16 +339,16 @@ class Driver(serial_device.Driver):
         Creates a package of samples that represents approximately 1 s data. It contains 8000
         samples.
         """
-        self._package_data.DAQ.ref_signal.put([self._encoded_buffer.ref_signal.popleft()
-                                               for _ in range(self.config.daq.number_of_samples)])
+        self.data.DAQ.ref_signal.put([self._encoded_buffer.ref_signal.popleft()
+                                      for _ in range(self.config.daq.number_of_samples)])
         dc_package = [[], [], []]
         ac_package = [[], [], []]
         for _ in itertools.repeat(None, self.config.daq.number_of_samples):
             for channel in range(Driver._CHANNELS):
                 dc_package[channel].append(self._encoded_buffer.dc_coupled[channel].popleft())
                 ac_package[channel].append(self._encoded_buffer.ac_coupled[channel].popleft())
-        self._package_data.DAQ.dc_coupled.put(dc_package)
-        self._package_data.DAQ.ac_coupled.put(ac_package)
+        self.data.DAQ.dc_coupled.put(dc_package)
+        self.data.DAQ.ac_coupled.put(ac_package)
 
     def set_valve(self) -> None:
         if self.bypass:
@@ -360,10 +360,10 @@ class Driver(serial_device.Driver):
 
     def _process_data(self) -> None:
         self._reset()
-        self._package_data = PackageData(DAQData(queue.Queue(maxsize=Driver._QUEUE_SIZE),
-                                                 queue.Queue(maxsize=Driver._QUEUE_SIZE),
-                                                 queue.Queue(maxsize=Driver._QUEUE_SIZE)),
-                                         queue.Queue(maxsize=Driver._QUEUE_SIZE))
+        self.data = PackageData(DAQData(queue.Queue(maxsize=Driver._QUEUE_SIZE),
+                                        queue.Queue(maxsize=Driver._QUEUE_SIZE),
+                                        queue.Queue(maxsize=Driver._QUEUE_SIZE)),
+                                queue.Queue(maxsize=Driver._QUEUE_SIZE))
         self._buffer = ""
         self._encoded_buffer = DAQData(deque(), [deque(), deque(), deque()], [deque(), deque(), deque()])
         self._sample_numbers = deque(maxlen=2)

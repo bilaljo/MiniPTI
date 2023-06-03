@@ -59,7 +59,10 @@ class Home:
         self.motherboard.bypass = not self.motherboard.bypass
 
     def update_valve_period(self, period: str) -> None:
-        period = _string_to_int(period)
+        try:
+            period = _string_to_number(self.view, period, cast=int)
+        except ValueError:
+            period = 600
         try:
             self.motherboard.valve_period = period
         except ValueError as error:
@@ -69,7 +72,10 @@ class Home:
             QtWidgets.QMessageBox.critical(self.view, "Valve Error", f"{str(error)}. {info_text}")
 
     def update_valve_duty_cycle(self, duty_cycle: str) -> None:
-        duty_cycle = _string_to_int(duty_cycle)
+        try:
+            duty_cycle = _string_to_number(self.view, duty_cycle, cast=int)
+        except ValueError:
+            duty_cycle = 50
         try:
             self.motherboard.valve_duty_cycle = duty_cycle
         except ValueError as error:
@@ -294,20 +300,16 @@ class Home:
         self.motherboard.bypass = bypass
 
 
-def _string_to_float(string_value: str) -> float:
-    try:
-        return float(string_value)
-    except ValueError:
-        logging.error("Could not apply new value. Invalid symbols encountered.")
-        return -1
+T = typing.TypeVar("T")
 
 
-def _string_to_int(string_value: str) -> int:
+def _string_to_number(parent: QtWidgets.QWidget, string_number: str, cast: typing.Callable[[str], T]) -> T:
     try:
-        return int(string_value)
+        return cast(string_number)
     except ValueError:
         logging.error("Could not apply new value. Invalid symbols encountered.")
-        return 0
+        QtWidgets.QMessageBox.critical(parent, "Value Error", "Could not apply new value. Invalid symbols encountered.")
+        raise ValueError
 
 
 def _driver_config_file_path(last_directory: str, parent: QtWidgets.QWidget, device: str) -> str:
@@ -385,8 +387,9 @@ class ProbeLaser(Laser):
         self.laser = model.ProbeLaser()
 
     def update_max_current_probe_laser(self, max_current: str) -> None:
-        new_max_current = _string_to_float(max_current)
-        if new_max_current == -1:
+        try:
+            new_max_current = _string_to_number(self.view, max_current, cast=int)
+        except ValueError:
             return
         self.laser.probe_laser_max_current = new_max_current
 
@@ -430,32 +433,52 @@ class Tec:
         self.tec.apply_configuration()
 
     def update_d_value(self, d_value: str) -> None:
-        self.tec.d_value = _string_to_int(d_value)
+        try:
+            self.tec.d_value = _string_to_number(self.view, d_value, cast=int)
+        except ValueError:
+            self.tec.d_value = 0
 
     def update_i_1_value(self, i_1_value: str) -> None:
-        self.tec.i_1_value = _string_to_int(i_1_value)
+        try:
+            self.tec.i_1_value = _string_to_number(self.view, i_1_value, cast=int)
+        except ValueError:
+            self.tec.i_1_value = 0
 
     def update_i_2_value(self, i_2_value: str) -> None:
-        self.tec.i_2_value = _string_to_int(i_2_value)
+        try:
+            self.tec.i_2_value = _string_to_number(self.view, i_2_value, cast=int)
+        except ValueError:
+            self.tec.i_2_value = 0
 
     def update_p_value(self, p_value: str) -> None:
-        self.tec.p_value = _string_to_int(p_value)
+        try:
+            self.tec.p_value = _string_to_number(self.view, p_value, cast=int)
+        except ValueError:
+            self.tec.p_value = 0
 
     def update_setpoint_temperature(self, setpoint_temperature: str) -> None:
-        self.tec.setpoint_temperature = _string_to_float(setpoint_temperature)
+        try:
+            self.tec.setpoint_temperature = _string_to_number(self.view, setpoint_temperature, cast=float)
+        except ValueError:
+            self.tec.setpoint_temperature = hardware.tec.ROOM_TEMPERATURE_CELSIUS
 
     def update_loop_time(self, loop_time: str) -> None:
-        loop_time = _string_to_int(loop_time)
         try:
-            self.tec.loop_time = loop_time
-        except ValueError as e:
-            QtWidgets.QMessageBox.critical(self.view, "TEC Error", str(e))
+            self.tec.loop_time = _string_to_number(self.view, loop_time, cast=int)
+        except ValueError:
+            self.tec.loop_time = hardware.tec.Driver.MAX_LOOP_TIME
 
     def update_reference_resistor(self, reference_resistor: str) -> None:
-        self.tec.reference_resistor = _string_to_float(reference_resistor)
+        try:
+            self.tec.reference_resistor = _string_to_number(self.view, reference_resistor, cast=float)
+        except ValueError:
+            self.tec.reference_resistor = 0
 
     def update_max_power(self, max_power: str) -> None:
-        self.tec.max_power = _string_to_int(max_power)
+        try:
+            self.tec.max_power = _string_to_number(self.view, max_power, cast=int)
+        except ValueError:
+            self.tec.max_power = 0
 
     def set_heating(self) -> None:
         self.tec.heating = True

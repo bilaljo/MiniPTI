@@ -969,7 +969,7 @@ class Tec(Serial):
         cls.driver.save_configuration()
 
     def load_configuration(self) -> None:
-        Tec.driver.load_config()
+        Tec.driver.load_configuration()
         self.fire_configuration_change()
 
     @staticmethod
@@ -1004,13 +1004,16 @@ class Tec(Serial):
         self.driver.set_pid_i_value(self.laser, 1)
 
     @property
-    def d_value(self) -> float:
+    def d_value(self) -> int:
         return self.driver[self.laser].pid.derivative_value
 
     @d_value.setter
-    def d_value(self, d_value: float) -> None:
-        self.driver[self.laser].pid.derivative_value = d_value
-        self.driver.set_pid_d_value(self.laser)
+    def d_value(self, d_value: int) -> None:
+        if isinstance(d_value, int) and d_value >= 0:
+            self.driver[self.laser].pid.derivative_value = d_value
+            self.driver.set_pid_d_value(self.laser)
+        else:
+            tec_signals[self.laser].d_value.emit(self.driver[self.laser].pid.derivative_value)
 
     @property
     def setpoint_temperature(self) -> float:
