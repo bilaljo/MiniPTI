@@ -233,7 +233,7 @@ class Driver(serial_device.Driver):
         self._encoded_buffer.ac_coupled = [deque(), deque(), deque()]
         self._sample_numbers = deque(maxlen=2)
 
-    def encode_data(self) -> None:
+    def _encode_data(self) -> None:
         received_data = self._buffer + self.received_data.get(block=True)
         split_data = received_data.split("\n")
         for i in range(len(split_data) - 1):
@@ -369,7 +369,7 @@ class Driver(serial_device.Driver):
         self._sample_numbers = deque(maxlen=2)
         while self.connected.is_set():
             self.running.wait()
-            self.encode_data()
+            self._encode_data()
             if len(self._encoded_buffer.ref_signal) >= self.config.daq.number_of_samples:
                 self.build_sample_package()
 

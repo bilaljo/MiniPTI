@@ -40,7 +40,7 @@ class MotherBoardDAQ(DAQTest):
         A valid package got directly used, the buffer keeps empty.
         """
         self.driver.received_data.put(self.received_data_daq[0] + "\n")
-        self.driver.encode_data()
+        self.driver._encode_data()
         self.assertEqual(self.driver.buffer_size, 0)
         self._package_test(1)
 
@@ -49,7 +49,7 @@ class MotherBoardDAQ(DAQTest):
         A package with valid header but missing termination symbol.
         """
         self.driver.received_data.put(self.received_data_daq[1])
-        self.driver.encode_data()
+        self.driver._encode_data()
         self.assertEqual(self.driver.buffer_size, len(self.received_data_daq[1]))
 
     def test_daq_3_incomplete_package_2(self) -> None:
@@ -57,7 +57,7 @@ class MotherBoardDAQ(DAQTest):
         The continuation of the above package. The buffer get increased.
         """
         self.driver.received_data.put(self.received_data_daq[2])
-        self.driver.encode_data()
+        self.driver._encode_data()
         self.assertEqual(self.driver.buffer_size,
                          len(self.received_data_daq[1]) + len(self.received_data_daq[2]))
 
@@ -67,7 +67,7 @@ class MotherBoardDAQ(DAQTest):
         now. This causes the buffer to be empty and increasing the total package size.
         """
         self.driver.received_data.put(self.received_data_daq[3] + "\n")
-        self.driver.encode_data()
+        self.driver._encode_data()
         self.assertEqual(self.driver.buffer_size, 0)
         self._package_test(2)
 
@@ -77,7 +77,7 @@ class MotherBoardDAQ(DAQTest):
         based on the packages.
         """
         self.driver.received_data.put(self.received_data_daq[4] + "\n")
-        self.driver.encode_data()
+        self.driver._encode_data()
         self.assertEqual(self.driver.saved_sample_numbers, 0)
         # Because of rejection of the package, the packages are completely cleared
         self._package_test(0)
@@ -89,7 +89,7 @@ class MotherBoardDAQ(DAQTest):
         """
         self.driver.received_data.put(self.received_data_daq[5][:4109] + "\n"
                                       + self.received_data_daq[5][4109:])
-        self.driver.encode_data()
+        self.driver._encode_data()
         self.assertEqual(self.driver.buffer_size, len(self.received_data_daq[5][4109:]))
         self._package_test(1)
 
@@ -101,11 +101,11 @@ class MotherBoardDAQ(DAQTest):
         """
         self.driver.received_data.put(self.received_data_daq[6][:4109] + "\n"
                                       + self.received_data_daq[6][4109:])
-        self.driver.encode_data()
+        self.driver._encode_data()
         self.assertEqual(self.driver.buffer_size, len(self.received_data_daq[6][4109:]))
         self._package_test(1)
         self.driver.received_data.put(self.received_data_daq[7] + "\n")
-        self.driver.encode_data()
+        self.driver._encode_data()
         self.assertEqual(self.driver.buffer_size, 0)
         self._package_test(1)
 
@@ -116,10 +116,10 @@ class MotherBoardDAQ(DAQTest):
         it has to be rejected.
         """
         self.driver.received_data.put(self.received_data_daq[7])
-        self.driver.encode_data()
+        self.driver._encode_data()
         self.assertEqual(self.driver.buffer_size, len(self.received_data_daq[7]))
         self.driver.received_data.put(self.received_data_daq[8] + "\n")
-        self.driver.encode_data()
+        self.driver._encode_data()
         self.assertEqual(self.driver.buffer_size, 0)
         self._package_test(1)
 
@@ -151,7 +151,7 @@ class MotherBoardBMS(unittest.TestCase):
         A valid BMS package can be directly encoded and used.
         """
         self.driver.received_data.put(self.received_data_bms[0] + "\n")
-        self.driver.encode_data()
+        self.driver._encode_data()
         self.assertEqual(self.driver.buffer_size, 0)
         self._bms_check_1()
 
@@ -160,7 +160,7 @@ class MotherBoardBMS(unittest.TestCase):
         A BMS package that is not completed yet (no termination symbol encountered).
         """
         self.driver.received_data.put(self.received_data_bms[1])
-        self.driver.encode_data()
+        self.driver._encode_data()
         self.assertEqual(self.driver.buffer_size, len(self.received_data_bms[1]))
 
     def test_bms_3_completed_package(self) -> None:
@@ -168,7 +168,7 @@ class MotherBoardBMS(unittest.TestCase):
         The continuation of above package that is completed now.
         """
         self.driver.received_data.put(self.received_data_bms[2] + "\n")
-        self.driver.encode_data()
+        self.driver._encode_data()
         self._bms_check_1()
 
     def test_bms_4_invalid_crc(self) -> None:
@@ -177,7 +177,7 @@ class MotherBoardBMS(unittest.TestCase):
         the package but keep the buffer.
         """
         self.driver.received_data.put(self.received_data_bms[3] + "\n" + self.received_data_bms[1])
-        self.driver.encode_data()
+        self.driver._encode_data()
         self.assertEqual(self.driver.buffer_size, len(self.received_data_bms[1]))
         self.assertTrue(self.driver.bms_package_empty)
         self.driver.clear_buffer()
@@ -187,7 +187,7 @@ class MotherBoardBMS(unittest.TestCase):
         Tests a package that consists with a full package plus a not yet completed one.
         """
         self.driver.received_data.put(self.received_data_bms[4][:39] + "\n" + self.received_data_bms[4][39:])
-        self.driver.encode_data()
+        self.driver._encode_data()
         self.assertEqual(self.driver.buffer_size, len(self.received_data_bms[4][39:]))
         self._bms_check_1()
         self.driver.clear_buffer()
@@ -210,7 +210,7 @@ class MotherBoardDAQBMS(DAQTest):
         self.driver.received_data.put(self.received_data_package[0] + "\n"
                                       + self.received_data_package[1] + "\n"
                                       + self.received_data_package[2] + "\n")
-        self.driver.encode_data()
+        self.driver._encode_data()
         self.assertEqual(self.driver.buffer_size, 0)
         self._package_test(2)
 

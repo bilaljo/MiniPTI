@@ -1,0 +1,13 @@
+{
+    "Low Power Laser": {
+        "current": {
+            "max_mA": 40,
+            "bits": 35
+        },
+        "mode": {
+            "constant_current": true,
+            "constant_light": false
+        },
+        "photo_diode_gain": 1
+    }
+}

@@ -1,6 +1,6 @@
 import abc
+import functools
 import logging
-import multiprocessing
 import os
 import platform
 import re
@@ -19,6 +19,54 @@ else:
     import multiprocessing
 import serial
 from serial.tools import list_ports
+
+
+class SerialStream:
+    _COMMAND_PREFIX = 3
+    _COMMAND = 0
+    _VALUE = 1
+    _NUMBER_OF_HEX_DIGITS = 4
+    _STREAM_PATTERN = re.compile(r"[GSC][a-zA-Z][\da-zA-Z][\da-fA-F]{4}")  # 4 Hex Digits
+    _MIN_VALUE = 0
+    _MAX_VALUE = (1 << _NUMBER_OF_HEX_DIGITS * 4) - 1  # 1 hex byte corresponds to 4 binary bytes
+
+    def __init__(self, stream: str):
+        """
+        A serial stream consistent of three bytes whereby the first represents a command for the serial device
+        (G for Get, S for Set and C for Command ("execute")). The next 4 bytes represent the value that is needed for
+        the command. The values are represented in hex strings.
+        """
+        if not SerialStream._STREAM_PATTERN.fullmatch(stream):
+            raise ValueError(f"Stream {stream} is not valid")
+        self._stream = stream
+        self._package: list[str, str] = [stream[:SerialStream._COMMAND_PREFIX], stream[SerialStream._COMMAND_PREFIX:]]
+
+    def __str__(self) -> str:
+        return self._stream
+
+    def __repr__(self) -> str:
+        return f"SerialStream(command={self.command}, value={self.value}, stream={self.stream})"
+
+    @property
+    def command(self) -> str:
+        return self._package[SerialStream._COMMAND]
+
+    @property
+    def value(self) -> int:
+        return int(self._package[SerialStream._VALUE], base=16)
+
+    @value.setter
+    def value(self, value: str | int) -> None:
+        if not (SerialStream._MIN_VALUE <= int(value) < SerialStream._MAX_VALUE):
+            raise ValueError("Value is out of range for 4 digit hex values")
+        elif not isinstance(value, str):
+            value = f"{value:0{SerialStream._NUMBER_OF_HEX_DIGITS}X}"
+        self._package[SerialStream._VALUE] = value
+        self._stream = self._stream[:SerialStream._COMMAND_PREFIX] + self._package[SerialStream._VALUE]
+
+    @property
+    def stream(self) -> str:
+        return self._stream
 
 
 class Driver:
@@ -165,15 +213,38 @@ class Driver:
             elif error == Error.UNKNOWN_COMMAND:
                 raise OSError(f"Unknown command from {self.port_name}")
 
-    def write(self, message: Union[str, bytes, bytearray]) -> bool:
-        """
-        Sends data to the serial device if connected and no acknowledge is pending.
-        """
-        while self.connected.is_set():
-            if isinstance(message, str):
-                self._write_buffer.put(message, block=False)
-            else:
-                self._write_buffer.put(message.decode(), block=False)
+    @functools.singledispatchmethod
+    def write(self, message: str) -> bool:
+        if self.connected.is_set():
+            self._write_buffer.put(message, block=False)
+            return True
+        return False
+
+    @write.register
+    def _(self, message: int) -> bool:
+        if self.connected.is_set():
+            self._write_buffer.put(str(message), block=False)
+            return True
+        return False
+
+    @write.register(SerialStream)
+    def _(self, message: SerialStream) -> bool:
+        if self.connected.is_set():
+            self._write_buffer.put(str(message), block=False)
+            return True
+        return False
+
+    @write.register
+    def _(self, message: bytes) -> bool:
+        if self.connected.is_set():
+            self._write_buffer.put(message.decode(), block=False)
+            return True
+        return False
+
+    @write.register
+    def _(self, message: bytearray) -> bool:
+        if self.connected.is_set():
+            self._write_buffer.put(message.decode(), block=False)
             return True
         return False
 
@@ -265,7 +336,7 @@ class Driver:
                     logging.debug("Error caused by %s", e)
 
     @abc.abstractmethod
-    def encode_data(self) -> None:
+    def _encode_data(self) -> None:
         """
         Encodes incoming data of the serial device. Each package has a package identifier, to decide the decoding
         algorithm of it.

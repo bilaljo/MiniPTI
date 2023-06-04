@@ -45,8 +45,8 @@ class Home:
         self.motherboard = model.Motherboard()
         self.pump_laser = model.PumpLaser()
         self.probe_laser = model.ProbeLaser()
-        self.pump_laser_tec = model.Tec("Pump Laser")
-        self.probe_laser_tec = model.Tec("Probe Laser")
+        self.pump_laser_tec = model.Tec(model.Tec.PUMP_LASER)
+        self.probe_laser_tec = model.Tec(model.Tec.PROBE_LASER)
         self.last_file_path = os.getcwd()
         self.settings_model.setup_settings_file()
         threading.Thread(target=self._init_devices, daemon=True, name="Init Devices Thread").start()
@@ -385,10 +385,11 @@ class ProbeLaser(Laser):
     def __init__(self, parent):
         Laser.__init__(self, parent)
         self.laser = model.ProbeLaser()
+        self.view = parent
 
     def update_max_current_probe_laser(self, max_current: str) -> None:
         try:
-            new_max_current = _string_to_number(self.view, max_current, cast=int)
+            new_max_current = _string_to_number(self.view, max_current, cast=float)
         except ValueError:
             return
         self.laser.probe_laser_max_current = new_max_current
@@ -401,7 +402,7 @@ class ProbeLaser(Laser):
         self.laser.probe_laser_mode = index
 
     def update_current_probe_laser(self, bits: int) -> None:
-        effective_bits: int = hardware.laser.Driver.CURRENT_BITS - bits
+        effective_bits: int = hardware.laser.LowPowerLaser.CURRENT_BITS - bits
         if effective_bits != self.laser.current_bits_probe_laser:
             self.laser.current_bits_probe_laser = effective_bits
 
@@ -410,12 +411,11 @@ class ProbeLaser(Laser):
 
 
 class Tec:
-    def __init__(self, laser: str, parent):
+    def __init__(self, laser: int, parent):
         self.tec = model.Tec(laser)
         self.heating = False
         self.cooling = False
         self.view = parent
-        self.laser = laser
 
     def save_configuration(self) -> None:
         self.tec.save_configuration()
@@ -463,10 +463,7 @@ class Tec:
             self.tec.setpoint_temperature = hardware.tec.ROOM_TEMPERATURE_CELSIUS
 
     def update_loop_time(self, loop_time: str) -> None:
-        try:
-            self.tec.loop_time = _string_to_number(self.view, loop_time, cast=int)
-        except ValueError:
-            self.tec.loop_time = hardware.tec.Driver.MAX_LOOP_TIME
+        self.tec.loop_time = _string_to_number(self.view, loop_time, cast=int)
 
     def update_reference_resistor(self, reference_resistor: str) -> None:
         try:

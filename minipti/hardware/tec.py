@@ -1,5 +1,4 @@
 import dataclasses
-import enum
 import json
 import logging
 import os
@@ -13,6 +12,95 @@ from .. import json_parser
 
 
 ROOM_TEMPERATURE_CELSIUS = 23
+
+
+@dataclass
+class Data:
+    set_point: [float, float]
+    actual_temperature: [float, float]
+
+
+class _TemperatureIndex(typing.NamedTuple):
+    SET_POINT = [7, 8]
+    PT100B = [0, 1]
+    KT = [4, 5]
+    NTC = [16, 17]
+
+
+@dataclass(frozen=True)
+class Status:
+    VALUE = 0
+    TEXT = 1
+    ERROR = [(0x0010, "Chip Error"), (0x0020, "Kt1: Open"), (0x0040, "Kt1 VCC shorted"),
+             (0x0080, "Kt1 GND shorted"), (0x2000, "Kt2 Open"), (0x4000, "Kt2 VCC shorted"),
+             (0x8000, "Kt2 GND shorted"), (0x0100, "TEC overcurrent"), (0x0200, "TEC overtemperature"),
+             (0x0400, "Pt100b chip error")]
+
+
+class Driver(serial_device.Driver):
+    _HARDWARE_ID = b"0003"
+    NAME = "Tec"
+
+    def __init__(self):
+        serial_device.Driver.__init__(self)
+        self.tec = [Tec(1, self), Tec(2, self)]
+
+    @property
+    def device_id(self) -> bytes:
+        return Driver._HARDWARE_ID
+
+    @property
+    def device_name(self):
+        return Driver.NAME
+
+    def _process_data(self) -> None:
+        while self.connected.is_set():
+            self._encode_data()
+
+    @staticmethod
+    def _bit_to_celsisus(bit_stream: str) -> float:
+        return float(bit_stream) / 100
+
+    def _encode_data(self) -> None:
+        received_data: str = self.received_data.get(block=True)
+        for received in received_data.split(Driver.TERMINATION_SYMBOL):
+            if not received:
+                continue
+            identifier = received[0]
+            if identifier == "N":
+                logging.error("Invalid command %s", received)
+                self.ready_write.set()
+            elif identifier == "S" or identifier == "C":
+                last_written = self.last_written_message
+                if received != last_written and received != last_written.capitalize():
+                    logging.error("Received message %s message, expected %s", received, last_written)
+                else:
+                    logging.debug("Command %s successfully applied", received)
+                self.ready_write.set()
+            elif identifier == "T":
+                data_frame = received.split("\t")[Driver._START_DATA_FRAME:]
+                status_byte_frame = int(data_frame[13])  # 13 is the index according to the protocol
+                for error in Status.ERROR:
+                    if error[Status.VALUE] & status_byte_frame:
+                        logging.error("Got \"%s\" from TEC Driver", error[Status.TEXT])
+                set_point = [Driver._bit_to_celsisus(data_frame[_TemperatureIndex.SET_POINT[0]]),
+                             Driver._bit_to_celsisus(data_frame[_TemperatureIndex.SET_POINT[1]])]
+                if self.tec[0].configuration.temperature_element.PT1000:
+                    actual_temperature = [Driver._bit_to_celsisus(data_frame[_TemperatureIndex.PT100B[0]]),
+                                          Driver._bit_to_celsisus(data_frame[_TemperatureIndex.PT100B[1]])]
+                elif self.tec[0].configuration.temperature_element.KT:
+                    actual_temperature = [Driver._bit_to_celsisus(data_frame[_TemperatureIndex.KT[0]]),
+                                          Driver._bit_to_celsisus(data_frame[_TemperatureIndex.KT[1]])]
+                elif self.tec[0].configuration.temperature_element.NTC:
+                    actual_temperature = [Driver._bit_to_celsisus(data_frame[_TemperatureIndex.NTC[0]]),
+                                          Driver._bit_to_celsisus(data_frame[_TemperatureIndex.NTC[1]])]
+                else:
+                    raise ValueError("Invalid Temperature Element")
+                self.data.put(Data(set_point, actual_temperature))
+            else:  # Broken data frame without header char
+                logging.error("Received invalid package without header")
+                self.ready_write.set()
+                continue
 
 
 @dataclass
@@ -44,257 +132,162 @@ class _SystemParameter:
 
 
 @dataclass
-class Tec:
+class Configuration:
     temperature_element: _TemperatureElement
     mode: _Mode
     pid: _PID
     system_parameter: _SystemParameter
 
 
-@dataclass
-class Temperature:
-    pump_laser: float
-    probe_laser: float
-
-    def __getitem__(self, item: str):
-        if item == "Pump Laser" or item == "Probe Laser":
-            return getattr(self, item.replace(" ", "_").casefold())
-        else:
-            raise KeyError("Can only subscribe Pump Laser or Probe Laser")
-
-
-@dataclass
-class Data:
-    set_point: Temperature
-    actual_temperature: Temperature
+class Commands:
+    def __init__(self, channel_number: int):
+        self.set_setpoint = serial_device.SerialStream(f"SS{channel_number}0000")
+        self.set_p_value = serial_device.SerialStream(f"SP{channel_number}0000")
+        self.set_i_value = [serial_device.SerialStream(f"SI{channel_number}0000"),
+                            serial_device. SerialStream(f"SI{channel_number + 2}0000")]
+        self.set_d_value = serial_device.SerialStream(f"SD{channel_number}0000")
+        self.set_control_loop = serial_device.SerialStream(f"SL{channel_number}0000")
+        self.set_fan_control = serial_device. SerialStream(f"SF{channel_number}0000")
+        self.set_max_output_power = serial_device.SerialStream(f"SO{channel_number}0000")
+        self.set_peltier_mode = serial_device.SerialStream(f"SM{channel_number}0000")
+        self.set_loop_interval = serial_device.SerialStream(f"SR{channel_number}0000")
+        self.set_ref_resistor = serial_device.SerialStream(f"SC{channel_number}0000")
 
 
-class _TemperatureIndex(typing.NamedTuple):
-    SET_POINT = [7, 8]
-    PT100B = [0, 1]
-    KT = [4, 5]
-    NTC = [16, 17]
+class Tec:
+    _HEATING = 0
+    _COOLING = 1
+    _MIN_LOOP_TIME = 25  # 25 ms
+    _MAX_LOOP_TIME = 5000  # 5 s
+    MIN_PID_VALUE = 0
+    MAX_PID_VALUE = 999
 
-
-@dataclass(frozen=True)
-class Status:
-    VALUE = 0
-    TEXT = 1
-    ERROR = [(0x0010, "Chip Error"), (0x0020, "Kt1: Open"), (0x0040, "Kt1 VCC shorted"),
-             (0x0080, "Kt1 GND shorted"), (0x2000, "Kt2 Open"), (0x4000, "Kt2 VCC shorted"),
-             (0x8000, "Kt2 GND shorted"), (0x0100, "TEC overcurrent"), (0x0200, "TEC overtemperature"),
-             (0x0400, "Pt100b chip error")]
-
-
-class TecChannel(enum.IntEnum):
-    PUMP_LASER = 1
-    PROBE_LASER = 2
-
-
-class TecMode(enum.IntEnum):
-    COOLING = 1
-    HEATING = 2
-
-
-class Driver(serial_device.Driver):
-    HARDWARE_ID = b"0003"
-    NAME = "Tec"
-    PROBE_LASER = 0
-    PUMP_LASER = 1
-    MIN_LOOP_TIME = 25  # 25 ms
-    MAX_LOOP_TIME = 5000  # 5 s
-    _NUMBER_OF_DIGITS = serial_device.Driver.NUMBER_OF_HEX_BYTES
-
-    def __init__(self, laser=""):
-        serial_device.Driver.__init__(self)
-        self.probe_laser: typing.Union[Tec, None] = None
-        self.pump_laser: typing.Union[Tec, None] = None
-        self.laser: str = laser
-        self.tec_channel = TecChannel.PUMP_LASER if self.laser == "Pump Laser" else TecChannel.PROBE_LASER
-        self.config_path: str = f"{os.path.dirname(__file__)}/configs/tec.json"
-        self._tec_probe_laser_enabled: bool = False
-        self._tec_pump_laser_enabled: bool = False
+    def __init__(self, channel_number: int, driver: Driver):
+        self.configuration: typing.Union[Configuration, None] = None
+        self.channel_number = channel_number
+        self.commands = Commands(self.channel_number)
+        self.config_path: str = f"{os.path.dirname(__file__)}/configs/tec/channel_{self.channel_number}.json"
+        self.driver = driver
+        self._enabled = False
         self.load_configuration()
 
-    def __getitem__(self, laser: str):
-        if laser == "Pump Laser" or laser == "Probe Laser":
-            return getattr(self, laser.replace(" ", "_").casefold())
-        raise KeyError("Can only subscribe Pump Laser or Probe Laser")
-
-    def __setitem__(self, laser: str, value: Tec):
-        if laser == "Pump Laser" or laser == "Probe Laser":
-            return setattr(self, laser.replace(" ", "_").casefold(), value)
-        raise KeyError("Can only subscribe Pump Laser or Probe Laser")
-
     @property
-    def device_id(self) -> bytes:
-        return Driver.HARDWARE_ID
+    def enabled(self) -> bool:
+        return self._enabled
 
-    @property
-    def device_name(self):
-        return Driver.NAME
+    @enabled.setter
+    def enabled(self, enable: bool) -> None:
+        self._enabled = enable
+        self.commands.set_control_loop.value = enable
+        self.commands.set_fan_control.value = enable
+        self.driver.write(self.commands.set_control_loop)
+        self.driver.write(self.commands.set_fan_control)
 
     def load_configuration(self) -> None:
         if not os.path.exists(self.config_path):
             logging.warning("Config File not found")
             logging.info("Creating a new file")
-            self._create_configuration("Pump Laser")
-            self._create_configuration("Probe Laser")
+            self._create_configuration()
             self.save_configuration()
         else:
             with open(self.config_path) as config:
                 try:
                     loaded_config = json.load(config)
-                    self.pump_laser = dacite.from_dict(Tec, loaded_config["Pump Laser"])
-                    self.probe_laser = dacite.from_dict(Tec, loaded_config["Probe Laser"])
+                    self.configuration = dacite.from_dict(Configuration, loaded_config["Tec"])
                 except (json.decoder.JSONDecodeError, dacite.exceptions.WrongTypeError):
                     # Config file corrupted or types are wrong
                     logging.warning("Config File was corrupted or wrong")
                     logging.info("Creating a new file")
-                    self._create_configuration("Pump Laser")
-                    self._create_configuration("Probe Laser")
+                    self._create_configuration()
                     self.save_configuration()
 
-    def _create_configuration(self, laser: str) -> None:
-        self[laser] = Tec(mode=_Mode(heating=False, cooling=True),
-                          pid=_PID(proportional_value=0, integral_value=[0, 0], derivative_value=0),
-                          system_parameter=_SystemParameter(ROOM_TEMPERATURE_CELSIUS, Driver.MAX_LOOP_TIME, 0, 0))
+    def _create_configuration(self) -> None:
+        self.configuration = Configuration(temperature_element=_TemperatureElement(PT1000=False, KT=False, NTC=True),
+                                           mode=_Mode(heating=False, cooling=True),
+                                           pid=_PID(proportional_value=0, integral_value=[0, 0], derivative_value=0),
+                                           system_parameter=_SystemParameter(ROOM_TEMPERATURE_CELSIUS,
+                                                                             Tec._MAX_LOOP_TIME, 0, 0))
 
     def save_configuration(self) -> None:
         with open(self.config_path, "w") as configuration:
-            lasers = {"Pump Laser": dataclasses.asdict(self.pump_laser),
-                      "Probe Laser": dataclasses.asdict(self.probe_laser)}
+            lasers = {f"Tec": dataclasses.asdict(self.configuration)}
             configuration.write(json_parser.to_json(lasers) + "\n")
 
     def apply_configuration(self) -> None:
-        for laser in ["Pump Laser", "Probe Laser"]:
-            self.set_pid_d_value()
-            self.set_pid_p_value()
-            self.set_pid_i_value(i=0)
-            self.set_pid_i_value(i=1)
-            self.set_loop_time_value()
-            if not self[self.laser].temperature_element.NTC:
-                self.set_reference_resistor_value()
-            self.set_max_power_value()
-            self.set_mode()
-            self.set_setpoint_temperature_value()
+        self.set_pid_d_value()
+        self.set_pid_p_value()
+        self.set_pid_i_value(i=0)
+        self.set_pid_i_value(i=1)
+        self.set_loop_time_value()
+        if not self.configuration.temperature_element.NTC:
+            self.set_reference_resistor_value()
+        self.set_max_power_value()
+        self.set_mode()
+        self.set_setpoint_temperature_value()
+
+    @staticmethod
+    def _check_pid_boundaries(value: int) -> typing.Union[int, None]:
+        if value < Tec.MIN_PID_VALUE:
+            logging.error("%s falls below the minimum PID value of %s",
+                          value, Tec.MIN_PID_VALUE)
+            logging.warning("Setting it to minimum value of %s", Tec.MIN_PID_VALUE)
+            return Tec.MIN_PID_VALUE
+        elif value > Tec.MAX_PID_VALUE:
+            logging.error("%s exceeds the maximum PID value of %s",
+                          value, Tec.MAX_PID_VALUE)
+            logging.warning("Setting it to minimum value of %s", Tec.MAX_PID_VALUE)
+            return Tec.MAX_PID_VALUE
+        return None
 
     def set_pid_d_value(self) -> None:
-        tec: Tec = self[self.laser]
-        d_value_hex = f"{tec.pid.derivative_value:0{Driver._NUMBER_OF_DIGITS}X}"
-        self.write(f"SD{self.tec_channel}" + d_value_hex)
+        if res := Tec._check_pid_boundaries(self.configuration.pid.derivative_value) is not None:
+            self.configuration.pid.derivative_value = res
+        self.commands.set_d_value.value = self.configuration.pid.derivative_value
+        self.driver.write(self.commands.set_d_value)
 
     def set_pid_p_value(self) -> None:
-        tec: Tec = self[self.laser]
-        p_value_hex = f"{tec.pid.proportional_value:0{Driver._NUMBER_OF_DIGITS}X}"
-        self.write(f"SP{self.tec_channel}" + p_value_hex)
+        if res := Tec._check_pid_boundaries(self.configuration.pid.proportional_value) is not None:
+            self.configuration.pid.proportional_value = res
+        self.commands.set_p_value.value = self.configuration.pid.proportional_value
+        self.driver.write(self.commands.set_p_value)
 
     def set_pid_i_value(self, i: int) -> None:
-        tec: Tec = self[self.laser]
-        i_value_hex = f"{tec.pid.integral_value[i]:0{Driver._NUMBER_OF_DIGITS}X}"
-        self.write(f"SI{self.tec_channel}" + i_value_hex)
+        if res := Tec._check_pid_boundaries(self.configuration.pid.integral_value[i]) is not None:
+            self.configuration.pid.integral_value[i] = res
+        self.commands.set_i_value[i].value = self.configuration.pid.integral_value[i]
+        self.driver.write(self.commands.set_i_value[i])
 
     def set_setpoint_temperature_value(self,) -> None:
-        tec: Tec = self[self.laser]
         # Given by hardware; °C -> Bit
-        setpoint_temperature: int = int(tec.system_parameter.setpoint_temperature * 100 + 32.768)
-        setpoint_temperature_hex: str = f"{setpoint_temperature:0{Driver._NUMBER_OF_DIGITS}X}"
-        self.write(f"SS{self.tec_channel}" + setpoint_temperature_hex)
+        setpoint_temperature: int = int(self.configuration.system_parameter.setpoint_temperature * 100 + 32.768)
+        self.commands.set_setpoint.value = setpoint_temperature
+        self.driver.write(self.commands.set_setpoint)
 
     def set_loop_time_value(self) -> None:
-        tec: Tec = self[self.laser]
-        loop_time_value_hex: str = f"{tec.system_parameter.loop_time:0{Driver._NUMBER_OF_DIGITS}X}"
-        self.write(f"SR{self.tec_channel}" + loop_time_value_hex)
+        if self.configuration.system_parameter.loop_time < Tec._MIN_LOOP_TIME:
+            logging.error("%s ms falls below the minimum loop time of %s ms",
+                          self.configuration.system_parameter.loop_time, Tec._MIN_LOOP_TIME)
+            logging.warning("Setting it to minimum value of %s ms", Tec._MIN_LOOP_TIME)
+            self.configuration.system_parameter.loop_time = Tec._MIN_LOOP_TIME
+        elif self.configuration.system_parameter.loop_time > Tec._MIN_LOOP_TIME:
+            logging.error("%s ms exceeds the maxium loop time of %s ms",
+                          self.configuration.system_parameter.loop_time, Tec._MAX_LOOP_TIME)
+            logging.warning("Setting it to maximum value of %s ms", Tec._MAX_LOOP_TIME)
+            self.configuration.system_parameter.loop_time = Tec._MAX_LOOP_TIME
+        self.commands.set_loop_interval.value = self.configuration.system_parameter.loop_time
+        self.driver.write(self.commands.set_loop_interval)
 
     def set_reference_resistor_value(self) -> None:
-        tec: Tec = self[self.laser]
-        reference_resistor_value = int(tec.system_parameter.reference_resistor * 10)
-        reference_resistor_value_hex = f"{reference_resistor_value:0{Driver._NUMBER_OF_DIGITS}X}"
-        self.write(f"SC{self.tec_channel}" + reference_resistor_value_hex)
+        self.commands.set_ref_resistor.value = int(self.configuration.system_parameter.reference_resistor * 10)
+        self.driver.write(self.commands.set_ref_resistor)
 
     def set_max_power_value(self) -> None:
-        tec: Tec = self[self.laser]
-        max_power_value_hex = f"{tec.system_parameter.max_power:0{Driver._NUMBER_OF_DIGITS}X}"
-        self.write(f"SO{self.tec_channel}" + max_power_value_hex)
+        self.commands.set_max_output_power.value = self.configuration.system_parameter.max_power
+        self.driver.write(self.commands.set_max_output_power)
 
     def set_mode(self) -> None:
-        if self[self.laser].mode.heating:
-            self.write(f"SL{self.tec_channel}" + f"000{TecMode.HEATING}")
+        if self.configuration.mode.heating:
+            self.commands.set_peltier_mode.value = Tec._HEATING
         else:
-            self.write(f"SL{self.tec_channel}" + f"000{TecMode.COOLING}")
-
-    @property
-    def enabled(self) -> bool:
-        if self.laser == "Pump Laser":
-            return self._tec_pump_laser_enabled
-        else:
-            return self._tec_probe_laser_enabled
-
-    @enabled.setter
-    def enabled(self, enable) -> None:
-        if self.laser == "Pump Laser":
-
-    @property
-    def pump_laser_enabled(self) -> bool:
-        return self._tec_pump_laser_enabled
-
-
-    def _enable(self, state: bool) -> None:
-        if state:
-            self.set_mode()
-            self.write(f"SL{self.tec_channel}0001")
-            self._enabled = True
-        else:
-            self.write(f"SL{self.tec_channel}0000")
-            self._enabled = False
-
-    def _process_data(self) -> None:
-        while self.connected.is_set():
-            self.encode_data()
-
-    def encode_data(self) -> None:
-        received_data: str = self.received_data.get(block=True)
-        for received in received_data.split(Driver.TERMINATION_SYMBOL):
-            if not received:
-                continue
-            identifier = received[0]
-            if identifier == "N":
-                logging.error("Invalid command %s", received)
-                self.ready_write.set()
-            elif identifier == "S" or identifier == "C":
-                last_written = self.last_written_message
-                if received != last_written and received != last_written.capitalize():
-                    logging.error("Received message %s message, expected %s", received, last_written)
-                else:
-                    logging.debug("Command %s successfully applied", received)
-                self.ready_write.set()
-            elif identifier == "T":
-                data_frame = received.split("\t")[Driver._START_DATA_FRAME:]
-                status_byte_frame = int(data_frame[13])  # 13 is the index according to the protocol
-                for error in Status.ERROR:
-                    if error[Status.VALUE] & status_byte_frame:
-                        logging.error("Got \"%s\" from TEC Driver", error[Status.TEXT])
-                set_point: Temperature = Temperature(
-                    pump_laser=float(data_frame[_TemperatureIndex.SET_POINT[Driver.PUMP_LASER]]),
-                    probe_laser=float(data_frame[_TemperatureIndex.SET_POINT[Driver.PROBE_LASER]]))
-                if self.pump_laser.temperature_element.PT1000:
-                    actual_temperature: Temperature = Temperature(
-                        pump_laser=float(data_frame[_TemperatureIndex.PT100B[Driver.PUMP_LASER]]),
-                        probe_laser=float(data_frame[_TemperatureIndex.PT100B[Driver.PROBE_LASER]]))
-                elif self.pump_laser.temperature_element.KT:
-                    actual_temperature: Temperature = Temperature(
-                        pump_laser=float(data_frame[_TemperatureIndex.KT[Driver.PUMP_LASER]]),
-                        probe_laser=float(data_frame[_TemperatureIndex.KT[Driver.PROBE_LASER]]))
-                elif not self.pump_laser.temperature_element.NTC:
-                    actual_temperature: Temperature = Temperature(
-                        pump_laser=float(data_frame[_TemperatureIndex.NTC[Driver.PUMP_LASER]]),
-                        probe_laser=float(data_frame[_TemperatureIndex.NTC[Driver.PROBE_LASER]]))
-                else:
-                    raise ValueError("Invalid Temperature Element")
-                actual_temperature.probe_laser /= 100
-                actual_temperature.pump_laser /= 100
-                self.data.put(Data(set_point, actual_temperature))
-            else:  # Broken data frame without header char
-                logging.error("Received invalid package without header")
-                self.ready_write.set()
-                continue
+            self.commands.set_peltier_mode.value = Tec._COOLING
+        self.driver.write(self.commands.set_peltier_mode)
