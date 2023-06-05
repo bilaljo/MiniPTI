@@ -168,7 +168,7 @@ class Driver:
 
                     cc[termios.VMIN] = 0
                     cc[termios.VTIME] = 5000
-                    
+
                     new_attribute = [iflag, oflag, cflag, lflag, ispeed, ospeed, cc]
                     termios.tcsetattr(self.file_descriptor, termios.TCSANOW, new_attribute)
                 except OSError as e:
