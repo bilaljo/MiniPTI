@@ -167,7 +167,7 @@ class Driver:
                     oflag &= ~termios.OPOST
 
                     cc[termios.VMIN] = 1
-                    cc[termios.VTIME] = 0
+                    cc[termios.VTIME] = Driver.IO_BUFFER_SIZE
 
                     new_attribute = [iflag, oflag, cflag, lflag, ispeed, ospeed, cc]
                     termios.tcsetattr(self.file_descriptor, termios.TCSANOW, new_attribute)
