@@ -152,7 +152,7 @@ class Driver:
         def open(self) -> None:
             if self.port_name and not self.is_open:
                 try:
-                    self.file_descriptor = os.open(path=self.port_name, flags=os.O_NDELAY | os.O_ASYNC)
+                    self.file_descriptor = os.open(path=self.port_name, flags=os.O_RDWR | os.O_NDELAY | os.O_ASYNC)
                     old_attribute = termios.tcgetattr(self.file_descriptor)
                     iflag, oflag, cflag, lflag, ispeed, ospeed, cc = old_attribute
 
