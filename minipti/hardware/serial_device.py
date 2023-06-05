@@ -155,7 +155,9 @@ class Driver:
                     self.file_descriptor = os.open(path=self.port_name, flags=os.O_NDELAY | os.O_ASYNC)
                     old_attribute = termios.tcgetattr(self.file_descriptor)
                     iflag, oflag, cflag, lflag, ispeed, ospeed, cc = old_attribute
-                    cflag &= ~termios.PARENB
+
+                    cflag &= ~(termios.PARENB | termios.PARODD)
+
                     cflag &= ~termios.CSTOPB
                     cflag &= ~termios.CSIZE
                     cflag |= termios.CS8
@@ -163,6 +165,10 @@ class Driver:
                     cflag &= ~(termios.ICANON | termios.ECHO | termios.ECHOE | termios.ISIG)
                     iflag &= ~(termios.IXON | termios.IXOFF | termios.IXANY)
                     oflag &= ~termios.OPOST
+
+                    cc[termios.VMIN] = 0
+                    cc[termios.VTIME] = 5000
+                    
                     new_attribute = [iflag, oflag, cflag, lflag, ispeed, ospeed, cc]
                     termios.tcsetattr(self.file_descriptor, termios.TCSANOW, new_attribute)
                 except OSError as e:
