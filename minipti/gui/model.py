@@ -592,9 +592,11 @@ class Motherboard(Serial):
         self._running = running
         if running:
             # Before we start a new run, we clear all old data
+            signals.daq_running.emit()
             signals.clear_daq_plots.emit()
         else:
             self.driver.running.clear()
+            signals.daq_running.emit()
         self.driver.reset()
         self.driver.running.set()
 

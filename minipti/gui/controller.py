@@ -54,6 +54,13 @@ class Home:
     def _init_devices(self) -> None:
         self.find_devices()
         self.connect_devices()
+        self.apply_configurations()
+
+    def apply_configurations(self) -> None:
+        self.pump_laser.apply_configuration()
+        self.probe_laser.apply_configuration()
+        self.pump_laser_tec.apply_configuration()
+        self.probe_laser_tec.apply_configuration()
 
     def update_bypass(self) -> None:
         self.motherboard.bypass = not self.motherboard.bypass

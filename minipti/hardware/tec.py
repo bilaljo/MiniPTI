@@ -259,7 +259,7 @@ class Tec:
 
     def set_setpoint_temperature_value(self,) -> None:
         # Given by hardware; °C -> Bit
-        setpoint_temperature: int = int(self.configuration.system_parameter.setpoint_temperature * 100 + 32.768)
+        setpoint_temperature: int = int(self.configuration.system_parameter.setpoint_temperature * 100 + 32768)
         self.commands.set_setpoint.value = setpoint_temperature
         self.driver.write(self.commands.set_setpoint)
 
