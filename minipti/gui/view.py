@@ -926,15 +926,8 @@ class Amplitudes(_DAQPlots):
 
     @QtCore.pyqtSlot()
     def clear(self) -> None:
-        self.curves = [self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.BLUE),
-                                             brush=pg.mkBrush(_MatplotlibColors.BLUE),
-                                             name="Amplitude CH1"),
-                       self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.ORANGE),
-                                             brush=pg.mkBrush(_MatplotlibColors.ORANGE),
-                                             name="Amplitude CH2"),
-                       self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.GREEN),
-                                             brush=pg.mkBrush(_MatplotlibColors.GREEN),
-                                             name="Amplitude CH3")]
+        for channel in range(3):
+            self.curves[channel].setData([])
 
 
 class OutputPhases(_DAQPlots):
@@ -959,10 +952,8 @@ class OutputPhases(_DAQPlots):
 
     @QtCore.pyqtSlot()
     def clear(self) -> None:
-        self.curves = [self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="Output Phase CH2",
-                                             brush=pg.mkBrush(_MatplotlibColors.ORANGE)),
-                       self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.GREEN), name="Output Phase CH3",
-                                             brush=pg.mkBrush(_MatplotlibColors.GREEN))]
+        for channel in range(2):
+            self.curves[channel].setData([])
 
 
 class InterferometricPhase(_DAQPlots):
@@ -982,7 +973,7 @@ class InterferometricPhase(_DAQPlots):
 
     @QtCore.pyqtSlot()
     def clear(self) -> None:
-        self.curves = self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE))
+        self.curves.setData([])
 
 
 class Sensitivity(_DAQPlots):
@@ -1006,9 +997,8 @@ class Sensitivity(_DAQPlots):
 
     @QtCore.pyqtSlot()
     def clear(self) -> None:
-        self.curves = [self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="CH1"),
-                       self.plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="CH2"),
-                       self.plot.plot(pen=pg.mkPen(_MatplotlibColors.GREEN), name="CH3")]
+        for channel in range(3):
+            self.curves[channel].setData([])
 
 
 class Symmetry(_DAQPlots):
@@ -1033,10 +1023,8 @@ class Symmetry(_DAQPlots):
 
     @QtCore.pyqtSlot()
     def clear(self) -> None:
-        self.curves = [self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="Absolute Symmetry",
-                                             brush=pg.mkBrush(_MatplotlibColors.BLUE)),
-                       self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="Relative Symmetry",
-                                             brush=pg.mkBrush(_MatplotlibColors.ORANGE))]
+        for channel in range(2):
+            self.curves[channel].setData([])
 
 
 class PTISignal(_DAQPlots):
@@ -1062,8 +1050,8 @@ class PTISignal(_DAQPlots):
 
     @QtCore.pyqtSlot()
     def clear(self) -> None:
-        self.curves = {"PTI Signal": self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="1 s", size=6),
-                       "PTI Signal Mean": self.plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="60 s Mean")}
+        self.curves["PTI Signal"].setData([])
+        self.curves["PTI Signal Mean"].setData([])
 
 
 class PumpLaserCurrent(_Plotting):
@@ -1080,7 +1068,7 @@ class PumpLaserCurrent(_Plotting):
 
     @QtCore.pyqtSlot()
     def clear(self) -> None:
-        self.curves = self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE))
+        self.curves.setData([])
 
 
 class ProbeLaserCurrent(_Plotting):
@@ -1096,7 +1084,7 @@ class ProbeLaserCurrent(_Plotting):
         self.curves.setData(data.time, data.probe_laser_current)
 
     def clear(self) -> None:
-        self.curves = self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE))
+        self.curves.setData([])
 
 
 class TecTemperature(_Plotting):
@@ -1118,5 +1106,5 @@ class TecTemperature(_Plotting):
         self.curves[TecTemperature.MEASURAED].setData(data.time, data.actual_value[self.laser])
 
     def clear(self) -> None:
-        self.curves = [self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="Setpoint Temperature"),
-                       self.plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="Measured Temperature")]
+        self.curves[TecTemperature.SET_POINT].setData([])
+        self.curves[TecTemperature.MEASURAED].setData([])
