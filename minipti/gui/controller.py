@@ -17,7 +17,7 @@ class MainApplication(QtWidgets.QApplication):
         QtWidgets.QApplication.__init__(self, argv)
         self.logging_model = model.Logging()
         self.view = view.MainWindow(self)
-        threading.excepthook = self.thread_exception
+        # threading.excepthook = self.thread_exception
 
     def close(self) -> None:
         model.Motherboard.driver.running.clear()

@@ -1110,6 +1110,7 @@ class TecTemperature(_Plotting):
                        self.plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="Measured Temperature")]
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="Temperature [°C]")
+        self.laser = channel
         model.tec_signals[channel].clear_plots.connect(self.clear)
         model.signals.tec_data.connect(self.update_data_live)
 
