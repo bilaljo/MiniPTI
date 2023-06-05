@@ -98,6 +98,7 @@ class Driver:
             self.file_descriptor = -1
             self.file_descriptor_lock = threading.Lock()
             self.new_data_queue = queue.Queue()
+            signal.signal(signal.SIGIO, lambda signum, frame: self.new_data_queue.put(1))
         self.connected = threading.Event()
         self.received_data = queue.Queue()
 
@@ -164,7 +165,6 @@ class Driver:
                     oflag &= ~termios.OPOST
                     new_attribute = [iflag, oflag, cflag, lflag, ispeed, ospeed, cc]
                     termios.tcsetattr(self.file_descriptor, termios.TCSANOW, new_attribute)
-                    signal.signal(signal.SIGIO, lambda signum, frame: self.new_data_queue.put(1))
                 except OSError as e:
                     logging.debug("Error caused by %s", e)
                     raise OSError("Could not find %s", self.device_name)
