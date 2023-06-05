@@ -117,8 +117,7 @@ class SettingsTable(QtCore.QAbstractTableModel):
             except FileNotFoundError:
                 self.save()
             else:
-                if list(settings.columns) != SettingsTable.HEADERS or list(
-                        settings.index) != SettingsTable.INDEX:
+                if list(settings.columns) != SettingsTable.HEADERS or list(settings.index) != SettingsTable.INDEX:
                     self.save()  # The file is in any way broken.
                 else:
                     self.table_data = settings
@@ -316,7 +315,7 @@ class Signals(QtCore.QObject):
     characterization_live = QtCore.pyqtSignal(Buffer)
     settings_pti = QtCore.pyqtSignal()
     logging_update = QtCore.pyqtSignal(deque)
-    daq_running = QtCore.pyqtSignal()
+    daq_running = QtCore.pyqtSignal(bool)
     settings = QtCore.pyqtSignal(algorithm.interferometry.Interferometer)
     destination_folder_changed = QtCore.pyqtSignal(str)
     battery_state = QtCore.pyqtSignal(Battery)
@@ -479,30 +478,6 @@ class Calculation:
         self.interferometry.interferometer.load_settings()
         self.pti.inversion.invert()
 
-    @staticmethod
-    def kelvin_to_celsius(temperature: float) -> float:
-        return temperature - 273.15
-
-    def process_bms_data(self) -> None:
-        units = {"Date": "Y:M:D", "Time": "H:M:S", "External DC Power": "bool",
-                 "Charging Battery": "bool",
-                 "Minutes Left": "min", "Charging Level": "%", "Temperature": "°C", "Current": "mA",
-                 "Voltage": "V", "Full Charge Capacity": "mAh", "Remaining Charge Capacity": "mAh"}
-        pd.DataFrame(units, index=["s"]).to_csv(self._destination_folder + "/BMS.csv")
-
-        def incoming_data() -> None:
-            while Motherboard.driver.running.is_set():
-                bms_data = Motherboard.driver.bms
-                bms_data.battery_temperature = Calculation.kelvin_to_celsius(bms_data.battery_temperature)
-                signals.battery_state.emit(Battery(bms_data.battery_percentage, bms_data.minutes_left))
-                now = datetime.now()
-                output_data = {"Time": str(now.strftime("%H:%M:%S"))}
-                for key, value in asdict(bms_data).items():
-                    output_data[key.replace("_", " ").title()] = value
-                bms_data_frame = pd.DataFrame(output_data, index=[str(now.strftime("%Y-%m-%d"))])
-                bms_data_frame.to_csv(self._destination_folder + "/BMS.csv", header=False, mode="a")
-        threading.Thread(target=incoming_data, daemon=True).start()
-
 
 class ProbeLaserMode(enum.IntEnum):
     CONSTANT_LIGHT = 0
@@ -515,6 +490,14 @@ class Serial:
     """
 
     driver = hardware.serial_device.Driver()
+
+    def __init__(self):
+        self._destination_folder = ""
+        signals.destination_folder_changed.connect(self._update_file_path)
+
+    # @QtCore.pyqtSlot(str)
+    def _update_file_path(self, destination_folder: str) -> None:
+        self._destination_folder = destination_folder
 
     @classmethod
     def find_port(cls) -> None:
@@ -578,10 +561,34 @@ class Motherboard(Serial):
     def connected(self) -> bool:
         return self.driver.connected.is_set()
 
-    @classmethod
-    def open(cls) -> None:
-        cls.driver.open()
-        cls.driver.run()
+    @staticmethod
+    def kelvin_to_celsius(temperature: float) -> float:
+        return temperature - 273.15
+
+    def process_bms_data(self) -> None:
+        units = {"Date": "Y:M:D", "Time": "H:M:S", "External DC Power": "bool",
+                 "Charging Battery": "bool",
+                 "Minutes Left": "min", "Charging Level": "%", "Temperature": "°C", "Current": "mA",
+                 "Voltage": "V", "Full Charge Capacity": "mAh", "Remaining Charge Capacity": "mAh"}
+        pd.DataFrame(units, index=["s"]).to_csv(self._destination_folder + "/BMS.csv")
+
+        def incoming_data() -> None:
+            while Motherboard.driver.running.is_set():
+                bms_data = Motherboard.driver.bms
+                bms_data.battery_temperature = Motherboard.kelvin_to_celsius(bms_data.battery_temperature)
+                signals.battery_state.emit(Battery(bms_data.battery_percentage, bms_data.minutes_left))
+                now = datetime.now()
+                output_data = {"Time": str(now.strftime("%H:%M:%S"))}
+                for key, value in asdict(bms_data).items():
+                    output_data[key.replace("_", " ").title()] = value
+                bms_data_frame = pd.DataFrame(output_data, index=[str(now.strftime("%Y-%m-%d"))])
+                bms_data_frame.to_csv(self._destination_folder + "/BMS.csv", header=False, mode="a")
+            threading.Thread(target=incoming_data, daemon=True).start()
+
+    def open(self) -> None:
+        self.driver.open()
+        self.driver.run()
+        self.process_bms_data()
 
     @property
     def running(self) -> bool:
@@ -678,7 +685,27 @@ class Laser(Serial):
 
     def __init__(self):
         Serial.__init__(self)
-        self.config_path = "hardware/configs/laser.json"
+        self._config_path = "hardware/configs/laser.json"
+
+    @property
+    @abc.abstractmethod
+    def config_path(self) -> str:
+        ...
+
+    @config_path.setter
+    @abc.abstractmethod
+    def config_path(self, config_path: str) -> None:
+        ...
+
+    @property
+    @abc.abstractmethod
+    def enabled(self) -> bool:
+        ...
+
+    @enabled.setter
+    @abc.abstractmethod
+    def enabled(self, enabled: bool) -> None:
+        ...
 
     def load_configuration(self) -> None:
         ...
@@ -689,13 +716,24 @@ class Laser(Serial):
     def apply_configuration(self) -> None:
         ...
 
-    @classmethod
-    def _incoming_data(cls):
-        while cls.driver.connected.is_set():
-            received_data = cls.driver.data.get(block=True)
+    def _incoming_data(self):
+        units = {"Date": "Y:M:D", "Time": "H:M:S",
+                 "Pump Laser Voltage": "V",
+                 "Pump Laser Current": "mA",
+                 "Probe Laser Current": "mA"}
+        pd.DataFrame(units).to_csv(f"{self._destination_folder}/laser.csv")
+        while self.driver.connected.is_set():
+            received_data: hardware.laser.Data = self.driver.data.get(block=True)
             Laser.buffer.append(received_data)
             laser_signals.data.emit(Laser.buffer)
             laser_signals.data_display.emit(received_data)
+            now = datetime.now()
+            output_data = {"Time": str(now.strftime("%H:%M:%S")),
+                           "Pump Laser Voltage": received_data.pump_laser_voltage,
+                           "Pump Laser Current": received_data.pump_laser_current,
+                           "Probe Laser Current": received_data.probe_laser_current}
+            laser_data_frame = pd.DataFrame(output_data, index=[str(now.strftime("%Y-%m-%d"))])
+            pd.DataFrame(laser_data_frame).to_csv(f"{self._destination_folder}/laser.csv", mode="a", header=False)
 
     def fire_configuration_change(self) -> None:
         ...
@@ -720,6 +758,15 @@ class PumpLaser(Laser):
         self.pump_laser.configuration.bit_value = hardware.laser.HighPowerLaserConfig.NUMBER_OF_STEPS - bits
         self.fire_driver_bits_signal()
         self.pump_laser.set_voltage()
+
+    @property
+    def config_path(self) -> str:
+        return self.pump_laser.config_path
+
+    @config_path.setter
+    @abc.abstractmethod
+    def config_path(self, config_path: str) -> None:
+        self.pump_laser.config_path = config_path
 
     def save_configuration(self) -> None:
         self.pump_laser.save_configuration()
@@ -849,6 +896,15 @@ class ProbeLaser(Laser):
         bit, current = self.fire_current_bits_signal()
         laser_signals.current_probe_laser.emit(hardware.laser.LowPowerLaser.CURRENT_BITS - bits, current)
 
+    @property
+    def config_path(self) -> str:
+        return self.probe_laser.config_path
+
+    @config_path.setter
+    @abc.abstractmethod
+    def config_path(self, config_path: str) -> None:
+        self.probe_laser.config_path = config_path
+
     def save_configuration(self) -> None:
         self.probe_laser.save_configuration()
 
@@ -935,11 +991,13 @@ class Tec(Serial):
 
     driver = hardware.tec.Driver()
     _buffer = TecBuffer()
+    file_path = ""
 
     def __init__(self, channel: int):
         Serial.__init__(self)
         self.tec = self.driver.tec[channel]
         self.tec_signals = tec_signals[channel]
+        self.file_path = ""
 
     @property
     def connected(self) -> bool:
@@ -1086,13 +1144,25 @@ class Tec(Serial):
             self.tec_signals.mode.emit(TecMode.HEATING)
         self.tec_signals.use_ntc.emit(self.tec.configuration.temperature_element.NTC)
 
-    @classmethod
-    def _incoming_data(cls) -> None:
-        while cls.driver.connected.is_set():
-            received_data = cls.driver.data.get(block=True)
-            cls._buffer.append(received_data)
-            signals.tec_data.emit(cls._buffer)
+    def _incoming_data(self) -> None:
+        units = {"Date": "Y:M:D", "Time": "H:M:S",
+                 "Measured Temperature Pump Laser": "°C",
+                 "Set Point Temperature Pump Laser": "°C",
+                 "Measured Temperature Probe Laser": "°C",
+                 "Set Point Temperature Probe Laser": "°C"}
+        pd.DataFrame(units).to_csv(f"{self._destination_folder}/laser.csv")
+        while self.driver.connected.is_set():
+            received_data: hardware.tec.Data = self.driver.data.get(block=True)
+            self._buffer.append(received_data)
+            signals.tec_data.emit(self._buffer)
             signals.tec_data_display.emit(received_data)
+            now = datetime.now()
+            output_data = {"Time": str(now.strftime("%H:%M:%S")),
+                           "Measured Temperature Pump Laser": received_data.actual_temperature[Tec.PUMP_LASER],
+                           "Set Point Temperature Pump Laser": received_data.set_point[Tec.PUMP_LASER],
+                           "Measured Temperature Probe Laser": received_data.actual_temperature[Tec.PROBE_LASER],
+                           "Set Point Temperature Probe Laser": received_data.set_point[Tec.PROBE_LASER]}
+            pd.DataFrame(output_data).to_csv(f"{self._destination_folder}/tec.csv", header=False, mode="a")
 
 
 def _process_data(file_path: str, headers: list[str, ...]) -> pd.DataFrame:

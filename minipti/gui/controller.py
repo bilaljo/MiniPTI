@@ -343,6 +343,17 @@ class Laser:
     def save_configuration(self) -> None:
         self.laser.save_configuration()
 
+    def save_configuration_as(self) -> None:
+        file_path = QtWidgets.QFileDialog.getSaveFileName(self.parent, caption="Laser Configuration Path",
+                                                          filter="JSON File (*.json);; All Files (*);;")[0]
+        if file_path:
+            _, file_extension = os.path.splitext(file_path)
+            print(file_extension)
+            if not file_extension:
+                file_path = f"{file_path}.json"
+            self.laser.config_path = file_path  # The actual file path
+            self.laser.save_configuration()
+
     def apply_configuration(self) -> None:
         self.laser.apply_configuration()
 
@@ -423,6 +434,16 @@ class Tec:
         self.heating = False
         self.cooling = False
         self.view = parent
+
+    def save_configuration_as(self) -> None:
+        file_path = QtWidgets.QFileDialog.getSaveFileName(self.view, caption="Laser Configuration Path",
+                                                          filter="JSON File (*.json);; All Files (*);;")[0]
+        if file_path:
+            _, file_extension = os.path.splitext(file_path)
+            if not file_extension:
+                file_path = f"{file_path}.json"
+            self.tec.config_path = file_path  # The actual file path
+            self.tec.save_configuration()
 
     def save_configuration(self) -> None:
         self.tec.save_configuration()
