@@ -690,7 +690,7 @@ class Laser(Serial):
     @classmethod
     def _incoming_data(cls):
         while cls.driver.connected.is_set():
-            received_data = cls.driver.data.recv()
+            received_data = cls.driver.data.get(block=True)
             Laser.buffer.append(received_data)
             laser_signals.data.emit(Laser.buffer)
             laser_signals.data_display.emit(received_data)

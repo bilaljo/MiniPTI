@@ -56,7 +56,7 @@ class SerialStream:
         return int(self._package[SerialStream._VALUE], base=16)
 
     @value.setter
-    def value(self, value: str | int) -> None:
+    def value(self, value: Union[str, int]) -> None:
         if not (SerialStream._MIN_VALUE <= int(value) < SerialStream._MAX_VALUE):
             raise ValueError("Value is out of range for 4 digit hex values")
         elif not isinstance(value, str):
