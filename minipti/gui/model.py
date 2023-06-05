@@ -287,10 +287,10 @@ class TecBuffer(Buffer):
         self.actual_value: list[deque] = [deque(maxlen=Buffer.QUEUE_SIZE), deque(maxlen=Buffer.QUEUE_SIZE)]
 
     def append(self, tec_data: hardware.tec.Data) -> None:
-        self.set_point[Tec.PUMP_LASER].append(tec_data.set_point.pump_laser)
-        self.set_point[Tec.PROBE_LASER].append(tec_data.set_point.probe_laser)
-        self.actual_value[Tec.PUMP_LASER].append(tec_data.actual_temperature.pump_laser)
-        self.actual_value[Tec.PROBE_LASER].append(tec_data.actual_temperature.probe_laser)
+        self.set_point[Tec.PUMP_LASER].append(tec_data.set_point[Tec.PUMP_LASER])
+        self.set_point[Tec.PROBE_LASER].append(tec_data.set_point[Tec.PROBE_LASER])
+        self.actual_value[Tec.PUMP_LASER].append(tec_data.actual_temperature[Tec.PROBE_LASER])
+        self.actual_value[Tec.PROBE_LASER].append(tec_data.actual_temperature[Tec.PUMP_LASER])
         self.time.append(next(self.time_counter) / 10)
 
 
