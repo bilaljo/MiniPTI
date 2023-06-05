@@ -157,18 +157,22 @@ class Driver:
                     old_attribute = termios.tcgetattr(self.file_descriptor)
                     iflag, oflag, cflag, lflag, ispeed, ospeed, cc = old_attribute
 
+                    iflag &= ~termios.BRKINT
+                    lflag = 0
+                    oflag = 0
+
+                    cc[termios.VMIN] = 1
+                    cc[termios.VTIME] = 0
+
+                    iflag &= ~(termios.IXON | termios.IXOFF | termios.IXANY)
+
+                    cflag |= (termios.CLOCAL | termios.CREAD)
+
                     cflag &= ~(termios.PARENB | termios.PARODD)
 
                     cflag &= ~termios.CSTOPB
-                    cflag &= ~termios.CSIZE
-                    cflag |= termios.CS8
-                    cflag |= (termios.CLOCAL | termios.CREAD)
-                    cflag &= ~(termios.ICANON | termios.ECHO | termios.ECHOE | termios.ISIG)
-                    iflag &= ~(termios.IXON | termios.IXOFF | termios.IXANY)
-                    oflag &= ~termios.OPOST
 
-                    cc[termios.VMIN] = Driver.IO_BUFFER_SIZE
-                    cc[termios.VTIME] = 0
+                    cflag &= ~termios.CSTOPB
 
                     new_attribute = [iflag, oflag, cflag, lflag, ispeed, ospeed, cc]
                     termios.tcsetattr(self.file_descriptor, termios.TCSANOW, new_attribute)
