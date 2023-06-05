@@ -16,7 +16,7 @@ if platform.system() == "Windows":
     from win32 import win32file
     import pywintypes
 else:
-    import multiprocessing
+    import termios, signal, fcntl
 import serial
 from serial.tools import list_ports
 
@@ -88,18 +88,16 @@ class Driver:
         self.device = None
         self.port_name = ""
         self._write_buffer = queue.Queue()
-        if platform.system() == "Windows":
-            self.data = queue.Queue()
-        else:
-            self.data = multiprocessing.Queue()
+        self.data = queue.Queue()
         self.ready_write = threading.Event()
         self.ready_write.set()
         self.last_written_message = ""
         if platform.system() == "Windows":
             self.device = None
         else:
-            self.file_descriptor = multiprocessing.Value("i", -1)
-            self.file_descriptor_lock = multiprocessing.Lock()
+            self.file_descriptor = -1
+            self.file_descriptor_lock = threading.Lock()
+            self.new_data_queue = queue.Queue()
         self.connected = threading.Event()
         self.received_data = queue.Queue()
 
@@ -153,7 +151,20 @@ class Driver:
         def open(self) -> None:
             if self.port_name and not self.is_open:
                 try:
-                    self.file_descriptor.value = os.open(path=self.port_name, flags=os.O_RDWR)
+                    self.file_descriptor = os.open(path=self.port_name, flags=os.O_NDELAY | os.O_ASYNC)
+                    old_attribute = termios.tcgetattr(self.file_descriptor)
+                    iflag, oflag, cflag, lflag, ispeed, ospeed, cc = old_attribute
+                    cflag &= ~termios.PARENB
+                    cflag &= ~termios.CSTOPB
+                    cflag &= ~termios.CSIZE
+                    cflag |= termios.CS8
+                    cflag |= (termios.CLOCAL | termios.CREAD)
+                    cflag &= ~(termios.ICANON | termios.ECHO | termios.ECHOE | termios.ISIG)
+                    iflag &= ~(termios.IXON | termios.IXOFF | termios.IXANY)
+                    oflag &= ~termios.OPOST
+                    new_attribute = [iflag, oflag, cflag, lflag, ispeed, ospeed, cc]
+                    termios.tcsetattr(self.file_descriptor, termios.TCSANOW, new_attribute)
+                    signal.signal(signal.SIGIO, lambda signum, frame: self.new_data_queue.put(1))
                 except OSError as e:
                     logging.debug("Error caused by %s", e)
                     raise OSError("Could not find %s", self.device_name)
@@ -261,7 +272,7 @@ class Driver:
             win32file.WriteFile(self.device, self.last_written_message.encode(), None)
         else:
             with self.file_descriptor_lock:
-                os.write(self.file_descriptor.value, self.last_written_message.encode())
+                os.write(self.file_descriptor, self.last_written_message.encode())
 
     def _check_ack(self, data: str) -> bool:
         last_written = self.last_written_message[:-1]
@@ -281,7 +292,7 @@ class Driver:
     else:
         @property
         def is_open(self) -> bool:
-            return self.file_descriptor.value != -1
+            return self.file_descriptor != -1
 
     if platform.system() == "Windows":
         def close(self) -> None:
@@ -291,10 +302,10 @@ class Driver:
                 logging.info("Closed connection to %s", self.device_name)
     else:
         def close(self) -> None:
-            if self.file_descriptor.value != -1:
+            if self.file_descriptor != -1:
                 self.connected.clear()
                 with self.file_descriptor_lock:
-                    os.close(self.file_descriptor.value)
+                    os.close(self.file_descriptor)
                 logging.info("Closed connection to %s", self.device_name)
 
     if platform.system() == "Windows":
@@ -329,7 +340,7 @@ class Driver:
             while self.connected.is_set():
                 try:
                     with self.file_descriptor_lock:
-                        received = os.read(self.file_descriptor.value, Driver.IO_BUFFER_SIZE)
+                        received = os.read(self.file_descriptor, Driver.IO_BUFFER_SIZE)
                     self.received_data.put(received.decode())
                 except OSError as e:
                     logging.error("Connection to %s lost", self.device_name)

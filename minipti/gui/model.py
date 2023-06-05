@@ -15,9 +15,6 @@ from collections import deque
 from dataclasses import dataclass, asdict
 from datetime import datetime
 
-if platform.system() != "Windows":
-    import multiprocessing
-    import multiprocessing_logging
 
 import numpy as np
 import pandas as pd
@@ -132,8 +129,6 @@ class Logging(logging.Handler):
 
     def __init__(self):
         logging.Handler.__init__(self)
-        if platform.system() != "Windows":
-            multiprocessing_logging.install_mp_handler()
         self.logging_messages = deque(maxlen=Logging.LOGGING_HISTORY)
         self.formatter = logging.Formatter("[%(threadName)s] %(levelname)s %(asctime)s: %(message)s",
                                            datefmt="%Y-%m-%d %H:%M:%S")
@@ -531,10 +526,7 @@ class Serial:
         Connects to a serial device and listens to incoming data.
         """
         cls.driver.open()
-        if platform.system() == "Windows":
-            cls.driver.run()
-        else:
-            multiprocessing.Process(target=cls.driver.run, daemon=True).start()
+        cls.driver.run()
 
     @classmethod
     def close(cls) -> None:

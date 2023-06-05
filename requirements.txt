@@ -20,4 +20,3 @@ six==1.16.0
 types-pytz==2023.3.0.0
 tzdata==2023.3
 pywin32==306; platform_system == "Windows"
-multiprocessing_logging==0.3.4; platform_system != "Windows"
