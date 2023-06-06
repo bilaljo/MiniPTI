@@ -25,6 +25,20 @@ from .. import algorithm
 from .. import hardware
 
 
+class DestinationFolder:
+    def __init__(self):
+        self._destination_folder = ""
+
+    @property
+    def folder(self) -> str:
+        return self._destination_folder
+
+    @folder.setter
+    def folder(self, folder: str) -> None:
+        self._destination_folder = folder
+        signals.destination_folder_changed.emit(self._destination_folder)
+
+
 class SettingsTable(QtCore.QAbstractTableModel):
     HEADERS = ["Detector 1", "Detector 2", "Detector 3"]
     INDEX = ["Amplitude [V]", "Offset [V]", "Output Phases [deg]", "Response Phases [deg]"]
@@ -403,6 +417,7 @@ class Calculation:
         self.interferometry.characterization.interferometer = self.interferometry.interferometer
         self._destination_folder = os.getcwd()
         self.save_raw_data = False
+        signals.destination_folder_changed.connect(self._update_destination_folder)
 
     def set_raw_data_saving(self) -> None:
         if self.save_raw_data:
@@ -410,16 +425,10 @@ class Calculation:
         else:
             self.pti.decimation.save_raw_data = True
 
-    @property
-    def destination_folder(self) -> str:
-        return self._destination_folder
-
-    @destination_folder.setter
-    def destination_folder(self, folder: str) -> None:
+    def _update_destination_folder(self, folder: str) -> None:
         self.interferometry.characterization.destination_folder = folder
         self.pti.inversion.destination_folder = folder
         self._destination_folder = folder
-        signals.destination_folder_changed.emit(folder)
 
     def process_daq_data(self) -> tuple[threading.Thread, threading.Thread]:
         self.pti.inversion.init_header = True
@@ -492,7 +501,7 @@ class Serial:
     driver = hardware.serial_device.Driver()
 
     def __init__(self):
-        self._destination_folder = ""
+        self._destination_folder = os.getcwd()
         signals.destination_folder_changed.connect(self._update_file_path)
 
     # @QtCore.pyqtSlot(str)
@@ -991,13 +1000,11 @@ class Tec(Serial):
 
     driver = hardware.tec.Driver()
     _buffer = TecBuffer()
-    file_path = ""
 
     def __init__(self, channel: int):
         Serial.__init__(self)
         self.tec = self.driver.tec[channel]
         self.tec_signals = tec_signals[channel]
-        self.file_path = ""
 
     @property
     def connected(self) -> bool:

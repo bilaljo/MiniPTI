@@ -47,8 +47,7 @@ class Home:
         self.probe_laser = model.ProbeLaser()
         self.pump_laser_tec = model.Tec(model.Tec.PUMP_LASER)
         self.probe_laser_tec = model.Tec(model.Tec.PROBE_LASER)
-        self.last_file_path = os.getcwd()
-        self.settings_model.setup_settings_file()
+        self.destination_folder = model.DestinationFolder()
         threading.Thread(target=self._init_devices, daemon=True, name="Init Devices Thread").start()
 
     def _init_devices(self) -> None:
@@ -102,7 +101,7 @@ class Home:
                                                                         self.calculation_model.destination_folder,
                                                                         QtWidgets.QFileDialog.ShowDirsOnly)
         if destination_folder:
-            self.calculation_model.destination_folder = destination_folder
+            self.destination_folder.folder = destination_folder
 
     def get_file_path(self, dialog_name: str, files: str) -> str:
         file_path = QtWidgets.QFileDialog.getOpenFileName(self.view, directory=self.last_file_path,

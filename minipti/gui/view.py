@@ -231,8 +231,7 @@ class Home(QtWidgets.QTabWidget, _Frames, _CreateButton):
         main_window.addDockWidget(Qt.BottomDockWidgetArea, self.frames["Log"])
         main_window.addDockWidget(Qt.BottomDockWidgetArea, self.frames["Battery"])
         main_window.setCorner(Qt.BottomRightCorner, Qt.RightDockWidgetArea)
-        self.destination_folder = QtWidgets.QLabel(self.controller.calculation_model.destination_folder)
-        model.signals.destination_folder_changed.connect(self.update_destination_folder)
+        self.destination_folder = QtWidgets.QLabel(self.controller.destination_folder.folder)
         self.save_raw_data = QtWidgets.QCheckBox("Save Raw Data")
         self.automatic_valve_switch = QtWidgets.QCheckBox("Automatic Valve Switch")
         self.duty_cyle_valve = QtWidgets.QLabel("%")
@@ -245,9 +244,11 @@ class Home(QtWidgets.QTabWidget, _Frames, _CreateButton):
         self._init_signals()
         self.controller.fire_motherboard_configuration_change()
         model.signals.battery_state.connect(self.update_battery_state)
+        model.signals.destination_folder_changed.connect(self.update_destination_folder)
 
-    def update_destination_folder(self) -> None:
-        self.destination_folder.setText(self.controller.calculation_model.destination_folder)
+    @QtCore.pyqtSlot(str)
+    def update_destination_folder(self, destionation_folder: str) -> None:
+        self.destination_folder.setText(destionation_folder)
 
     @QtCore.pyqtSlot(model.Battery)
     def update_battery_state(self, battery: model.Battery) -> None:
