@@ -87,7 +87,8 @@ class Driver(serial_device.Driver):
     _PACKAGE_SIZE_START_INDEX = 1
     _PACKAGE_SIZE_END_INDEX = 9
     _CRC_START_INDEX = 4
-    _PACKAGE_SIZE = 4109
+    _DAQ_PACKAGE_SIZE = 4109
+    _BMS_PACKAGE_SIZE = 39
     _WORD_SIZE = 32
 
     HARDWARE_ID = b"0001"
@@ -114,6 +115,7 @@ class Driver(serial_device.Driver):
         self.automatic_switch = threading.Event()
         self.bypass = False
         self.running = threading.Event()
+        self.running.clear()
         self.load_config()
 
     @property
@@ -126,7 +128,7 @@ class Driver(serial_device.Driver):
 
     @property
     def bms(self) -> BMSData:
-        return self.data.BMS.get(block=True)
+        return self.data.BMS.get(block=True, timeout=10)
 
     @property
     def ref_signal(self) -> deque:
@@ -166,9 +168,8 @@ class Driver(serial_device.Driver):
 
     def clear_buffer(self) -> None:
         self._buffer = ""
-        self.data = PackageData(DAQData(queue.Queue(maxsize=Driver._QUEUE_SIZE),
-                                        queue.Queue(maxsize=Driver._QUEUE_SIZE),
-                                        queue.Queue(maxsize=Driver._QUEUE_SIZE)),
+        self.data.DAQ = DAQData(queue.Queue(maxsize=Driver._QUEUE_SIZE),
+                                queue.Queue(maxsize=Driver._QUEUE_SIZE),
                                 queue.Queue(maxsize=Driver._QUEUE_SIZE))
 
     @staticmethod
@@ -202,7 +203,7 @@ class Driver(serial_device.Driver):
         repeats periodically. It starts with below the first 10 bytes (meta information) and ends
         before the last 4 bytes (crc checksum).
         """
-        raw_data = raw_data[Driver._PACKAGE_SIZE_END_INDEX:Driver._PACKAGE_SIZE - Driver._CRC_START_INDEX]
+        raw_data = raw_data[Driver._PACKAGE_SIZE_END_INDEX:Driver._DAQ_PACKAGE_SIZE - Driver._CRC_START_INDEX]
         ref: _Samples = deque()
         ac: list[_Samples] = [deque(), deque(), deque()]
         dc: list[_Samples] = [deque(), deque(), deque(), deque()]
@@ -238,11 +239,9 @@ class Driver(serial_device.Driver):
         split_data = received_data.split("\n")
         for i in range(len(split_data) - 1):
             data = split_data[i]
-            if not data:
-                continue
-            if data[0] == "D" and len(data) == 4109:
+            if data[0] == "D" and len(data) == Driver._DAQ_PACKAGE_SIZE:
                 self._encode_daq(data)
-            elif data[0] == "B" and len(data) == 39:
+            elif data[0] == "B" and len(data) == Driver._BMS_PACKAGE_SIZE:
                 self._encode_bms(data)
             elif data[0] == "S" and len(data) == 7:
                 self._check_ack(data)
@@ -352,10 +351,10 @@ class Driver(serial_device.Driver):
 
     def set_valve(self) -> None:
         if self.bypass:
-            self.write("SBP0000")
+            self.write(serial_device.SerialStream("SBP0000"))
             self.bypass = False
         else:
-            self.write("SBP0001")
+            self.write(serial_device.SerialStream("SBP0001"))
             self.bypass = True
 
     def _process_data(self) -> None:
@@ -369,7 +368,7 @@ class Driver(serial_device.Driver):
         self._sample_numbers = deque(maxlen=2)
         while self.connected.is_set():
             self._encode_data()
-            if len(self._encoded_buffer.ref_signal) >= self.config.daq.number_of_samples:
+            if self.running.is_set() and len(self._encoded_buffer.ref_signal) >= self.config.daq.number_of_samples:
                 self.build_sample_package()
 
     def automatic_valve_change(self) -> None:
@@ -387,3 +386,6 @@ class Driver(serial_device.Driver):
                     time.sleep(self.config.valve.period * (1 - self.config.valve.duty_cycle / 100))
 
         threading.Thread(target=switch, daemon=True).start()
+
+    def do_shutdown(self) -> None:
+        self.write(serial_device.SerialStream("SHD0001"))

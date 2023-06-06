@@ -190,7 +190,8 @@ class Driver:
         try:
             self._process_data()
         finally:
-            self.close()
+            if self.is_open:
+                self.close()
 
     @property
     @abc.abstractmethod

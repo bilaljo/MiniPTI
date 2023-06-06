@@ -86,8 +86,14 @@ class Inversion:
             demodulated_signal = self.lock_in.amplitude[channel] * np.cos(self.lock_in.phase[channel] - response_phase)
             pti_signal += demodulated_signal * sign
         total_sensitivity = np.sum(self.sensitivity, axis=0)
-        self.pti_signal = np.divide(-pti_signal, total_sensitivity, out=np.full_like(pti_signal, np.nan),
-                                    where=total_sensitivity != 0)
+        try:
+            total_sensitivity[np.where[total_sensitivity == 0]] = np.nan
+            return
+        except TypeError:
+            if total_sensitivity == 0:
+                self.pti_signal = np.nan
+                return
+        self.pti_signal = -pti_signal / total_sensitivity
         self.pti_signal *= Inversion.MICRO_RAD * self.sign
 
     def calculate_sensitivity(self) -> None:
@@ -285,8 +291,6 @@ class Decimation:
 
     def decimate(self, live=False) -> None:
         if self.init_header:
-            with h5py.File(f"{self.destination_folder}/raw_data.hdf5", "w") as _:
-                pass  # File created
             output_data = {}
             for channel in range(3):
                 output_data[f"Lock In Amplitude CH{channel + 1}"] = "V"

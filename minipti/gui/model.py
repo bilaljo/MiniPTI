@@ -27,7 +27,7 @@ from .. import hardware
 
 class DestinationFolder:
     def __init__(self):
-        self._destination_folder = ""
+        self._destination_folder = os.getcwd()
 
     @property
     def folder(self) -> str:
@@ -428,6 +428,7 @@ class Calculation:
     def _update_destination_folder(self, folder: str) -> None:
         self.interferometry.characterization.destination_folder = folder
         self.pti.inversion.destination_folder = folder
+        self.pti.decimation.destination_folder = folder
         self._destination_folder = folder
 
     def process_daq_data(self) -> tuple[threading.Thread, threading.Thread]:
@@ -501,8 +502,8 @@ class Serial:
     driver = hardware.serial_device.Driver()
 
     def __init__(self):
-        self._destination_folder = os.getcwd()
         signals.destination_folder_changed.connect(self._update_file_path)
+        self._destination_folder = os.getcwd()
 
     # @QtCore.pyqtSlot(str)
     def _update_file_path(self, destination_folder: str) -> None:
@@ -572,16 +573,16 @@ class Motherboard(Serial):
         return self.driver.connected.is_set()
 
     @staticmethod
-    def kelvin_to_celsius(temperature: float) -> float:
-        return temperature - 273.15
+    def centi_kelvin_to_celsius(temperature: float) -> float:
+        return round((temperature - 273.15) / 100, 2)
 
     def _incoming_data(self) -> None:
         init_header = True
         while self.driver.connected.is_set():
             bms_data = Motherboard.driver.bms
-            bms_data.battery_temperature = Motherboard.kelvin_to_celsius(bms_data.battery_temperature)
+            bms_data.battery_temperature = Motherboard.centi_kelvin_to_celsius(bms_data.battery_temperature)
             signals.battery_state.emit(Battery(bms_data.battery_percentage, bms_data.minutes_left))
-            if True:
+            if self.running:
                 if init_header:
                     units = {"Time": "H:M:S", "External DC Power": "bool",
                              "Charging Battery": "bool",
@@ -606,13 +607,14 @@ class Motherboard(Serial):
         self._running = running
         if running:
             # Before we start a new run, we clear all old data
-            signals.daq_running.emit(True)
+            self.driver.reset()
             signals.clear_daq_plots.emit()
+            self.driver.running.set()
+            signals.daq_running.emit(True)
+
         else:
             self.driver.running.clear()
             signals.daq_running.emit(False)
-        self.driver.reset()
-        self.driver.running.set()
 
     @property
     def shutdown_event(self) -> threading.Event:
@@ -662,7 +664,7 @@ class Motherboard(Serial):
 
     @staticmethod
     def shutdown() -> None:
-        Motherboard.driver.write(hardware.serial_device.SerialStream("SHD0001"))
+        Motherboard.driver.do_shutdown()
 
     def load_configuration(self) -> None:
         Motherboard.driver.load_config()
@@ -1163,6 +1165,8 @@ class Tec(Serial):
             signals.tec_data_display.emit(received_data)
             now = datetime.now()
             output_data = {"Time": str(now.strftime("%H:%M:%S")),
+                           "TEC Pump Laser Enabled": self.driver.tec[Tec.PUMP_LASER],
+                           "TEC Probe Laser Enabled": self.driver.tec[Tec.PROBE_LASER],
                            "Measured Temperature Pump Laser": received_data.actual_temperature[Tec.PUMP_LASER],
                            "Set Point Temperature Pump Laser": received_data.set_point[Tec.PUMP_LASER],
                            "Measured Temperature Probe Laser": received_data.actual_temperature[Tec.PROBE_LASER],
