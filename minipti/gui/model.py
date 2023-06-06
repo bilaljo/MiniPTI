@@ -518,6 +518,9 @@ class Serial:
         Connects to a serial device and listens to incoming data.
         """
         cls.driver.open()
+
+    @classmethod
+    def run(cls) -> None:
         cls.driver.run()
 
     @classmethod
@@ -544,16 +547,14 @@ class Serial:
     def load_configuration(self) -> None:
         self.fire_configuration_change()
 
-    @classmethod
-    def _incoming_data(cls) -> None:
+    def _incoming_data(self) -> None:
         """
         Listens to incoming data and emits them as _signals to the view as long a serial connection
         is established.
         """
 
-    @classmethod
-    def process_measured_data(cls) -> threading.Thread:
-        processing_thread = threading.Thread(target=cls._incoming_data, daemon=True)
+    def process_measured_data(self) -> threading.Thread:
+        processing_thread = threading.Thread(target=self._incoming_data, daemon=True)
         processing_thread.start()
         return processing_thread
 
@@ -574,30 +575,22 @@ class Motherboard(Serial):
     def kelvin_to_celsius(temperature: float) -> float:
         return temperature - 273.15
 
-    def process_bms_data(self) -> None:
-        units = {"Date": "Y:M:D", "Time": "H:M:S", "External DC Power": "bool",
+    def _incoming_data(self) -> None:
+        units = {"Time": "H:M:S", "External DC Power": "bool",
                  "Charging Battery": "bool",
                  "Minutes Left": "min", "Charging Level": "%", "Temperature": "°C", "Current": "mA",
                  "Voltage": "V", "Full Charge Capacity": "mAh", "Remaining Charge Capacity": "mAh"}
-        pd.DataFrame(units, index=["s"]).to_csv(self._destination_folder + "/BMS.csv")
-
-        def incoming_data() -> None:
-            while Motherboard.driver.running.is_set():
-                bms_data = Motherboard.driver.bms
-                bms_data.battery_temperature = Motherboard.kelvin_to_celsius(bms_data.battery_temperature)
-                signals.battery_state.emit(Battery(bms_data.battery_percentage, bms_data.minutes_left))
-                now = datetime.now()
-                output_data = {"Time": str(now.strftime("%H:%M:%S"))}
-                for key, value in asdict(bms_data).items():
-                    output_data[key.replace("_", " ").title()] = value
-                bms_data_frame = pd.DataFrame(output_data, index=[str(now.strftime("%Y-%m-%d"))])
-                bms_data_frame.to_csv(self._destination_folder + "/BMS.csv", header=False, mode="a")
-            threading.Thread(target=incoming_data, daemon=True).start()
-
-    def open(self) -> None:
-        self.driver.open()
-        self.driver.run()
-        self.process_bms_data()
+        pd.DataFrame(units, index=["Y:M:D"]).to_csv(self._destination_folder + "/BMS.csv", index_label="Date")
+        while self.driver.connected.is_set():
+            bms_data = Motherboard.driver.bms
+            bms_data.battery_temperature = Motherboard.kelvin_to_celsius(bms_data.battery_temperature)
+            signals.battery_state.emit(Battery(bms_data.battery_percentage, bms_data.minutes_left))
+            now = datetime.now()
+            output_data = {"Time": str(now.strftime("%H:%M:%S"))}
+            for key, value in asdict(bms_data).items():
+                output_data[key.replace("_", " ").title()] = value
+            bms_data_frame = pd.DataFrame(output_data, index=[str(now.strftime("%Y-%m-%d"))])
+            bms_data_frame.to_csv(self._destination_folder + "/BMS.csv", header=False, mode="a")
 
     @property
     def running(self) -> bool:
@@ -608,11 +601,11 @@ class Motherboard(Serial):
         self._running = running
         if running:
             # Before we start a new run, we clear all old data
-            signals.daq_running.emit()
+            signals.daq_running.emit(True)
             signals.clear_daq_plots.emit()
         else:
             self.driver.running.clear()
-            signals.daq_running.emit()
+            signals.daq_running.emit(False)
         self.driver.reset()
         self.driver.running.set()
 
@@ -664,7 +657,7 @@ class Motherboard(Serial):
 
     @staticmethod
     def shutdown() -> None:
-        Motherboard.driver.write("SHD0001")
+        Motherboard.driver.write(hardware.serial_device.SerialStream("SHD0001"))
 
     def load_configuration(self) -> None:
         Motherboard.driver.load_config()

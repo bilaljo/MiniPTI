@@ -368,7 +368,6 @@ class Driver(serial_device.Driver):
         self._encoded_buffer = DAQData(deque(), [deque(), deque(), deque()], [deque(), deque(), deque()])
         self._sample_numbers = deque(maxlen=2)
         while self.connected.is_set():
-            self.running.wait()
             self._encode_data()
             if len(self._encoded_buffer.ref_signal) >= self.config.daq.number_of_samples:
                 self.build_sample_package()

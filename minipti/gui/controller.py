@@ -43,11 +43,13 @@ class Home:
         self.settings_model = model.SettingsTable()
         self.calculation_model = model.Calculation()
         self.motherboard = model.Motherboard()
+        self.laser = model.Laser()
         self.pump_laser = model.PumpLaser()
         self.probe_laser = model.ProbeLaser()
         self.pump_laser_tec = model.Tec(model.Tec.PUMP_LASER)
         self.probe_laser_tec = model.Tec(model.Tec.PROBE_LASER)
         self.destination_folder = model.DestinationFolder()
+        self.last_file_path = os.getcwd()
         threading.Thread(target=self._init_devices, daemon=True, name="Init Devices Thread").start()
 
     def _init_devices(self) -> None:
@@ -98,7 +100,7 @@ class Home:
 
     def set_destination_folder(self) -> None:
         destination_folder = QtWidgets.QFileDialog.getExistingDirectory(self.view, "Destination Folder",
-                                                                        self.calculation_model.destination_folder,
+                                                                        self.destination_folder.folder,
                                                                         QtWidgets.QFileDialog.ShowDirsOnly)
         if destination_folder:
             self.destination_folder.folder = destination_folder
@@ -220,18 +222,22 @@ class Home:
 
     def connect_devices(self) -> None:
         try:
-            model.Motherboard.open()
+            self.motherboard.open()
+            self.motherboard.run()
+            self.motherboard.process_measured_data()
             self.await_shutdown()
         except OSError:
             logging.error("Could not connect with Motherboard")
         try:
-            model.Laser.open()
-            model.Laser.process_measured_data()
+            self.laser.open()
+            self.laser.run()
+            self.laser.process_measured_data()
         except OSError:
             logging.error("Could not connect with Laser Driver")
         try:
-            model.Tec.open()
-            model.Tec.process_measured_data()
+            self.pump_laser_tec.open()
+            self.pump_laser_tec.run()
+            self.pump_laser_tec.process_measured_data()
         except OSError:
             logging.error("Could not connect with TEC Driver")
 
@@ -245,7 +251,6 @@ class Home:
             if not self.motherboard.running:
                 self.motherboard.running = True
                 self.calculation_model.process_daq_data()
-                self.calculation_model.process_bms_data()
             else:
                 self.motherboard.running = False
             logging.debug("%s Motherboard", "Enabled" if self.motherboard.running else "Disabled")
