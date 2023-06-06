@@ -175,8 +175,8 @@ class Laser:
 
 
 class LowPowerLaser(Laser):
-    _CONSTANT_LIGHT = "0001"
-    _CONSTANT_CURRENT = "0002"
+    _CONSTANT_CURRENT = "0001"
+    _CONSTANT_LIGHT = "0002"
     CURRENT_BITS: int = (1 << 8) - 1
 
     def __init__(self, driver: Driver):
@@ -219,14 +219,14 @@ class LowPowerLaser(Laser):
     def apply_configuration(self) -> None:
         self.set_mode()
         self.set_current()
-        self.set_photo_diode_gain()
+        #self.set_photo_diode_gain()
 
     def set_mode(self) -> None:
         if self.configuration.mode.constant_light:
             self.mode.value = LowPowerLaser._CONSTANT_LIGHT
         else:
             self.mode.value = LowPowerLaser._CONSTANT_CURRENT
-        self._driver.write(self.mode)
+        # self._driver.write(self.mode)
 
     def set_current(self) -> None:
         current = LowPowerLaserConfig.bit_to_current(self.configuration.current.bits)
@@ -241,7 +241,7 @@ class LowPowerLaser(Laser):
 
     def set_photo_diode_gain(self) -> None:
         self.photo_diode_gain.value = self.configuration.photo_diode_gain
-        self._driver.write(self.photo_diode_gain)
+        # self._driver.write(self.photo_diode_gain)
 
 
 class HighPowerLaser(Laser):
@@ -306,8 +306,3 @@ class HighPowerLaser(Laser):
                     matrix |= HighPowerLaser._DAC_1_REGISTER[2 * i + 1]
         self._control_register[0].value = matrix
         self._driver.write(self._control_register[0])
-
-    def initialize(self) -> None:
-        self._init.value = True
-        self._initialized = True
-        self._driver.write(self._init)

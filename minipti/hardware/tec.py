@@ -71,7 +71,7 @@ class Driver(serial_device.Driver):
                 logging.error("Invalid command %s", received)
                 self.ready_write.set()
             elif identifier == "S" or identifier == "C":
-                last_written = self.last_written_message
+                last_written = self.last_written_message[:-1]
                 if received != last_written and received != last_written.capitalize():
                     logging.error("Received message %s message, expected %s", received, last_written)
                 else:
@@ -86,14 +86,14 @@ class Driver(serial_device.Driver):
                 set_point = [Driver._bit_to_celsisus(data_frame[_TemperatureIndex.SET_POINT[0]]),
                              Driver._bit_to_celsisus(data_frame[_TemperatureIndex.SET_POINT[1]])]
                 if self.tec[0].configuration.temperature_element.PT1000:
-                    actual_temperature = [Driver._bit_to_celsisus(data_frame[_TemperatureIndex.PT100B[0]]),
-                                          Driver._bit_to_celsisus(data_frame[_TemperatureIndex.PT100B[1]])]
+                    actual_temperature = [float(data_frame[_TemperatureIndex.PT100B[0]]),
+                                          float(data_frame[_TemperatureIndex.PT100B[1]])]
                 elif self.tec[0].configuration.temperature_element.KT:
-                    actual_temperature = [Driver._bit_to_celsisus(data_frame[_TemperatureIndex.KT[0]]),
-                                          Driver._bit_to_celsisus(data_frame[_TemperatureIndex.KT[1]])]
+                    actual_temperature = [float(data_frame[_TemperatureIndex.KT[0]]),
+                                          float(data_frame[_TemperatureIndex.KT[1]])]
                 elif self.tec[0].configuration.temperature_element.NTC:
-                    actual_temperature = [Driver._bit_to_celsisus(data_frame[_TemperatureIndex.NTC[0]]),
-                                          Driver._bit_to_celsisus(data_frame[_TemperatureIndex.NTC[1]])]
+                    actual_temperature = [float(data_frame[_TemperatureIndex.NTC[0]]),
+                                          float(data_frame[_TemperatureIndex.NTC[1]])]
                 else:
                     raise ValueError("Invalid Temperature Element")
                 self.data.put(Data(set_point, actual_temperature))
@@ -269,7 +269,7 @@ class Tec:
                           self.configuration.system_parameter.loop_time, Tec._MIN_LOOP_TIME)
             logging.warning("Setting it to minimum value of %s ms", Tec._MIN_LOOP_TIME)
             self.configuration.system_parameter.loop_time = Tec._MIN_LOOP_TIME
-        elif self.configuration.system_parameter.loop_time > Tec._MIN_LOOP_TIME:
+        elif self.configuration.system_parameter.loop_time > Tec._MAX_LOOP_TIME:
             logging.error("%s ms exceeds the maxium loop time of %s ms",
                           self.configuration.system_parameter.loop_time, Tec._MAX_LOOP_TIME)
             logging.warning("Setting it to maximum value of %s ms", Tec._MAX_LOOP_TIME)

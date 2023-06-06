@@ -569,7 +569,7 @@ class PumpLaser(QtWidgets.QWidget, _Frames, _CreateButton):
 
 
 class ProbeLaser(QtWidgets.QWidget, _CreateButton, _Frames):
-    MIN_CURRENT_BIT = 0
+    MIN_CURRENT_BIT = 5
     MAX_CURRENT_BIT = (1 << 8) - 1
     CONSTANT_CURRENT = 0
     CONSTANT_LIGHT = 1
@@ -783,19 +783,15 @@ class Tec(QtWidgets.QWidget, _Frames, _CreateButton):
 
     def d_value_changed(self) -> None:
         self.controller.update_d_value(self.text_fields.d_value.text())
-        self.sliders.d_slider.slider.setValue(int(self.text_fields.d_value.text()))
 
     def i_1_value_changed(self) -> None:
         self.controller.update_i_1_value(self.text_fields.i_value[0].text())
-        self.sliders.i_slider[0].slider.setValue(int(self.text_fields.i_value[0].text()))
 
     def i_2_value_changed(self) -> None:
         self.controller.update_i_2_value(self.text_fields.i_value[1].text())
-        self.sliders.i_slider[1].slider.setValue(int(self.text_fields.i_value[1].text()))
 
     def p_value_changed(self) -> None:
         self.controller.update_p_value(self.text_fields.p_value.text())
-        self.sliders.p_slider.slider.setValue(int(self.text_fields.p_value.text()))
 
     def setpoint_temperature_changed(self) -> None:
         self.controller.update_setpoint_temperature(self.text_fields.setpoint_temperature.text())
