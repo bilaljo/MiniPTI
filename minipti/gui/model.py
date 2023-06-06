@@ -576,21 +576,26 @@ class Motherboard(Serial):
         return temperature - 273.15
 
     def _incoming_data(self) -> None:
-        units = {"Time": "H:M:S", "External DC Power": "bool",
-                 "Charging Battery": "bool",
-                 "Minutes Left": "min", "Charging Level": "%", "Temperature": "°C", "Current": "mA",
-                 "Voltage": "V", "Full Charge Capacity": "mAh", "Remaining Charge Capacity": "mAh"}
-        pd.DataFrame(units, index=["Y:M:D"]).to_csv(self._destination_folder + "/BMS.csv", index_label="Date")
+        init_header = True
         while self.driver.connected.is_set():
             bms_data = Motherboard.driver.bms
             bms_data.battery_temperature = Motherboard.kelvin_to_celsius(bms_data.battery_temperature)
             signals.battery_state.emit(Battery(bms_data.battery_percentage, bms_data.minutes_left))
-            now = datetime.now()
-            output_data = {"Time": str(now.strftime("%H:%M:%S"))}
-            for key, value in asdict(bms_data).items():
-                output_data[key.replace("_", " ").title()] = value
-            bms_data_frame = pd.DataFrame(output_data, index=[str(now.strftime("%Y-%m-%d"))])
-            bms_data_frame.to_csv(self._destination_folder + "/BMS.csv", header=False, mode="a")
+            if True:
+                if init_header:
+                    units = {"Time": "H:M:S", "External DC Power": "bool",
+                             "Charging Battery": "bool",
+                             "Minutes Left": "min", "Charging Level": "%", "Temperature": "°C", "Current": "mA",
+                             "Voltage": "V", "Full Charge Capacity": "mAh", "Remaining Charge Capacity": "mAh"}
+                    pd.DataFrame(units, index=["Y:M:D"]).to_csv(self._destination_folder + "/BMS.csv",
+                                                                index_label="Date")
+                    init_header = False
+                now = datetime.now()
+                output_data = {"Time": str(now.strftime("%H:%M:%S"))}
+                for key, value in asdict(bms_data).items():
+                    output_data[key.replace("_", " ").title()] = value
+                bms_data_frame = pd.DataFrame(output_data, index=[str(now.strftime("%Y-%m-%d"))])
+                bms_data_frame.to_csv(self._destination_folder + "/BMS.csv", header=False, mode="a")
 
     @property
     def running(self) -> bool:
