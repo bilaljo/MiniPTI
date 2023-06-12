@@ -1193,7 +1193,7 @@ class Tec(Serial):
             self._buffer.append(received_data)
             signals.tec_data.emit(self._buffer)
             signals.tec_data_display.emit(received_data)
-            if self._daq_running_changed:
+            if self._running:
                 now = datetime.now()
                 tec_data = {"Time": str(now.strftime("%H:%M:%S")),
                             "TEC Pump Laser Enabled": self.driver.tec[Tec.PUMP_LASER].enabled,
