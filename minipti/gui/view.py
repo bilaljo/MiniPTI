@@ -831,7 +831,6 @@ class _Plotting(pg.PlotWidget):
         self.plot.showGrid(x=True, y=True)
         self.plot.addLegend()
 
-    @abc.abstractmethod
     @QtCore.pyqtSlot()
     def clear(self) -> None:
         self.window.clear()
@@ -844,7 +843,7 @@ class _Plotting(pg.PlotWidget):
 class _DAQPlots(_Plotting):
     def __init__(self):
         _Plotting.__init__(self)
-        model.signals.clear_daq_plots.connect(self.clear)
+        model.signals.clear_daq.connect(self.clear)
 
     @abc.abstractmethod
     def update_data(self, data: pd.DataFrame) -> None:

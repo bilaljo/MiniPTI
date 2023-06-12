@@ -337,7 +337,7 @@ class Signals(QtCore.QObject):
     bypass = QtCore.pyqtSignal(bool)
     tec_data = QtCore.pyqtSignal(Buffer)
     tec_data_display = QtCore.pyqtSignal(hardware.tec.Data)
-    clear_daq_plots = QtCore.pyqtSignal()
+    clear_daq = QtCore.pyqtSignal()
 
     def __init__(self):
         QtCore.QObject.__init__(self)
@@ -418,6 +418,12 @@ class Calculation:
         self._destination_folder = os.getcwd()
         self.save_raw_data = False
         signals.destination_folder_changed.connect(self._update_destination_folder)
+        signals.clear_daq.connect(self.clear_buffer)
+
+    @QtCore.pyqtSlot()
+    def clear_buffer(self) -> None:
+        self.pti_buffer = PTIBuffer()
+        self.characterisation_buffer = CharacterisationBuffer()
 
     def set_raw_data_saving(self) -> None:
         if self.save_raw_data:
@@ -608,7 +614,7 @@ class Motherboard(Serial):
         if running:
             # Before we start a new run, we clear all old data
             self.driver.reset()
-            signals.clear_daq_plots.emit()
+            signals.clear_daq.emit()
             self.driver.running.set()
             signals.daq_running.emit(True)
 
