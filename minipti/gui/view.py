@@ -834,7 +834,7 @@ class _Plotting(pg.PlotWidget):
     @abc.abstractmethod
     @QtCore.pyqtSlot()
     def clear(self) -> None:
-        ...
+        self.window.clear()
 
     @abc.abstractmethod
     def update_data_live(self, data: model.Buffer) -> None:
@@ -873,11 +873,6 @@ class DC(_DAQPlots):
         for channel in range(3):
             self.curves[channel].setData(data.time, data.dc_values[channel])
 
-    @QtCore.pyqtSlot()
-    def clear(self) -> None:
-        for channel in range(3):
-            self.curves[channel].setData([])
-
 
 class Amplitudes(_DAQPlots):
     def __init__(self):
@@ -904,11 +899,6 @@ class Amplitudes(_DAQPlots):
         for channel in range(3):
             self.curves[channel].setData(data.time, data.amplitudes[channel])
 
-    @QtCore.pyqtSlot()
-    def clear(self) -> None:
-        for channel in range(3):
-            self.curves[channel].setData([])
-
 
 class OutputPhases(_DAQPlots):
     def __init__(self):
@@ -930,11 +920,6 @@ class OutputPhases(_DAQPlots):
         for channel in range(2):
             self.curves[channel].setData(data.time, data.output_phases[channel])
 
-    @QtCore.pyqtSlot()
-    def clear(self) -> None:
-        for channel in range(2):
-            self.curves[channel].setData([])
-
 
 class InterferometricPhase(_DAQPlots):
     def __init__(self):
@@ -950,10 +935,6 @@ class InterferometricPhase(_DAQPlots):
 
     def update_data_live(self, data: model.PTIBuffer) -> None:
         self.curves.setData(data.time, data.interferometric_phase)
-
-    @QtCore.pyqtSlot()
-    def clear(self) -> None:
-        self.curves.setData([])
 
 
 class Sensitivity(_DAQPlots):
@@ -975,11 +956,6 @@ class Sensitivity(_DAQPlots):
         for channel in range(3):
             self.curves[channel].setData(data.time, data.sensitivity[channel])
 
-    @QtCore.pyqtSlot()
-    def clear(self) -> None:
-        for channel in range(3):
-            self.curves[channel].setData([])
-
 
 class Symmetry(_DAQPlots):
     def __init__(self):
@@ -1000,11 +976,6 @@ class Symmetry(_DAQPlots):
     def update_data_live(self, data: model.CharacterisationBuffer) -> None:
         self.curves[0].setData(data.time, data.symmetry)
         self.curves[1].setData(data.time, data.relative_symmetry)
-
-    @QtCore.pyqtSlot()
-    def clear(self) -> None:
-        for channel in range(2):
-            self.curves[channel].setData([])
 
 
 class PTISignal(_DAQPlots):
@@ -1028,11 +999,6 @@ class PTISignal(_DAQPlots):
         self.curves["PTI Signal"].setData(data.time, data.pti_signal)
         self.curves["PTI Signal Mean"].setData(data.time, data.pti_signal_mean)
 
-    @QtCore.pyqtSlot()
-    def clear(self) -> None:
-        self.curves["PTI Signal"].setData([])()
-        self.curves["PTI Signal Mean"].setData([])
-
 
 class PumpLaserCurrent(_Plotting):
     def __init__(self):
@@ -1046,10 +1012,6 @@ class PumpLaserCurrent(_Plotting):
     def update_data_live(self, data: model.LaserBuffer) -> None:
         self.curves.setData(data.time, data.pump_laser_current)
 
-    @QtCore.pyqtSlot()
-    def clear(self) -> None:
-        self.curves.setData([])()
-
 
 class ProbeLaserCurrent(_Plotting):
     def __init__(self):
@@ -1062,10 +1024,6 @@ class ProbeLaserCurrent(_Plotting):
 
     def update_data_live(self, data: model.LaserBuffer) -> None:
         self.curves.setData(data.time, data.probe_laser_current)
-
-    @QtCore.pyqtSlot()
-    def clear(self) -> None:
-        self.curves.setData([])
 
 
 class TecTemperature(_Plotting):
@@ -1085,8 +1043,3 @@ class TecTemperature(_Plotting):
     def update_data_live(self, data: model.TecBuffer) -> None:
         self.curves[TecTemperature.SET_POINT].setData(data.time, data.set_point[self.laser])
         self.curves[TecTemperature.MEASURAED].setData(data.time, data.actual_value[self.laser])
-
-    @QtCore.pyqtSlot()
-    def clear(self) -> None:
-        self.curves[TecTemperature.SET_POINT].setData([])
-        self.curves[TecTemperature.MEASURAED].setData([])
