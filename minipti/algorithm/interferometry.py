@@ -7,12 +7,19 @@ import itertools
 import logging
 import os
 import threading
+import typing
 from typing import Union, Generator, Iterable
 from collections import defaultdict
 
 import numpy as np
 import pandas as pd
 from scipy import optimize, linalg
+
+
+class _Locks(typing.NamedTuple):
+    output_phases = threading.Lock()
+    amplitudes = threading.Lock()
+    offsets = threading.Lock()
 
 
 class Interferometer:
@@ -35,8 +42,7 @@ class Interferometer:
         self._offsets = offsets
         self.absolute_symmetry: Union[float, np.ndarray] = 100
         self.relative_symmetry: Union[float, np.ndarray] = 100
-        self._locks = {"Output Phases": threading.Lock(), "Amplitudes": threading.Lock(),
-                       "Offsets": threading.Lock()}
+        self._locks = _Locks()
 
     def load_settings(self) -> None:
         """
@@ -75,35 +81,35 @@ class Interferometer:
 
     @property
     def amplitudes(self) -> np.ndarray:
-        with self._locks["Amplitudes"]:
+        with self._locks.amplitudes:
             amplitudes = self._amplitudes
         return amplitudes
 
     @amplitudes.setter
     def amplitudes(self, amplitudes: np.ndarray):
-        with self._locks["Amplitudes"]:
+        with self._locks.amplitudes:
             self._amplitudes = amplitudes
 
     @property
     def offsets(self) -> np.ndarray:
-        with self._locks["Offsets"]:
+        with self._locks.offsets:
             offsets = self._offsets
         return offsets
 
     @offsets.setter
     def offsets(self, offsets: np.ndarray):
-        with self._locks["Offsets"]:
+        with self._locks.offsets:
             self._offsets = offsets
 
     @property
     def output_phases(self) -> np.ndarray:
-        with self._locks["Output Phases"]:
+        with self._locks.output_phases:
             output_phase = self._output_phases
         return output_phase
 
     @output_phases.setter
     def output_phases(self, output_phases: np.ndarray):
-        with self._locks["Output Phases"]:
+        with self._locks.output_phases:
             self._output_phases = output_phases
 
     def read_decimation(self) -> Union[pd.DataFrame, None]:
@@ -124,15 +130,14 @@ class Interferometer:
         if not (intensity.shape[0] == 3 or intensity.shape[1] == 3):
             raise ValueError(f"Expected length of (3, n) or (n, 3), got {intensity.shape} instead.")
         if intensity.shape[0] == intensity.shape[1]:
-            raise ValueError("Same shape for both dimensions. Could determine which dimension"
-                             " describes channels.")
+            raise ValueError("Same shape for both dimensions. Could not determine which dimension describes channels.")
 
     def calculate_amplitudes(self, intensity: np.ndarray):
         """
         The amplitude of perfect sine wave can be calculated according to A = (I_max - I_min) / 2.
         This function is only used as approximation.
         """
-        Interferometer.error_handing_intensity(intensity)
+        intensity = Interferometer.error_handing_intensity(intensity)
         if intensity.shape[1] == 3:
             self.amplitudes = (np.max(intensity, axis=0) - np.min(intensity, axis=0)) / 2
         else:
@@ -140,7 +145,7 @@ class Interferometer:
 
     def calculate_offsets(self, intensity: np.ndarray):
         """
-        The offset of perfect sine wave can be calculated according to A = (I_max + I_min) / 2.
+        The offset of perfect sine wave can be calculated according to B = (I_max + I_min) / 2.
         This function is only used as approximation.
         """
         Interferometer.error_handing_intensity(intensity)
@@ -188,7 +193,7 @@ class Characterization:
     """
     MAX_ITERATIONS = 30
     STEP_SIZE = 100
-    CHANNELS = 3
+    _CHANNELS = 3
 
     def __init__(self, interferometer=Interferometer(), use_configuration=True, use_parameters=True):
         self.interferometer = interferometer
@@ -293,7 +298,7 @@ class Characterization:
 
     def process_characterisation(self, dc_signals: np.ndarray) -> Generator[int, None, int]:
         last_index: int = 0
-        data_length: int = dc_signals.size // Characterization.CHANNELS  # 3 Channels
+        data_length: int = dc_signals.size // Characterization._CHANNELS
         if self.use_configuration:
             self._load_settings()
         else:
