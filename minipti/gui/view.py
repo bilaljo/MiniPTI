@@ -876,7 +876,7 @@ class DC(_DAQPlots):
     @QtCore.pyqtSlot()
     def clear(self) -> None:
         for channel in range(3):
-            self.curves[channel].clear()
+            self.curves[channel].setData([])
 
 
 class Amplitudes(_DAQPlots):
@@ -907,7 +907,7 @@ class Amplitudes(_DAQPlots):
     @QtCore.pyqtSlot()
     def clear(self) -> None:
         for channel in range(3):
-            self.curves[channel].clear()
+            self.curves[channel].setData([])
 
 
 class OutputPhases(_DAQPlots):
@@ -933,7 +933,7 @@ class OutputPhases(_DAQPlots):
     @QtCore.pyqtSlot()
     def clear(self) -> None:
         for channel in range(2):
-            self.curves[channel].clear()
+            self.curves[channel].setData([])
 
 
 class InterferometricPhase(_DAQPlots):
@@ -953,7 +953,7 @@ class InterferometricPhase(_DAQPlots):
 
     @QtCore.pyqtSlot()
     def clear(self) -> None:
-        self.curves.clear()
+        self.curves.setData([])
 
 
 class Sensitivity(_DAQPlots):
@@ -978,7 +978,7 @@ class Sensitivity(_DAQPlots):
     @QtCore.pyqtSlot()
     def clear(self) -> None:
         for channel in range(3):
-            self.curves[channel].clear()
+            self.curves[channel].setData([])
 
 
 class Symmetry(_DAQPlots):
@@ -1004,7 +1004,7 @@ class Symmetry(_DAQPlots):
     @QtCore.pyqtSlot()
     def clear(self) -> None:
         for channel in range(2):
-            self.curves[channel].clear()
+            self.curves[channel].setData([])
 
 
 class PTISignal(_DAQPlots):
@@ -1030,8 +1030,8 @@ class PTISignal(_DAQPlots):
 
     @QtCore.pyqtSlot()
     def clear(self) -> None:
-        self.curves["PTI Signal"].clear()
-        self.curves["PTI Signal Mean"].clear()
+        self.curves["PTI Signal"].setData([])()
+        self.curves["PTI Signal Mean"].setData([])
 
 
 class PumpLaserCurrent(_Plotting):
@@ -1048,7 +1048,7 @@ class PumpLaserCurrent(_Plotting):
 
     @QtCore.pyqtSlot()
     def clear(self) -> None:
-        self.curves.clear()
+        self.curves.setData([])()
 
 
 class ProbeLaserCurrent(_Plotting):
@@ -1065,7 +1065,7 @@ class ProbeLaserCurrent(_Plotting):
 
     @QtCore.pyqtSlot()
     def clear(self) -> None:
-        self.curves.clear()
+        self.curves.setData([])
 
 
 class TecTemperature(_Plotting):
@@ -1088,5 +1088,5 @@ class TecTemperature(_Plotting):
 
     @QtCore.pyqtSlot()
     def clear(self) -> None:
-        self.curves[TecTemperature.SET_POINT].clear()
-        self.curves[TecTemperature.MEASURAED].clear()
+        self.curves[TecTemperature.SET_POINT].setData([])
+        self.curves[TecTemperature.MEASURAED].setData([])
