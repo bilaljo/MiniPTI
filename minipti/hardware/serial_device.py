@@ -238,11 +238,6 @@ class Driver:
         threading.Thread(target=self._receive, daemon=True, name=f"{self.device_name} Receive Thread").start()
         threading.Thread(target=self._process_data, daemon=True, name=f"{self.device_name} Proccessing Thread").start()
 
-    def _connection_lost_handing(self) -> None:
-        logging.error("Connection to %s lost", self.device_name)
-        self.handle = None
-        self.connected.clear()
-
     def get_hardware_id(self) -> Union[bytes, None]:
         try:
             received_data: bytes = self.received_data.get(timeout=Driver.MAX_RESPONSE_TIME)
@@ -307,6 +302,7 @@ class Driver:
                 try:
                     self._transfer()
                 except OSError:
+                    logging.error("Could not transfer %s to %s", self.last_written_message)
                     break
                 logging.debug("%s written to %s", self.last_written_message[:-1], self.device_name)
                 self.ready_write.clear()
@@ -316,13 +312,10 @@ class Driver:
             try:
                 win32file.WriteFile(self.handle, self.last_written_message.encode(), None)
             except pywintypes.error:
-                logging.error("Could not transfer %s to %s", self.last_written_message)
+                raise OSError
         else:
-            try:
-                with self.file_descriptor_lock:
-                    os.write(self.file_descriptor, self.last_written_message.encode())
-            except OSError:
-                logging.error("Could not transfer %s to %s", self.last_written_message)
+            with self.file_descriptor_lock:
+                os.write(self.file_descriptor, self.last_written_message.encode())
 
     def _check_ack(self, data: str) -> bool:
         last_written = self.last_written_message[:-1]
