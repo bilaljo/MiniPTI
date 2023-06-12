@@ -16,7 +16,7 @@ if platform.system() == "Windows":
     from win32 import win32file
     import pywintypes
 else:
-    import termios, signal, fcntl
+    import termios
 import serial
 from serial.tools import list_ports
 
@@ -77,6 +77,7 @@ class Driver:
     """
     _QUEUE_SIZE = 15
     MAX_RESPONSE_TIME = 500e-3  # 100 ms response time
+    _MAX_RECEIVE_TIME = 5000  # 5 s
 
     TERMINATION_SYMBOL = "\n"
     NUMBER_OF_HEX_BYTES = 4
@@ -100,6 +101,24 @@ class Driver:
         self.connected = threading.Event()
         self.received_data = queue.Queue()
 
+    @property
+    @abc.abstractmethod
+    def device_id(self) -> bytes:
+        ...
+
+    @property
+    @abc.abstractmethod
+    def device_name(self) -> str:
+        ...
+
+    def __repr__(self) -> str:
+        name_space = os.path.splitext(os.path.basename(__file__))[0]
+        class_name = self.__class__.__name__
+        representation = f"{name_space}.{class_name}(device_name={self.device_name}," \
+                         f" termination_symbol=\\n, device_id={self.device_id}," \
+                         f" port_name={self.port_name})"
+        return representation
+
     def find_port(self) -> None:
         for _ in range(Driver.SEARCH_ATTEMPTS):
             for port in list_ports.comports():
@@ -117,6 +136,7 @@ class Driver:
                         if hardware_id == self.device_id:
                             self.port_name = port.device
                             logging.info(f"Found {self.device_name} at {self.port_name}")
+                            self.found = True
                             return
                 except serial.SerialException:
                     continue
@@ -159,7 +179,7 @@ class Driver:
                     oflag = 0
 
                     cc[termios.VMIN] = 1
-                    cc[termios.VTIME] = 0
+                    cc[termios.VTIME] = Driver._MAX_RECEIVE_TIME
 
                     iflag &= ~(termios.IXON | termios.IXOFF | termios.IXANY)
 
@@ -188,24 +208,6 @@ class Driver:
 
     def _read(self):
         self._process_data()
-
-    @property
-    @abc.abstractmethod
-    def device_id(self) -> bytes:
-        ...
-
-    @property
-    @abc.abstractmethod
-    def device_name(self) -> str:
-        ...
-
-    def __repr__(self) -> str:
-        name_space = os.path.splitext(os.path.basename(__file__))[0]
-        class_name = self.__class__.__name__
-        representation = f"{name_space}.{class_name}(device_name={self.device_name}," \
-                         f" termination_symbol=\\n, device_id={self.device_id}," \
-                         f" port_name={self.port_name})"
-        return representation
 
     def get_hardware_id(self) -> Union[bytes, None]:
         try:
@@ -333,26 +335,26 @@ class Driver:
                     _, comstat = win32file.ClearCommError(self.device)
                     rc, data = win32file.ReadFile(self.device, comstat.cbInQue, None)
                     self.received_data.put(data.decode())
-                    # logging.debug("Data received")
-                except pywintypes.error as e:
+                except pywintypes.error:
                     logging.error("Connection to %s lost", self.device_name)
-                    logging.debug("Error caused by %s", e)
+                    self.device = None  # Device could not close properly so we marke the device as invalid
     else:
         """
         Serial Port Reading Implementation on Unix.
         """
         def _receive(self) -> None:
             """
-            This threads blocks until data on the serial port is available.
+            This threads blocks until data on the serial port is available. If after 5 s now data has come it is assumed
+            that the connection is lost.
             """
             while self.connected.is_set():
                 try:
                     with self.file_descriptor_lock:
                         received = os.read(self.file_descriptor, Driver.IO_BUFFER_SIZE)
                     self.received_data.put(received.decode())
-                except OSError as e:
+                except OSError:
                     logging.error("Connection to %s lost", self.device_name)
-                    logging.debug("Error caused by %s", e)
+                    self.file_descriptor = -1  # Device could not close properly so we marke the descirptor as invalid
 
     @abc.abstractmethod
     def _encode_data(self) -> None:
