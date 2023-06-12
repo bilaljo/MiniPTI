@@ -87,11 +87,11 @@ class Inversion:
             pti_signal += demodulated_signal * sign
         total_sensitivity = np.sum(self.sensitivity, axis=0)
         try:
-            total_sensitivity[np.where[total_sensitivity == 0]] = np.nan
+            total_sensitivity[np.where[total_sensitivity == 0]] = 0
             return
         except TypeError:
             if total_sensitivity == 0:
-                self.pti_signal = np.nan
+                self.pti_signal = 0
                 return
         self.pti_signal = -pti_signal / total_sensitivity
         self.pti_signal *= Inversion.MICRO_RAD * self.sign

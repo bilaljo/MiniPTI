@@ -41,6 +41,7 @@ class Home:
         self.view = parent
         self.main_app = main_app
         self.settings_model = model.SettingsTable()
+        self.settings_model.load()
         self.calculation_model = model.Calculation()
         self.motherboard = model.Motherboard()
         self.laser = model.Laser()

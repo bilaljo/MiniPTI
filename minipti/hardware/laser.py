@@ -14,9 +14,11 @@ from .. import json_parser
 
 @dataclass
 class Data(serial_device.Data):
-    pump_laser_current: float
-    pump_laser_voltage: float
-    probe_laser_current: float
+    high_power_laser_enabled: bool
+    high_power_laser_current: float
+    high_power_laser_voltage: float
+    low_power_laser_current: float
+    low_power_laser_enabled: bool
 
 
 class Driver(serial_device.Driver):
@@ -68,9 +70,11 @@ class Driver(serial_device.Driver):
                 self._check_ack(received)
             elif received[0] == "L":
                 data_frame = received.split("\t")[Driver._START_DATA_FRAME:self.end_data_frame]
-                self.data.put(Data(pump_laser_current=float(data_frame[0]),
-                                   pump_laser_voltage=float(data_frame[1]),
-                                   probe_laser_current=float(data_frame[2])))
+                self.data.put(Data(high_power_laser_current=float(data_frame[0]),
+                                   high_power_laser_voltage=float(data_frame[1]),
+                                   low_power_laser_current=float(data_frame[2]),
+                                   low_power_laser_enabled=self.low_power_laser.enabled,
+                                   high_power_laser_enabled=self.high_power_laser.enabled))
             else:  # Broken data frame without header char
                 logging.error("Received invalid package without header")
                 self.ready_write.set()

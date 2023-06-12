@@ -16,7 +16,7 @@ from . import model
 
 
 class MainWindow(QtWidgets.QMainWindow):
-    HORIZONTAL_SIZE = 1100
+    HORIZONTAL_SIZE = 1200
     VERTICAL_SIZE = 900
 
     def __init__(self, main_controller):
@@ -508,8 +508,8 @@ class PumpLaser(QtWidgets.QWidget, _Frames, _CreateButton):
 
     @QtCore.pyqtSlot(hardware.laser.Data)
     def _update_current_voltage(self, value: hardware.laser.Data) -> None:
-        self.current_display.setText(str(value.pump_laser_current) + " mA")
-        self.voltage_display.setText(str(value.pump_laser_voltage) + " V")
+        self.current_display.setText(str(value.high_power_laser_current) + " mA")
+        self.voltage_display.setText(str(value.high_power_laser_voltage) + " V")
 
     def _init_voltage_configuration(self) -> None:
         self.driver_voltage.slider.valueChanged.connect(self.controller.update_driver_voltage)
@@ -608,7 +608,7 @@ class ProbeLaser(QtWidgets.QWidget, _CreateButton, _Frames):
 
     @QtCore.pyqtSlot(hardware.laser.Data)
     def _update_current(self, value: hardware.laser.Data) -> None:
-        self.current_display.setText(str(value.probe_laser_current))
+        self.current_display.setText(str(value.low_power_laser_current))
 
     @functools.singledispatchmethod
     def _update_max_current(self, value: int):
@@ -875,7 +875,7 @@ class DC(_DAQPlots):
     @QtCore.pyqtSlot()
     def clear(self) -> None:
         for channel in range(3):
-            self.curves[channel].setData([])
+            self.curves[channel].clear()
 
 
 class Amplitudes(_DAQPlots):
@@ -906,7 +906,7 @@ class Amplitudes(_DAQPlots):
     @QtCore.pyqtSlot()
     def clear(self) -> None:
         for channel in range(3):
-            self.curves[channel].setData([])
+            self.curves[channel].clear()
 
 
 class OutputPhases(_DAQPlots):
@@ -932,7 +932,7 @@ class OutputPhases(_DAQPlots):
     @QtCore.pyqtSlot()
     def clear(self) -> None:
         for channel in range(2):
-            self.curves[channel].setData([])
+            self.curves[channel].clear()
 
 
 class InterferometricPhase(_DAQPlots):
@@ -952,7 +952,7 @@ class InterferometricPhase(_DAQPlots):
 
     @QtCore.pyqtSlot()
     def clear(self) -> None:
-        self.curves.setData([])
+        self.curves.clear()
 
 
 class Sensitivity(_DAQPlots):
@@ -977,7 +977,7 @@ class Sensitivity(_DAQPlots):
     @QtCore.pyqtSlot()
     def clear(self) -> None:
         for channel in range(3):
-            self.curves[channel].setData([])
+            self.curves[channel].clear()
 
 
 class Symmetry(_DAQPlots):
@@ -1003,7 +1003,7 @@ class Symmetry(_DAQPlots):
     @QtCore.pyqtSlot()
     def clear(self) -> None:
         for channel in range(2):
-            self.curves[channel].setData([])
+            self.curves[channel].clear()
 
 
 class PTISignal(_DAQPlots):
@@ -1029,8 +1029,8 @@ class PTISignal(_DAQPlots):
 
     @QtCore.pyqtSlot()
     def clear(self) -> None:
-        self.curves["PTI Signal"].setData([])
-        self.curves["PTI Signal Mean"].setData([])
+        self.curves["PTI Signal"].clear()
+        self.curves["PTI Signal Mean"].clear()
 
 
 class PumpLaserCurrent(_Plotting):
@@ -1047,7 +1047,7 @@ class PumpLaserCurrent(_Plotting):
 
     @QtCore.pyqtSlot()
     def clear(self) -> None:
-        self.curves.setData([])
+        self.curves.clear()
 
 
 class ProbeLaserCurrent(_Plotting):
@@ -1063,7 +1063,7 @@ class ProbeLaserCurrent(_Plotting):
         self.curves.setData(data.time, data.probe_laser_current)
 
     def clear(self) -> None:
-        self.curves.setData([])
+        self.curves.clear()
 
 
 class TecTemperature(_Plotting):
@@ -1085,5 +1085,5 @@ class TecTemperature(_Plotting):
         self.curves[TecTemperature.MEASURAED].setData(data.time, data.actual_value[self.laser])
 
     def clear(self) -> None:
-        self.curves[TecTemperature.SET_POINT].setData([])
-        self.curves[TecTemperature.MEASURAED].setData([])
+        self.curves[TecTemperature.SET_POINT].clear()
+        self.curves[TecTemperature.MEASURAED].clear()

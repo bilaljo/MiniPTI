@@ -288,9 +288,9 @@ class LaserBuffer(Buffer):
 
     def append(self, laser_data: hardware.laser.Data) -> None:
         self.time.append(next(self.time_counter) / 10)
-        self.pump_laser_current.append(laser_data.pump_laser_current)
-        self.pump_laser_voltage.append(laser_data.pump_laser_voltage)
-        self.probe_laser_current.append(laser_data.probe_laser_current)
+        self.pump_laser_current.append(laser_data.high_power_laser_current)
+        self.pump_laser_voltage.append(laser_data.high_power_laser_voltage)
+        self.probe_laser_current.append(laser_data.low_power_laser_current)
 
 
 class TecBuffer(Buffer):
@@ -730,7 +730,9 @@ class Laser(Serial):
 
     def _incoming_data(self):
         units = {"Time": "H:M:S",
+                 "Pump Laser Enabled": "bool",
                  "Pump Laser Voltage": "V",
+                 "Probe Laser Enabled": "bool",
                  "Pump Laser Current": "mA",
                  "Probe Laser Current": "mA"}
         pd.DataFrame(units, index=["Y:M:D"]).to_csv(self._destination_folder + "/laser.csv", index_label="Date")
@@ -741,9 +743,11 @@ class Laser(Serial):
             laser_signals.data_display.emit(received_data)
             now = datetime.now()
             output_data = {"Time": str(now.strftime("%H:%M:%S")),
-                           "Pump Laser Voltage": received_data.pump_laser_voltage,
-                           "Pump Laser Current": received_data.pump_laser_current,
-                           "Probe Laser Current": received_data.probe_laser_current}
+                           "Pump Laser Enabled": received_data.high_power_laser_enabled,
+                           "Pump Laser Voltage": received_data.high_power_laser_voltage,
+                           "Probe Laser Enabled": received_data.low_power_laser_enabled,
+                           "Pump Laser Current": received_data.high_power_laser_current,
+                           "Probe Laser Current": received_data.low_power_laser_current}
             laser_data_frame = pd.DataFrame(output_data, index=[str(now.strftime("%Y-%m-%d"))])
             pd.DataFrame(laser_data_frame).to_csv(f"{self._destination_folder}/laser.csv", mode="a", header=False)
 
@@ -1173,12 +1177,12 @@ class Tec(Serial):
             signals.tec_data_display.emit(received_data)
             now = datetime.now()
             tec_data = {"Time": str(now.strftime("%H:%M:%S")),
-                         "TEC Pump Laser Enabled": self.driver.tec[Tec.PUMP_LASER].enabled,
-                         "TEC Probe Laser Enabled": self.driver.tec[Tec.PROBE_LASER].enabled,
-                         "Measured Temperature Pump Laser": received_data.actual_temperature[Tec.PUMP_LASER],
-                         "Set Point Temperature Pump Laser": received_data.set_point[Tec.PUMP_LASER],
-                         "Measured Temperature Probe Laser": received_data.actual_temperature[Tec.PROBE_LASER],
-                         "Set Point Temperature Probe Laser": received_data.set_point[Tec.PROBE_LASER]}
+                        "TEC Pump Laser Enabled": self.driver.tec[Tec.PUMP_LASER].enabled,
+                        "TEC Probe Laser Enabled": self.driver.tec[Tec.PROBE_LASER].enabled,
+                        "Measured Temperature Pump Laser": received_data.actual_temperature[Tec.PUMP_LASER],
+                        "Set Point Temperature Pump Laser": received_data.set_point[Tec.PUMP_LASER],
+                        "Measured Temperature Probe Laser": received_data.actual_temperature[Tec.PROBE_LASER],
+                        "Set Point Temperature Probe Laser": received_data.set_point[Tec.PROBE_LASER]}
             tec_data_frame = pd.DataFrame(tec_data, index=[str(now.strftime("%Y-%m-%d"))])
             pd.DataFrame(tec_data_frame).to_csv(f"{self._destination_folder}/tec.csv", header=False, mode="a")
 
