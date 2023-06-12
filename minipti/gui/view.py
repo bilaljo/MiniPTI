@@ -285,6 +285,7 @@ class Home(QtWidgets.QTabWidget, _Frames, _CreateButton):
         self.frames["Setting"].layout().addWidget(sub_layout)
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
         self.create_button(master=sub_layout, title="Save Settings", slot=self.controller.save_settings)
+        self.create_button(master=sub_layout, title="Save Settings As", slot=self.controller.save_settings_as)
         self.create_button(master=sub_layout, title="Load Settings", slot=self.controller.load_settings)
         sub_layout.layout().addWidget(self.save_raw_data)
 

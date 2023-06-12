@@ -116,6 +116,13 @@ class Home:
     def save_settings(self) -> None:
         self.settings_model.save()
 
+    def save_settings_as(self) -> None:
+        file_path = save_as(parent=self.view, file_type="CSV File", file_extension="csv",
+                            name="Algorithm Configuration")
+        if file_path:
+            self.settings_model.file_path = file_path
+            self.settings_model.save()
+
     def load_settings(self):
         file_path = QtWidgets.QFileDialog.getOpenFileName(self.view, caption="Load SettingsTable",
                                                           filter="CSV File (*.csv);;"
@@ -349,13 +356,9 @@ class Laser:
         self.laser.save_configuration()
 
     def save_configuration_as(self) -> None:
-        file_path = QtWidgets.QFileDialog.getSaveFileName(self.parent, caption="Laser Configuration Path",
-                                                          filter="JSON File (*.json);; All Files (*);;")[0]
+        file_path = save_as(parent=self.parent, file_type="JSON File", file_extension="json",
+                            name="Laser Configuration")
         if file_path:
-            _, file_extension = os.path.splitext(file_path)
-            print(file_extension)
-            if not file_extension:
-                file_path = f"{file_path}.json"
             self.laser.config_path = file_path  # The actual file path
             self.laser.save_configuration()
 
@@ -441,12 +444,8 @@ class Tec:
         self.view = parent
 
     def save_configuration_as(self) -> None:
-        file_path = QtWidgets.QFileDialog.getSaveFileName(self.view, caption="Laser Configuration Path",
-                                                          filter="JSON File (*.json);; All Files (*);;")[0]
+        file_path = save_as(parent=self.view, file_type="JSON File", file_extension="json", name="TEC Configuration")
         if file_path:
-            _, file_extension = os.path.splitext(file_path)
-            if not file_extension:
-                file_path = f"{file_path}.json"
             self.tec.config_path = file_path  # The actual file path
             self.tec.save_configuration()
 
@@ -518,3 +517,24 @@ class Tec:
 
     def fire_configuration_change(self) -> None:
         self.tec.fire_configuration_change()
+
+
+def save_as(parent, file_type, file_extension, name) -> str:
+    file_path = QtWidgets.QFileDialog.getSaveFileName(parent, caption=f"{name} Path",
+                                                      filter=f"{file_type} (*.{file_extension});; All Files (*);;")[0]
+    if file_path:
+        _, old_file_extension = os.path.splitext(file_path)
+        if not old_file_extension:
+            file_path = file_path + "." + file_extension
+        if os.path.exists(file_path):
+            answer = QtWidgets.QMessageBox.question(parent, f"{name} Path",
+                                                    f"File {file_path} exists already. Do you want to replace it?",
+                                                    QtWidgets.QMessageBox.StandardButton.Yes
+                                                    | QtWidgets.QMessageBox.StandardButton.No)
+            if answer == QtWidgets.QMessageBox.StandardButton.Yes:
+                logging.warning("Overriding %s", file_path)
+            else:
+                file_path = ""
+            if file_path:
+                logging.info("Saved %s into %s", name, file_path)
+    return file_path

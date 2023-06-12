@@ -47,7 +47,7 @@ class SettingsTable(QtCore.QAbstractTableModel):
     def __init__(self):
         QtCore.QAbstractTableModel.__init__(self)
         self._data = pd.DataFrame(columns=SettingsTable.HEADERS, index=SettingsTable.INDEX)
-        self._file_path = f"{os.path.dirname(os.path.dirname(__file__))}/algorithm/configs/settings.csv"
+        self.file_path = f"{os.path.dirname(os.path.dirname(__file__))}/algorithm/configs/settings.csv"
         self._observer_callbacks = []
         signals.settings.connect(self.update_settings)
 
@@ -92,15 +92,6 @@ class SettingsTable(QtCore.QAbstractTableModel):
     @table_data.setter
     def table_data(self, data) -> None:
         self._data = data
-
-    @property
-    def file_path(self) -> str:
-        return self._file_path
-
-    @file_path.setter
-    def file_path(self, file_path: str) -> None:
-        if os.path.exists(file_path):
-            self._file_path = file_path
 
     def save(self) -> None:
         self._data.to_csv(self.file_path, index_label="Setting", index=True)
@@ -1187,7 +1178,8 @@ class Tec(Serial):
                              "Set Point Temperature Pump Laser": "°C",
                              "Measured Temperature Probe Laser": "°C",
                              "Set Point Temperature Probe Laser": "°C"}
-                    pd.DataFrame(units, index=["Y:M:D"]).to_csv(f"{self._destination_folder}/tec.csv", index_label="Date")
+                    pd.DataFrame(units, index=["Y:M:D"]).to_csv(f"{self._destination_folder}/tec.csv",
+                                                                index_label="Date")
                     self._init_headders = False
             received_data: hardware.tec.Data = self.driver.data.get(block=True)
             self._buffer.append(received_data)
