@@ -509,10 +509,12 @@ class Serial:
     def __init__(self):
         signals.destination_folder_changed.connect(self._update_file_path)
         self._destination_folder = os.getcwd()
+        self._init_headers = True
 
     # @QtCore.pyqtSlot(str)
     def _update_file_path(self, destination_folder: str) -> None:
         self._destination_folder = destination_folder
+        self._init_headers = True
 
     @classmethod
     def find_port(cls) -> None:
@@ -582,20 +584,19 @@ class Motherboard(Serial):
         return round((temperature - 273.15) / 100, 2)
 
     def _incoming_data(self) -> None:
-        init_header = True
         while self.driver.connected.is_set():
             bms_data = Motherboard.driver.bms
             bms_data.battery_temperature = Motherboard.centi_kelvin_to_celsius(bms_data.battery_temperature)
             signals.battery_state.emit(Battery(bms_data.battery_percentage, bms_data.minutes_left))
             if self.running:
-                if init_header:
+                if self._init_headers:
                     units = {"Time": "H:M:S", "External DC Power": "bool",
                              "Charging Battery": "bool",
                              "Minutes Left": "min", "Charging Level": "%", "Temperature": "°C", "Current": "mA",
                              "Voltage": "V", "Full Charge Capacity": "mAh", "Remaining Charge Capacity": "mAh"}
                     pd.DataFrame(units, index=["Y:M:D"]).to_csv(self._destination_folder + "/BMS.csv",
                                                                 index_label="Date")
-                    init_header = False
+                    self.init_header = False
                 now = datetime.now()
                 output_data = {"Time": str(now.strftime("%H:%M:%S"))}
                 for key, value in asdict(bms_data).items():
@@ -734,14 +735,15 @@ class Laser(Serial):
         ...
 
     def _incoming_data(self):
-        units = {"Time": "H:M:S",
-                 "Pump Laser Enabled": "bool",
-                 "Pump Laser Voltage": "V",
-                 "Probe Laser Enabled": "bool",
-                 "Pump Laser Current": "mA",
-                 "Probe Laser Current": "mA"}
-        pd.DataFrame(units, index=["Y:M:D"]).to_csv(self._destination_folder + "/laser.csv", index_label="Date")
         while self.driver.connected.is_set():
+            if self._init_headers:
+                units = {"Time": "H:M:S",
+                         "Pump Laser Enabled": "bool",
+                         "Pump Laser Voltage": "V",
+                         "Probe Laser Enabled": "bool",
+                         "Pump Laser Current": "mA",
+                         "Probe Laser Current": "mA"}
+                pd.DataFrame(units, index=["Y:M:D"]).to_csv(self._destination_folder + "/laser.csv", index_label="Date")
             received_data: hardware.laser.Data = self.driver.data.get(block=True)
             Laser.buffer.append(received_data)
             laser_signals.data.emit(Laser.buffer)
@@ -1167,15 +1169,16 @@ class Tec(Serial):
         self.tec_signals.use_ntc.emit(self.tec.configuration.temperature_element.NTC)
 
     def _incoming_data(self) -> None:
-        units = {"Time": "H:M:S",
-                 "TEC Pump Laser Enabled": "bool",
-                 "TEC Probe Laser Enabled": "bool",
-                 "Measured Temperature Pump Laser": "°C",
-                 "Set Point Temperature Pump Laser": "°C",
-                 "Measured Temperature Probe Laser": "°C",
-                 "Set Point Temperature Probe Laser": "°C"}
-        pd.DataFrame(units, index=["Y:M:D"]).to_csv(f"{self._destination_folder}/tec.csv", index_label="Date")
         while self.driver.connected.is_set():
+            if self._init_headers:
+                units = {"Time": "H:M:S",
+                         "TEC Pump Laser Enabled": "bool",
+                         "TEC Probe Laser Enabled": "bool",
+                         "Measured Temperature Pump Laser": "°C",
+                         "Set Point Temperature Pump Laser": "°C",
+                         "Measured Temperature Probe Laser": "°C",
+                         "Set Point Temperature Probe Laser": "°C"}
+                pd.DataFrame(units, index=["Y:M:D"]).to_csv(f"{self._destination_folder}/tec.csv", index_label="Date")
             received_data: hardware.tec.Data = self.driver.data.get(block=True)
             self._buffer.append(received_data)
             signals.tec_data.emit(self._buffer)
