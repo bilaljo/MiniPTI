@@ -420,7 +420,6 @@ class Calculation:
         signals.destination_folder_changed.connect(self._update_destination_folder)
         signals.clear_daq.connect(self.clear_buffer)
 
-    @QtCore.pyqtSlot()
     def clear_buffer(self) -> None:
         self.pti_buffer = PTIBuffer()
         self.characterisation_buffer = CharacterisationBuffer()
