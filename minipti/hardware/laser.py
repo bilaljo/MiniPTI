@@ -223,7 +223,7 @@ class LowPowerLaser(Laser):
     def apply_configuration(self) -> None:
         self.set_mode()
         self.set_current()
-        #self.set_photo_diode_gain()
+        # self.set_photo_diode_gain()
 
     def set_mode(self) -> None:
         if self.configuration.mode.constant_light:
