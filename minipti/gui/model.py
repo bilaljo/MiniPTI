@@ -740,7 +740,7 @@ class Laser(Serial):
 
     def _incoming_data(self):
         while self.driver.connected.is_set():
-            if self._daq_running_changed:
+            if self._running:
                 if self._init_headers:
                     units = {"Time": "H:M:S",
                              "Pump Laser Enabled": "bool",
@@ -1178,7 +1178,7 @@ class Tec(Serial):
 
     def _incoming_data(self) -> None:
         while self.driver.connected.is_set():
-            if self._daq_running_changed:
+            if self._running:
                 if self._init_headers:
                     units = {"Time": "H:M:S",
                              "TEC Pump Laser Enabled": "bool",
