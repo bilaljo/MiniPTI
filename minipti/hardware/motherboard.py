@@ -263,6 +263,7 @@ class Driver(serial_device.Driver):
         if len(self._sample_numbers) > 1 and not self._check_package_difference():
             self._reset()
         ref_signal, ac_coupled, dc_coupled = Driver._encode(data)
+        self.synchronize = not sum(itertools.islice(ref_signal, 0, self.config.daq.ref_period // 2))
         if self.synchronize:
             self._synchronize_with_ref(ref_signal, ac_coupled, dc_coupled)
         self._encoded_buffer.ref_signal.extend(ref_signal)
@@ -323,6 +324,7 @@ class Driver(serial_device.Driver):
 
     def _synchronize_with_ref(self, ref_signal: _Samples, ac_coupled: list[_Samples],
                               dc_coupled: list[_Samples]) -> None:
+        logging.warning("Not synchron with reference signal. Trying to synchronise")
         while sum(itertools.islice(ref_signal, 0, self.config.daq.ref_period // 2)):
             ref_signal.popleft()
             for channel in range(Driver._CHANNELS):
