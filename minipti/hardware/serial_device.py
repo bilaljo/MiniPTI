@@ -272,7 +272,10 @@ class Driver:
         while self.connected.is_set():
             if self.ready_write.wait(timeout=Driver.MAX_RESPONSE_TIME):
                 self.last_written_message = self._write_buffer.get(block=True) + Driver.TERMINATION_SYMBOL
-                self._transfer()
+                try:
+                    self._transfer()
+                except OSError:
+                    break
                 logging.debug("%s written to %s", self.last_written_message[:-1], self.device_name)
                 self.ready_write.clear()
 
