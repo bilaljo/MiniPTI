@@ -1,10 +1,12 @@
 import abc
+import dataclasses
 import functools
 import logging
 import os
 import platform
 import re
 import time
+import typing
 from dataclasses import dataclass
 from enum import Enum
 from typing import Union
@@ -69,6 +71,31 @@ class SerialStream:
         return self._stream
 
 
+if platform.system() == "Windows":
+    @dataclass
+    class TimeOuts(typing.NamedTuple):
+        """
+        ReadIntervalTimeout: The maximum time allowed to elapse before the arrival of the next byte on the
+                             communications line in milliseconds.
+        ReadTotalTimeoutMultiplier: The multiplier used to calculate the total time-out period for read operations,
+                                    in milliseconds.
+        ReadTotalTimeoutConstant: A constant used to calculate the total time-out period for read operations,
+                                  in milliseconds.
+        WriteTotalTimeoutMultiplier: The multiplier used to calculate the total time-out period for write operations,
+                                     in milliseconds.
+        WriteTotalTimeoutConstant: A constant used to calculate the total time-out period for write operations,
+                                   in milliseconds
+
+        Copied form the Windows documentation:
+        https://learn.microsoft.com/en-us/windows/win32/api/winbase/ns-winbase-commtimeouts
+        """
+        ReadIntervalTimeout: int
+        ReadTotalTimeoutMultiplier: int
+        ReadTotalTimeoutConstant: int
+        WriteTotalTimeoutMultiplier: int
+        WriteTotalTimeoutConstant: int
+
+
 class Driver:
     """
     Base class for serial port reading and writing. Note that the class uses for reading, writing and proceeding of
@@ -77,7 +104,11 @@ class Driver:
     """
     _QUEUE_SIZE = 15
     MAX_RESPONSE_TIME = 500e-3  # 100 ms response time
-    _MAX_RECEIVE_TIME = 5000  # 5 s
+    _MAX_WAIT_TIME = 5000  # 5 s
+    if platform.system() == "Windows":
+        _TIMEOUTS = TimeOuts(ReadIntervalTimeout=_MAX_WAIT_TIME, ReadTotalTimeoutMultiplier=0,
+                             ReadTotalTimeoutConstant=0, WriteTotalTimeoutMultiplier=0,
+                             WriteTotalTimeoutConstant=_MAX_WAIT_TIME)
 
     TERMINATION_SYMBOL = "\n"
     NUMBER_OF_HEX_BYTES = 4
@@ -86,7 +117,6 @@ class Driver:
     SEARCH_ATTEMPTS = 3
 
     def __init__(self):
-        self.device = None
         self.port_name = ""
         self._write_buffer = queue.Queue()
         self.data = queue.Queue()
@@ -94,7 +124,7 @@ class Driver:
         self.ready_write.set()
         self.last_written_message = ""
         if platform.system() == "Windows":
-            self.device = None
+            self.handle = None
         else:
             self.file_descriptor = -1
             self.file_descriptor_lock = threading.Lock()
@@ -120,10 +150,12 @@ class Driver:
         return representation
 
     def find_port(self) -> None:
+        if self.is_open:
+            return
         for _ in range(Driver.SEARCH_ATTEMPTS):
             for port in list_ports.comports():
                 try:
-                    with serial.Serial(port.device, timeout=Driver.MAX_RESPONSE_TIME,
+                    with serial.Serial(port.name, timeout=Driver.MAX_RESPONSE_TIME,
                                        write_timeout=Driver.MAX_RESPONSE_TIME) as device:
                         device.write(Command.HARDWARE_ID + Driver.TERMINATION_SYMBOL.encode())
                         time.sleep(0.1)
@@ -134,33 +166,33 @@ class Driver:
                             self.received_data.put(device.read(available_bytes))
                         hardware_id = self.get_hardware_id()
                         if hardware_id == self.device_id:
-                            self.port_name = port.device
+                            self.port_name = port.name
                             logging.info(f"Found {self.device_name} at {self.port_name}")
-                            self.found = True
                             return
                 except serial.SerialException:
                     continue
         else:
-            raise OSError("Could not find {self.device_name}")
+            raise OSError(f"Could not find {self.device_name}")
 
     if platform.system() == "Windows":
         def open(self) -> None:
             if self.port_name and not self.is_open:
                 try:
-                    self.device = win32file.CreateFile("\\\\.\\" + self.port_name,
+                    self.handle = win32file.CreateFile("\\\\.\\" + self.port_name,
                                                        win32con.GENERIC_READ | win32con.GENERIC_WRITE,
                                                        0,
                                                        None,
                                                        win32con.OPEN_EXISTING,
                                                        win32con.FILE_ATTRIBUTE_NORMAL,
                                                        None)
+                    win32file.SetCommTimeouts(self.handle, dataclasses.astuple(Driver._TIMEOUTS))
                 except pywintypes.error as e:
                     logging.debug("Error caused by %s", e)
                     raise OSError("Could not find %s", self.device_name)
                 else:
-                    win32file.SetCommMask(self.device, win32file.EV_RXCHAR)
-                    win32file.SetupComm(self.device, Driver.IO_BUFFER_SIZE, Driver.IO_BUFFER_SIZE)
-                    win32file.PurgeComm(self.device, win32file.PURGE_TXABORT | win32file.PURGE_RXABORT
+                    win32file.SetCommMask(self.handle, win32file.EV_RXCHAR)
+                    win32file.SetupComm(self.handle, Driver.IO_BUFFER_SIZE, Driver.IO_BUFFER_SIZE)
+                    win32file.PurgeComm(self.handle, win32file.PURGE_TXABORT | win32file.PURGE_RXABORT
                                         | win32file.PURGE_TXCLEAR | win32file.PURGE_RXCLEAR)
                     self.connected.set()
                     logging.info("Connected with %s", self.device_name)
@@ -179,7 +211,7 @@ class Driver:
                     oflag = 0
 
                     cc[termios.VMIN] = 1
-                    cc[termios.VTIME] = Driver._MAX_RECEIVE_TIME
+                    cc[termios.VTIME] = Driver._MAX_WAIT_TIME
 
                     iflag &= ~(termios.IXON | termios.IXOFF | termios.IXANY)
 
@@ -204,10 +236,12 @@ class Driver:
     def run(self) -> None:
         threading.Thread(target=self._write, daemon=True, name=f"{self.device_name} Write Thread").start()
         threading.Thread(target=self._receive, daemon=True, name=f"{self.device_name} Receive Thread").start()
-        threading.Thread(target=self._read, daemon=True, name=f"{self.device_name} Proccessing Thread").start()
+        threading.Thread(target=self._process_data, daemon=True, name=f"{self.device_name} Proccessing Thread").start()
 
-    def _read(self):
-        self._process_data()
+    def _connection_lost_handing(self) -> None:
+        logging.error("Connection to %s lost", self.device_name)
+        self.handle = None
+        self.connected.clear()
 
     def get_hardware_id(self) -> Union[bytes, None]:
         try:
@@ -279,10 +313,16 @@ class Driver:
 
     def _transfer(self) -> None:
         if platform.system() == "Windows":
-            win32file.WriteFile(self.device, self.last_written_message.encode(), None)
+            try:
+                win32file.WriteFile(self.handle, self.last_written_message.encode(), None)
+            except pywintypes.error:
+                logging.error("Could not transfer %s to %s", self.last_written_message)
         else:
-            with self.file_descriptor_lock:
-                os.write(self.file_descriptor, self.last_written_message.encode())
+            try:
+                with self.file_descriptor_lock:
+                    os.write(self.file_descriptor, self.last_written_message.encode())
+            except OSError:
+                logging.error("Could not transfer %s to %s", self.last_written_message)
 
     def _check_ack(self, data: str) -> bool:
         last_written = self.last_written_message[:-1]
@@ -298,7 +338,7 @@ class Driver:
     if platform.system() == "Windows":
         @property
         def is_open(self) -> bool:
-            return self.device is not None
+            return self.handle is not None
     else:
         @property
         def is_open(self) -> bool:
@@ -306,9 +346,9 @@ class Driver:
 
     if platform.system() == "Windows":
         def close(self) -> None:
-            if self.device is not None:
+            if self.handle is not None:
                 self.connected.clear()
-                win32file.CloseHandle(self.device)
+                win32file.CloseHandle(self.handle)
                 logging.info("Closed connection to %s", self.device_name)
     else:
         def close(self) -> None:
@@ -331,13 +371,14 @@ class Driver:
             """
             while self.connected.is_set():
                 try:
-                    win32file.WaitCommEvent(self.device, None)
-                    _, comstat = win32file.ClearCommError(self.device)
-                    rc, data = win32file.ReadFile(self.device, comstat.cbInQue, None)
+                    win32file.WaitCommEvent(self.handle, None)
+                    _, comstat = win32file.ClearCommError(self.handle)
+                    rc, data = win32file.ReadFile(self.handle, comstat.cbInQue, None)
                     self.received_data.put(data.decode())
                 except pywintypes.error:
                     logging.error("Connection to %s lost", self.device_name)
-                    self.device = None  # Device could not close properly so we marke the device as invalid
+                    self.handle = None  # Device could not close properly so we marke the device as invalid
+                    self.connected.clear()
     else:
         """
         Serial Port Reading Implementation on Unix.
@@ -355,6 +396,7 @@ class Driver:
                 except OSError:
                     logging.error("Connection to %s lost", self.device_name)
                     self.file_descriptor = -1  # Device could not close properly so we marke the descirptor as invalid
+                    self.connected.clear()
 
     @abc.abstractmethod
     def _encode_data(self) -> None:
