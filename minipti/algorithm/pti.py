@@ -169,8 +169,8 @@ class Inversion:
                                                           index_label="Time")
             self.init_header = False
         self.interferometer.calculate_phase(self.dc_signals)
-        self.calculate_pti_signal()
         self.calculate_sensitivity()
+        self.calculate_pti_signal()
         now = datetime.now()
         date = str(now.strftime("%Y-%m-%d"))
         time = str(now.strftime("%H:%M:%S"))

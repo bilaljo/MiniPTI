@@ -832,6 +832,7 @@ class _Plotting(pg.PlotWidget):
         self.plot.addLegend()
 
     @abc.abstractmethod
+    @QtCore.pyqtSlot()
     def clear(self) -> None:
         ...
 
@@ -841,7 +842,7 @@ class _Plotting(pg.PlotWidget):
 
 
 class _DAQPlots(_Plotting):
-    def __int__(self):
+    def __init__(self):
         _Plotting.__init__(self)
         model.signals.clear_daq_plots.connect(self.clear)
 
@@ -1062,6 +1063,7 @@ class ProbeLaserCurrent(_Plotting):
     def update_data_live(self, data: model.LaserBuffer) -> None:
         self.curves.setData(data.time, data.probe_laser_current)
 
+    @QtCore.pyqtSlot()
     def clear(self) -> None:
         self.curves.clear()
 
@@ -1084,6 +1086,7 @@ class TecTemperature(_Plotting):
         self.curves[TecTemperature.SET_POINT].setData(data.time, data.set_point[self.laser])
         self.curves[TecTemperature.MEASURAED].setData(data.time, data.actual_value[self.laser])
 
+    @QtCore.pyqtSlot()
     def clear(self) -> None:
         self.curves[TecTemperature.SET_POINT].clear()
         self.curves[TecTemperature.MEASURAED].clear()

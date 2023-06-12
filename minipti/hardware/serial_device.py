@@ -187,11 +187,7 @@ class Driver:
         threading.Thread(target=self._read, daemon=True, name=f"{self.device_name} Proccessing Thread").start()
 
     def _read(self):
-        try:
-            self._process_data()
-        finally:
-            if self.is_open:
-                self.close()
+        self._process_data()
 
     @property
     @abc.abstractmethod
