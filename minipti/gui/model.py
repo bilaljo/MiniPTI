@@ -511,10 +511,9 @@ class Serial:
         self._destination_folder = os.getcwd()
         self._init_headers = True
         self._running = False
-        signals.daq_running.connect(self._daq_running)
+        signals.daq_running.connect(self._daq_running_changed)
 
-    @QtCore.pyqtSlot(bool)
-    def _daq_running(self, running) -> None:
+    def _daq_running_changed(self, running) -> None:
         self._running = running
 
     # @QtCore.pyqtSlot(str)
@@ -741,7 +740,7 @@ class Laser(Serial):
 
     def _incoming_data(self):
         while self.driver.connected.is_set():
-            if self._daq_running:
+            if self._daq_running_changed:
                 if self._init_headers:
                     units = {"Time": "H:M:S",
                              "Pump Laser Enabled": "bool",
@@ -1179,7 +1178,7 @@ class Tec(Serial):
 
     def _incoming_data(self) -> None:
         while self.driver.connected.is_set():
-            if self._daq_running:
+            if self._daq_running_changed:
                 if self._init_headers:
                     units = {"Time": "H:M:S",
                              "TEC Pump Laser Enabled": "bool",
@@ -1194,7 +1193,7 @@ class Tec(Serial):
             self._buffer.append(received_data)
             signals.tec_data.emit(self._buffer)
             signals.tec_data_display.emit(received_data)
-            if self._daq_running:
+            if self._daq_running_changed:
                 now = datetime.now()
                 tec_data = {"Time": str(now.strftime("%H:%M:%S")),
                             "TEC Pump Laser Enabled": self.driver.tec[Tec.PUMP_LASER].enabled,
