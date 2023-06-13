@@ -1,4 +1,4 @@
-beartype==0.14.0
+beartype==0.14.1
 dacite==1.8.1
 fastcrc==0.2.1
 h5py==3.8.0
@@ -14,4 +14,4 @@ scipy==1.10.1
 six==1.16.0
 types-pytz==2023.3.0.0
 tzdata==2023.3
-pywin32==306; platform_system == "Windows"
+pythonnet; platform_system == "Windows"

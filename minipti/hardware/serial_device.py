@@ -1,22 +1,20 @@
 import abc
-import dataclasses
 import functools
 import logging
 import os
 import platform
 import re
 import time
-import typing
 from dataclasses import dataclass
 from enum import Enum
 from typing import Union
 import threading
 import queue
 
+
 if platform.system() == "Windows":
-    import win32con
-    from win32 import win32file
-    import pywintypes
+    import clr
+    import System
 else:
     import termios
 import serial
@@ -71,31 +69,6 @@ class SerialStream:
         return self._stream
 
 
-if platform.system() == "Windows":
-    @dataclass
-    class TimeOuts(typing.NamedTuple):
-        """
-        ReadIntervalTimeout: The maximum time allowed to elapse before the arrival of the next byte on the
-                             communications line in milliseconds.
-        ReadTotalTimeoutMultiplier: The multiplier used to calculate the total time-out period for read operations,
-                                    in milliseconds.
-        ReadTotalTimeoutConstant: A constant used to calculate the total time-out period for read operations,
-                                  in milliseconds.
-        WriteTotalTimeoutMultiplier: The multiplier used to calculate the total time-out period for write operations,
-                                     in milliseconds.
-        WriteTotalTimeoutConstant: A constant used to calculate the total time-out period for write operations,
-                                   in milliseconds
-
-        Copied form the Windows documentation:
-        https://learn.microsoft.com/en-us/windows/win32/api/winbase/ns-winbase-commtimeouts
-        """
-        ReadIntervalTimeout: int
-        ReadTotalTimeoutMultiplier: int
-        ReadTotalTimeoutConstant: int
-        WriteTotalTimeoutMultiplier: int
-        WriteTotalTimeoutConstant: int
-
-
 class Driver:
     """
     Base class for serial port reading and writing. Note that the class uses for reading, writing and proceeding of
@@ -105,15 +78,11 @@ class Driver:
     _QUEUE_SIZE = 15
     MAX_RESPONSE_TIME = 500e-3  # 100 ms response time
     _MAX_WAIT_TIME = 5000  # 5 s
-    if platform.system() == "Windows":
-        _TIMEOUTS = TimeOuts(ReadIntervalTimeout=_MAX_WAIT_TIME, ReadTotalTimeoutMultiplier=0,
-                             ReadTotalTimeoutConstant=0, WriteTotalTimeoutMultiplier=0,
-                             WriteTotalTimeoutConstant=_MAX_WAIT_TIME)
 
     TERMINATION_SYMBOL = "\n"
     NUMBER_OF_HEX_BYTES = 4
     _START_DATA_FRAME = 1
-    IO_BUFFER_SIZE = 4096
+    IO_BUFFER_SIZE = 8000
     SEARCH_ATTEMPTS = 3
 
     def __init__(self):
@@ -124,7 +93,7 @@ class Driver:
         self.ready_write.set()
         self.last_written_message = ""
         if platform.system() == "Windows":
-            self.handle = None
+            self.serial_port = System.IO.Ports.SerialPort()
         else:
             self.file_descriptor = -1
             self.file_descriptor_lock = threading.Lock()
@@ -177,25 +146,12 @@ class Driver:
     if platform.system() == "Windows":
         def open(self) -> None:
             if self.port_name and not self.is_open:
-                try:
-                    self.handle = win32file.CreateFile("\\\\.\\" + self.port_name,
-                                                       win32con.GENERIC_READ | win32con.GENERIC_WRITE,
-                                                       0,
-                                                       None,
-                                                       win32con.OPEN_EXISTING,
-                                                       win32con.FILE_ATTRIBUTE_NORMAL,
-                                                       None)
-                    win32file.SetCommTimeouts(self.handle, dataclasses.astuple(Driver._TIMEOUTS))
-                except pywintypes.error as e:
-                    logging.debug("Error caused by %s", e)
-                    raise OSError("Could not find %s", self.device_name)
-                else:
-                    win32file.SetCommMask(self.handle, win32file.EV_RXCHAR)
-                    win32file.SetupComm(self.handle, Driver.IO_BUFFER_SIZE, Driver.IO_BUFFER_SIZE)
-                    win32file.PurgeComm(self.handle, win32file.PURGE_TXABORT | win32file.PURGE_RXABORT
-                                        | win32file.PURGE_TXCLEAR | win32file.PURGE_RXCLEAR)
-                    self.connected.set()
-                    logging.info("Connected with %s", self.device_name)
+                self.serial_port = System.IO.Ports.SerialPort()
+                self.serial_port.PortName = self.port_name
+                self.serial_port.DataReceived += System.IO.Ports.SerialDataReceivedEventHandler(self._receive)
+                self.serial_port.Open()
+                self.connected.set()
+                logging.info("Connected with %s", self.device_name)
             else:
                 raise OSError("Could not find %s", self.device_name)
     else:
@@ -235,7 +191,6 @@ class Driver:
 
     def run(self) -> None:
         threading.Thread(target=self._write, daemon=True, name=f"{self.device_name} Write Thread").start()
-        threading.Thread(target=self._receive, daemon=True, name=f"{self.device_name} Receive Thread").start()
         threading.Thread(target=self._process_data, daemon=True, name=f"{self.device_name} Proccessing Thread").start()
 
     def get_hardware_id(self) -> Union[bytes, None]:
@@ -309,10 +264,7 @@ class Driver:
 
     def _transfer(self) -> None:
         if platform.system() == "Windows":
-            try:
-                win32file.WriteFile(self.handle, self.last_written_message.encode(), None)
-            except pywintypes.error:
-                raise OSError
+            self.serial_port.Write(self.last_written_message)
         else:
             with self.file_descriptor_lock:
                 os.write(self.file_descriptor, self.last_written_message.encode())
@@ -331,7 +283,7 @@ class Driver:
     if platform.system() == "Windows":
         @property
         def is_open(self) -> bool:
-            return self.handle is not None
+            return self.serial_port.IsOpen
     else:
         @property
         def is_open(self) -> bool:
@@ -339,9 +291,9 @@ class Driver:
 
     if platform.system() == "Windows":
         def close(self) -> None:
-            if self.handle is not None:
+            if self.serial_port is not None:
                 self.connected.clear()
-                win32file.CloseHandle(self.handle)
+                self.serial_port.Close()
                 logging.info("Closed connection to %s", self.device_name)
     else:
         def close(self) -> None:
@@ -355,23 +307,8 @@ class Driver:
         """
         Serial Port Reading Implementation on Windows.
         """
-        def _receive(self) -> None:
-            """
-            Receiver thread for incoming data. The WaitComEvent method blocks the thread until a specific event
-            occurred. The event we are looking for has event mask value EV_RXCHAR. It is set, when a character
-            (or more) is put into the input buffer.
-            If the EV_RXCHAR event occurred the data can be read.
-            """
-            while self.connected.is_set():
-                try:
-                    win32file.WaitCommEvent(self.handle, None)
-                    _, comstat = win32file.ClearCommError(self.handle)
-                    rc, data = win32file.ReadFile(self.handle, comstat.cbInQue, None)
-                    self.received_data.put(data.decode())
-                except pywintypes.error:
-                    logging.error("Connection to %s lost", self.device_name)
-                    self.handle = None  # Device could not close properly so we marke the device as invalid
-                    self.connected.clear()
+        def _receive(self, sender, arg: System.IO.Ports.SerialDataReceivedEventArgs) -> None:
+            self.received_data.put(self.serial_port.ReadExisting())
     else:
         """
         Serial Port Reading Implementation on Unix.
