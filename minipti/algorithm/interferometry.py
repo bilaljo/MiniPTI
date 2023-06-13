@@ -121,23 +121,11 @@ class Interferometer:
             return None
         return pd.read_csv(self.decimation_filepath, delimiter=dc_delimiter, skiprows=[1])
 
-    @staticmethod
-    def error_handing_intensity(intensity):
-        if not isinstance(intensity, np.ndarray):
-            intensity = np.array(intensity)
-        if len(intensity.shape) != 2:
-            raise ValueError(f"Expected length of shape of 2, got {len(intensity.shape)} instead.")
-        if not (intensity.shape[0] == 3 or intensity.shape[1] == 3):
-            raise ValueError(f"Expected length of (3, n) or (n, 3), got {intensity.shape} instead.")
-        if intensity.shape[0] == intensity.shape[1]:
-            raise ValueError("Same shape for both dimensions. Could not determine which dimension describes channels.")
-
     def calculate_amplitudes(self, intensity: np.ndarray):
         """
         The amplitude of perfect sine wave can be calculated according to A = (I_max - I_min) / 2.
         This function is only used as approximation.
         """
-        intensity = Interferometer.error_handing_intensity(intensity)
         if intensity.shape[1] == 3:
             self.amplitudes = (np.max(intensity, axis=0) - np.min(intensity, axis=0)) / 2
         else:
@@ -148,7 +136,6 @@ class Interferometer:
         The offset of perfect sine wave can be calculated according to B = (I_max + I_min) / 2.
         This function is only used as approximation.
         """
-        Interferometer.error_handing_intensity(intensity)
         if intensity.shape[1] == 3:
             self.offsets = (np.max(intensity, axis=0) + np.min(intensity, axis=0)) / 2
         else:

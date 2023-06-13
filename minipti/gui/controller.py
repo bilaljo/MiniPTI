@@ -127,8 +127,8 @@ class Home:
         file_path = QtWidgets.QFileDialog.getOpenFileName(self.view, caption="Load SettingsTable",
                                                           filter="CSV File (*.csv);;"
                                                                  " TXT File (*.txt);; All Files (*);;")
-        if file_path:
-            self.settings_model.file_path = file_path[0]  # The actual file path
+        if file_path[0]:
+            self.settings_model.file_path = file_path  # The actual file path
             self.settings_model.load()
 
     @staticmethod
