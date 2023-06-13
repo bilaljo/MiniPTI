@@ -128,7 +128,7 @@ class Driver(serial_device.Driver):
 
     @property
     def bms(self) -> BMSData:
-        return self.data.BMS.get(block=True, timeout=10)
+        return self.data.BMS.get(block=True)
 
     @property
     def ref_signal(self) -> deque:
@@ -263,7 +263,6 @@ class Driver(serial_device.Driver):
         if len(self._sample_numbers) > 1 and not self._check_package_difference():
             self._reset()
         ref_signal, ac_coupled, dc_coupled = Driver._encode(data)
-        self.synchronize = not sum(itertools.islice(ref_signal, 0, self.config.daq.ref_period // 2))
         if self.synchronize:
             self._synchronize_with_ref(ref_signal, ac_coupled, dc_coupled)
         self._encoded_buffer.ref_signal.extend(ref_signal)
@@ -324,7 +323,6 @@ class Driver(serial_device.Driver):
 
     def _synchronize_with_ref(self, ref_signal: _Samples, ac_coupled: list[_Samples],
                               dc_coupled: list[_Samples]) -> None:
-        logging.warning("Not synchron with reference signal. Trying to synchronise")
         while sum(itertools.islice(ref_signal, 0, self.config.daq.ref_period // 2)):
             ref_signal.popleft()
             for channel in range(Driver._CHANNELS):
@@ -340,8 +338,13 @@ class Driver(serial_device.Driver):
         Creates a package of samples that represents approximately 1 s data. It contains 8000
         samples.
         """
-        self.data.DAQ.ref_signal.put([self._encoded_buffer.ref_signal.popleft()
-                                      for _ in range(self.config.daq.number_of_samples)])
+        ref = [self._encoded_buffer.ref_signal.popleft() for _ in range(self.config.daq.number_of_samples)]
+        for i in range(len(ref), self.config.daq.ref_period):
+            if sum(ref[i:i + self.config.daq.ref_period // 2]):
+                logging.warning("Not synchron with reference signal. Trying to synchronise")
+                self.synchronize = True
+                return
+        self.data.DAQ.ref_signal.put(ref)
         dc_package = [[], [], []]
         ac_package = [[], [], []]
         for _ in itertools.repeat(None, self.config.daq.number_of_samples):
