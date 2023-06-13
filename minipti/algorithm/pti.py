@@ -38,7 +38,7 @@ class Inversion:
                        ([f"AC CH{i}" for i in range(1, 4)],
                         [f"AC Phase CH{i}" for i in range(1, 4)])]
 
-    def __init__(self, response_phases=None, sign=-1, interferometer=None,
+    def __init__(self, response_phases=None, sign=1, interferometer=None,
                  settings_path=f"{os.path.dirname(__file__)}/configs/settings.csv"):
         self.response_phases: np.ndarray = response_phases
         self.pti_signal: Union[float, np.ndarray] = 0
@@ -55,8 +55,8 @@ class Inversion:
     def __repr__(self) -> str:
         class_name = self.__class__.__name__
         representation = f"{class_name}(response_phases={self.response_phases}," \
-                         f" pti_signal={self.pti_signal},"\
-                         f"Sensitivity={self.sensitivity}, lock_in={repr(self.lock_in)}"
+                         f" pti_signal={self.pti_signal}, Sensitivity={self.sensitivity}," \
+                         f" lock_in={repr(self.lock_in)}"
         return representation
 
     def __str__(self) -> str:
@@ -65,7 +65,7 @@ class Inversion:
 
     def load_response_phase(self) -> None:
         settings = pd.read_csv(self.settings_path, index_col="Setting")
-        self.response_phases = np.deg2rad(settings.loc["Response Phases [deg]"].to_numpy())
+        self.response_phases = settings.loc["Response Phases [rad]"].to_numpy()
 
     def _calculate_sign(self, channel: int) -> int:
         try:
@@ -86,13 +86,6 @@ class Inversion:
             demodulated_signal = self.lock_in.amplitude[channel] * np.cos(self.lock_in.phase[channel] - response_phase)
             pti_signal += demodulated_signal * sign
         total_sensitivity = np.sum(self.sensitivity, axis=0)
-        try:
-            total_sensitivity[np.where[total_sensitivity == 0]] = 0
-            return
-        except TypeError:
-            if total_sensitivity == 0:
-                self.pti_signal = 0
-                return
         self.pti_signal = -pti_signal / total_sensitivity
         self.pti_signal *= Inversion.MICRO_RAD * self.sign
 
@@ -159,14 +152,14 @@ class Inversion:
         return units, output_data
 
     def _calculate_online(self) -> None:
-        output_data = {}
+        output_data = {"Time": "H:M:S"}
         if self.init_header:
             output_data["Interferometric Phase"] = "rad"
             for channel in range(1, 4):
                 output_data[f"Sensitivity CH{channel}"] = "V/rad"
             output_data["PTI Signal"] = "µrad"
-            pd.DataFrame(output_data, index=["s"]).to_csv(f"{self.destination_folder}/PTI_Inversion.csv",
-                                                          index_label="Time")
+            pd.DataFrame(output_data, index=["Y:M:D"]).to_csv(f"{self.destination_folder}/PTI_Inversion.csv",
+                                                              index_label="Date")
             self.init_header = False
         self.interferometer.calculate_phase(self.dc_signals)
         self.calculate_sensitivity()
@@ -182,7 +175,7 @@ class Inversion:
                        "PTI Signal": self.pti_signal}
         try:
             pd.DataFrame(output_data, index=[date]).to_csv(f"{self.destination_folder}/PTI_Inversion.csv",
-                                                           mode="a", index_label="Time", header=False)
+                                                           mode="a", index_label="Date", header=False)
         except PermissionError:
             logging.warning("Could not write data. Missing values are: %s at %s.",
                             str(output_data)[1:-1], date + " " + time)
@@ -280,24 +273,24 @@ class Decimation:
         output_data["Time"] = time
         for channel in range(3):
             output_data[f"Lock In Amplitude CH{channel + 1}"] = self.lock_in.amplitude[channel]
-            output_data[f"Lock In Phase CH{channel + 1}"] = np.rad2deg(self.lock_in.phase[channel])
+            output_data[f"Lock In Phase CH{channel + 1}"] = self.lock_in.phase[channel]
             output_data[f"DC CH{channel + 1}"] = self.dc_signals[channel]
         try:
             pd.DataFrame(output_data, index=[date]).to_csv(f"{self.destination_folder}/Decimation.csv", mode="a",
-                                                           index_label="Time", header=False)
+                                                           index_label="Date", header=False)
         except PermissionError:
             logging.warning("Could not write data. Missing values are: %s at %s.",
                             str(output_data)[1:-1], date + " " + time)
 
     def decimate(self, live=False) -> None:
         if self.init_header:
-            output_data = {}
+            output_data = {"Time": "H:M:S"}
             for channel in range(3):
                 output_data[f"Lock In Amplitude CH{channel + 1}"] = "V"
-                output_data[f"Lock In Phase CH{channel + 1}"] = "deg"
+                output_data[f"Lock In Phase CH{channel + 1}"] = "rad"
                 output_data[f"DC CH{channel + 1}"] = "V"
-            pd.DataFrame(output_data, index=["s"]).to_csv(f"{self.destination_folder}/Decimation.csv",
-                                                          index_label="Time")
+            pd.DataFrame(output_data, index=["Y:M:D"]).to_csv(f"{self.destination_folder}/Decimation.csv",
+                                                              index_label="Date")
             self.init_header = False
         if live:
             self.process_raw_data()

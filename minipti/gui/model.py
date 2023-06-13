@@ -41,7 +41,7 @@ class DestinationFolder:
 
 class SettingsTable(QtCore.QAbstractTableModel):
     HEADERS = ["Detector 1", "Detector 2", "Detector 3"]
-    INDEX = ["Amplitude [V]", "Offset [V]", "Output Phases [deg]", "Response Phases [deg]"]
+    INDEX = ["Amplitude [V]", "Offset [V]", "Output Phases [deg]", "Response Phases [rad]"]
     SIGNIFICANT_VALUES = 4
 
     def __init__(self):
