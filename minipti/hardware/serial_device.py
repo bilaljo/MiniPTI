@@ -1,4 +1,5 @@
 import abc
+import enum
 import functools
 import logging
 import os
@@ -99,6 +100,8 @@ class Driver:
             self.file_descriptor_lock = threading.Lock()
         self.connected = threading.Event()
         self.received_data = queue.Queue()
+        self._received_flag = 0
+        self._last_flag_value = 0
 
     @property
     @abc.abstractmethod
@@ -129,19 +132,15 @@ class Driver:
                         device.write(Command.HARDWARE_ID + Driver.TERMINATION_SYMBOL.encode())
                         time.sleep(0.1)
                         available_bytes = device.in_waiting
-                        if platform.system() == "Windows":
-                            self.received_data.put(device.read(available_bytes))
-                        else:
-                            self.received_data.put(device.read(available_bytes))
-                        hardware_id = self.get_hardware_id()
-                        if hardware_id == self.device_id:
+                        self.received_data.put(device.read(available_bytes))
+                        if self.get_hardware_id() == self.device_id:
                             self.port_name = port.name
                             logging.info(f"Found {self.device_name} at {self.port_name}")
                             return
                 except serial.SerialException:
                     continue
         else:
-            raise OSError(f"Could not find {self.device_name}")
+            raise OSError(f"Could not find {self.device_name}. Maybe it is already connected")
 
     if platform.system() == "Windows":
         def open(self) -> None:
@@ -191,7 +190,24 @@ class Driver:
 
     def run(self) -> None:
         threading.Thread(target=self._write, daemon=True, name=f"{self.device_name} Write Thread").start()
+        if platform.system() != "Windows":
+            threading.Timer()
+            threading.Thread(target=self._write, daemon=True, name=f"{self.device_name} Receive Thread").start()
+        threading.Thread(target=self._timeout, daemon=True, name="Read Timeout Thread")
         threading.Thread(target=self._process_data, daemon=True, name=f"{self.device_name} Proccessing Thread").start()
+
+    def _timeout(self) -> None:
+        if self._last_flag_value != self._received_flag:
+            self._last_flag_value = self._received_flag
+        else:
+            logging.error("Lost connection to %s", self.device_name)
+            self.connected.clear()
+            if platform.system() != "Windows":
+                try:
+                    with self.file_descriptor_lock:
+                        os.close(self.file_descriptor)
+                except OSError:
+                    self.file_descriptor = -1  # In case devices is regogniced as not existing we clear the fd
 
     def get_hardware_id(self) -> Union[bytes, None]:
         try:
@@ -309,6 +325,7 @@ class Driver:
         """
         def _receive(self, sender, arg: System.IO.Ports.SerialDataReceivedEventArgs) -> None:
             self.received_data.put(self.serial_port.ReadExisting())
+            self._received_flag ^= 1
     else:
         """
         Serial Port Reading Implementation on Unix.
@@ -323,6 +340,7 @@ class Driver:
                     with self.file_descriptor_lock:
                         received = os.read(self.file_descriptor, Driver.IO_BUFFER_SIZE)
                     self.received_data.put(received.decode())
+                    self._received_flag ^= 1
                 except OSError:
                     logging.error("Connection to %s lost", self.device_name)
                     self.file_descriptor = -1  # Device could not close properly so we marke the descirptor as invalid
