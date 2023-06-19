@@ -283,7 +283,18 @@ class Characterization:
         self.interferometer.output_phases = np.array([0, 2 * np.pi / 3, 4 * np.pi / 3])
         self.use_parameters = False
 
-    def process_characterisation(self, dc_signals: np.ndarray) -> Generator[int, None, int]:
+    def process_characterisation(self, dc_signals: np.ndarray, function: typing.Callable):
+        process_characterisation: Generator[int, None, int] = self._process_characterisation(dc_signals)
+        while True:
+            try:
+                i = next(process_characterisation)
+                if self.enough_values:
+                    function(i)
+            except StopIteration as e:
+                if e.value == 0:
+                    raise ValueError("Not enough values for characterisation")
+
+    def _process_characterisation(self, dc_signals: np.ndarray) -> Generator[int, None, int]:
         last_index: int = 0
         data_length: int = dc_signals.size // Characterization._CHANNELS
         if self.use_configuration:
@@ -376,7 +387,14 @@ class Characterization:
             else:
                 raise KeyError("Invalid key for DC values given")
         self.clear()
-        process_characterisation: Generator[int, None, int] = self.process_characterisation(dc_signals)
+        if last_index == 0:
+            logging.warning("Not enough values for characterization")
+        else:
+            pd.DataFrame(output_data, index=time_stamps).to_csv(f"{self.destination_folder}/Characterisation.csv",
+                                                                mode="a", index_label="Time Stamp", header=False)
+            logging.info("Characterization finished")
+            logging.info("Saved data into %s", self.destination_folder)
+
         while True:
             try:
                 i = next(process_characterisation)

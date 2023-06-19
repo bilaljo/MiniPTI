@@ -34,7 +34,7 @@ def default_settings_without_save_to_csv() -> None:
     characterization.use_configuration = False
     data = pd.read_csv("examples/sample_data/Decimation_Comercial.csv")
     dc_signals = data[[f"DC CH{i}" for i in range(1, 4)]].to_numpy()
-    for _ in characterization.process_characterisation(dc_signals):
+    for _ in characterization._process_characterisation(dc_signals):
         print(characterization.interferometer)
 
 
@@ -43,7 +43,7 @@ def wihtout_default_settings_without_save_to_csv() -> None:
     characterization = interferometry.Characterization(interferometer=interferometer, use_configuration=False)
     data = pd.read_csv("examples/sample_data/Decimation_Comercial.csv")
     dc_signals = data[[f"DC CH{i}" for i in range(1, 4)]].to_numpy()
-    for _ in characterization.process_characterisation(dc_signals):
+    for _ in characterization._process_characterisation(dc_signals):
         print(characterization.interferometer)
 
 
