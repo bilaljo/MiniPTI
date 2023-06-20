@@ -235,7 +235,10 @@ class Driver(serial_device.Driver):
         self._sample_numbers = deque(maxlen=2)
 
     def _encode_data(self) -> None:
-        received_data = self._buffer + self.received_data.get(block=True)
+        try:
+            received_data = self._buffer + self.get_data()
+        except OSError:
+            return
         split_data = received_data.split("\n")
         for i in range(len(split_data) - 1):
             data = split_data[i]

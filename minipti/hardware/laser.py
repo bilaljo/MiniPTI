@@ -3,6 +3,7 @@ import dataclasses
 import json
 import logging
 import os
+import queue
 from dataclasses import dataclass
 from typing import Annotated, Union
 
@@ -59,7 +60,10 @@ class Driver(serial_device.Driver):
             self._encode_data()
 
     def _encode_data(self) -> None:
-        received_data = self.received_data.get(block=True)  # type: str
+        try:
+            received_data: str = self.get_data()
+        except OSError:
+            return
         for received in received_data.split(Driver.TERMINATION_SYMBOL):
             if not received:
                 continue

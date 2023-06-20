@@ -62,7 +62,10 @@ class Driver(serial_device.Driver):
         return float(bit_stream) / 100
 
     def _encode_data(self) -> None:
-        received_data: str = self.received_data.get(block=True)
+        try:
+            received_data: str = self.get_data()
+        except OSError:
+            return
         for received in received_data.split(Driver.TERMINATION_SYMBOL):
             if not received:
                 continue

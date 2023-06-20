@@ -94,8 +94,7 @@ class Driver:
         self.last_written_message = ""
         if platform.system() == "Windows":
             self.serial_port = System.IO.Ports.SerialPort()
-            self._received_flag = 0
-            self._last_flag_value = 0
+            self._received_flag = False
             self._flag_lock = threading.Lock()
         else:
             self.file_descriptor = -1
@@ -142,9 +141,17 @@ class Driver:
         else:
             raise OSError(f"Could not find {self.device_name}. Maybe it is already connected")
 
+    def _clear(self) -> None:
+        self._write_buffer = queue.Queue()
+        self.data = queue.Queue()
+        self.last_written_message = ""
+        self.received_data = queue.Queue()
+        self.ready_write.set()
+
     if platform.system() == "Windows":
         def open(self) -> None:
             if self.port_name and not self.is_open:
+                self._clear()
                 self.serial_port = System.IO.Ports.SerialPort()
                 self.serial_port.PortName = self.port_name
                 self.serial_port.DataReceived += System.IO.Ports.SerialDataReceivedEventHandler(self._receive)
@@ -152,11 +159,12 @@ class Driver:
                 self.connected.set()
                 logging.info("Connected with %s", self.device_name)
             else:
-                raise OSError("Could not find %s", self.device_name)
+                raise OSError("Could not connect with %s", self.device_name)
     else:
         def open(self) -> None:
             if self.port_name and not self.is_open:
                 try:
+                    self._clear()
                     self.file_descriptor = os.open(path=self.port_name, flags=os.O_RDWR | os.O_NOCTTY | os.O_SYNC)
                     old_attribute = termios.tcgetattr(self.file_descriptor)
                     iflag, oflag, cflag, lflag, ispeed, ospeed, cc = old_attribute
@@ -181,33 +189,17 @@ class Driver:
                     new_attribute = [iflag, oflag, cflag, lflag, ispeed, ospeed, cc]
                     termios.tcsetattr(self.file_descriptor, termios.TCSANOW, new_attribute)
                 except OSError as e:
-                    logging.debug("Error caused by %s", e)
-                    raise OSError("Could not find %s", self.device_name)
+                    raise OSError("Could not connect find %s", self.device_name)
                 self.connected.set()
                 logging.info(f"Connected with {self.device_name}")
             else:
-                raise OSError("Could not find %s", self.device_name)
+                raise OSError("Could not connect with %s", self.device_name)
 
     def run(self) -> None:
         threading.Thread(target=self._write, daemon=True, name=f"{self.device_name} Write Thread").start()
-        if platform.system() == "Windows":
-            threading.Thread(target=self._timeout, daemon=True,
-                             name=f"{self.device_name} Timeout Watchdog thread").start()
-        threading.Thread(target=self._receive, daemon=True, name=f"{self.device_name} Receive Thread").start()
+        if platform.system() != "Windows":
+            threading.Thread(target=self._receive, daemon=True, name=f"{self.device_name} Receive Thread").start()
         threading.Thread(target=self._process_data, daemon=True, name=f"{self.device_name} Processing Thread").start()
-
-    if platform.system() == "Windows":
-        def _timeout(self) -> None:
-            time.sleep(Driver.MAX_RESPONSE_TIME)
-            with self._flag_lock:
-                if self._last_flag_value != self._received_flag:
-                    timeout = False
-                    self._last_flag_value = self._received_flag
-                else:
-                    timeout = True
-            if timeout:
-                logging.error("Lost connection to %s", self.device_name)
-                self.connected.clear()
 
     def get_hardware_id(self) -> Union[bytes, None]:
         try:
@@ -325,7 +317,7 @@ class Driver:
         """
         def _receive(self, sender, arg: System.IO.Ports.SerialDataReceivedEventArgs) -> None:
             self.received_data.put(self.serial_port.ReadExisting())
-            self._received_flag ^= 1
+
     else:
         """
         Serial Port Reading Implementation on Unix.
@@ -345,6 +337,17 @@ class Driver:
                     # Device might not be closed properly, so we mark the descriptor as invalid
                     self.file_descriptor = -1
                     self.connected.clear()
+
+    def get_data(self) -> str:
+        try:
+            received_data: str = self.received_data.get(block=True, timeout=Driver._MAX_WAIT_TIME)
+            return received_data
+        except queue.Empty:
+            self.connected.clear()
+            logging.error("Connection to %s lost", self.device_name)
+            if platform.system() != "Windows":
+                self.file_descriptor = -1
+            raise OSError
 
     @abc.abstractmethod
     def _encode_data(self) -> None:
