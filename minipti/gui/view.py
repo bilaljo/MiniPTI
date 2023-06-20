@@ -82,6 +82,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _init_tabs(self):
         self.tabs = Tab(home=Home(self, self.main_controller),
+                        settings=Settings(self.main_controller),
                         pump_laser=self._init_pump_laser_tab(),
                         probe_laser=self._init_probe_laser_tab(),
                         dc=QtWidgets.QTabWidget(),
@@ -92,6 +93,7 @@ class MainWindow(QtWidgets.QMainWindow):
                         interferometric_phase=QtWidgets.QTabWidget(),
                         pti_signal=QtWidgets.QTabWidget())
         self.tab_bar.addTab(self.tabs.home, "Home")
+        self.tab_bar.addTab(self.tabs.settings, "Settings")
         self.tab_bar.addTab(self.tabs.pump_laser, "Pump Laser")
         self.tab_bar.addTab(self.tabs.probe_laser, "Probe Laser")
         # DC Plot
@@ -136,6 +138,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
 class Tab(NamedTuple):
     home: "Home"
+    settings: "Settings"
     pump_laser: QtWidgets.QTabWidget
     probe_laser: QtWidgets.QTabWidget
     dc: QtWidgets.QTabWidget
@@ -210,10 +213,8 @@ class Home(QtWidgets.QTabWidget, _Frames, _CreateButton):
         self.setLayout(QtWidgets.QGridLayout())
         self.controller = controller.Home(self, main_app)
         self.logging_window = QtWidgets.QLabel()
-        model.signals.logging_update.connect(self.logging_update)
         self._init_frames()
-        self.settings = SettingsView(parent=self.frames["Setting"], settings_model=self.controller.settings_model)
-        self.frames["Setting"].layout().addWidget(self.settings)
+        model.signals.logging_update.connect(self.logging_update)
         self.scroll = QtWidgets.QScrollArea(widgetResizable=True)
         self.scroll.setWidgetResizable(True)
         self.frames["Log"] = QtWidgets.QDockWidget("Log", self)
@@ -231,42 +232,20 @@ class Home(QtWidgets.QTabWidget, _Frames, _CreateButton):
         main_window.addDockWidget(Qt.BottomDockWidgetArea, self.frames["Log"])
         main_window.addDockWidget(Qt.BottomDockWidgetArea, self.frames["Battery"])
         main_window.setCorner(Qt.BottomRightCorner, Qt.RightDockWidgetArea)
-        self.destination_folder = QtWidgets.QLabel(self.controller.destination_folder.folder)
-        self.save_raw_data = QtWidgets.QCheckBox("Save Raw Data")
-        self.automatic_valve_switch = QtWidgets.QCheckBox("Automatic Valve Switch")
-        self.duty_cyle_valve = QtWidgets.QLabel("%")
-        self.period_valve = QtWidgets.QLabel("s")
-        self.duty_cycle_field = QtWidgets.QLineEdit()
-        self.period_field = QtWidgets.QLineEdit()
         self._init_buttons()
-        self._init_raw_data_button()
-        self._init_valves()
         self._init_signals()
         self.controller.fire_motherboard_configuration_change()
         model.signals.battery_state.connect(self.update_battery_state)
-        model.signals.destination_folder_changed.connect(self.update_destination_folder)
-
-    @QtCore.pyqtSlot(str)
-    def update_destination_folder(self, destionation_folder: str) -> None:
-        self.destination_folder.setText(destionation_folder)
+        model.signals.bypass.connect(self.update_clean_air)
 
     @QtCore.pyqtSlot(model.Battery)
     def update_battery_state(self, battery: model.Battery) -> None:
-        self.charge_level.setText(f"{battery.percentage} % left")
         self.minutes_left.setText(f"Minutes left: {battery.minutes_left}")
-
-    @QtCore.pyqtSlot(hardware.motherboard.Valve)
-    def update_valve(self, valve: hardware.motherboard.Valve) -> None:
-        self.duty_cycle_field.setText(str(valve.duty_cycle))
-        self.period_field.setText(str(valve.period))
-        self.automatic_valve_switch.setChecked(valve.automatic_switch)
+        self.charge_level.setText(f"{battery.percentage} % left")
 
     def _init_frames(self) -> None:
         sub_layout = QtWidgets.QWidget()
         sub_layout.setLayout(QtWidgets.QGridLayout())
-        self.create_frame(master=sub_layout, title="File Path", x_position=0, y_position=1)
-        self.create_frame(master=sub_layout, title="Shutdown", x_position=0, y_position=2)
-        self.create_frame(master=self, title="Setting", x_position=0, y_position=0, x_span=2)
         self.create_frame(master=self, title="Offline Processing", x_position=2, y_position=0)
         self.create_frame(master=self, title="Plot Data", x_position=2, y_position=1)
         self.create_frame(master=self, title="Measurement", x_position=3, y_position=0)
@@ -274,21 +253,8 @@ class Home(QtWidgets.QTabWidget, _Frames, _CreateButton):
         self.create_frame(master=self, title="Pump Laser", x_position=4, y_position=0)
         self.create_frame(master=self, title="Probe Laser", x_position=4, y_position=1)
         self.layout().addWidget(sub_layout, 1, 1)
-        self.create_frame(master=self, title="Valve", x_position=0, y_position=1)
 
     def _init_buttons(self) -> None:
-        self.create_button(master=self.frames["Shutdown"], title="Shutdown and Close",
-                           slot=self.controller.shutdown_by_button)
-
-        # SettingsTable buttons
-        sub_layout = QtWidgets.QWidget()
-        self.frames["Setting"].layout().addWidget(sub_layout)
-        sub_layout.setLayout(QtWidgets.QHBoxLayout())
-        self.create_button(master=sub_layout, title="Save Settings", slot=self.controller.save_settings)
-        self.create_button(master=sub_layout, title="Save Settings As", slot=self.controller.save_settings_as)
-        self.create_button(master=sub_layout, title="Load Settings", slot=self.controller.load_settings)
-        sub_layout.layout().addWidget(self.save_raw_data)
-
         # Offline Processing buttons
         sub_layout = QtWidgets.QWidget()
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
@@ -311,32 +277,6 @@ class Home(QtWidgets.QTabWidget, _Frames, _CreateButton):
         self.frames["Drivers"].layout().addWidget(sub_layout)
         self.create_button(master=sub_layout, title="Scan Ports", slot=self.controller.find_devices)
         self.create_button(master=sub_layout, title="Connect Devices", slot=self.controller.connect_devices)
-
-        # Output File Location
-        sub_layout = QtWidgets.QWidget(parent=self.frames["File Path"])
-        sub_layout.setLayout(QtWidgets.QVBoxLayout())
-        self.frames["File Path"].layout().addWidget(sub_layout)
-        self.create_button(master=sub_layout, title="Destination Folder", slot=self.controller.set_destination_folder)
-        sub_layout.layout().addWidget(self.destination_folder)
-
-        # Valve Control
-        sub_layout = QtWidgets.QWidget(parent=self.frames["Valve"])
-        sub_layout.setLayout(QtWidgets.QGridLayout())
-        sub_layout.layout().addWidget(self.automatic_valve_switch, 0, 0)
-        sub_layout.layout().addWidget(QtWidgets.QLabel("Valve Period"), 1, 0)
-        sub_layout.layout().addWidget(self.period_field, 1, 1)
-        sub_layout.layout().addWidget(QtWidgets.QLabel("s"), 1, 2)
-        sub_layout.layout().addWidget(QtWidgets.QLabel("Valve Duty Cycle"), 2, 0)
-        sub_layout.layout().addWidget(self.duty_cycle_field, 2, 1)
-        sub_layout.layout().addWidget(QtWidgets.QLabel("%"), 2, 2)
-        self.frames["Valve"].layout().addWidget(sub_layout)
-        sub_layout = QtWidgets.QWidget(parent=self.frames["Valve"])
-        sub_layout.setLayout(QtWidgets.QHBoxLayout())
-        self.create_button(master=sub_layout, title="Save Settings",
-                           slot=self.controller.save_motherboard_configuration)
-        self.create_button(master=sub_layout, title="Load Settings",
-                           slot=self.controller.load_motherboard_configuration)
-        self.frames["Valve"].layout().addWidget(sub_layout)
 
         # Measurement Buttons
         sub_layout = QtWidgets.QWidget(parent=self.frames["Measurement"])
@@ -366,23 +306,6 @@ class Home(QtWidgets.QTabWidget, _Frames, _CreateButton):
     def logging_update(self, log_queue: collections.deque) -> None:
         self.logging_window.setText("".join(log_queue))
 
-    def _init_raw_data_button(self) -> None:
-        self.save_raw_data.stateChanged.connect(self.controller.calculation_model.set_raw_data_saving)
-
-    def _init_valves(self) -> None:
-        self.automatic_valve_switch.stateChanged.connect(self._automatic_switch_changed)
-        self.period_field.editingFinished.connect(self._period_changed)
-        self.duty_cycle_field.editingFinished.connect(self._duty_cycle_changed)
-
-    def _automatic_switch_changed(self) -> None:
-        self.controller.update_automatic_valve_switch(self.automatic_valve_switch.isChecked())
-
-    def _period_changed(self) -> None:
-        self.controller.update_valve_period(self.period_field.text())
-
-    def _duty_cycle_changed(self) -> None:
-        self.controller.update_valve_duty_cycle(self.duty_cycle_field.text())
-
     @QtCore.pyqtSlot(bool)
     def update_run_measurement(self, state: bool) -> None:
         toggle_button(state, self.buttons["Run Measurement"])
@@ -408,13 +331,119 @@ class Home(QtWidgets.QTabWidget, _Frames, _CreateButton):
         toggle_button(state, self.buttons["Probe Laser Enable Tec"])
 
     def _init_signals(self) -> None:
-        model.signals.valve_change.connect(self.update_valve)
-        model.signals.bypass.connect(self.update_clean_air)
         model.signals.daq_running.connect(self.update_run_measurement)
         model.laser_signals.pump_laser_enabled.connect(self.update_enable_pump_laser)
         model.laser_signals.probe_laser_enabled.connect(self.update_enable_probe_laser)
         model.tec_signals[model.Tec.PUMP_LASER].enabled.connect(self.update_enable_pump_laser_tec)
         model.tec_signals[model.Tec.PROBE_LASER].enabled.connect(self.update_enable_probe_laser_tec)
+
+
+class Settings(QtWidgets.QTabWidget, _Frames, _CreateButton):
+    def __init__(self, main_app: QtWidgets.QApplication):
+        QtWidgets.QTabWidget.__init__(self)
+        _Frames.__init__(self)
+        _CreateButton.__init__(self)
+        self.setLayout(QtWidgets.QGridLayout())
+        self.controller = controller.Home(self, main_app)
+        self.destination_folder = QtWidgets.QLabel(self.controller.destination_folder.folder)
+        self._init_frames()
+        self.settings = SettingsView(parent=self.frames["Configuration"], settings_model=self.controller.settings_model)
+        self.frames["Configuration"].layout().addWidget(self.settings)
+        self.destination_folder = QtWidgets.QLabel(self.controller.destination_folder.folder)
+        self.save_raw_data = QtWidgets.QCheckBox("Save Raw Data")
+        self.automatic_valve_switch = QtWidgets.QCheckBox("Automatic Valve Switch")
+        self.duty_cyle_valve = QtWidgets.QLabel("%")
+        self.period_valve = QtWidgets.QLabel("s")
+        self.duty_cycle_field = QtWidgets.QLineEdit()
+        self.period_field = QtWidgets.QLineEdit()
+        self.average_period = QtWidgets.QComboBox()
+        self._init_frames()
+        self._init_average_period_box()
+        self._init_buttons()
+        self._init_raw_data_button()
+        self._init_valves()
+        model.signals.destination_folder_changed.connect(self.update_destination_folder)
+        model.signals.valve_change.connect(self.update_valve)
+
+    @QtCore.pyqtSlot(hardware.motherboard.Valve)
+    def update_valve(self, valve: hardware.motherboard.Valve) -> None:
+        self.duty_cycle_field.setText(str(valve.duty_cycle))
+        self.period_field.setText(str(valve.period))
+        self.automatic_valve_switch.setChecked(valve.automatic_switch)
+
+    @QtCore.pyqtSlot(str)
+    def update_destination_folder(self, destionation_folder: str) -> None:
+        self.destination_folder.setText(destionation_folder)
+
+    def _init_average_period_box(self) -> None:
+        for i in range(80, 8000):
+            if i % 80 == 0:
+                self.average_period.addItem(f"{i / 8000 * 1000} ms")
+        for i in range(8000, 8000 * 4 + 1):
+            if i % 80 == 0:
+                self.average_period.addItem(f"{i / 8000 } s")
+        self.frames["Measurement"].layout().addWidget(self.average_period)
+
+    def _init_frames(self) -> None:
+        self.create_frame(master=self, title="File Path", x_position=2, y_position=1)
+        self.create_frame(master=self, title="Shutdown", x_position=0, y_position=1)
+        self.create_frame(master=self, title="Measurement", x_position=1, y_position=1)
+        self.create_frame(master=self, title="Configuration", x_position=0, y_position=0, x_span=5)
+        self.create_frame(master=self, title="Valve", x_position=3, y_position=1, x_span=2)
+
+    def _init_buttons(self) -> None:
+        sub_layout = QtWidgets.QWidget()
+        self.frames["Configuration"].layout().addWidget(sub_layout)
+        sub_layout.setLayout(QtWidgets.QHBoxLayout())
+        self.create_button(master=sub_layout, title="Save Settings", slot=self.controller.save_settings)
+        self.create_button(master=sub_layout, title="Save Settings As", slot=self.controller.save_settings_as)
+        self.create_button(master=sub_layout, title="Load Settings", slot=self.controller.load_settings)
+        self.frames["Measurement"].layout().addWidget(self.save_raw_data)
+
+        self.create_button(master=self.frames["Shutdown"], title="Shutdown and Close",
+                           slot=self.controller.shutdown_by_button)
+
+        # Valve Control
+        sub_layout = QtWidgets.QWidget(parent=self.frames["Valve"])
+        sub_layout.setLayout(QtWidgets.QGridLayout())
+        sub_layout.layout().addWidget(self.automatic_valve_switch, 0, 0)
+        sub_layout.layout().addWidget(QtWidgets.QLabel("Valve Period"), 1, 0)
+        sub_layout.layout().addWidget(self.period_field, 1, 1)
+        sub_layout.layout().addWidget(QtWidgets.QLabel("s"), 1, 2)
+        sub_layout.layout().addWidget(QtWidgets.QLabel("Valve Duty Cycle"), 2, 0)
+        sub_layout.layout().addWidget(self.duty_cycle_field, 2, 1)
+        sub_layout.layout().addWidget(QtWidgets.QLabel("%"), 2, 2)
+        self.frames["Valve"].layout().addWidget(sub_layout)
+        sub_layout = QtWidgets.QWidget(parent=self.frames["Valve"])
+        sub_layout.setLayout(QtWidgets.QHBoxLayout())
+        self.create_button(master=sub_layout, title="Save Settings",
+                           slot=self.controller.save_motherboard_configuration)
+        self.create_button(master=sub_layout, title="Load Settings",
+                           slot=self.controller.load_motherboard_configuration)
+        self.frames["Valve"].layout().addWidget(sub_layout)
+
+        sub_layout = QtWidgets.QWidget(parent=self.frames["File Path"])
+        sub_layout.setLayout(QtWidgets.QHBoxLayout())
+        self.frames["File Path"].layout().addWidget(sub_layout)
+        self.create_button(master=sub_layout, title="Destination Folder", slot=self.controller.set_destination_folder)
+        sub_layout.layout().addWidget(self.destination_folder)
+
+    def _init_raw_data_button(self) -> None:
+        self.save_raw_data.stateChanged.connect(self.controller.calculation_model.set_raw_data_saving)
+
+    def _init_valves(self) -> None:
+        self.automatic_valve_switch.stateChanged.connect(self._automatic_switch_changed)
+        self.period_field.editingFinished.connect(self._period_changed)
+        self.duty_cycle_field.editingFinished.connect(self._duty_cycle_changed)
+
+    def _automatic_switch_changed(self) -> None:
+        self.controller.update_automatic_valve_switch(self.automatic_valve_switch.isChecked())
+
+    def _period_changed(self) -> None:
+        self.controller.update_valve_period(self.period_field.text())
+
+    def _duty_cycle_changed(self) -> None:
+        self.controller.update_valve_duty_cycle(self.duty_cycle_field.text())
 
 
 class Slider(QtWidgets.QWidget):
