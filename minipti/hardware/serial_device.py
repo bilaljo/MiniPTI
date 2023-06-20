@@ -1,5 +1,4 @@
 import abc
-import enum
 import functools
 import logging
 import os
@@ -78,7 +77,7 @@ class Driver:
     """
     _QUEUE_SIZE = 15
     MAX_RESPONSE_TIME = 500e-3  # 100 ms response time
-    _MAX_WAIT_TIME = 5000  # 5 s
+    _MAX_WAIT_TIME = 5  # s
 
     TERMINATION_SYMBOL = "\n"
     NUMBER_OF_HEX_BYTES = 4
@@ -95,13 +94,14 @@ class Driver:
         self.last_written_message = ""
         if platform.system() == "Windows":
             self.serial_port = System.IO.Ports.SerialPort()
+            self._received_flag = 0
+            self._last_flag_value = 0
+            self._flag_lock = threading.Lock()
         else:
             self.file_descriptor = -1
             self.file_descriptor_lock = threading.Lock()
         self.connected = threading.Event()
         self.received_data = queue.Queue()
-        self._received_flag = 0
-        self._last_flag_value = 0
 
     @property
     @abc.abstractmethod
@@ -166,7 +166,7 @@ class Driver:
                     oflag = 0
 
                     cc[termios.VMIN] = 1
-                    cc[termios.VTIME] = Driver._MAX_WAIT_TIME
+                    cc[termios.VTIME] = Driver._MAX_WAIT_TIME * 1000  # in ms on Unix
 
                     iflag &= ~(termios.IXON | termios.IXOFF | termios.IXANY)
 
@@ -190,24 +190,24 @@ class Driver:
 
     def run(self) -> None:
         threading.Thread(target=self._write, daemon=True, name=f"{self.device_name} Write Thread").start()
-        if platform.system() != "Windows":
-            threading.Timer()
-            threading.Thread(target=self._write, daemon=True, name=f"{self.device_name} Receive Thread").start()
-        threading.Thread(target=self._timeout, daemon=True, name="Read Timeout Thread")
-        threading.Thread(target=self._process_data, daemon=True, name=f"{self.device_name} Proccessing Thread").start()
+        if platform.system() == "Windows":
+            threading.Thread(target=self._timeout, daemon=True,
+                             name=f"{self.device_name} Timeout Watchdog thread").start()
+        threading.Thread(target=self._receive, daemon=True, name=f"{self.device_name} Receive Thread").start()
+        threading.Thread(target=self._process_data, daemon=True, name=f"{self.device_name} Processing Thread").start()
 
-    def _timeout(self) -> None:
-        if self._last_flag_value != self._received_flag:
-            self._last_flag_value = self._received_flag
-        else:
-            logging.error("Lost connection to %s", self.device_name)
-            self.connected.clear()
-            if platform.system() != "Windows":
-                try:
-                    with self.file_descriptor_lock:
-                        os.close(self.file_descriptor)
-                except OSError:
-                    self.file_descriptor = -1  # In case devices is regogniced as not existing we clear the fd
+    if platform.system() == "Windows":
+        def _timeout(self) -> None:
+            time.sleep(Driver.MAX_RESPONSE_TIME)
+            with self._flag_lock:
+                if self._last_flag_value != self._received_flag:
+                    timeout = False
+                    self._last_flag_value = self._received_flag
+                else:
+                    timeout = True
+            if timeout:
+                logging.error("Lost connection to %s", self.device_name)
+                self.connected.clear()
 
     def get_hardware_id(self) -> Union[bytes, None]:
         try:
@@ -340,10 +340,10 @@ class Driver:
                     with self.file_descriptor_lock:
                         received = os.read(self.file_descriptor, Driver.IO_BUFFER_SIZE)
                     self.received_data.put(received.decode())
-                    self._received_flag ^= 1
                 except OSError:
                     logging.error("Connection to %s lost", self.device_name)
-                    self.file_descriptor = -1  # Device could not close properly so we marke the descirptor as invalid
+                    # Device might not be closed properly, so we mark the descriptor as invalid
+                    self.file_descriptor = -1
                     self.connected.clear()
 
     @abc.abstractmethod
