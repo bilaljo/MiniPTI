@@ -8,7 +8,7 @@ import logging
 import os
 import threading
 import typing
-from typing import Union, Generator, Iterable
+from typing import Union, Generator
 from collections import defaultdict
 
 import numpy as np
@@ -26,10 +26,12 @@ class Interferometer:
     """
     Provides the API for calculating the interferometric phase based on its characteristic values.
     """
+    CHANNELS = 3
+
     DC_HEADERS = [[f"PD{i}" for i in range(1, 4)],
                   [f"DC CH{i}" for i in range(1, 4)]]
 
-    OPTIMAL_SYMMETRY = 86.58
+    OPTIMAL_SYMMETRY = 86.58  # %
 
     def __init__(self, settings_path=f"{os.path.dirname(__file__)}/configs/settings.csv",
                  decimation_filepath="data/Decimation.csv", output_phases=np.empty(shape=3),
@@ -126,25 +128,25 @@ class Interferometer:
         The amplitude of perfect sine wave can be calculated according to A = (I_max - I_min) / 2.
         This function is only used as approximation.
         """
-        if intensity.shape[1] == 3:
-            self.amplitudes = (np.max(intensity, axis=0) - np.min(intensity, axis=0)) / 2
-        else:
+        if intensity.shape[0] == 3:
             self.amplitudes = (np.max(intensity, axis=1) - np.min(intensity, axis=1)) / 2
+        else:
+            self.amplitudes = (np.max(intensity, axis=0) - np.min(intensity, axis=0)) / 2
 
     def calculate_offsets(self, intensity: np.ndarray):
         """
         The offset of perfect sine wave can be calculated according to B = (I_max + I_min) / 2.
         This function is only used as approximation.
         """
-        if intensity.shape[1] == 3:
-            self.offsets = (np.max(intensity, axis=0) + np.min(intensity, axis=0)) / 2
-        else:
+        if intensity.shape[0] == 3:
             self.offsets = (np.max(intensity, axis=1) + np.min(intensity, axis=1)) / 2
+        else:
+            self.offsets = (np.max(intensity, axis=0) + np.min(intensity, axis=0)) / 2
 
     def _error_function(self, intensity: np.ndarray):
         intensity_scaled = (intensity - self.offsets) / self.amplitudes
 
-        def error(phase: Iterable):
+        def error(phase: np.ndarray):
             try:
                 return np.cos(phase - self.output_phases) - intensity_scaled
             except TypeError:
@@ -152,7 +154,7 @@ class Interferometer:
 
         return error
 
-    def _error_function_df(self, phase: Iterable):
+    def _error_function_df(self, phase: np.ndarray):
         try:
             return -np.sin(phase - self.output_phases).reshape((3, 1))
         except AttributeError:
@@ -167,10 +169,13 @@ class Interferometer:
         """
         Calculated the interferometric phase with the defined characteristic parameters.
         """
-        if len(intensities) == 3:  # Only one Sample of 3 Values
+        if intensities.size // Interferometer.CHANNELS == 1:  # Only one Sample of 3 Values
             self.phase = self._calculate_phase(intensities)[0]
         else:
-            self.phase = np.fromiter(map(self._calculate_phase, intensities), dtype=float)
+            if intensities.shape[1] == 3:
+                self.phase = np.fromiter(map(self._calculate_phase, intensities), dtype=float)
+            else:
+                self.phase = np.fromiter(map(self._calculate_phase, intensities.T), dtype=float)
 
 
 class Characterization:
@@ -180,7 +185,6 @@ class Characterization:
     """
     MAX_ITERATIONS = 30
     STEP_SIZE = 100
-    _CHANNELS = 3
 
     def __init__(self, interferometer=Interferometer(), use_configuration=True, use_parameters=True):
         self.interferometer = interferometer
@@ -194,6 +198,17 @@ class Characterization:
         self.init_headers = True
         self._signals = np.empty(1)
         self.phases = []
+
+    @property
+    def signals(self) -> np.ndarray:
+        return self._signals
+
+    @signals.setter
+    def signals(self, data: np.ndarray) -> None:
+        if data.shape[0] == 3:
+            self._signals = data
+        else:
+            self._signals = data.T
 
     def __repr__(self) -> str:
         class_name = self.__class__.__name__
@@ -283,20 +298,9 @@ class Characterization:
         self.interferometer.output_phases = np.array([0, 2 * np.pi / 3, 4 * np.pi / 3])
         self.use_parameters = False
 
-    def process_characterisation(self, dc_signals: np.ndarray, function: typing.Callable):
-        process_characterisation: Generator[int, None, int] = self._process_characterisation(dc_signals)
-        while True:
-            try:
-                i = next(process_characterisation)
-                if self.enough_values:
-                    function(i)
-            except StopIteration as e:
-                if e.value == 0:
-                    raise ValueError("Not enough values for characterisation")
-
-    def _process_characterisation(self, dc_signals: np.ndarray) -> Generator[int, None, int]:
+    def process_characterisation(self, dc_signals: np.ndarray) -> Generator[int, None, None]:
         last_index: int = 0
-        data_length: int = dc_signals.size // Characterization._CHANNELS
+        data_length: int = dc_signals.size // Interferometer.CHANNELS
         if self.use_configuration:
             self._load_settings()
         else:
@@ -305,7 +309,7 @@ class Characterization:
             self.interferometer.calculate_phase(dc_signals[i])
             self.add_phase(self.interferometer.phase)
             if self.enough_values:
-                self._signals = dc_signals[last_index:i + 1].T
+                self.signals = dc_signals[last_index:i + 1]
                 self.phases = self.tracking_phase
                 if not self.use_parameters:
                     self._iterate_characterization()
@@ -314,11 +318,10 @@ class Characterization:
                     self._characterise_interferometer()
                 self.calculate_symmetry()
                 last_index = i + 1
-            yield i
-            if self.enough_values:
                 self.clear()
-        self.clear()
-        return last_index
+                yield i
+        if last_index == 0:
+            raise ValueError("Not enough values for characterisation")
 
     def _characterise_interferometer(self) -> None:
         """
@@ -338,17 +341,17 @@ class Characterization:
         cosine_values = np.cos(self.phases)
         sine_values = np.sin(self.phases)
         results, _, _, _ = linalg.lstsq(np.array([cosine_values, np.ones(len(cosine_values))]).T,
-                                        self._signals[0], check_finite=False)
+                                        self.signals[0], check_finite=False)
         amplitudes.append(results[0])
         offsets.append(results[1])
         output_phases.append(0)
 
         parameters = np.array([cosine_values, sine_values, np.ones(len(sine_values))]).T
 
-        results, _, _, _ = linalg.lstsq(parameters, self._signals[1], check_finite=False)
+        results, _, _, _ = linalg.lstsq(parameters, self.signals[1], check_finite=False)
         add_values(results)
 
-        results, _, _, _ = linalg.lstsq(parameters, self._signals[2], check_finite=False)
+        results, _, _, _ = linalg.lstsq(parameters, self.signals[2], check_finite=False)
         add_values(results)
 
         self.interferometer.output_phases = output_phases
@@ -356,9 +359,9 @@ class Characterization:
         self.interferometer.offsets = offsets
 
     def _iterate_characterization(self) -> None:
-        logging.info("Start iteration...")
+        logging.info("Start iteration ...")
         for _ in itertools.repeat(None, Characterization.MAX_ITERATIONS):
-            self.interferometer.calculate_phase(self._signals.T)
+            self.interferometer.calculate_phase(self.signals)
             self.phases = self.interferometer.phase
             self._characterise_interferometer()
             logging.info("Current estimation:\n%s", str(self.interferometer))
@@ -386,25 +389,12 @@ class Characterization:
                     continue
             else:
                 raise KeyError("Invalid key for DC values given")
-        self.clear()
-        if last_index == 0:
-            logging.warning("Not enough values for characterization")
-        else:
-            pd.DataFrame(output_data, index=time_stamps).to_csv(f"{self.destination_folder}/Characterisation.csv",
-                                                                mode="a", index_label="Time Stamp", header=False)
-            logging.info("Characterization finished")
-            logging.info("Saved data into %s", self.destination_folder)
-
-        while True:
-            try:
-                i = next(process_characterisation)
-                if self.enough_values:
-                    time_stamps.append(i)
-                    self._add_characterised_data(output_data)
-            except StopIteration as ex:
-                last_index = ex.value
-                break
-        if last_index == 0:
+        process_characterisation = self.process_characterisation(dc_signals)
+        try:
+            for i in process_characterisation:
+                time_stamps.append(i)
+                self._add_characterised_data(output_data)
+        except ValueError:
             logging.warning("Not enough values for characterization")
         else:
             pd.DataFrame(output_data, index=time_stamps).to_csv(f"{self.destination_folder}/Characterisation.csv",
