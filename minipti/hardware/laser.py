@@ -3,7 +3,6 @@ import dataclasses
 import json
 import logging
 import os
-import queue
 from dataclasses import dataclass
 from typing import Annotated, Union
 
@@ -203,7 +202,7 @@ class LowPowerLaser(Laser):
         return self._enabled
 
     @enabled.setter
-    def enabled(self, enabled: bool):
+    def enabled(self, enabled: bool) -> None:
         self._enabled = enabled
         self._enable.value = enabled
         self._driver.write(self._enable)
