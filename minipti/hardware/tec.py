@@ -50,8 +50,13 @@ class Driver(serial_device.Driver):
         return Driver._HARDWARE_ID
 
     @property
-    def device_name(self):
+    def device_name(self) -> str:
         return Driver.NAME
+
+    def open(self) -> None:
+        super().open()
+        self.tec[0].set_ntc_dac()
+        self.tec[1].set_ntc_dac()
 
     def _process_data(self) -> None:
         while self.connected.is_set():
@@ -155,6 +160,7 @@ class Commands:
         self.set_peltier_mode = serial_device.SerialStream(f"SM{channel_number}0000")
         self.set_loop_interval = serial_device.SerialStream(f"SR{channel_number}0000")
         self.set_ref_resistor = serial_device.SerialStream(f"SC{channel_number}0000")
+        self.set_ntc_dac= serial_device.SerialStream(f"SC{channel_number}0000")
 
 
 class Tec:
@@ -164,11 +170,13 @@ class Tec:
     _MAX_LOOP_TIME = 5000  # 5 s
     MIN_PID_VALUE = 0
     MAX_PID_VALUE = 999
+    _NTC_DAC_CALIBRATION_VALUE = 1795
 
     def __init__(self, channel_number: int, driver: Driver):
         self.configuration: typing.Union[Configuration, None] = None
         self.channel_number = channel_number
         self.commands = Commands(self.channel_number)
+        self.commands.set_ntc_dac.value = Tec._NTC_DAC_CALIBRATION_VALUE
         self.config_path: str = f"{os.path.dirname(__file__)}/configs/tec/channel_{self.channel_number}.json"
         self.driver = driver
         self._enabled = False
@@ -185,6 +193,9 @@ class Tec:
         self.commands.set_fan_control.value = enable
         self.driver.write(self.commands.set_control_loop)
         self.driver.write(self.commands.set_fan_control)
+
+    def set_ntc_dac(self) -> None:
+        self.driver.write(self.commands.set_ntc_dac)
 
     def load_configuration(self) -> None:
         if not os.path.exists(self.config_path):
