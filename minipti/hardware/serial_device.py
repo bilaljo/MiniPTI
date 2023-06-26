@@ -299,13 +299,13 @@ class Driver:
 
     if platform.system() == "Windows":
         def close(self) -> None:
-            if self.serial_port is not None:
+            if self.is_open:
                 self.connected.clear()
                 self.serial_port.Close()
                 logging.info("Closed connection to %s", self.device_name)
     else:
         def close(self) -> None:
-            if self.file_descriptor != -1:
+            if self.is_open:
                 self.connected.clear()
                 with self.file_descriptor_lock:
                     os.close(self.file_descriptor)
