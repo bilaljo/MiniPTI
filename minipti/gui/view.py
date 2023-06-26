@@ -380,12 +380,10 @@ class Settings(QtWidgets.QTabWidget, _Frames, _CreateButton):
         self.destination_folder.setText(destionation_folder)
 
     def _init_average_period_box(self) -> None:
-        for i in range(1, 8000):
-            if 8000 % i == 0:
-                self.average_period.addItem(f"{i / 8000 * 1000} ms")
-        for i in range(8000, 8000 * 4 + 1):
-            if i % 8000 == 0:
-                self.average_period.addItem(f"{i / 8000 } s")
+        for i in range(1, 1000 // 80):
+            self.average_period.addItem(f"{i / 80 * 1000} ms")
+        for i in range(1000 // 80 + 1, 1000 // 80 * 5):
+            self.average_period.addItem(f"{i} s")
         self.frames["Measurement"].layout().addWidget(self.average_period)
 
     def _init_frames(self) -> None:
