@@ -36,6 +36,22 @@ class MainApplication(QtWidgets.QApplication):
             QtWidgets.QMessageBox.critical(self.view, "Error", f"{args.exc_type} error occurred.")
 
 
+def _get_file_path(parent, dialog_name: str, last_file_path: str, files: str) -> tuple[str, str]:
+    file_path = QtWidgets.QFileDialog.getOpenFileName(parent, directory=last_file_path,
+                                                      caption=dialog_name, filter=files)
+    if file_path[0]:
+        last_file_path = file_path[0]
+    return file_path[0], last_file_path
+
+
+def _shutdown(controller) -> None:
+    QtWidgets.QApplication.setOverrideCursor(Qt.WaitCursor)
+    logging.warning("Shutdown started")
+    model.shutdown_procedure()
+    controller.view.close()
+    controller.main_app.quit()
+
+
 class Home:
     def __init__(self, parent, main_app: QtWidgets.QApplication):
         self.view = parent
@@ -49,12 +65,14 @@ class Home:
         self.probe_laser = model.ProbeLaser()
         self.pump_laser_tec = model.Tec(model.Tec.PUMP_LASER)
         self.probe_laser_tec = model.Tec(model.Tec.PROBE_LASER)
-        self.destination_folder = model.DestinationFolder()
         self.last_file_path = os.getcwd()
         threading.Thread(target=self._init_devices, daemon=True, name="Init Devices Thread").start()
 
     def _init_devices(self) -> None:
-        self.find_devices()
+        try:
+            self.find_devices()
+        except OSError:
+            return
         self.connect_devices()
         self.apply_configurations()
 
@@ -64,103 +82,29 @@ class Home:
         self.pump_laser_tec.apply_configuration()
         self.probe_laser_tec.apply_configuration()
 
-    def update_bypass(self) -> None:
-        self.motherboard.bypass = not self.motherboard.bypass
-
-    def update_valve_period(self, period: str) -> None:
-        try:
-            period = _string_to_number(self.view, period, cast=int)
-        except ValueError:
-            period = 600
-        try:
-            self.motherboard.valve_period = period
-        except ValueError as error:
-            info_text = "Value must be a positive integer"
-            logging.error(str(error))
-            logging.warning(info_text)
-            QtWidgets.QMessageBox.critical(self.view, "Valve Error", f"{str(error)}. {info_text}")
-
-    def update_valve_duty_cycle(self, duty_cycle: str) -> None:
-        try:
-            duty_cycle = _string_to_number(self.view, duty_cycle, cast=int)
-        except ValueError:
-            duty_cycle = 50
-        try:
-            self.motherboard.valve_duty_cycle = duty_cycle
-        except ValueError as error:
-            info_text = "Value must be an integer between 0 and 100"
-            logging.error(str(error))
-            logging.warning(info_text)
-            QtWidgets.QMessageBox.critical(self.view, "Valve Error", f"{str(error)}. {info_text}")
-
-    def update_automatic_valve_switch(self, automatic_valve_switch: bool) -> None:
-        self.motherboard.automatic_valve_switch = automatic_valve_switch
-
     def fire_motherboard_configuration_change(self) -> None:
         self.motherboard.fire_configuration_change()
 
-    def set_destination_folder(self) -> None:
-        destination_folder = QtWidgets.QFileDialog.getExistingDirectory(self.view, "Destination Folder",
-                                                                        self.destination_folder.folder,
-                                                                        QtWidgets.QFileDialog.ShowDirsOnly)
-        if destination_folder:
-            self.destination_folder.folder = destination_folder
-
-    def get_file_path(self, dialog_name: str, files: str) -> str:
-        file_path = QtWidgets.QFileDialog.getOpenFileName(self.view, directory=self.last_file_path,
-                                                          caption=dialog_name, filter=files)
-        if file_path[0]:
-            self.last_file_path = file_path[0]
-        return file_path[0]
-
-    def save_settings(self) -> None:
-        self.settings_model.save()
-
-    def save_settings_as(self) -> None:
-        file_path = save_as(parent=self.view, file_type="CSV File", file_extension="csv",
-                            name="Algorithm Configuration")
-        if file_path:
-            self.settings_model.file_path = file_path
-            self.settings_model.save()
-
-    def load_settings(self):
-        file_path = QtWidgets.QFileDialog.getOpenFileName(self.view, caption="Load SettingsTable",
-                                                          filter="CSV File (*.csv);;"
-                                                                 " TXT File (*.txt);; All Files (*);;")
-        if file_path[0]:
-            self.settings_model.file_path = file_path  # The actual file path
-            self.settings_model.load()
-
-    @staticmethod
-    def save_motherboard_configuration() -> None:
-        model.Motherboard.save_configuration()
-
-    def load_motherboard_configuration(self) -> None:
-        if file_path := self.get_file_path("Valve", "CONF File (*.conf);; All Files (*)"):
-            try:
-                self.motherboard.config_path = file_path[0]
-            except ValueError as error:
-                logging.error(error)
-            else:
-                self.motherboard.load_configuration()
-
     def calculate_decimation(self) -> None:
-        decimation_file_path = self.get_file_path("Decimation", "HDF5 File (*.hdf5);; All Files (*)")
+        decimation_file_path, self.last_file_path = _get_file_path(self.view, "Decimation", self.last_file_path,
+                                                                   "HDF5 File (*.hdf5);; All Files (*)")
         if not decimation_file_path:
             return
         threading.Thread(target=self.calculation_model.calculate_decimation,
                          args=[decimation_file_path]).start()
 
     def calculate_inversion(self) -> None:
-        inversion_path = self.get_file_path("Inversion", "CSV File (*.csv);; TXT File (*.txt);; All Files (*)")
+        inversion_path, self.last_file_path = _get_file_path(self.view, "Inversion", self.last_file_path,
+                                                             "CSV File (*.csv);; TXT File (*.txt);; All Files (*)")
         if not inversion_path:
             return
         threading.Thread(target=self.calculation_model.calculate_inversion,
                          args=[self.settings_model.file_path, inversion_path]).start()
 
     def calculate_characterisation(self) -> None:
-        characterisation_path = self.get_file_path(
-            "Characterisation", "CSV File (*.csv);; TXT File (*.txt);; All Files (*)")
+        characterisation_path, self.last_file_path = _get_file_path(self.view, "Characterisation", self.last_file_path,
+                                                                    "CSV File (*.csv);; TXT File (*.txt);;"
+                                                                    " All Files (*)")
         if not characterisation_path:
             return
         use_settings = QtWidgets.QMessageBox.question(self.view, "Characterisation",
@@ -173,22 +117,30 @@ class Home:
 
     def plot_inversion(self) -> None:
         try:
-            model.process_inversion_data(self.get_file_path("Inversion",
-                                                            "CSV File (*.csv);; TXT File (*.txt);; All Files (*)"))
+            inversion_path, self.last_file_path = _get_file_path(self.view, "Inversion", self.last_file_path,
+                                                                 "CSV File (*.csv);; TXT File (*.txt);; All Files (*)")
+            if inversion_path:
+                model.process_inversion_data(inversion_path)
         except KeyError:
             QtWidgets.QMessageBox.critical(self.view, "Plotting Error", "Invalid data given. Could not plot.")
 
     def plot_dc(self) -> None:
         try:
-            model.process_dc_data(self.get_file_path("Decimation",
-                                                     "CSV File (*.csv);; TXT File (*.txt);; All Files (*)"))
+            decimation_path, self.last_file_path = _get_file_path(self.view, "Decimation", self.last_file_path,
+                                                                  "CSV File (*.csv);; TXT File (*.txt);; All Files (*)")
+            if decimation_path:
+                model.process_dc_data(decimation_path)
         except KeyError:
             QtWidgets.QMessageBox.critical(self.view, "Plotting Error", "Invalid data given. Could not plot.")
 
     def plot_characterisation(self) -> None:
         try:
-            model.process_characterization_data(
-                self.get_file_path("Characterisation", "CSV File (*.csv);; TXT File (*.txt);; All Files (*)"))
+            characterization_path, self.last_file_path = _get_file_path(self.view, "Characterization",
+                                                                        self.last_file_path,
+                                                                        "CSV File (*.csv);; TXT File (*.txt);;"
+                                                                        " All Files (*)")
+            if characterization_path:
+                model.process_characterization_data(characterization_path)
         except KeyError:
             QtWidgets.QMessageBox.critical(self.view, "Plotting Error", "Invalid data given. Could not plot.")
 
@@ -206,27 +158,18 @@ class Home:
             model.Tec.find_port()
         except OSError:
             logging.error("Could not find TEC Driver")
-
-    def shutdown(self) -> None:
-        QtWidgets.QApplication.setOverrideCursor(Qt.WaitCursor)
-        logging.warning("Shutdown started")
-        model.shutdown_procedure()
-        self.view.close()
-        self.main_app.quit()
-
-    def shutdown_by_button(self) -> None:
-        close = QtWidgets.QMessageBox.question(self.view, "QUIT", "Are you sure you want to shutdown?",
-                                               QtWidgets.QMessageBox.StandardButton.Yes
-                                               | QtWidgets.QMessageBox.StandardButton.No)
-        if close == QtWidgets.QMessageBox.StandardButton.Yes:
-            self.shutdown()
+        else:
+            return
+        raise OSError
 
     def await_shutdown(self):
         def shutdown_low_energy() -> None:
             self.motherboard.shutdown_event.wait()
-            self.shutdown()
-
+            _shutdown(self)
         threading.Thread(target=shutdown_low_energy, daemon=True).start()
+
+    def update_bypass(self) -> None:
+        self.motherboard.bypass = not self.motherboard.bypass
 
     def connect_devices(self) -> None:
         try:
@@ -317,6 +260,92 @@ class Home:
 
     def set_clean_air(self, bypass: bool) -> None:
         self.motherboard.bypass = bypass
+
+
+class Settings:
+    def __init__(self, main_app, parent):
+        self.settings_table_model = model.SettingsTable()
+        self.main_app = main_app
+        self.view = parent
+        self.motherboard = model.Motherboard()
+        self.destination_folder = model.DestinationFolder()
+        self.last_file_path = os.getcwd()
+
+    def save_settings(self) -> None:
+        self.settings_table_model.save()
+
+    def save_settings_as(self) -> None:
+        file_path = save_as(parent=self.view, file_type="CSV File", file_extension="csv",
+                            name="Algorithm Configuration")
+        if file_path:
+            self.settings_table_model.file_path = file_path
+            self.settings_table_model.save()
+
+    def load_settings(self):
+        file_path, self.last_file_path = _get_file_path(self.view, "Load SettingsTable", self.last_file_path,
+                                                        "CSV File (*.csv);;"
+                                                        " TXT File (*.txt);; All Files (*);;")
+        if file_path:
+            self.settings_table_model.file_path = file_path
+            self.settings_table_model.load()
+
+    def shutdown_by_button(self) -> None:
+        close = QtWidgets.QMessageBox.question(self.view, "QUIT", "Are you sure you want to shutdown?",
+                                               QtWidgets.QMessageBox.StandardButton.Yes
+                                               | QtWidgets.QMessageBox.StandardButton.No)
+        if close == QtWidgets.QMessageBox.StandardButton.Yes:
+            _shutdown(self)
+
+    def update_valve_period(self, period: str) -> None:
+        try:
+            period = _string_to_number(self.view, period, cast=int)
+        except ValueError:
+            period = 600
+        try:
+            self.motherboard.valve_period = period
+        except ValueError as error:
+            info_text = "Value must be a positive integer"
+            logging.error(str(error))
+            logging.warning(info_text)
+            QtWidgets.QMessageBox.critical(self.view, "Valve Error", f"{str(error)}. {info_text}")
+
+    def update_valve_duty_cycle(self, duty_cycle: str) -> None:
+        try:
+            duty_cycle = _string_to_number(self.view, duty_cycle, cast=int)
+        except ValueError:
+            duty_cycle = 50
+        try:
+            self.motherboard.valve_duty_cycle = duty_cycle
+        except ValueError as error:
+            info_text = "Value must be an integer between 0 and 100"
+            logging.error(str(error))
+            logging.warning(info_text)
+            QtWidgets.QMessageBox.critical(self.view, "Valve Error", f"{str(error)}. {info_text}")
+
+    def update_automatic_valve_switch(self, automatic_valve_switch: bool) -> None:
+        self.motherboard.automatic_valve_switch = automatic_valve_switch
+
+    def set_destination_folder(self) -> None:
+        destination_folder = QtWidgets.QFileDialog.getExistingDirectory(self.view, "Destination Folder",
+                                                                        self.destination_folder.folder,
+                                                                        QtWidgets.QFileDialog.ShowDirsOnly)
+        if destination_folder:
+            self.destination_folder.folder = destination_folder
+
+    @staticmethod
+    def save_motherboard_configuration() -> None:
+        model.Motherboard.save_configuration()
+
+    def load_motherboard_configuration(self) -> None:
+        file_path, self.last_file_path = _get_file_path(self.view, "Valve", self.last_file_path,
+                                                        "CONF File (*.conf);; All Files (*)")
+        if file_path:
+            try:
+                self.motherboard.config_path = file_path
+            except ValueError as error:
+                logging.error(error)
+            else:
+                self.motherboard.load_configuration()
 
 
 T = typing.TypeVar("T")

@@ -26,7 +26,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.main_controller = main_controller
         self.tab_bar = QtWidgets.QTabWidget(self)
         self.setCentralWidget(self.tab_bar)
-        self.tabs: Union[Tab, None] = None
         self.current_pump_laser = PumpLaserCurrent()
         self.current_probe_laser = ProbeLaserCurrent()
         self.temperature_probe_laser = TecTemperature(channel=model.Tec.PROBE_LASER)
@@ -38,9 +37,51 @@ class MainWindow(QtWidgets.QMainWindow):
         self.sensitivity = Sensitivity()
         self.symmetry = Symmetry()
         self.pti_signal = PTISignal()
+        self.logging_window = QtWidgets.QLabel()
+        home = Home(self.main_controller)
+        self.tabs = Tab(home,
+                        settings=Settings(self.main_controller, self, home.controller),
+                        pump_laser=self._init_pump_laser_tab(),
+                        probe_laser=self._init_probe_laser_tab(),
+                        dc=QtWidgets.QTabWidget(),
+                        amplitudes=QtWidgets.QTabWidget(),
+                        output_phases=QtWidgets.QTabWidget(),
+                        sensitivity=QtWidgets.QTabWidget(),
+                        symmetry=QtWidgets.QTabWidget(),
+                        interferometric_phase=QtWidgets.QTabWidget(),
+                        pti_signal=QtWidgets.QTabWidget())
+        self.log = QtWidgets.QDockWidget("Log", self)
+        self.scroll = QtWidgets.QScrollArea(widgetResizable=True)
+        self.battery = QtWidgets.QDockWidget("Battery", self)
+        self.charge_level = QtWidgets.QLabel("NaN % left")
+        self.minutes_left = QtWidgets.QLabel("NaN Minutes left")
         self._init_tabs()
+        self.addDockWidget(Qt.BottomDockWidgetArea, self.log)
+        self.addDockWidget(Qt.BottomDockWidgetArea, self.battery)
+        self.setCorner(Qt.BottomRightCorner, Qt.RightDockWidgetArea)
         self.resize(MainWindow.HORIZONTAL_SIZE, MainWindow.VERTICAL_SIZE)
         self.show()
+
+    def logging_update(self, log_queue: collections.deque) -> None:
+        self.logging_window.setText("".join(log_queue))
+
+    @QtCore.pyqtSlot(model.Battery)
+    def update_battery_state(self, battery: model.Battery) -> None:
+        self.minutes_left.setText(f"Minutes left: {battery.minutes_left}")
+        self.charge_level.setText(f"{battery.percentage} % left")
+
+    def _init_dock_widgets(self) -> None:
+        model.signals.battery_state.connect(self.update_battery_state)
+        model.signals.logging_update.connect(self.logging_update)
+        self.scroll.setWidgetResizable(True)
+        self.log.setWidget(self.scroll)
+        sub_layout = QtWidgets.QWidget()
+        sub_layout.setMaximumWidth(150)
+        sub_layout.setLayout(QtWidgets.QVBoxLayout())
+        sub_layout.layout().addWidget(self.charge_level)
+        sub_layout.layout().addWidget(self.minutes_left)
+        self.battery.setWidget(sub_layout)
+        self.scroll.setWidget(self.logging_window)
 
     def _init_pump_laser_tab(self) -> QtWidgets.QTabWidget:
         tab = QtWidgets.QTabWidget()
@@ -81,17 +122,6 @@ class MainWindow(QtWidgets.QMainWindow):
         return tab
 
     def _init_tabs(self):
-        self.tabs = Tab(home=Home(self, self.main_controller),
-                        settings=Settings(self.main_controller),
-                        pump_laser=self._init_pump_laser_tab(),
-                        probe_laser=self._init_probe_laser_tab(),
-                        dc=QtWidgets.QTabWidget(),
-                        amplitudes=QtWidgets.QTabWidget(),
-                        output_phases=QtWidgets.QTabWidget(),
-                        sensitivity=QtWidgets.QTabWidget(),
-                        symmetry=QtWidgets.QTabWidget(),
-                        interferometric_phase=QtWidgets.QTabWidget(),
-                        pti_signal=QtWidgets.QTabWidget())
         self.tab_bar.addTab(self.tabs.home, "Home")
         self.tab_bar.addTab(self.tabs.settings, "Settings")
         self.tab_bar.addTab(self.tabs.pump_laser, "Pump Laser")
@@ -152,7 +182,7 @@ class Tab(NamedTuple):
 
 class _Frames:
     def __init__(self):
-        self.frames = {}  # type: dict[str, Union[QtWidgets.QGroupBox, QtWidgets.QDockWidget]]
+        self.frames: dict[str, QtWidgets.QGroupBox] = {}
 
     def create_frame(self, master: QtWidgets.QWidget, title, x_position, y_position,
                      x_span=1, y_span=1) -> None:
@@ -206,42 +236,17 @@ def toggle_button(checked, button: QtWidgets.QPushButton) -> None:
 
 
 class Home(QtWidgets.QTabWidget, _Frames, _CreateButton):
-    def __init__(self, main_window: QtWidgets.QMainWindow, main_app: QtWidgets.QApplication):
+    def __init__(self, main_app: QtWidgets.QApplication):
         QtWidgets.QTabWidget.__init__(self)
         _Frames.__init__(self)
         _CreateButton.__init__(self)
         self.setLayout(QtWidgets.QGridLayout())
         self.controller = controller.Home(self, main_app)
-        self.logging_window = QtWidgets.QLabel()
         self._init_frames()
-        model.signals.logging_update.connect(self.logging_update)
-        self.scroll = QtWidgets.QScrollArea(widgetResizable=True)
-        self.scroll.setWidgetResizable(True)
-        self.frames["Log"] = QtWidgets.QDockWidget("Log", self)
-        self.frames["Log"].setWidget(self.scroll)
-        self.frames["Battery"] = QtWidgets.QDockWidget("Battery", self)
-        self.charge_level = QtWidgets.QLabel("NaN % left")
-        self.minutes_left = QtWidgets.QLabel("NaN Minutes left")
-        sub_layout = QtWidgets.QWidget()
-        sub_layout.setMaximumWidth(150)
-        sub_layout.setLayout(QtWidgets.QVBoxLayout())
-        sub_layout.layout().addWidget(self.charge_level)
-        sub_layout.layout().addWidget(self.minutes_left)
-        self.frames["Battery"].setWidget(sub_layout)
-        self.scroll.setWidget(self.logging_window)
-        main_window.addDockWidget(Qt.BottomDockWidgetArea, self.frames["Log"])
-        main_window.addDockWidget(Qt.BottomDockWidgetArea, self.frames["Battery"])
-        main_window.setCorner(Qt.BottomRightCorner, Qt.RightDockWidgetArea)
         self._init_buttons()
         self._init_signals()
         self.controller.fire_motherboard_configuration_change()
-        model.signals.battery_state.connect(self.update_battery_state)
         model.signals.bypass.connect(self.update_clean_air)
-
-    @QtCore.pyqtSlot(model.Battery)
-    def update_battery_state(self, battery: model.Battery) -> None:
-        self.minutes_left.setText(f"Minutes left: {battery.minutes_left}")
-        self.charge_level.setText(f"{battery.percentage} % left")
 
     def _init_frames(self) -> None:
         sub_layout = QtWidgets.QWidget()
@@ -303,9 +308,6 @@ class Home(QtWidgets.QTabWidget, _Frames, _CreateButton):
                            master_title="Probe Laser")
         self.frames["Probe Laser"].layout().addWidget(sub_layout)
 
-    def logging_update(self, log_queue: collections.deque) -> None:
-        self.logging_window.setText("".join(log_queue))
-
     @QtCore.pyqtSlot(bool)
     def update_run_measurement(self, state: bool) -> None:
         toggle_button(state, self.buttons["Run Measurement"])
@@ -339,16 +341,17 @@ class Home(QtWidgets.QTabWidget, _Frames, _CreateButton):
 
 
 class Settings(QtWidgets.QTabWidget, _Frames, _CreateButton):
-    def __init__(self, main_app: QtWidgets.QApplication):
+    def __init__(self, main_app, parent, home_controller):
         QtWidgets.QTabWidget.__init__(self)
         _Frames.__init__(self)
         _CreateButton.__init__(self)
         self.setLayout(QtWidgets.QGridLayout())
-        self.controller = controller.Home(self, main_app)
+        self.controller = controller.Settings(main_app, parent)
+        self.home_controller = home_controller
         self.destination_folder = QtWidgets.QLabel(self.controller.destination_folder.folder)
         self._init_frames()
-        self.settings = SettingsView(parent=self.frames["Configuration"], settings_model=self.controller.settings_model)
-        self.frames["Configuration"].layout().addWidget(self.settings)
+        self.settings = SettingsView(parent=self.frames["Configuration"],
+                                     settings_model=self.controller.settings_table_model)
         self.destination_folder = QtWidgets.QLabel(self.controller.destination_folder.folder)
         self.save_raw_data = QtWidgets.QCheckBox("Save Raw Data")
         self.automatic_valve_switch = QtWidgets.QCheckBox("Automatic Valve Switch")
@@ -359,6 +362,7 @@ class Settings(QtWidgets.QTabWidget, _Frames, _CreateButton):
         self.average_period = QtWidgets.QComboBox()
         self._init_frames()
         self._init_average_period_box()
+        self.frames["Configuration"].layout().addWidget(self.settings)
         self._init_buttons()
         self._init_raw_data_button()
         self._init_valves()
@@ -376,11 +380,11 @@ class Settings(QtWidgets.QTabWidget, _Frames, _CreateButton):
         self.destination_folder.setText(destionation_folder)
 
     def _init_average_period_box(self) -> None:
-        for i in range(80, 8000):
-            if i % 80 == 0:
+        for i in range(1, 8000):
+            if 8000 % i == 0:
                 self.average_period.addItem(f"{i / 8000 * 1000} ms")
         for i in range(8000, 8000 * 4 + 1):
-            if i % 80 == 0:
+            if i % 8000 == 0:
                 self.average_period.addItem(f"{i / 8000 } s")
         self.frames["Measurement"].layout().addWidget(self.average_period)
 
@@ -429,7 +433,7 @@ class Settings(QtWidgets.QTabWidget, _Frames, _CreateButton):
         sub_layout.layout().addWidget(self.destination_folder)
 
     def _init_raw_data_button(self) -> None:
-        self.save_raw_data.stateChanged.connect(self.controller.calculation_model.set_raw_data_saving)
+        self.save_raw_data.stateChanged.connect(self.home_controller.calculation_model.set_raw_data_saving)
 
     def _init_valves(self) -> None:
         self.automatic_valve_switch.stateChanged.connect(self._automatic_switch_changed)
