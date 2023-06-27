@@ -48,8 +48,8 @@ class SettingsTable(QtCore.QAbstractTableModel):
         QtCore.QAbstractTableModel.__init__(self)
         self._data = pd.DataFrame(columns=SettingsTable.HEADERS, index=SettingsTable.INDEX)
         self.file_path = f"{os.path.dirname(os.path.dirname(__file__))}/algorithm/configs/settings.csv"
-        self._observer_callbacks = []
         signals.settings.connect(self.update_settings)
+        self.load()
 
     @QtCore.pyqtSlot(algorithm.interferometry.Interferometer)
     def update_settings(self, interferometer: algorithm.interferometry.Interferometer) -> None:
@@ -569,6 +569,7 @@ class Motherboard(Serial):
     def __init__(self):
         Serial.__init__(self)
         self.bms_data: tuple[float, float] = (0, 0)
+        self.driver.load_config()
 
     @property
     def connected(self) -> bool:

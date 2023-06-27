@@ -4,7 +4,7 @@ import os
 import threading
 import typing
 
-from PyQt5 import QtWidgets
+from PyQt5 import QtWidgets, QtCore
 from PyQt5.QtCore import Qt, QCoreApplication
 
 from .. import hardware
@@ -53,11 +53,10 @@ def _shutdown(controller) -> None:
 
 
 class Home:
-    def __init__(self, parent, main_app: QtWidgets.QApplication):
+    def __init__(self, parent, main_app: QtWidgets.QApplication, settings_controller: "Settings"):
         self.view = parent
         self.main_app = main_app
-        self.settings_model = model.SettingsTable()
-        self.settings_model.load()
+        self.settings_controller = settings_controller
         self.calculation_model = model.Calculation()
         self.motherboard = model.Motherboard()
         self.laser = model.Laser()
@@ -66,6 +65,7 @@ class Home:
         self.pump_laser_tec = model.Tec(model.Tec.PUMP_LASER)
         self.probe_laser_tec = model.Tec(model.Tec.PROBE_LASER)
         self.last_file_path = os.getcwd()
+        self.settings_controller.raw_data_changed.connect(self.calculation_model.set_raw_data_saving)
         threading.Thread(target=self._init_devices, daemon=True, name="Init Devices Thread").start()
 
     def _init_devices(self) -> None:
@@ -99,7 +99,7 @@ class Home:
         if not inversion_path:
             return
         threading.Thread(target=self.calculation_model.calculate_inversion,
-                         args=[self.settings_model.file_path, inversion_path]).start()
+                         args=[self.settings_controller.settings_table_model.file_path, inversion_path]).start()
 
     def calculate_characterisation(self) -> None:
         characterisation_path, self.last_file_path = _get_file_path(self.view, "Characterisation", self.last_file_path,
@@ -113,7 +113,9 @@ class Home:
                                                       | QtWidgets.QMessageBox.StandardButton.No)
         use_settings = use_settings == QtWidgets.QMessageBox.StandardButton.Yes
         threading.Thread(target=self.calculation_model.calculate_characterisation,
-                         args=[characterisation_path, use_settings, self.settings_model.file_path]).start()
+                         args=[characterisation_path, use_settings,
+                               self.settings_controller.settings_table_model.file_path]
+                         ).start()
 
     def plot_inversion(self) -> None:
         try:
@@ -270,6 +272,14 @@ class Settings:
         self.motherboard = model.Motherboard()
         self.destination_folder = model.DestinationFolder()
         self.last_file_path = os.getcwd()
+        self.motherboard.fire_configuration_change()
+
+    @property
+    def raw_data_changed(self) -> QtCore.pyqtSignal:
+        return self.view.save_raw_data.stateChanged
+
+    def fire_mother_board_configuration(self) -> None:
+        self.motherboard.fire_configuration_change()
 
     def save_settings(self) -> None:
         self.settings_table_model.save()
@@ -338,7 +348,7 @@ class Settings:
 
     def load_motherboard_configuration(self) -> None:
         file_path, self.last_file_path = _get_file_path(self.view, "Valve", self.last_file_path,
-                                                        "CONF File (*.conf);; All Files (*)")
+                                                        "INI File (*.ini);; All Files (*)")
         if file_path:
             try:
                 self.motherboard.config_path = file_path
@@ -360,22 +370,17 @@ def _string_to_number(parent: QtWidgets.QWidget, string_number: str, cast: typin
         raise ValueError
 
 
-def _driver_config_file_path(last_directory: str, parent: QtWidgets.QWidget, device: str) -> str:
-    file_path = QtWidgets.QFileDialog.getOpenFileName(parent, directory=last_directory,
-                                                      caption=f"{device} config file",
-                                                      filter="All Files (*);; JSON (.json)")
-    return file_path[0]
-
-
 class Laser:
     def __init__(self, parent):
-        self.parent = parent
+        self.view = parent
         self.laser = model.Laser()
+        self.last_file_path = os.getcwd()
 
     def load_configuration(self) -> None:
-        if filepath := _driver_config_file_path(last_directory=self.laser.config_path,
-                                                parent=self.parent, device="Laser Driver"):
-            self.laser.config_path = filepath
+        config_path, self.last_file_path = _get_file_path(self.view, "Laser Driver", self.last_file_path,
+                                                          "JSON File (*.json);; All Files (*)")
+        if config_path:
+            self.laser.config_path = config_path
         else:
             return
         self.laser.load_configuration()
@@ -385,7 +390,7 @@ class Laser:
         self.laser.save_configuration()
 
     def save_configuration_as(self) -> None:
-        file_path = save_as(parent=self.parent, file_type="JSON File", file_extension="json",
+        file_path = save_as(parent=self.view, file_type="JSON File", file_extension="json",
                             name="Laser Configuration")
         if file_path:
             self.laser.config_path = file_path  # The actual file path
@@ -471,6 +476,7 @@ class Tec:
         self.heating = False
         self.cooling = False
         self.view = parent
+        self.last_file_path = os.getcwd()
 
     def save_configuration_as(self) -> None:
         file_path = save_as(parent=self.view, file_type="JSON File", file_extension="json", name="TEC Configuration")
@@ -482,9 +488,10 @@ class Tec:
         self.tec.save_configuration()
 
     def load_configuration(self) -> None:
-        if filepath := _driver_config_file_path(last_directory=self.tec.config_path, parent=self.view,
-                                                device="Tec Driver"):
-            self.tec.config_path = filepath
+        config_path, self.last_file_path = _get_file_path(self.view, "TEC Driver", self.last_file_path,
+                                                          "JSON File (*.json);; All Files (*)")
+        if config_path:
+            self.tec.config_path = config_path
         else:
             return
         self.tec.load_configuration()

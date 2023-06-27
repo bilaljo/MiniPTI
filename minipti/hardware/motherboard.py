@@ -116,7 +116,6 @@ class Driver(serial_device.Driver):
         self.bypass = False
         self.running = threading.Event()
         self.running.clear()
-        self.load_config()
 
     @property
     def device_id(self) -> bytes:

@@ -38,9 +38,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.symmetry = Symmetry()
         self.pti_signal = PTISignal()
         self.logging_window = QtWidgets.QLabel()
-        home = Home(self.main_controller)
+        settings = Settings(self.main_controller)
+        settings.controller.fire_mother_board_configuration()
+        home = Home(self.main_controller, settings.controller)
         self.tabs = Tab(home,
-                        settings=Settings(self.main_controller, self, home.controller),
+                        settings,
                         pump_laser=self._init_pump_laser_tab(),
                         probe_laser=self._init_probe_laser_tab(),
                         dc=QtWidgets.QTabWidget(),
@@ -56,8 +58,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.charge_level = QtWidgets.QLabel("NaN % left")
         self.minutes_left = QtWidgets.QLabel("NaN Minutes left")
         self._init_tabs()
-        self.addDockWidget(Qt.BottomDockWidgetArea, self.log)
-        self.addDockWidget(Qt.BottomDockWidgetArea, self.battery)
+        self._init_dock_widgets()
         self.setCorner(Qt.BottomRightCorner, Qt.RightDockWidgetArea)
         self.resize(MainWindow.HORIZONTAL_SIZE, MainWindow.VERTICAL_SIZE)
         self.show()
@@ -71,6 +72,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.charge_level.setText(f"{battery.percentage} % left")
 
     def _init_dock_widgets(self) -> None:
+        self.addDockWidget(Qt.BottomDockWidgetArea, self.log)
+        self.addDockWidget(Qt.BottomDockWidgetArea, self.battery)
         model.signals.battery_state.connect(self.update_battery_state)
         model.signals.logging_update.connect(self.logging_update)
         self.scroll.setWidgetResizable(True)
@@ -236,16 +239,15 @@ def toggle_button(checked, button: QtWidgets.QPushButton) -> None:
 
 
 class Home(QtWidgets.QTabWidget, _Frames, _CreateButton):
-    def __init__(self, main_app: QtWidgets.QApplication):
+    def __init__(self, main_app: QtWidgets.QApplication, settings_controller):
         QtWidgets.QTabWidget.__init__(self)
         _Frames.__init__(self)
         _CreateButton.__init__(self)
         self.setLayout(QtWidgets.QGridLayout())
-        self.controller = controller.Home(self, main_app)
+        self.controller = controller.Home(self, main_app, settings_controller)
         self._init_frames()
         self._init_buttons()
         self._init_signals()
-        self.controller.fire_motherboard_configuration_change()
         model.signals.bypass.connect(self.update_clean_air)
 
     def _init_frames(self) -> None:
@@ -341,13 +343,12 @@ class Home(QtWidgets.QTabWidget, _Frames, _CreateButton):
 
 
 class Settings(QtWidgets.QTabWidget, _Frames, _CreateButton):
-    def __init__(self, main_app, parent, home_controller):
+    def __init__(self, main_app):
         QtWidgets.QTabWidget.__init__(self)
         _Frames.__init__(self)
         _CreateButton.__init__(self)
         self.setLayout(QtWidgets.QGridLayout())
-        self.controller = controller.Settings(main_app, parent)
-        self.home_controller = home_controller
+        self.controller = controller.Settings(main_app, self)
         self.destination_folder = QtWidgets.QLabel(self.controller.destination_folder.folder)
         self._init_frames()
         self.settings = SettingsView(parent=self.frames["Configuration"],
@@ -360,14 +361,21 @@ class Settings(QtWidgets.QTabWidget, _Frames, _CreateButton):
         self.duty_cycle_field = QtWidgets.QLineEdit()
         self.period_field = QtWidgets.QLineEdit()
         self.average_period = QtWidgets.QComboBox()
+        self.samples = QtWidgets.QLabel("8000 Samples")
         self._init_frames()
         self._init_average_period_box()
         self.frames["Configuration"].layout().addWidget(self.settings)
         self._init_buttons()
-        self._init_raw_data_button()
         self._init_valves()
         model.signals.destination_folder_changed.connect(self.update_destination_folder)
         model.signals.valve_change.connect(self.update_valve)
+
+    def update_samples(self) -> None:
+        text = self.average_period.currentText()
+        if text[-2:] == "ms":
+            self.samples.setText(f"{int((float(text[:-3]) / 1000) * 8000)} Samples")
+        else:
+            self.samples.setText(f"{int(float(text[:-2]) * 8000)} Samples")
 
     @QtCore.pyqtSlot(hardware.motherboard.Valve)
     def update_valve(self, valve: hardware.motherboard.Valve) -> None:
@@ -380,11 +388,18 @@ class Settings(QtWidgets.QTabWidget, _Frames, _CreateButton):
         self.destination_folder.setText(destionation_folder)
 
     def _init_average_period_box(self) -> None:
-        for i in range(1, 1000 // 80):
-            self.average_period.addItem(f"{i / 80 * 1000} ms")
-        for i in range(1000 // 80 + 1, 1000 // 80 * 5):
-            self.average_period.addItem(f"{i} s")
-        self.frames["Measurement"].layout().addWidget(self.average_period)
+        for i in range(1, 80):
+            self.average_period.addItem(f"{i * 100 / 8000 * 1000} ms")
+        for i in range(80, 320 + 1):
+            self.average_period.addItem(f"{i * 100 / 8000 } s")
+        self.average_period.setCurrentIndex(80 - 1)
+        sublayout = QtWidgets.QWidget()
+        sublayout.setLayout(QtWidgets.QVBoxLayout())
+        sublayout.layout().addWidget(QtWidgets.QLabel("Averaging Time"))
+        sublayout.layout().addWidget(self.average_period)
+        sublayout.layout().addWidget(self.samples)
+        self.frames["Measurement"].layout().addWidget(sublayout)
+        self.average_period.currentIndexChanged.connect(self.update_samples)
 
     def _init_frames(self) -> None:
         self.create_frame(master=self, title="File Path", x_position=2, y_position=1)
@@ -425,13 +440,10 @@ class Settings(QtWidgets.QTabWidget, _Frames, _CreateButton):
         self.frames["Valve"].layout().addWidget(sub_layout)
 
         sub_layout = QtWidgets.QWidget(parent=self.frames["File Path"])
-        sub_layout.setLayout(QtWidgets.QHBoxLayout())
+        sub_layout.setLayout(QtWidgets.QVBoxLayout())
         self.frames["File Path"].layout().addWidget(sub_layout)
         self.create_button(master=sub_layout, title="Destination Folder", slot=self.controller.set_destination_folder)
         sub_layout.layout().addWidget(self.destination_folder)
-
-    def _init_raw_data_button(self) -> None:
-        self.save_raw_data.stateChanged.connect(self.home_controller.calculation_model.set_raw_data_saving)
 
     def _init_valves(self) -> None:
         self.automatic_valve_switch.stateChanged.connect(self._automatic_switch_changed)
