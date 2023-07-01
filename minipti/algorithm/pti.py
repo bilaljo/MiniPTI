@@ -217,6 +217,7 @@ class Decimation:
         self.destination_folder: str = "."
         self.file_path: str = ""
         self.init_header: bool = True
+        self.init_raw_data: bool = True
 
     def process_raw_data(self) -> None:
         """
@@ -230,13 +231,10 @@ class Decimation:
                                                                       * Decimation.AC_RESOLUTION)
 
     def save(self) -> None:
-        with h5py.File(f"{self.destination_folder}/raw_data.hdf5", "a") as h5f:
-            now = datetime.now()
-            time_stamp = str(now.strftime("%Y-%m-%d %H:%M:%S:%S.%f")[:Decimation.UNTIL_MICRO_SECONDS])
-            h5f.create_group(time_stamp)
-            h5f[time_stamp]["Ref"] = self.ref
-            h5f[time_stamp]["AC"] = self.ac_coupled
-            h5f[time_stamp]["DC"] = self.dc_coupled
+        with open(f"{self.destination_folder}/raw_data.bin", "ab") as file:
+            file.write(self.ref.data)
+            file.write(self.ac_coupled.data)
+            file.write(self.dc_coupled.data)
 
     def get_raw_data(self) -> Generator[None, None, None]:
         with h5py.File(self.file_path, "r") as h5f:
@@ -282,6 +280,14 @@ class Decimation:
             logging.warning("Could not write data. Missing values are: %s at %s.",
                             str(output_data)[1:-1], date + " " + time)
 
+    def _save_meta_data(self) -> None:
+        """
+        Saves a header in the binary file that explains its structure.
+        """
+        with open(f"{self.destination_folder}/raw_data.bin", "ab") as file:
+            file.write(b"Ref: Array[uint16, 8000], DC: Aray[Array[uint16, 8000], 3],"
+                       b" AC Aray[Array[int16, 8000], 3]")
+
     def decimate(self, live=False) -> None:
         if self.init_header:
             output_data = {"Time": "H:M:S"}
@@ -293,6 +299,8 @@ class Decimation:
                                                               index_label="Date")
             self.init_header = False
         if live:
+            if self.save_raw_data and self.init_raw_data:
+                self._save_meta_data()
             self.process_raw_data()
             self._calculate_decimation()
         else:
