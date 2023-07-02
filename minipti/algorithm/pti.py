@@ -1,7 +1,8 @@
 """
 API for PTI Inversion and Decimation.
 """
-
+import enum
+import itertools
 import logging
 import os
 from collections.abc import Generator
@@ -9,7 +10,6 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Union
 
-import h5py
 import numpy as np
 import pandas as pd
 from nptyping import NDArray, UInt16, Int16, Shape
@@ -187,6 +187,19 @@ class Inversion:
             self._calculate_offline()
 
 
+@dataclass
+class RawData:
+    ref: NDArray[Shape["8000"], UInt16]
+    dc: NDArray[Shape["3, 8000"], UInt16]
+    ac: NDArray[Shape["3, 8000"], Int16]
+
+
+class Iterator(enum.Enum):
+    REVERSE = 0
+    FORWARD = 1
+    OUTPUT = 2
+
+
 class Decimation:
     """
     Provided an API for the PTI decimation described in [1] from Weingartner et al.
@@ -206,8 +219,8 @@ class Decimation:
     UNTIL_MICRO_SECONDS = -3
 
     def __init__(self):
-        self.dc_coupled: Union[NDArray[Shape["3", f"{Decimation.SAMPLES}"], UInt16], None] = None
-        self.ac_coupled: Union[NDArray[Shape["3", f"{Decimation.SAMPLES}"], Int16], None] = None
+        self.dc_coupled: Union[NDArray[Shape[3, f"{Decimation.SAMPLES}"], UInt16], None] = None
+        self.ac_coupled: Union[NDArray[Shape[3, f"{Decimation.SAMPLES}"], Int16], None] = None
         self.dc_signals: Union[np.ndarray, None] = None
         self.lock_in: LockIn = LockIn(np.empty(shape=3), np.empty(shape=3))
         self.ref: Union[NDArray[Shape["1", f"{Decimation.SAMPLES}"], UInt16], None] = None
@@ -216,6 +229,7 @@ class Decimation:
         self.quadrature: np.ndarray = np.sin(2 * np.pi / Decimation.REF_PERIOD * np.arange(0, Decimation.SAMPLES))
         self.destination_folder: str = "."
         self.file_path: str = ""
+        self.raw_data_file_path = ""
         self.init_header: bool = True
         self.init_raw_data: bool = True
 
@@ -235,13 +249,6 @@ class Decimation:
             file.write(self.ref.data)
             file.write(self.ac_coupled.data)
             file.write(self.dc_coupled.data)
-
-    def get_raw_data(self) -> Generator[None, None, None]:
-        with h5py.File(self.file_path, "r") as h5f:
-            for sample_package in h5f.values():
-                self.dc_coupled = np.array(sample_package["pa"]).T
-                self.ac_coupled = np.array(sample_package["AC"]).T
-                yield None
 
     def calculate_dc(self) -> None:
         """
@@ -288,6 +295,32 @@ class Decimation:
             file.write(b"Ref: Array[uint16, 8000], DC: Aray[Array[uint16, 8000], 3],"
                        b" AC Aray[Array[int16, 8000], 3]")
 
+    def get_raw_data(self) -> Generator[RawData, Iterator, None]:
+        with open(self.raw_data_file_path, "rb") as raw_data:
+            number_of_packages = os.path.getsize(self.raw_data_file_path) // (Decimation.SAMPLES * (3 + 3))
+            i: int = 0
+            while i < number_of_packages:
+                iterator = yield
+                if iterator == Iterator.REVERSE:
+                    if i == 0:
+                        continue
+                    else:
+                        raw_data.seek(2 * 8000 * (3 + 3 + 1))
+                        i -= 1
+                elif iterator == Iterator.FORWARD:
+                    if i == number_of_packages - 1:
+                        continue
+                    else:
+                        i += 1
+                elif iterator == Iterator.OUTPUT:
+                    i += 1
+                ref = np.frombuffer(raw_data.read(Decimation.SAMPLES), dtype=np.uint16)
+                raw_dc = np.frombuffer(raw_data.read(Decimation.SAMPLES * 3), dtype=np.uint16)
+                raw_dc = raw_dc.reshape(3, Decimation.SAMPLES // 3)
+                raw_ac = np.frombuffer(raw_data.read(Decimation.SAMPLES * 3), dtype=np.uint16)
+                raw_ac = raw_ac.reshape(3, Decimation.SAMPLES // 3)
+                yield RawData(ref, raw_dc, raw_ac)
+
     def decimate(self, live=False) -> None:
         if self.init_header:
             output_data = {"Time": "H:M:S"}
@@ -299,13 +332,15 @@ class Decimation:
                                                               index_label="Date")
             self.init_header = False
         if live:
-            if self.save_raw_data and self.init_raw_data:
-                self._save_meta_data()
+            # if self.save_raw_data and self.init_raw_data:
+            #    self._save_meta_data()
             self.process_raw_data()
             self._calculate_decimation()
         else:
-            get_raw_data: Generator[None, None, None] = self.get_raw_data()
-            for _ in get_raw_data:
+            get_raw_data: Generator[RawData, None, None] = self.get_raw_data()
+            for raw_data in get_raw_data:
+                self.dc_coupled = raw_data.dc
+                self.ac_coupled = raw_data.ac
                 self._calculate_decimation()
             logging.info("Finished decimation")
             logging.info("Saved results in %s", str(self.destination_folder))

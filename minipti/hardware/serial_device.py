@@ -188,7 +188,7 @@ class Driver:
 
                     new_attribute = [iflag, oflag, cflag, lflag, ispeed, ospeed, cc]
                     termios.tcsetattr(self.file_descriptor, termios.TCSANOW, new_attribute)
-                except OSError as e:
+                except OSError:
                     raise OSError("Could not connect find %s", self.device_name)
                 self.connected.set()
                 logging.info(f"Connected with {self.device_name}")

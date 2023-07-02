@@ -39,21 +39,20 @@ class DestinationFolder:
         signals.destination_folder_changed.emit(self._destination_folder)
 
 
-class SettingsTable(QtCore.QAbstractTableModel):
-    HEADERS = ["Detector 1", "Detector 2", "Detector 3"]
-    INDEX = ["Amplitude [V]", "Offset [V]", "Output Phases [deg]", "Response Phases [rad]"]
-    SIGNIFICANT_VALUES = 4
-
+class Table(QtCore.QAbstractTableModel):
     def __init__(self):
         QtCore.QAbstractTableModel.__init__(self)
-        self._data = pd.DataFrame(columns=SettingsTable.HEADERS, index=SettingsTable.INDEX)
-        self.file_path = f"{os.path.dirname(os.path.dirname(__file__))}/algorithm/configs/settings.csv"
-        signals.settings.connect(self.update_settings)
-        self.load()
+        self._data = pd.DataFrame()
 
-    @QtCore.pyqtSlot(algorithm.interferometry.Interferometer)
-    def update_settings(self, interferometer: algorithm.interferometry.Interferometer) -> None:
-        self.update_settings_parameters(interferometer)
+    @property
+    @abc.abstractmethod
+    def _headers(self) -> list[str]:
+        ...
+
+    @property
+    @abc.abstractmethod
+    def _indices(self) -> list[str]:
+        ...
 
     def rowCount(self, parent=None) -> int:
         return self._data.shape[0]
@@ -64,8 +63,7 @@ class SettingsTable(QtCore.QAbstractTableModel):
     def data(self, index, role: int = ...) -> Union[str, None]:
         if index.isValid():
             if role == QtCore.Qt.DisplayRole or role == QtCore.Qt.EditRole:
-                value = self._data.at[
-                    SettingsTable.INDEX[index.row()], SettingsTable.HEADERS[index.column()]]
+                value = self._data.iloc[index.row()][self._headers[index.column()]]
                 return str(round(value, SettingsTable.SIGNIFICANT_VALUES))
 
     def flags(self, index):
@@ -74,15 +72,14 @@ class SettingsTable(QtCore.QAbstractTableModel):
     def setData(self, index, value, role: int = ...):
         if index.isValid():
             if role == QtCore.Qt.EditRole:
-                self._data.at[SettingsTable.INDEX[index.row()], SettingsTable.HEADERS[
-                    index.column()]] = float(value)
+                self._data.iloc[index.row()][self._headers[index.column()]] = float(value)
                 return True
 
     def headerData(self, section, orientation, role=QtCore.Qt.DisplayRole):
         if orientation == QtCore.Qt.Horizontal and role == QtCore.Qt.DisplayRole:
-            return SettingsTable.HEADERS[section]
+            return self._headers[section]
         elif orientation == QtCore.Qt.Vertical and role == QtCore.Qt.DisplayRole:
-            return SettingsTable.INDEX[section]
+            return self._indices[section]
         return super().headerData(section, orientation, role)
 
     @property
@@ -92,6 +89,29 @@ class SettingsTable(QtCore.QAbstractTableModel):
     @table_data.setter
     def table_data(self, data) -> None:
         self._data = data
+
+
+class SettingsTable(Table):
+    SIGNIFICANT_VALUES = 4
+
+    def __init__(self):
+        Table.__init__(self)
+        self._data = pd.DataFrame(columns=self._headers, index=self._indices)
+        self.file_path = f"{os.path.dirname(os.path.dirname(__file__))}/algorithm/configs/settings.csv"
+        signals.settings.connect(self.update_settings)
+        self.load()
+
+    @property
+    def _headers(self) -> list[str]:
+        return ["Detector 1", "Detector 2", "Detector 3"]
+
+    @property
+    def _indices(self) -> list[str]:
+        return ["Amplitude [V]", "Offset [V]", "Output Phases [deg]", "Response Phases [rad]"]
+
+    @QtCore.pyqtSlot(algorithm.interferometry.Interferometer)
+    def update_settings(self, interferometer: algorithm.interferometry.Interferometer) -> None:
+        self.update_settings_parameters(interferometer)
 
     def save(self) -> None:
         self._data.to_csv(self.file_path, index_label="Setting", index=True)
@@ -122,10 +142,53 @@ class SettingsTable(QtCore.QAbstractTableModel):
             except FileNotFoundError:
                 self.save()
             else:
-                if list(settings.columns) != SettingsTable.HEADERS or list(settings.index) != SettingsTable.INDEX:
+                if list(settings.columns) != self._headers or list(settings.index) != self._indices:
                     self.save()  # The file is in any way broken.
                 else:
                     self.table_data = settings
+
+
+class RawDataTable(Table):
+    class Direction(typing.NamedTuple):
+        DOWNWARDS = algorithm.pti.Iterator.REVERSE
+        UPWARDS = algorithm.pti.Iterator.FORWARD
+
+    def __init__(self):
+        Table.__init__(self)
+        res = {}
+        for i in ["DC CH1", "DC CH2", "DC CH3", "AC CH1", "AC CH2", "AC CH3"]:
+            res[i] = [np.nan for _ in range(100000)]
+        self._data = pd.DataFrame(res)
+        self.raw_data_buffer = RawDataBuffer()
+        self.decimation = algorithm.pti.Decimation()
+        self.get_raw_data = self.decimation.get_raw_data()
+        self.counter = 0
+
+    @property
+    def _indices(self):
+        return self._data.index
+
+    @property
+    def _headers(self) -> list[str]:
+        return ["DC CH1", "DC CH2", "DC CH3", "AC CH1", "AC CH2", "AC CH3"]
+
+    def update_table(self, direction: Direction) -> None:
+        if self.raw_data_buffer.is_empty:
+            return  # Nothing to do
+        self.counter += 1
+        if self.counter == 8000:
+            self.get_raw_data.send(direction)
+            self.raw_data_buffer.append(next(self.get_raw_data))
+            self.counter = 0
+        if direction == algorithm.pti.Iterator.FORWARD:
+            self.raw_data_buffer.popleft()
+        else:
+            self.raw_data_buffer.pop()
+        data = {}
+        for i in range(1, 4):
+            data[f"DC CH{i}"] = self.raw_data_buffer.dc_buffer
+            data[f"AC CH{i}"] = self.raw_data_buffer.ac_buffer
+        self._data = pd.DataFrame(data, columns=self._headers)
 
 
 class Logging(logging.Handler):
@@ -167,18 +230,6 @@ def find_delimiter(file_path: str) -> typing.Union[str, None]:
     return delimiter
 
 
-def running_average(data, mean_size: int) -> list[float]:
-    i = 1
-    current_mean = data[0]
-    result = [current_mean]
-    while i < Calculation.MEAN_INTERVAL and i < len(data):
-        current_mean += data[i]
-        result.append(current_mean / i)
-        i += 1
-    result.extend(ndimage.uniform_filter1d(data[mean_size:], size=mean_size))
-    return result
-
-
 class Buffer:
     """
     The buffer contains the queues for incoming data and the timer for them.
@@ -197,9 +248,13 @@ class Buffer:
 
     def __iter__(self):
         for member in dir(self):
-            if not callable(getattr(self, member)) and not member.startswith(
-                    "__") and member != "time_counter":
+            if not callable(getattr(self, member)) and not member.startswith("__") and member != "time_counter":
                 yield getattr(self, member)
+
+    @property
+    @abc.abstractmethod
+    def is_empty(self) -> bool:
+        ...
 
     @abc.abstractmethod
     def append(self, *args: typing.Any) -> None:
@@ -230,22 +285,46 @@ class PTIBuffer(Buffer):
 
     def __init__(self):
         Buffer.__init__(self)
-        self.dc_values = [deque(maxlen=Buffer.QUEUE_SIZE) for _ in range(PTIBuffer.CHANNELS)]
-        self.interferometric_phase = deque(maxlen=Buffer.QUEUE_SIZE)
-        self.sensitivity = [deque(maxlen=Buffer.QUEUE_SIZE) for _ in range(PTIBuffer.CHANNELS)]
-        self.pti_signal = deque(maxlen=Buffer.QUEUE_SIZE)
-        self.pti_signal_mean = deque(maxlen=Buffer.QUEUE_SIZE)
+        self._dc_values = [deque(maxlen=Buffer.QUEUE_SIZE) for _ in range(PTIBuffer.CHANNELS)]
+        self._interferometric_phase = deque(maxlen=Buffer.QUEUE_SIZE)
+        self._sensitivity = [deque(maxlen=Buffer.QUEUE_SIZE) for _ in range(PTIBuffer.CHANNELS)]
+        self._pti_signal = deque(maxlen=Buffer.QUEUE_SIZE)
+        self._pti_signal_mean = deque(maxlen=Buffer.QUEUE_SIZE)
         self._pti_signal_mean_queue = deque(maxlen=PTIBuffer.MEAN_SIZE)
+
+    @property
+    def is_empty(self) -> bool:
+        return len(self._pti_signal) == 0
 
     def append(self, pti_data: PTI, interferometer: algorithm.interferometry.Interferometer) -> None:
         for i in range(3):
-            self.dc_values[i].append(pti_data.decimation.dc_signals[i])
+            self._dc_values[i].append(pti_data.decimation.dc_signals[i])
             self.sensitivity[i].append(pti_data.inversion.sensitivity[i])
-        self.interferometric_phase.append(interferometer.phase)
-        self.pti_signal.append(pti_data.inversion.pti_signal)
+        self._interferometric_phase.append(interferometer.phase)
+        self._pti_signal.append(pti_data.inversion.pti_signal)
         self._pti_signal_mean_queue.append(pti_data.inversion.pti_signal)
-        self.pti_signal_mean.append(np.mean(self._pti_signal_mean_queue))
+        self._pti_signal_mean.append(np.mean(self._pti_signal_mean_queue))
         self.time.append(next(self.time_counter))
+
+    @property
+    def dc_values(self) -> list[deque]:
+        return self._dc_values
+
+    @property
+    def interferometric_phase(self) -> deque:
+        return self._interferometric_phase
+
+    @property
+    def sensitivity(self) -> list[deque]:
+        return self._sensitivity
+
+    @property
+    def pti_signal(self) -> deque:
+        return self._pti_signal
+
+    @property
+    def pti_signal_mean(self) -> deque:
+        return self._pti_signal_mean
 
 
 class CharacterisationBuffer(Buffer):
@@ -254,48 +333,130 @@ class CharacterisationBuffer(Buffer):
     def __init__(self):
         Buffer.__init__(self)
         # The first channel has always the phase 0 by definition hence it is not needed.
-        self.output_phases = [deque(maxlen=Buffer.QUEUE_SIZE) for _ in range(self.CHANNELS - 1)]
-        self.amplitudes = [deque(maxlen=Buffer.QUEUE_SIZE) for _ in range(CharacterisationBuffer.CHANNELS)]
-        self.symmetry = deque(maxlen=Buffer.QUEUE_SIZE)
-        self.relative_symmetry = deque(maxlen=Buffer.QUEUE_SIZE)
+        self._output_phases = [deque(maxlen=Buffer.QUEUE_SIZE) for _ in range(self.CHANNELS - 1)]
+        self._amplitudes = [deque(maxlen=Buffer.QUEUE_SIZE) for _ in range(CharacterisationBuffer.CHANNELS)]
+        self._symmetry = deque(maxlen=Buffer.QUEUE_SIZE)
+        self._relative_symmetry = deque(maxlen=Buffer.QUEUE_SIZE)
+
+    @property
+    def is_empty(self) -> bool:
+        return len(self._output_phases) == 0
 
     def append(self, characterization: algorithm.interferometry.Characterization,
                interferometer: algorithm.interferometry.Interferometer) -> None:
         for i in range(3):
-            self.amplitudes[i].append(interferometer.amplitudes[i])
+            self._amplitudes[i].append(interferometer.amplitudes[i])
         for i in range(2):
-            self.output_phases[i].append(interferometer.output_phases[i + 1])
+            self._output_phases[i].append(interferometer.output_phases[i + 1])
         self.symmetry.append(interferometer.absolute_symmetry)
         self.relative_symmetry.append(interferometer.relative_symmetry)
         self.time.append(characterization.time_stamp)
+
+    @property
+    def output_phases(self) -> list[deque]:
+        return self._output_phases
+
+    @property
+    def amplitudes(self) -> list[deque]:
+        return self._amplitudes
+
+    @property
+    def symmetry(self) -> deque:
+        return self._symmetry
+
+    @property
+    def relative_symmetry(self) -> deque:
+        return self._relative_symmetry
 
 
 class LaserBuffer(Buffer):
     def __init__(self):
         Buffer.__init__(self)
-        self.pump_laser_voltage = deque(maxlen=Buffer.QUEUE_SIZE)
-        self.pump_laser_current = deque(maxlen=Buffer.QUEUE_SIZE)
-        self.probe_laser_current = deque(maxlen=Buffer.QUEUE_SIZE)
+        self._pump_laser_voltage = deque(maxlen=Buffer.QUEUE_SIZE)
+        self._pump_laser_current = deque(maxlen=Buffer.QUEUE_SIZE)
+        self._probe_laser_current = deque(maxlen=Buffer.QUEUE_SIZE)
+
+    @property
+    def is_empty(self) -> bool:
+        return len(self._pump_laser_voltage) == 0
 
     def append(self, laser_data: hardware.laser.Data) -> None:
         self.time.append(next(self.time_counter) / 10)
+        self._pump_laser_voltage.append(laser_data.high_power_laser_voltage)
         self.pump_laser_current.append(laser_data.high_power_laser_current)
-        self.pump_laser_voltage.append(laser_data.high_power_laser_voltage)
         self.probe_laser_current.append(laser_data.low_power_laser_current)
+
+    @property
+    def pump_laser_voltage(self) -> deque:
+        return self._pump_laser_voltage
+
+    @property
+    def pump_laser_current(self) -> deque:
+        return self._pump_laser_current
+
+    @property
+    def probe_laser_current(self) -> deque:
+        return self._probe_laser_current
 
 
 class TecBuffer(Buffer):
     def __init__(self):
         Buffer.__init__(self)
-        self.set_point: list[deque] = [deque(maxlen=Buffer.QUEUE_SIZE), deque(maxlen=Buffer.QUEUE_SIZE)]
-        self.actual_value: list[deque] = [deque(maxlen=Buffer.QUEUE_SIZE), deque(maxlen=Buffer.QUEUE_SIZE)]
+        self._set_point: list[deque] = [deque(maxlen=Buffer.QUEUE_SIZE), deque(maxlen=Buffer.QUEUE_SIZE)]
+        self._actual_value: list[deque] = [deque(maxlen=Buffer.QUEUE_SIZE), deque(maxlen=Buffer.QUEUE_SIZE)]
+
+    @property
+    def is_empty(self) -> bool:
+        return len(self._set_point[0]) == 0
 
     def append(self, tec_data: hardware.tec.Data) -> None:
-        self.set_point[Tec.PUMP_LASER].append(tec_data.set_point[Tec.PUMP_LASER])
-        self.set_point[Tec.PROBE_LASER].append(tec_data.set_point[Tec.PROBE_LASER])
-        self.actual_value[Tec.PUMP_LASER].append(tec_data.actual_temperature[Tec.PUMP_LASER])
-        self.actual_value[Tec.PROBE_LASER].append(tec_data.actual_temperature[Tec.PROBE_LASER])
-        self.time.append(next(self.time_counter) / 10)
+        self._set_point[Tec.PUMP_LASER].append(tec_data.set_point[Tec.PUMP_LASER])
+        self._set_point[Tec.PROBE_LASER].append(tec_data.set_point[Tec.PROBE_LASER])
+        self._actual_value[Tec.PUMP_LASER].append(tec_data.actual_temperature[Tec.PUMP_LASER])
+        self._actual_value[Tec.PROBE_LASER].append(tec_data.actual_temperature[Tec.PROBE_LASER])
+        self.time.append(next(self.time_counter))
+
+    @property
+    def set_point(self) -> list[deque]:
+        return self._set_point
+
+    @property
+    def actual_value(self) -> list[deque]:
+        return self._actual_value
+
+
+class RawDataBuffer(Buffer):
+    QUEUE_SIZE = 8000 * 3
+
+    def __init__(self):
+        Buffer.__init__(self)
+        self._dc_buffer = deque(maxlen=Buffer.QUEUE_SIZE)
+        self._ac_buffer = deque(maxlen=Buffer.QUEUE_SIZE)
+
+    @property
+    def is_empty(self) -> bool:
+        return len(self._dc_buffer) == 0
+
+    def append(self, raw_data: algorithm.pti.RawData) -> None:
+        dc, ac = raw_data
+        self._dc_buffer.extend(dc)
+        self._ac_buffer.extend(ac)
+
+    def popleft(self) -> None:
+        self._dc_buffer.popleft()
+        self._ac_buffer.popleft()
+
+    def pop(self) -> None:
+        self._dc_buffer.pop()
+        self._ac_buffer.pop()
+
+    @property
+    def dc_buffer(self) -> deque:
+        return self._dc_buffer
+
+    @property
+    def ac_buffer(self) -> deque:
+        return self._ac_buffer
 
 
 class Mode(enum.IntEnum):
@@ -312,6 +473,7 @@ class Battery:
 
 @dataclass(init=False, frozen=True)
 class Signals(QtCore.QObject):
+    raw_data = QtCore.pyqtSignal(algorithm.pti.RawData)
     decimation = QtCore.pyqtSignal(pd.DataFrame)
     decimation_live = QtCore.pyqtSignal(Buffer)
     inversion = QtCore.pyqtSignal(pd.DataFrame)
@@ -390,26 +552,53 @@ def shutdown_procedure() -> None:
 
 
 class Calculation:
-    MEAN_INTERVAL = 60
-
-    def __init__(self, queue_size=1000):
+    def __init__(self):
         self.settings_path = ""
-        self.queue_size = queue_size
-        self.dc_signals = []
-        self.pti_buffer = PTIBuffer()
-        self.characterisation_buffer = CharacterisationBuffer()
-        self.pti_signal_mean_queue = deque(maxlen=60)
-        self.current_time = 0
         self.interferometry = Interferometry(algorithm.interferometry.Interferometer(),
                                              algorithm.interferometry.Characterization())
         self.interferometry.characterization.interferometer = self.interferometry.interferometer
         self.pti = PTI(algorithm.pti.Decimation(),
                        algorithm.pti.Inversion(interferometer=self.interferometry.interferometer))
-        self.interferometry.characterization.interferometer = self.interferometry.interferometer
         self._destination_folder = os.getcwd()
-        self.save_raw_data = False
         signals.destination_folder_changed.connect(self._update_destination_folder)
+
+    def _update_destination_folder(self, folder: str) -> None:
+        self.interferometry.characterization.destination_folder = folder
+        self.pti.inversion.destination_folder = folder
+        self.pti.decimation.destination_folder = folder
+        self._destination_folder = folder
+
+
+class LiveCalculation(Calculation):
+    MEAN_INTERVAL = 60
+    QUEUE_SIZE = 1000
+    ONE_MINUTE = 60  # s
+
+    def __init__(self):
+        Calculation.__init__(self)
+        self.current_time = 0
+        self.save_raw_data = False
+        self.dc_signals = []
+        self.pti_buffer = PTIBuffer()
+        self.characterisation_buffer = CharacterisationBuffer()
+        self.pti_signal_mean_queue = deque(maxlen=LiveCalculation.ONE_MINUTE)
         signals.clear_daq.connect(self.clear_buffer)
+
+    def process_daq_data(self) -> None:
+        threading.Thread(target=self._run_pti_inversion, daemon=True).start()
+        threading.Thread(target=self._characterisation, daemon=True).start()
+
+    @staticmethod
+    def running_average(data, mean_size: int) -> list[float]:
+        i = 1
+        current_mean = data[0]
+        result = [current_mean]
+        while i < LiveCalculation.MEAN_INTERVAL and i < len(data):
+            current_mean += data[i]
+            result.append(current_mean / i)
+            i += 1
+        result.extend(ndimage.uniform_filter1d(data[mean_size:], size=mean_size))
+        return result
 
     def clear_buffer(self) -> None:
         self.pti_buffer = PTIBuffer()
@@ -421,51 +610,52 @@ class Calculation:
         else:
             self.pti.decimation.save_raw_data = True
 
-    def _update_destination_folder(self, folder: str) -> None:
-        self.interferometry.characterization.destination_folder = folder
-        self.pti.inversion.destination_folder = folder
-        self.pti.decimation.destination_folder = folder
-        self._destination_folder = folder
+    def _run_pti_inversion(self):
+        while Motherboard.driver.running.is_set():
+            self._decimation()
+            self._pti_inversion()
 
-    def process_daq_data(self) -> tuple[threading.Thread, threading.Thread]:
+    def _run_characterization(self) -> None:
+        while Motherboard.driver.running.is_set():
+            self.interferometry.characterization.characterise(live=True)
+            self.characterisation_buffer.append(self.interferometry.characterization,
+                                                self.interferometry.interferometer)
+            signals.characterization_live.emit(self.characterisation_buffer)
+
+    def _init_calculation(self) -> None:
         self.pti.inversion.init_header = True
         self.pti.decimation.init_header = True
         self.interferometry.characterization.init_online = True
         self.interferometry.interferometer.load_settings()
 
-        def calculate_characterization() -> None:
-            while Motherboard.driver.running.is_set():
-                self.interferometry.characterization.characterise(live=True)
-                self.characterisation_buffer.append(self.interferometry.characterization,
-                                                    self.interferometry.interferometer)
-                signals.characterization_live.emit(self.characterisation_buffer)
+    def _decimation(self) -> None:
+        self.pti.decimation.ref = np.array(Motherboard.driver.ref_signal)
+        self.pti.decimation.dc_coupled = np.array(Motherboard.driver.dc_coupled)
+        self.pti.decimation.ac_coupled = np.array(Motherboard.driver.ac_coupled)
+        self.pti.decimation.decimate(live=True)
+        signals.decimation_live.emit(self.pti_buffer)
 
-        def calculate_inversion():
-            while Motherboard.driver.running.is_set():
-                self.pti.decimation.ref = np.array(Motherboard.driver.ref_signal)
-                self.pti.decimation.dc_coupled = np.array(Motherboard.driver.dc_coupled)
-                self.pti.decimation.ac_coupled = np.array(Motherboard.driver.ac_coupled)
-                self.pti.decimation.decimate(live=True)
-                self.pti.inversion.lock_in = self.pti.decimation.lock_in
-                self.pti.inversion.dc_signals = self.pti.decimation.dc_signals
-                signals.decimation_live.emit(self.pti_buffer)
-                self.pti.inversion.invert(live=True)
-                self.interferometry.characterization.add_phase(self.interferometry.interferometer.phase)
-                self.dc_signals.append(copy.deepcopy(self.pti.decimation.dc_signals))
-                if self.interferometry.characterization.enough_values:
-                    self.interferometry.characterization._signals = copy.deepcopy(self.dc_signals)
-                    self.interferometry.characterization.phases = copy.deepcopy(
-                        self.interferometry.characterization.tracking_phase)
-                    self.interferometry.characterization.event.set()
-                    self.dc_signals = []
-                self.pti_buffer.append(self.pti, self.interferometry.interferometer)
-                signals.inversion_live.emit(self.pti_buffer)
+    def _pti_inversion(self) -> None:
+        self.pti.inversion.lock_in = self.pti.decimation.lock_in
+        self.pti.inversion.dc_signals = self.pti.decimation.dc_signals
+        self.pti.inversion.invert(live=True)
+        self.pti_buffer.append(self.pti, self.interferometry.interferometer)
+        signals.inversion_live.emit(self.pti_buffer)
 
-        characterization_thread = threading.Thread(target=calculate_characterization, daemon=True)
-        inversion_thread = threading.Thread(target=calculate_inversion, daemon=True)
-        characterization_thread.start()
-        inversion_thread.start()
-        return characterization_thread, inversion_thread
+    def _characterisation(self) -> None:
+        self.interferometry.characterization.add_phase(self.interferometry.interferometer.phase)
+        self.dc_signals.append(copy.deepcopy(self.pti.decimation.dc_signals))
+        if self.interferometry.characterization.enough_values:
+            self.interferometry.characterization._signals = copy.deepcopy(self.dc_signals)
+            self.interferometry.characterization.phases = copy.deepcopy(
+                self.interferometry.characterization.tracking_phase)
+            self.interferometry.characterization.event.set()
+            self.dc_signals = []
+
+
+class OfflineCalculation(Calculation):
+    def __init__(self):
+        Calculation.__init__(self)
 
     def calculate_characterisation(self, dc_file_path: str, use_settings=False, settings_path="") -> None:
         self.interferometry.interferometer.decimation_filepath = dc_file_path
@@ -1181,7 +1371,7 @@ class Tec(Serial):
                              "Set Point Temperature Probe Laser": "°C"}
                     pd.DataFrame(units, index=["Y:M:D"]).to_csv(f"{self._destination_folder}/tec.csv",
                                                                 index_label="Date")
-                    self._init_headders = False
+                    self._init_headers = False
             received_data: hardware.tec.Data = self.driver.data.get(block=True)
             self._buffer.append(received_data)
             signals.tec_data.emit(self._buffer)
@@ -1235,7 +1425,7 @@ def process_inversion_data(inversion_file_path: str) -> None:
     try:
         headers = ["Interferometric Phase", "Sensitivity CH1", "Sensitivity CH2", "Sensitivity CH3", "PTI Signal"]
         data = _process_data(inversion_file_path, headers)
-        data["PTI Signal 60 s Mean"] = running_average(data["PTI Signal"], mean_size=60)
+        data["PTI Signal 60 s Mean"] = LiveCalculation.running_average(data["PTI Signal"], mean_size=60)
     except KeyError:
         headers = ["Sensitivity CH1", "Sensitivity CH2", "Sensitivity CH3", "Interferometric Phase"]
         data = _process_data(inversion_file_path, headers)

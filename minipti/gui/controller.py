@@ -56,25 +56,103 @@ class Home:
     def __init__(self, parent, main_app: QtWidgets.QApplication, settings_controller: "Settings"):
         self.view = parent
         self.main_app = main_app
-        self.settings_controller = settings_controller
-        self.calculation_model = model.Calculation()
+        self.calculation_model = model.LiveCalculation()
         self.motherboard = model.Motherboard()
         self.laser = model.Laser()
         self.pump_laser = model.PumpLaser()
         self.probe_laser = model.ProbeLaser()
         self.pump_laser_tec = model.Tec(model.Tec.PUMP_LASER)
         self.probe_laser_tec = model.Tec(model.Tec.PROBE_LASER)
-        self.last_file_path = os.getcwd()
-        self.settings_controller.raw_data_changed.connect(self.calculation_model.set_raw_data_saving)
-        threading.Thread(target=self._init_devices, daemon=True, name="Init Devices Thread").start()
+        settings_controller.raw_data_changed.connect(self.calculation_model.set_raw_data_saving)
 
-    def _init_devices(self) -> None:
-        try:
-            self.find_devices()
-        except OSError:
-            return
-        self.connect_devices()
-        self.apply_configurations()
+    def fire_motherboard_configuration_change(self) -> None:
+        self.motherboard.fire_configuration_change()
+
+    def enable_motherboard(self) -> None:
+        if not self.motherboard.connected:
+            QtWidgets.QMessageBox.critical(self.view, "IO Error",
+                                           "Cannot enable Motherboard. Probe Laser is not connected.")
+            logging.error("Cannot enable Motherboard")
+            logging.warning("Motherboard is not connected")
+        else:
+            if not self.motherboard.running:
+                self.motherboard.running = True
+                self.calculation_model.process_daq_data()
+            else:
+                self.motherboard.running = False
+            logging.debug("%s Motherboard", "Enabled" if self.motherboard.running else "Disabled")
+
+    def enable_probe_laser(self) -> None:
+        if not self.probe_laser.connected:
+            QtWidgets.QMessageBox.critical(self.view, "IO Error",
+                                           "Cannot enable Probe Laser. Probe Laser is not connected.")
+            logging.error("Cannot enable Probe Laser")
+            logging.warning("Probe Laser is not connected")
+        else:
+            if not self.probe_laser.enabled:
+                self.probe_laser.enabled = True
+            else:
+                self.probe_laser.enabled = False
+            logging.debug(f"{'Enabled' if self.probe_laser.enabled else 'Disabled'} Probe Laser")
+
+    def enable_tec_pump_laser(self) -> None:
+        if not self.pump_laser_tec.connected:
+            QtWidgets.QMessageBox.critical(self.view, "IO Error",
+                                           "Cannot enable Tec Driver of Pump Laser. Tec Driver is not connected.")
+            logging.error("Cannot enable Tec Driver of Pump Laser")
+            logging.warning("Tec Driver is not connected")
+        else:
+            if not self.pump_laser_tec.enabled:
+                self.pump_laser_tec.enabled = True
+            else:
+                self.pump_laser_tec.enabled = False
+            logging.debug(f"{'Enabled' if self.pump_laser_tec.enabled else 'Disabled'} Tec Driver of Pump Laser")
+
+    def set_clean_air(self, bypass: bool) -> None:
+        self.motherboard.bypass = bypass
+
+
+class Settings:
+    def __init__(self, main_app, parent):
+        self.settings_table_model = model.SettingsTable()
+        self.main_app = main_app
+        self.view = parent
+        self.motherboard = model.Motherboard()
+        self.destination_folder = model.DestinationFolder()
+        self.last_file_path = os.getcwd()
+        self.motherboard = model.Motherboard()
+        self.laser = model.Laser()
+        self.pump_laser = model.PumpLaser()
+        self.probe_laser = model.ProbeLaser()
+        self.pump_laser_tec = model.Tec(model.Tec.PUMP_LASER)
+        self.probe_laser_tec = model.Tec(model.Tec.PROBE_LASER)
+        self.motherboard.fire_configuration_change()
+        threading.Thread(target=self.init_devices, daemon=True, name="Init Devices Thread").start()
+
+    @property
+    def raw_data_changed(self) -> QtCore.pyqtSignal:
+        return self.view.save_raw_data.stateChanged
+
+    def fire_mother_board_configuration(self) -> None:
+        self.motherboard.fire_configuration_change()
+
+    def save_settings(self) -> None:
+        self.settings_table_model.save()
+
+    def save_settings_as(self) -> None:
+        file_path = save_as(parent=self.view, file_type="CSV File", file_extension="csv",
+                            name="Algorithm Configuration")
+        if file_path:
+            self.settings_table_model.file_path = file_path
+            self.settings_table_model.save()
+
+    def load_settings(self):
+        file_path, self.last_file_path = _get_file_path(self.view, "Load SettingsTable", self.last_file_path,
+                                                        "CSV File (*.csv);;"
+                                                        " TXT File (*.txt);; All Files (*);;")
+        if file_path:
+            self.settings_table_model.file_path = file_path
+            self.settings_table_model.load()
 
     def apply_configurations(self) -> None:
         self.pump_laser.apply_configuration()
@@ -82,69 +160,13 @@ class Home:
         self.pump_laser_tec.apply_configuration()
         self.probe_laser_tec.apply_configuration()
 
-    def fire_motherboard_configuration_change(self) -> None:
-        self.motherboard.fire_configuration_change()
-
-    def calculate_decimation(self) -> None:
-        decimation_file_path, self.last_file_path = _get_file_path(self.view, "Decimation", self.last_file_path,
-                                                                   "HDF5 File (*.hdf5);; All Files (*)")
-        if not decimation_file_path:
-            return
-        threading.Thread(target=self.calculation_model.calculate_decimation,
-                         args=[decimation_file_path]).start()
-
-    def calculate_inversion(self) -> None:
-        inversion_path, self.last_file_path = _get_file_path(self.view, "Inversion", self.last_file_path,
-                                                             "CSV File (*.csv);; TXT File (*.txt);; All Files (*)")
-        if not inversion_path:
-            return
-        threading.Thread(target=self.calculation_model.calculate_inversion,
-                         args=[self.settings_controller.settings_table_model.file_path, inversion_path]).start()
-
-    def calculate_characterisation(self) -> None:
-        characterisation_path, self.last_file_path = _get_file_path(self.view, "Characterisation", self.last_file_path,
-                                                                    "CSV File (*.csv);; TXT File (*.txt);;"
-                                                                    " All Files (*)")
-        if not characterisation_path:
-            return
-        use_settings = QtWidgets.QMessageBox.question(self.view, "Characterisation",
-                                                      "Do you want to use the settings values?",
-                                                      QtWidgets.QMessageBox.StandardButton.Yes
-                                                      | QtWidgets.QMessageBox.StandardButton.No)
-        use_settings = use_settings == QtWidgets.QMessageBox.StandardButton.Yes
-        threading.Thread(target=self.calculation_model.calculate_characterisation,
-                         args=[characterisation_path, use_settings,
-                               self.settings_controller.settings_table_model.file_path]
-                         ).start()
-
-    def plot_inversion(self) -> None:
+    def init_devices(self) -> None:
         try:
-            inversion_path, self.last_file_path = _get_file_path(self.view, "Inversion", self.last_file_path,
-                                                                 "CSV File (*.csv);; TXT File (*.txt);; All Files (*)")
-            if inversion_path:
-                model.process_inversion_data(inversion_path)
-        except KeyError:
-            QtWidgets.QMessageBox.critical(self.view, "Plotting Error", "Invalid data given. Could not plot.")
-
-    def plot_dc(self) -> None:
-        try:
-            decimation_path, self.last_file_path = _get_file_path(self.view, "Decimation", self.last_file_path,
-                                                                  "CSV File (*.csv);; TXT File (*.txt);; All Files (*)")
-            if decimation_path:
-                model.process_dc_data(decimation_path)
-        except KeyError:
-            QtWidgets.QMessageBox.critical(self.view, "Plotting Error", "Invalid data given. Could not plot.")
-
-    def plot_characterisation(self) -> None:
-        try:
-            characterization_path, self.last_file_path = _get_file_path(self.view, "Characterization",
-                                                                        self.last_file_path,
-                                                                        "CSV File (*.csv);; TXT File (*.txt);;"
-                                                                        " All Files (*)")
-            if characterization_path:
-                model.process_characterization_data(characterization_path)
-        except KeyError:
-            QtWidgets.QMessageBox.critical(self.view, "Plotting Error", "Invalid data given. Could not plot.")
+            self.find_devices()
+        except OSError:
+            return
+        self.connect_devices()
+        self.apply_configurations()
 
     @staticmethod
     def find_devices() -> None:
@@ -193,111 +215,6 @@ class Home:
             self.pump_laser_tec.process_measured_data()
         except OSError:
             logging.error("Could not connect with TEC Driver")
-
-    def enable_motherboard(self) -> None:
-        if not self.motherboard.connected:
-            QtWidgets.QMessageBox.critical(self.view, "IO Error",
-                                           "Cannot enable Motherboard. Probe Laser is not connected.")
-            logging.error("Cannot enable Motherboard")
-            logging.warning("Motherboard is not connected")
-        else:
-            if not self.motherboard.running:
-                self.motherboard.running = True
-                self.calculation_model.process_daq_data()
-            else:
-                self.motherboard.running = False
-            logging.debug("%s Motherboard", "Enabled" if self.motherboard.running else "Disabled")
-
-    def enable_probe_laser(self) -> None:
-        if not self.probe_laser.connected:
-            QtWidgets.QMessageBox.critical(self.view, "IO Error",
-                                           "Cannot enable Probe Laser. Probe Laser is not connected.")
-            logging.error("Cannot enable Probe Laser")
-            logging.warning("Probe Laser is not connected")
-        else:
-            if not self.probe_laser.enabled:
-                self.probe_laser.enabled = True
-            else:
-                self.probe_laser.enabled = False
-            logging.debug(f"{'Enabled' if self.probe_laser.enabled else 'Disabled'} Probe Laser")
-
-    def enable_pump_laser(self) -> None:
-        if not self.pump_laser.connected:
-            QtWidgets.QMessageBox.critical(self.view, "IO Error",
-                                           "Cannot enable Pump Laser. Pump Laser is not connected.")
-            logging.error("Cannot enable Pump Laser")
-            logging.warning("Pump Laser is not connected")
-        else:
-            if not self.pump_laser.enabled:
-                self.pump_laser.enabled = True
-            else:
-                self.pump_laser.enabled = False
-                logging.debug(f"{'Enabled' if self.pump_laser.enabled else 'Disabled'} Probe Laser")
-
-    def enable_tec_pump_laser(self) -> None:
-        if not self.pump_laser_tec.connected:
-            QtWidgets.QMessageBox.critical(self.view, "IO Error",
-                                           "Cannot enable Tec Driver of Pump Laser. Tec Driver is not connected.")
-            logging.error("Cannot enable Tec Driver of Pump Laser")
-            logging.warning("Tec Driver is not connected")
-        else:
-            if not self.pump_laser_tec.enabled:
-                self.pump_laser_tec.enabled = True
-            else:
-                self.pump_laser_tec.enabled = False
-            logging.debug(f"{'Enabled' if self.pump_laser_tec.enabled else 'Disabled'} Tec Driver of Pump Laser")
-
-    def enable_tec_probe_laser(self) -> None:
-        if not self.probe_laser_tec.connected:
-            QtWidgets.QMessageBox.critical(self.view, "IO Error",
-                                           "Cannot enable Tec Driver of Probe Laser. Tec Driver is not connected.")
-            logging.error("Cannot enable Tec Driver of Probe Laser")
-            logging.warning("Tec Driver is not connected")
-        else:
-            if not self.probe_laser_tec.enabled:
-                self.probe_laser_tec.enabled = True
-            else:
-                self.probe_laser_tec.enabled = False
-            logging.debug(f"{'Enabled' if self.probe_laser_tec.enabled else 'Disabled'} Tec Driver of Probe Laser")
-
-    def set_clean_air(self, bypass: bool) -> None:
-        self.motherboard.bypass = bypass
-
-
-class Settings:
-    def __init__(self, main_app, parent):
-        self.settings_table_model = model.SettingsTable()
-        self.main_app = main_app
-        self.view = parent
-        self.motherboard = model.Motherboard()
-        self.destination_folder = model.DestinationFolder()
-        self.last_file_path = os.getcwd()
-        self.motherboard.fire_configuration_change()
-
-    @property
-    def raw_data_changed(self) -> QtCore.pyqtSignal:
-        return self.view.save_raw_data.stateChanged
-
-    def fire_mother_board_configuration(self) -> None:
-        self.motherboard.fire_configuration_change()
-
-    def save_settings(self) -> None:
-        self.settings_table_model.save()
-
-    def save_settings_as(self) -> None:
-        file_path = save_as(parent=self.view, file_type="CSV File", file_extension="csv",
-                            name="Algorithm Configuration")
-        if file_path:
-            self.settings_table_model.file_path = file_path
-            self.settings_table_model.save()
-
-    def load_settings(self):
-        file_path, self.last_file_path = _get_file_path(self.view, "Load SettingsTable", self.last_file_path,
-                                                        "CSV File (*.csv);;"
-                                                        " TXT File (*.txt);; All Files (*);;")
-        if file_path:
-            self.settings_table_model.file_path = file_path
-            self.settings_table_model.load()
 
     def shutdown_by_button(self) -> None:
         close = QtWidgets.QMessageBox.question(self.view, "QUIT", "Are you sure you want to shutdown?",
@@ -358,6 +275,74 @@ class Settings:
                 self.motherboard.load_configuration()
 
 
+class Utilities:
+    def __init__(self, parent, settings: "Settings"):
+        self.view = parent
+        self.calculation_model = model.OfflineCalculation()
+        self.last_file_path = os.getcwd()
+        self.settings_controller = settings
+
+    def calculate_decimation(self) -> None:
+        decimation_file_path, self.last_file_path = _get_file_path(self.view, "Decimation", self.last_file_path,
+                                                                   "Binary File (*.bin);; All Files (*)")
+        if not decimation_file_path:
+            return
+        threading.Thread(target=self.calculation_model.calculate_decimation,
+                         args=[decimation_file_path]).start()
+
+    def plot_dc(self) -> None:
+        try:
+            decimation_path, self.last_file_path = _get_file_path(self.view, "Decimation", self.last_file_path,
+                                                                  "CSV File (*.csv);; TXT File (*.txt);; All Files (*)")
+            if decimation_path:
+                model.process_dc_data(decimation_path)
+        except KeyError:
+            QtWidgets.QMessageBox.critical(self.view, "Plotting Error", "Invalid data given. Could not plot.")
+
+    def calculate_pti_inversion(self) -> None:
+        inversion_path, self.last_file_path = _get_file_path(self.view, "Inversion", self.last_file_path,
+                                                             "CSV File (*.csv);; TXT File (*.txt);; All Files (*)")
+        if not inversion_path:
+            return
+        threading.Thread(target=self.calculation_model.calculate_inversion,
+                         args=[self.settings_controller.settings_table_model.file_path, inversion_path]).start()
+
+    def plot_inversion(self) -> None:
+        try:
+            inversion_path, self.last_file_path = _get_file_path(self.view, "Inversion", self.last_file_path,
+                                                                 "CSV File (*.csv);; TXT File (*.txt);; All Files (*)")
+            if inversion_path:
+                model.process_inversion_data(inversion_path)
+        except KeyError:
+            QtWidgets.QMessageBox.critical(self.view, "Plotting Error", "Invalid data given. Could not plot.")
+
+    def calculate_characterisation(self) -> None:
+        characterisation_path, self.last_file_path = _get_file_path(self.view, "Characterisation", self.last_file_path,
+                                                                    "CSV File (*.csv);; TXT File (*.txt);;"
+                                                                    " All Files (*)")
+        if not characterisation_path:
+            return
+        use_settings = QtWidgets.QMessageBox.question(self.view, "Characterisation",
+                                                      "Do you want to use the settings values?",
+                                                      QtWidgets.QMessageBox.StandardButton.Yes
+                                                      | QtWidgets.QMessageBox.StandardButton.No)
+        use_settings = use_settings == QtWidgets.QMessageBox.StandardButton.Yes
+        threading.Thread(target=self.calculation_model.calculate_characterisation,
+                         args=[characterisation_path, use_settings,
+                               self.settings_controller.settings_table_model.file_path]).start()
+
+    def plot_characterisation(self) -> None:
+        try:
+            characterization_path, self.last_file_path = _get_file_path(self.view, "Characterization",
+                                                                        self.last_file_path,
+                                                                        "CSV File (*.csv);; TXT File (*.txt);;"
+                                                                        " All Files (*)")
+            if characterization_path:
+                model.process_characterization_data(characterization_path)
+        except KeyError:
+            QtWidgets.QMessageBox.critical(self.view, "Plotting Error", "Invalid data given. Could not plot.")
+
+
 T = typing.TypeVar("T")
 
 
@@ -413,6 +398,19 @@ class PumpLaser(Laser):
         Laser.__init__(self, parent)
         self.laser = model.PumpLaser()
 
+    def enable_pump_laser(self) -> None:
+        if not self.laser.connected:
+            QtWidgets.QMessageBox.critical(self.view, "IO Error",
+                                           "Cannot enable Pump Laser. Pump Laser is not connected.")
+            logging.error("Cannot enable Pump Laser")
+            logging.warning("Pump Laser is not connected")
+        else:
+            if not self.laser.enabled:
+                self.laser.enabled = True
+            else:
+                self.laser.enabled = False
+                logging.debug(f"{'Enabled' if self.laser.enabled else 'Disabled'} Pump Laser")
+
     def update_driver_voltage(self, bits: int) -> None:
         if bits != self.laser.driver_bits:
             self.laser.driver_bits = bits
@@ -446,6 +444,19 @@ class ProbeLaser(Laser):
         Laser.__init__(self, parent)
         self.laser = model.ProbeLaser()
         self.view = parent
+
+    def enable_laser(self) -> None:
+        if not self.laser.connected:
+            QtWidgets.QMessageBox.critical(self.view, "IO Error",
+                                           "Cannot enable Tec Driver of Probe Laser. Tec Driver is not connected.")
+            logging.error("Cannot enable Tec Driver of Probe Laser")
+            logging.warning("Tec Driver is not connected")
+        else:
+            if not self.laser.enabled:
+                self.laser.enabled = True
+            else:
+                self.laser.enabled = False
+            logging.debug(f"{'Enabled' if self.laser.enabled else 'Disabled'} Tec Driver of Probe Laser")
 
     def update_max_current_probe_laser(self, max_current: str) -> None:
         try:

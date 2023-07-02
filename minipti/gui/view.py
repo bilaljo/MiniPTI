@@ -3,7 +3,7 @@ import collections
 import enum
 import functools
 import typing
-from typing import NamedTuple, Union
+from typing import NamedTuple
 
 import pandas as pd
 import pyqtgraph as pg
@@ -40,9 +40,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.logging_window = QtWidgets.QLabel()
         settings = Settings(self.main_controller)
         settings.controller.fire_mother_board_configuration()
-        home = Home(self.main_controller, settings.controller)
-        self.tabs = Tab(home,
+        utilities = Utilities(settings.controller)
+        self.tabs = Tab(Home(self.main_controller, settings.controller),
                         settings,
+                        utilities,
                         pump_laser=self._init_pump_laser_tab(),
                         probe_laser=self._init_probe_laser_tab(),
                         dc=QtWidgets.QTabWidget(),
@@ -127,6 +128,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def _init_tabs(self):
         self.tab_bar.addTab(self.tabs.home, "Home")
         self.tab_bar.addTab(self.tabs.settings, "Settings")
+        self.tab_bar.addTab(self.tabs.utilities, "Utilities")
         self.tab_bar.addTab(self.tabs.pump_laser, "Pump Laser")
         self.tab_bar.addTab(self.tabs.probe_laser, "Probe Laser")
         # DC Plot
@@ -172,6 +174,7 @@ class MainWindow(QtWidgets.QMainWindow):
 class Tab(NamedTuple):
     home: "Home"
     settings: "Settings"
+    utilities: "Utilities"
     pump_laser: QtWidgets.QTabWidget
     probe_laser: QtWidgets.QTabWidget
     dc: QtWidgets.QTabWidget
@@ -187,7 +190,7 @@ class _Frames:
     def __init__(self):
         self.frames: dict[str, QtWidgets.QGroupBox] = {}
 
-    def create_frame(self, master: QtWidgets.QWidget, title, x_position, y_position,
+    def create_frame(self, master: QtWidgets.QWidget, title, x_position=-1, y_position=-1,
                      x_span=1, y_span=1) -> None:
         self.frames[title] = QtWidgets.QGroupBox()
         self.frames[title].setTitle(title)
@@ -217,8 +220,8 @@ class _CreateButton:
         ...
 
 
-class SettingsView(QtWidgets.QTableView):
-    def __init__(self, parent, settings_model: QtCore.QAbstractTableModel):
+class Table(QtWidgets.QTableView):
+    def __init__(self, parent, table_model: model.Table):
         QtWidgets.QTableView.__init__(self, parent=parent)
         header = self.horizontalHeader()
         header.setStretchLastSection(True)
@@ -228,7 +231,20 @@ class SettingsView(QtWidgets.QTableView):
         index.setStretchLastSection(True)
         self.resizeColumnsToContents()
         self.resizeRowsToContents()
-        self.setModel(settings_model)
+        self.setModel(table_model)
+
+
+class RawDataTable(Table):
+    def __init__(self, parent, table_model: model.RawDataTable):
+        Table.__init__(self, parent, table_model)
+        self.table_model = table_model
+
+    def wheelEvent(self, a0: QtGui.QWheelEvent) -> None:
+        super().wheelEvent(a0)
+        if a0.angleDelta().y() < 0:
+            self.table_model.update_table(model.RawDataTable.Direction.DOWNWARDS)
+        else:
+            self.table_model.update_table(model.RawDataTable.Direction.UPWARDS)
 
 
 def toggle_button(checked, button: QtWidgets.QPushButton) -> None:
@@ -238,77 +254,29 @@ def toggle_button(checked, button: QtWidgets.QPushButton) -> None:
         button.setStyleSheet("background-color : light gray")
 
 
-class Home(QtWidgets.QTabWidget, _Frames, _CreateButton):
+class Home(QtWidgets.QTabWidget, _CreateButton):
     def __init__(self, main_app: QtWidgets.QApplication, settings_controller):
         QtWidgets.QTabWidget.__init__(self)
-        _Frames.__init__(self)
         _CreateButton.__init__(self)
         self.setLayout(QtWidgets.QGridLayout())
         self.controller = controller.Home(self, main_app, settings_controller)
-        self._init_frames()
+        self.dc_signals = DC()
+        self.pti_signal = PTISignal()
         self._init_buttons()
         self._init_signals()
+        sublayout = QtWidgets.QWidget()
+        sublayout.setLayout(QtWidgets.QHBoxLayout())
+        sublayout.layout().addWidget(self.dc_signals.window)
+        sublayout.layout().addWidget(self.pti_signal.window)
+        self.layout().addWidget(sublayout, 0, 0)
         model.signals.bypass.connect(self.update_clean_air)
 
-    def _init_frames(self) -> None:
-        sub_layout = QtWidgets.QWidget()
-        sub_layout.setLayout(QtWidgets.QGridLayout())
-        self.create_frame(master=self, title="Offline Processing", x_position=2, y_position=0)
-        self.create_frame(master=self, title="Plot Data", x_position=2, y_position=1)
-        self.create_frame(master=self, title="Measurement", x_position=3, y_position=0)
-        self.create_frame(master=self, title="Drivers", x_position=3, y_position=1)
-        self.create_frame(master=self, title="Pump Laser", x_position=4, y_position=0)
-        self.create_frame(master=self, title="Probe Laser", x_position=4, y_position=1)
-        self.layout().addWidget(sub_layout, 1, 1)
-
     def _init_buttons(self) -> None:
-        # Offline Processing buttons
         sub_layout = QtWidgets.QWidget()
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
-        self.frames["Offline Processing"].layout().addWidget(sub_layout)
-        self.create_button(master=sub_layout, title="Decimation", slot=self.controller.calculate_decimation)
-        self.create_button(master=sub_layout, title="Inversion", slot=self.controller.calculate_inversion)
-        self.create_button(master=sub_layout, title="Characterisation", slot=self.controller.calculate_characterisation)
-
-        # Plotting buttons
-        sub_layout = QtWidgets.QWidget(parent=self.frames["Plot Data"])
-        sub_layout.setLayout(QtWidgets.QHBoxLayout())
-        self.frames["Plot Data"].layout().addWidget(sub_layout)
-        self.create_button(master=sub_layout, title="Decimation", slot=self.controller.plot_dc)
-        self.create_button(master=sub_layout, title="Inversion", slot=self.controller.plot_inversion)
-        self.create_button(master=sub_layout, title="Characterisation", slot=self.controller.plot_characterisation)
-
-        # Driver buttons
-        sub_layout = QtWidgets.QWidget(parent=self.frames["Drivers"])
-        sub_layout.setLayout(QtWidgets.QHBoxLayout())
-        self.frames["Drivers"].layout().addWidget(sub_layout)
-        self.create_button(master=sub_layout, title="Scan Ports", slot=self.controller.find_devices)
-        self.create_button(master=sub_layout, title="Connect Devices", slot=self.controller.connect_devices)
-
-        # Measurement Buttons
-        sub_layout = QtWidgets.QWidget(parent=self.frames["Measurement"])
-        sub_layout.setLayout(QtWidgets.QHBoxLayout())
-        self.frames["Measurement"].layout().addWidget(sub_layout)
         self.create_button(master=sub_layout, title="Run Measurement", slot=self.controller.enable_motherboard)
-        self.create_button(master=sub_layout, title="Clean Air", slot=self.controller.update_bypass)
-
-        # Pump Laser
-        sub_layout = QtWidgets.QWidget(parent=self.frames["Pump Laser"])
-        sub_layout.setLayout(QtWidgets.QHBoxLayout())
-        self.create_button(master=sub_layout, title="Enable Laser", slot=self.controller.enable_pump_laser,
-                           master_title="Pump Laser")
-        self.create_button(master=sub_layout, title="Enable Tec", slot=self.controller.enable_tec_pump_laser,
-                           master_title="Pump Laser")
-        self.frames["Pump Laser"].layout().addWidget(sub_layout)
-
-        # Probe Laser
-        sub_layout = QtWidgets.QWidget(parent=self.frames["Probe Laser"])
-        sub_layout.setLayout(QtWidgets.QHBoxLayout())
-        self.create_button(master=sub_layout, title="Enable Laser", slot=self.controller.enable_probe_laser,
-                           master_title="Probe Laser")
-        self.create_button(master=sub_layout, title="Enable Tec", slot=self.controller.enable_tec_probe_laser,
-                           master_title="Probe Laser")
-        self.frames["Probe Laser"].layout().addWidget(sub_layout)
+        self.layout().addWidget(sub_layout, 1, 0)
+        # self.create_button(master=sub_layout, title="Clean Air", slot=self.controller.update_bypass)
 
     @QtCore.pyqtSlot(bool)
     def update_run_measurement(self, state: bool) -> None:
@@ -351,8 +319,8 @@ class Settings(QtWidgets.QTabWidget, _Frames, _CreateButton):
         self.controller = controller.Settings(main_app, self)
         self.destination_folder = QtWidgets.QLabel(self.controller.destination_folder.folder)
         self._init_frames()
-        self.settings = SettingsView(parent=self.frames["Configuration"],
-                                     settings_model=self.controller.settings_table_model)
+        self.settings = Table(parent=self.frames["Configuration"],
+                              table_model=self.controller.settings_table_model)
         self.destination_folder = QtWidgets.QLabel(self.controller.destination_folder.folder)
         self.save_raw_data = QtWidgets.QCheckBox("Save Raw Data")
         self.automatic_valve_switch = QtWidgets.QCheckBox("Automatic Valve Switch")
@@ -403,22 +371,34 @@ class Settings(QtWidgets.QTabWidget, _Frames, _CreateButton):
 
     def _init_frames(self) -> None:
         self.create_frame(master=self, title="File Path", x_position=2, y_position=1)
-        self.create_frame(master=self, title="Shutdown", x_position=0, y_position=1)
+        sublayout = QtWidgets.QWidget()
+        sublayout.setLayout(QtWidgets.QHBoxLayout())
+        self.create_frame(master=sublayout, title="Shutdown")
+        self.create_frame(master=sublayout, title="Drivers")
+        self.layout().addWidget(sublayout, 4, 0)
         self.create_frame(master=self, title="Measurement", x_position=1, y_position=1)
-        self.create_frame(master=self, title="Configuration", x_position=0, y_position=0, x_span=5)
+        self.create_frame(master=self, title="Configuration", x_position=0, y_position=0, x_span=4)
         self.create_frame(master=self, title="Valve", x_position=3, y_position=1, x_span=2)
 
     def _init_buttons(self) -> None:
         sub_layout = QtWidgets.QWidget()
         self.frames["Configuration"].layout().addWidget(sub_layout)
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
+
+        sub_layout = QtWidgets.QWidget(parent=self.frames["Drivers"])
+        sub_layout.setLayout(QtWidgets.QHBoxLayout())
+        self.frames["Drivers"].layout().addWidget(sub_layout)
+        self.create_button(master=sub_layout, title="Connect Devices", slot=self.controller.init_devices)
+        self.create_button(master=self.frames["Shutdown"], title="Shutdown and Close",
+                           slot=self.controller.shutdown_by_button)
+
+        sub_layout = QtWidgets.QWidget(parent=self.frames["Configuration"])
+        sub_layout.setLayout(QtWidgets.QHBoxLayout())
+        self.frames["Configuration"].layout().addWidget(sub_layout)
         self.create_button(master=sub_layout, title="Save Settings", slot=self.controller.save_settings)
         self.create_button(master=sub_layout, title="Save Settings As", slot=self.controller.save_settings_as)
         self.create_button(master=sub_layout, title="Load Settings", slot=self.controller.load_settings)
         self.frames["Measurement"].layout().addWidget(self.save_raw_data)
-
-        self.create_button(master=self.frames["Shutdown"], title="Shutdown and Close",
-                           slot=self.controller.shutdown_by_button)
 
         # Valve Control
         sub_layout = QtWidgets.QWidget(parent=self.frames["Valve"])
@@ -458,6 +438,47 @@ class Settings(QtWidgets.QTabWidget, _Frames, _CreateButton):
 
     def _duty_cycle_changed(self) -> None:
         self.controller.update_valve_duty_cycle(self.duty_cycle_field.text())
+
+
+class Utilities(QtWidgets.QTabWidget, _Frames, _CreateButton):
+    def __init__(self, settings_controller):
+        QtWidgets.QTabWidget.__init__(self)
+        _Frames.__init__(self)
+        _CreateButton.__init__(self)
+        self.setLayout(QtWidgets.QGridLayout())
+        self.controller = controller.Utilities(self, settings_controller)
+        self._init_frames()
+        self._init_buttons()
+        self.raw_data_table = RawDataTable(self, model.RawDataTable())
+        self.frames["Raw Data"].layout().addWidget(self.raw_data_table, 0, 1, 0, 5)
+
+    def _init_frames(self) -> None:
+        self.create_frame(master=self, title="Raw Data", x_position=0, y_position=1, x_span=3)
+        self.create_frame(master=self, title="Decimation", x_position=0, y_position=0)
+        self.create_frame(master=self, title="PTI Inversion", x_position=1, y_position=0)
+        self.create_frame(master=self, title="Interferometer Characterisation", x_position=2, y_position=0)
+
+    def _init_buttons(self) -> None:
+        # Decimation
+        sub_layout = QtWidgets.QWidget()
+        sub_layout.setLayout(QtWidgets.QVBoxLayout())
+        self.frames["Decimation"].layout().addWidget(sub_layout)
+        self.create_button(master=sub_layout, title="Display Raw Data", slot=self.controller.calculate_decimation)
+        self.create_button(master=sub_layout, title="Plot Raw Data", slot=self.controller.calculate_decimation)
+        self.create_button(master=sub_layout, title="Calculate", slot=self.controller.calculate_decimation)
+        self.create_button(master=sub_layout, title="Plot DC Signals", slot=self.controller.plot_dc)
+        # PTI Inversion
+        sub_layout = QtWidgets.QWidget()
+        sub_layout.setLayout(QtWidgets.QVBoxLayout())
+        self.frames["PTI Inversion"].layout().addWidget(sub_layout)
+        self.create_button(master=sub_layout, title="Calculate", slot=self.controller.calculate_pti_inversion)
+        self.create_button(master=sub_layout, title="Plot", slot=self.controller.plot_inversion)
+        # Characterisation
+        sub_layout = QtWidgets.QWidget()
+        sub_layout.setLayout(QtWidgets.QVBoxLayout())
+        self.frames["Interferometer Characterisation"].layout().addWidget(sub_layout)
+        self.create_button(master=sub_layout, title="Calculate", slot=self.controller.calculate_characterisation)
+        self.create_button(master=sub_layout, title="Plot", slot=self.controller.plot_characterisation)
 
 
 class Slider(QtWidgets.QWidget):
@@ -591,6 +612,8 @@ class PumpLaser(QtWidgets.QWidget, _Frames, _CreateButton):
         for i in range(1, 3):
             self.create_frame(master=self, title=f"Current {i}", x_position=i + 2, y_position=0)
         self.create_frame(master=self, title="Configuration", x_position=5, y_position=0)
+        self.create_button(master=self, title="Enable Laser", slot=self.controller.enable_pump_laser,
+                           master_title="Pump Laser")
 
     def _init_buttons(self) -> None:
         dac_inner_frames = [QtWidgets.QWidget() for _ in range(2)]  # For slider and button-matrices
@@ -699,6 +722,7 @@ class ProbeLaser(QtWidgets.QWidget, _CreateButton, _Frames):
         self.frames["Photo Diode Gain"].layout().addWidget(sub_layout)
         config = self.create_configuration_buttons()
         self.frames["Configuration"].layout().addWidget(config, 3, 0)
+        self.create_button(self, title="Probe Laser", slot=self.controller.enable_laser, master_title="Enable Laser")
 
     @QtCore.pyqtSlot(int)
     def _update_photo_gain(self, index: int) -> None:
@@ -790,6 +814,8 @@ class Tec(QtWidgets.QWidget, _Frames, _CreateButton):
         self.text_fields.reference_resistor.setDisabled(use_ntc)
 
     def _init_text_fields(self) -> None:
+        self.create_button(master=self, title="Enable Tec", slot=lambda x: print(x),
+                           master_title="Pump Laser")
         self.frames["PID Configuration"].layout().addWidget(QtWidgets.QLabel("P Value"), 0, 0)
         self.frames["PID Configuration"].layout().addWidget(self.text_fields.p_value, 0, 1)
         self.text_fields.p_value.editingFinished.connect(self.p_value_changed)
