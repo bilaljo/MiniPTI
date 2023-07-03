@@ -449,11 +449,8 @@ class Utilities(QtWidgets.QTabWidget, _Frames, _CreateButton):
         self.controller = controller.Utilities(self, settings_controller)
         self._init_frames()
         self._init_buttons()
-        self.raw_data_table = RawDataTable(self, model.RawDataTable())
-        self.frames["Raw Data"].layout().addWidget(self.raw_data_table, 0, 1, 0, 5)
 
     def _init_frames(self) -> None:
-        self.create_frame(master=self, title="Raw Data", x_position=0, y_position=1, x_span=3)
         self.create_frame(master=self, title="Decimation", x_position=0, y_position=0)
         self.create_frame(master=self, title="PTI Inversion", x_position=1, y_position=0)
         self.create_frame(master=self, title="Interferometer Characterisation", x_position=2, y_position=0)
@@ -463,8 +460,6 @@ class Utilities(QtWidgets.QTabWidget, _Frames, _CreateButton):
         sub_layout = QtWidgets.QWidget()
         sub_layout.setLayout(QtWidgets.QVBoxLayout())
         self.frames["Decimation"].layout().addWidget(sub_layout)
-        self.create_button(master=sub_layout, title="Display Raw Data", slot=self.controller.calculate_decimation)
-        self.create_button(master=sub_layout, title="Plot Raw Data", slot=self.controller.calculate_decimation)
         self.create_button(master=sub_layout, title="Calculate", slot=self.controller.calculate_decimation)
         self.create_button(master=sub_layout, title="Plot DC Signals", slot=self.controller.plot_dc)
         # PTI Inversion
