@@ -34,6 +34,10 @@ class Driver(serial_device.Driver):
         self.high_power_laser = HighPowerLaser(self)
         self.low_power_laser = LowPowerLaser(self)
 
+    def open(self) -> None:
+        self.low_power_laser.initialize()
+        self.high_power_laser.initialize()
+
     @property
     def device_id(self) -> bytes:
         return Driver.HARDWARE_ID
@@ -268,13 +272,15 @@ class HighPowerLaser(Laser):
         self._enable = serial_device.SerialStream("SHE0001")
         self.load_configuration()
 
+    def initialize(self) -> None:
+        self._driver.write(self._init)
+
     @property
     def enabled(self) -> bool:
-        return self._enabled
+        return self._enable.value == 1
 
     @enabled.setter
     def enabled(self, enabled: bool) -> None:
-        self._enabled = enabled
         self._enable.value = enabled
         self._driver.write(self._enable)
 

@@ -82,31 +82,13 @@ class Home:
                 self.motherboard.running = False
             logging.debug("%s Motherboard", "Enabled" if self.motherboard.running else "Disabled")
 
-    def enable_probe_laser(self) -> None:
-        if not self.probe_laser.connected:
-            QtWidgets.QMessageBox.critical(self.view, "IO Error",
-                                           "Cannot enable Probe Laser. Probe Laser is not connected.")
-            logging.error("Cannot enable Probe Laser")
-            logging.warning("Probe Laser is not connected")
-        else:
-            if not self.probe_laser.enabled:
-                self.probe_laser.enabled = True
-            else:
-                self.probe_laser.enabled = False
-            logging.debug(f"{'Enabled' if self.probe_laser.enabled else 'Disabled'} Probe Laser")
+    def shutdown_by_button(self) -> None:
+        close = QtWidgets.QMessageBox.question(self.view, "QUIT", "Are you sure you want to shutdown?",
+                                               QtWidgets.QMessageBox.StandardButton.Yes
+                                               | QtWidgets.QMessageBox.StandardButton.No)
+        if close == QtWidgets.QMessageBox.StandardButton.Yes:
+            _shutdown(self)
 
-    def enable_tec_pump_laser(self) -> None:
-        if not self.pump_laser_tec.connected:
-            QtWidgets.QMessageBox.critical(self.view, "IO Error",
-                                           "Cannot enable Tec Driver of Pump Laser. Tec Driver is not connected.")
-            logging.error("Cannot enable Tec Driver of Pump Laser")
-            logging.warning("Tec Driver is not connected")
-        else:
-            if not self.pump_laser_tec.enabled:
-                self.pump_laser_tec.enabled = True
-            else:
-                self.pump_laser_tec.enabled = False
-            logging.debug(f"{'Enabled' if self.pump_laser_tec.enabled else 'Disabled'} Tec Driver of Pump Laser")
 
     def set_clean_air(self, bypass: bool) -> None:
         self.motherboard.bypass = bypass
@@ -161,10 +143,7 @@ class Settings:
         self.probe_laser_tec.apply_configuration()
 
     def init_devices(self) -> None:
-        try:
-            self.find_devices()
-        except OSError:
-            return
+        self.find_devices()
         self.connect_devices()
         self.apply_configurations()
 
@@ -182,9 +161,6 @@ class Settings:
             model.Tec.find_port()
         except OSError:
             logging.error("Could not find TEC Driver")
-        else:
-            return
-        raise OSError
 
     def await_shutdown(self):
         def shutdown_low_energy() -> None:
@@ -215,13 +191,6 @@ class Settings:
             self.pump_laser_tec.process_measured_data()
         except OSError:
             logging.error("Could not connect with TEC Driver")
-
-    def shutdown_by_button(self) -> None:
-        close = QtWidgets.QMessageBox.question(self.view, "QUIT", "Are you sure you want to shutdown?",
-                                               QtWidgets.QMessageBox.StandardButton.Yes
-                                               | QtWidgets.QMessageBox.StandardButton.No)
-        if close == QtWidgets.QMessageBox.StandardButton.Yes:
-            _shutdown(self)
 
     def update_valve_period(self, period: str) -> None:
         try:
@@ -409,7 +378,7 @@ class PumpLaser(Laser):
                 self.laser.enabled = True
             else:
                 self.laser.enabled = False
-                logging.debug(f"{'Enabled' if self.laser.enabled else 'Disabled'} Pump Laser")
+            logging.debug(f"{'Enabled' if self.laser.enabled else 'Disabled'} Pump Laser")
 
     def update_driver_voltage(self, bits: int) -> None:
         if bits != self.laser.driver_bits:
@@ -484,6 +453,7 @@ class ProbeLaser(Laser):
 class Tec:
     def __init__(self, laser: int, parent):
         self.tec = model.Tec(laser)
+        self.laser = laser
         self.heating = False
         self.cooling = False
         self.view = parent
@@ -510,6 +480,20 @@ class Tec:
 
     def apply_configuration(self) -> None:
         self.tec.apply_configuration()
+
+    def enable(self) -> None:
+        if not self.tec.connected:
+            QtWidgets.QMessageBox.critical(self.view, "IO Error",
+                                           "Cannot enable Tec Driver of Pump Laser. Tec Driver is not connected.")
+            logging.error("Cannot enable Tec Driver of Pump Laser")
+            logging.warning("Tec Driver is not connected")
+        else:
+            if not self.tec.enabled:
+                self.tec.enabled = True
+            else:
+                self.tec.enabled = False
+            logging.debug(f"{'Enabled' if self.tec.enabled else 'Disabled'} Tec Driver of %s",
+                          "Pump Laser" if self.laser == model.Tec.PUMP_LASER else "Probe Laser")
 
     def update_d_value(self, d_value: str) -> None:
         try:

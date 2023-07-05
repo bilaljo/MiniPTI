@@ -76,7 +76,7 @@ class Driver:
     It is not intended to be used asynchron (with an event-driven approach).
     """
     _QUEUE_SIZE = 15
-    MAX_RESPONSE_TIME = 500e-3  # 100 ms response time
+    MAX_RESPONSE_TIME = 500e-3  # s
     _MAX_WAIT_TIME = 5  # s
 
     TERMINATION_SYMBOL = "\n"
@@ -94,8 +94,6 @@ class Driver:
         self.last_written_message = ""
         if platform.system() == "Windows":
             self.serial_port = System.IO.Ports.SerialPort()
-            self._received_flag = False
-            self._flag_lock = threading.Lock()
         else:
             self.file_descriptor = -1
             self.file_descriptor_lock = threading.Lock()
@@ -283,7 +281,7 @@ class Driver:
             logging.error("Received message %s message, expected  %s", data, self.last_written_message)
             success = False
         else:
-            logging.debug("Command %s successfully applied", data[:-1])
+            logging.debug("Command %s successfully applied", data)
             success = True
         self.ready_write.set()
         return success

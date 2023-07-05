@@ -160,7 +160,7 @@ class Commands:
         self.set_peltier_mode = serial_device.SerialStream(f"SM{channel_number}0000")
         self.set_loop_interval = serial_device.SerialStream(f"SR{channel_number}0000")
         self.set_ref_resistor = serial_device.SerialStream(f"SC{channel_number}0000")
-        self.set_ntc_dac= serial_device.SerialStream(f"SC{channel_number}0000")
+        self.set_ntc_dac = serial_device.SerialStream(f"SN{channel_number}0000")
 
 
 class Tec:

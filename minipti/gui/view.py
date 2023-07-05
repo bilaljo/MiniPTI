@@ -275,6 +275,7 @@ class Home(QtWidgets.QTabWidget, _CreateButton):
         sub_layout = QtWidgets.QWidget()
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
         self.create_button(master=sub_layout, title="Run Measurement", slot=self.controller.enable_motherboard)
+        self.create_button(master=sub_layout, title="Shutdown and Close", slot=self.controller.shutdown_by_button)
         self.layout().addWidget(sub_layout, 1, 0)
         # self.create_button(master=sub_layout, title="Clean Air", slot=self.controller.update_bypass)
 
@@ -286,28 +287,8 @@ class Home(QtWidgets.QTabWidget, _CreateButton):
     def update_clean_air(self, state: bool) -> None:
         toggle_button(state, self.buttons["Clean Air"])
 
-    @QtCore.pyqtSlot(bool)
-    def update_enable_pump_laser(self, state: bool):
-        toggle_button(state, self.buttons["Pump Laser Enable Laser"])
-
-    @QtCore.pyqtSlot(bool)
-    def update_enable_probe_laser(self, state: bool):
-        toggle_button(state, self.buttons["Probe Laser Enable Laser"])
-
-    @QtCore.pyqtSlot(bool)
-    def update_enable_pump_laser_tec(self, state: bool):
-        toggle_button(state, self.buttons["Pump Laser Enable Tec"])
-
-    @QtCore.pyqtSlot(bool)
-    def update_enable_probe_laser_tec(self, state: bool):
-        toggle_button(state, self.buttons["Probe Laser Enable Tec"])
-
     def _init_signals(self) -> None:
         model.signals.daq_running.connect(self.update_run_measurement)
-        model.laser_signals.pump_laser_enabled.connect(self.update_enable_pump_laser)
-        model.laser_signals.probe_laser_enabled.connect(self.update_enable_probe_laser)
-        model.tec_signals[model.Tec.PUMP_LASER].enabled.connect(self.update_enable_pump_laser_tec)
-        model.tec_signals[model.Tec.PROBE_LASER].enabled.connect(self.update_enable_probe_laser_tec)
 
 
 class Settings(QtWidgets.QTabWidget, _Frames, _CreateButton):
@@ -373,7 +354,6 @@ class Settings(QtWidgets.QTabWidget, _Frames, _CreateButton):
         self.create_frame(master=self, title="File Path", x_position=2, y_position=1)
         sublayout = QtWidgets.QWidget()
         sublayout.setLayout(QtWidgets.QHBoxLayout())
-        self.create_frame(master=sublayout, title="Shutdown")
         self.create_frame(master=sublayout, title="Drivers")
         self.layout().addWidget(sublayout, 4, 0)
         self.create_frame(master=self, title="Measurement", x_position=1, y_position=1)
@@ -389,8 +369,6 @@ class Settings(QtWidgets.QTabWidget, _Frames, _CreateButton):
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
         self.frames["Drivers"].layout().addWidget(sub_layout)
         self.create_button(master=sub_layout, title="Connect Devices", slot=self.controller.init_devices)
-        self.create_button(master=self.frames["Shutdown"], title="Shutdown and Close",
-                           slot=self.controller.shutdown_by_button)
 
         sub_layout = QtWidgets.QWidget(parent=self.frames["Configuration"])
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
@@ -554,6 +532,7 @@ class PumpLaser(QtWidgets.QWidget, _Frames, _CreateButton):
         self._init_current_configuration()
         self._init_voltage_configuration()
         self._init_buttons()
+        self.frames["Driver Voltage"].setLayout(QtWidgets.QVBoxLayout())
         self.frames["Driver Voltage"].layout().addWidget(self.driver_voltage)
         self.frames["Measured Values"].layout().addWidget(self.current_display)
         self.frames["Measured Values"].layout().addWidget(self.voltage_display)
@@ -565,11 +544,16 @@ class PumpLaser(QtWidgets.QWidget, _Frames, _CreateButton):
         model.laser_signals.current_dac.connect(self._update_current_dac)
         model.laser_signals.matrix_dac.connect(self._update_dac_matrix)
         model.laser_signals.data_display.connect(self._update_current_voltage)
+        model.laser_signals.pump_laser_enabled.connect(self.enable)
 
     @QtCore.pyqtSlot(hardware.laser.Data)
     def _update_current_voltage(self, value: hardware.laser.Data) -> None:
         self.current_display.setText(str(value.high_power_laser_current) + " mA")
         self.voltage_display.setText(str(value.high_power_laser_voltage) + " V")
+
+    @QtCore.pyqtSlot(bool)
+    def enable(self, state: bool):
+        toggle_button(state, self.buttons["Enable"])
 
     def _init_voltage_configuration(self) -> None:
         self.driver_voltage.slider.valueChanged.connect(self.controller.update_driver_voltage)
@@ -607,8 +591,7 @@ class PumpLaser(QtWidgets.QWidget, _Frames, _CreateButton):
         for i in range(1, 3):
             self.create_frame(master=self, title=f"Current {i}", x_position=i + 2, y_position=0)
         self.create_frame(master=self, title="Configuration", x_position=5, y_position=0)
-        self.create_button(master=self, title="Enable Laser", slot=self.controller.enable_pump_laser,
-                           master_title="Pump Laser")
+        self.create_button(master=self, title="Enable", slot=self.controller.enable_pump_laser,  master_title="")
 
     def _init_buttons(self) -> None:
         dac_inner_frames = [QtWidgets.QWidget() for _ in range(2)]  # For slider and button-matrices
@@ -667,10 +650,15 @@ class ProbeLaser(QtWidgets.QWidget, _CreateButton, _Frames):
         model.laser_signals.probe_laser_mode.connect(self._update_mode)
         model.laser_signals.data_display.connect(self._update_current)
         model.laser_signals.max_current_probe_laser.connect(self._update_max_current)
+        model.laser_signals.probe_laser_enabled.connect(self.enable)
 
     @QtCore.pyqtSlot(hardware.laser.Data)
     def _update_current(self, value: hardware.laser.Data) -> None:
         self.current_display.setText(str(value.low_power_laser_current))
+
+    @QtCore.pyqtSlot(bool)
+    def enable(self, state: bool):
+        toggle_button(state, self.buttons["Enable"])
 
     @functools.singledispatchmethod
     def _update_max_current(self, value: int):
@@ -717,7 +705,7 @@ class ProbeLaser(QtWidgets.QWidget, _CreateButton, _Frames):
         self.frames["Photo Diode Gain"].layout().addWidget(sub_layout)
         config = self.create_configuration_buttons()
         self.frames["Configuration"].layout().addWidget(config, 3, 0)
-        self.create_button(self, title="Probe Laser", slot=self.controller.enable_laser, master_title="Enable Laser")
+        self.create_button(self, title="Enable", slot=self.controller.enable_laser, master_title="")
 
     @QtCore.pyqtSlot(int)
     def _update_photo_gain(self, index: int) -> None:
@@ -755,6 +743,7 @@ class Tec(QtWidgets.QWidget, _Frames, _CreateButton):
         self._init_buttons()
         self._init_signals()
         self.controller.fire_configuration_change()
+        model.tec_signals[self.laser].enabled.connect(self.update_enable)
 
     def _init_signals(self) -> None:
         model.signals.tec_data_display.connect(self.update_temperature)
@@ -777,6 +766,10 @@ class Tec(QtWidgets.QWidget, _Frames, _CreateButton):
         self.create_frame(master=self, title="System Settings", x_position=1, y_position=0)
         self.create_frame(master=self, title="Temperature", x_position=2, y_position=0)
         self.create_frame(master=self, title="Configuration", x_position=3, y_position=0)
+
+    @QtCore.pyqtSlot(bool)
+    def update_enable(self, state: bool):
+        toggle_button(state, self.buttons["Enable"])
 
     @staticmethod
     def _update_text_field(text_field: QtWidgets.QLineEdit, floating=True):
@@ -809,8 +802,8 @@ class Tec(QtWidgets.QWidget, _Frames, _CreateButton):
         self.text_fields.reference_resistor.setDisabled(use_ntc)
 
     def _init_text_fields(self) -> None:
-        self.create_button(master=self, title="Enable Tec", slot=lambda x: print(x),
-                           master_title="Pump Laser")
+        self.create_button(master=self, title="Enable", slot=self.controller.enable,
+                           master_title="")
         self.frames["PID Configuration"].layout().addWidget(QtWidgets.QLabel("P Value"), 0, 0)
         self.frames["PID Configuration"].layout().addWidget(self.text_fields.p_value, 0, 1)
         self.text_fields.p_value.editingFinished.connect(self.p_value_changed)
