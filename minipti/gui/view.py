@@ -17,7 +17,7 @@ from . import model
 
 class MainWindow(QtWidgets.QMainWindow):
     HORIZONTAL_SIZE = 1200
-    VERTICAL_SIZE = 900
+    VERTICAL_SIZE = 1000
 
     def __init__(self, main_controller):
         QtWidgets.QMainWindow.__init__(self)
@@ -532,10 +532,12 @@ class PumpLaser(QtWidgets.QWidget, _Frames, _CreateButton):
         self._init_current_configuration()
         self._init_voltage_configuration()
         self._init_buttons()
-        self.frames["Driver Voltage"].setLayout(QtWidgets.QVBoxLayout())
         self.frames["Driver Voltage"].layout().addWidget(self.driver_voltage)
-        self.frames["Measured Values"].layout().addWidget(self.current_display)
-        self.frames["Measured Values"].layout().addWidget(self.voltage_display)
+        sublayout = QtWidgets.QWidget()
+        sublayout.setLayout(QtWidgets.QHBoxLayout())
+        sublayout.layout().addWidget(self.current_display)
+        sublayout.layout().addWidget(self.voltage_display)
+        self.frames["Measured Values"].layout().addWidget(sublayout)
         self._init_signals()
         self.controller.fire_configuration_change()
 
