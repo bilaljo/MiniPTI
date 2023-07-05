@@ -164,13 +164,13 @@ class Commands:
 
 
 class Tec:
-    _HEATING = 0
     _COOLING = 1
+    _HEATING = 2
     _MIN_LOOP_TIME = 25  # 25 ms
     _MAX_LOOP_TIME = 5000  # 5 s
     MIN_PID_VALUE = 0
     MAX_PID_VALUE = 999
-    _NTC_DAC_CALIBRATION_VALUE = 1795
+    _NTC_DAC_CALIBRATION_VALUE = 800
 
     def __init__(self, channel_number: int, driver: Driver):
         self.configuration: typing.Union[Configuration, None] = None
@@ -301,7 +301,7 @@ class Tec:
 
     def set_mode(self) -> None:
         if self.configuration.mode.heating:
-            self.commands.set_peltier_mode.value = Tec._HEATING
+            self.commands.set_control_loop.value = Tec._HEATING
         else:
-            self.commands.set_peltier_mode.value = Tec._COOLING
-        self.driver.write(self.commands.set_peltier_mode)
+            self.commands.set_control_loop.value = Tec._COOLING
+        self.driver.write(self.commands.set_control_loop)
