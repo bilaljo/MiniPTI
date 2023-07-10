@@ -1281,7 +1281,7 @@ class Tec(Serial):
     def d_value(self, d_value: int) -> None:
         if isinstance(d_value, int) and d_value >= 0:
             self.tec.configuration.pid.derivative_value = d_value
-            self.tec.set_pid_p_value()
+            self.tec.set_pid_d_value()
         else:
             self.tec_signals.d_value.emit(self.tec.configuration.pid.derivative_value)
 
