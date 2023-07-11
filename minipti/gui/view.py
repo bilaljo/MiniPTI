@@ -234,19 +234,6 @@ class Table(QtWidgets.QTableView):
         self.setModel(table_model)
 
 
-class RawDataTable(Table):
-    def __init__(self, parent, table_model: model.RawDataTable):
-        Table.__init__(self, parent, table_model)
-        self.table_model = table_model
-
-    def wheelEvent(self, a0: QtGui.QWheelEvent) -> None:
-        super().wheelEvent(a0)
-        if a0.angleDelta().y() < 0:
-            self.table_model.update_table(model.RawDataTable.Direction.DOWNWARDS)
-        else:
-            self.table_model.update_table(model.RawDataTable.Direction.UPWARDS)
-
-
 def toggle_button(checked, button: QtWidgets.QPushButton) -> None:
     if checked:
         button.setStyleSheet("background-color : lightgreen")

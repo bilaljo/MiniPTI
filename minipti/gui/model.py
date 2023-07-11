@@ -148,49 +148,6 @@ class SettingsTable(Table):
                     self.table_data = settings
 
 
-class RawDataTable(Table):
-    class Direction(typing.NamedTuple):
-        DOWNWARDS = algorithm.pti.Iterator.REVERSE
-        UPWARDS = algorithm.pti.Iterator.FORWARD
-
-    def __init__(self):
-        Table.__init__(self)
-        res = {}
-        for i in ["DC CH1", "DC CH2", "DC CH3", "AC CH1", "AC CH2", "AC CH3"]:
-            res[i] = [np.nan for _ in range(100000)]
-        self._data = pd.DataFrame(res)
-        self.raw_data_buffer = RawDataBuffer()
-        self.decimation = algorithm.pti.Decimation()
-        self.get_raw_data = self.decimation.get_raw_data()
-        self.counter = 0
-
-    @property
-    def _indices(self):
-        return self._data.index
-
-    @property
-    def _headers(self) -> list[str]:
-        return ["DC CH1", "DC CH2", "DC CH3", "AC CH1", "AC CH2", "AC CH3"]
-
-    def update_table(self, direction: Direction) -> None:
-        if self.raw_data_buffer.is_empty:
-            return  # Nothing to do
-        self.counter += 1
-        if self.counter == 8000:
-            self.get_raw_data.send(direction)
-            self.raw_data_buffer.append(next(self.get_raw_data))
-            self.counter = 0
-        if direction == algorithm.pti.Iterator.FORWARD:
-            self.raw_data_buffer.popleft()
-        else:
-            self.raw_data_buffer.pop()
-        data = {}
-        for i in range(1, 4):
-            data[f"DC CH{i}"] = self.raw_data_buffer.dc_buffer
-            data[f"AC CH{i}"] = self.raw_data_buffer.ac_buffer
-        self._data = pd.DataFrame(data, columns=self._headers)
-
-
 class Logging(logging.Handler):
     LOGGING_HISTORY = 50
 
@@ -425,40 +382,6 @@ class TecBuffer(Buffer):
         return self._actual_value
 
 
-class RawDataBuffer(Buffer):
-    QUEUE_SIZE = 8000 * 3
-
-    def __init__(self):
-        Buffer.__init__(self)
-        self._dc_buffer = deque(maxlen=Buffer.QUEUE_SIZE)
-        self._ac_buffer = deque(maxlen=Buffer.QUEUE_SIZE)
-
-    @property
-    def is_empty(self) -> bool:
-        return len(self._dc_buffer) == 0
-
-    def append(self, raw_data: algorithm.pti.RawData) -> None:
-        dc, ac = raw_data
-        self._dc_buffer.extend(dc)
-        self._ac_buffer.extend(ac)
-
-    def popleft(self) -> None:
-        self._dc_buffer.popleft()
-        self._ac_buffer.popleft()
-
-    def pop(self) -> None:
-        self._dc_buffer.pop()
-        self._ac_buffer.pop()
-
-    @property
-    def dc_buffer(self) -> deque:
-        return self._dc_buffer
-
-    @property
-    def ac_buffer(self) -> deque:
-        return self._ac_buffer
-
-
 class Mode(enum.IntEnum):
     DISABLED = 0
     CONTINUOUS_WAVE = 1
@@ -473,7 +396,6 @@ class Battery:
 
 @dataclass(init=False, frozen=True)
 class Signals(QtCore.QObject):
-    raw_data = QtCore.pyqtSignal(algorithm.pti.RawData)
     decimation = QtCore.pyqtSignal(pd.DataFrame)
     decimation_live = QtCore.pyqtSignal(Buffer)
     inversion = QtCore.pyqtSignal(pd.DataFrame)
