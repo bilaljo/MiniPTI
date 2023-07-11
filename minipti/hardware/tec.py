@@ -236,7 +236,6 @@ class Tec:
         if not self.configuration.temperature_element.NTC:
             self.set_reference_resistor_value()
         self.set_max_power_value()
-        self.set_mode()
         self.set_setpoint_temperature_value()
 
     @staticmethod

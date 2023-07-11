@@ -611,6 +611,7 @@ class LiveCalculation(Calculation):
             self.pti.decimation.save_raw_data = True
 
     def _run_pti_inversion(self):
+        self._init_calculation()
         while Motherboard.driver.running.is_set():
             self._decimation()
             self._pti_inversion()
@@ -803,7 +804,6 @@ class Motherboard(Serial):
             signals.clear_daq.emit()
             self.driver.running.set()
             signals.daq_running.emit(True)
-
         else:
             self.driver.running.clear()
             signals.daq_running.emit(False)
@@ -921,6 +921,7 @@ class Laser(Serial):
         ...
 
     def _incoming_data(self):
+        self._running = True
         while self.driver.connected.is_set():
             if self._running:
                 if self._init_headers:
@@ -1281,7 +1282,7 @@ class Tec(Serial):
     def d_value(self, d_value: int) -> None:
         if isinstance(d_value, int) and d_value >= 0:
             self.tec.configuration.pid.derivative_value = d_value
-            self.tec.set_pid_p_value()
+            self.tec.set_pid_d_value()
         else:
             self.tec_signals.d_value.emit(self.tec.configuration.pid.derivative_value)
 
@@ -1359,6 +1360,7 @@ class Tec(Serial):
         self.tec_signals.use_ntc.emit(self.tec.configuration.temperature_element.NTC)
 
     def _incoming_data(self) -> None:
+        self._running = True
         while self.driver.connected.is_set():
             if self._running:
                 if self._init_headers:

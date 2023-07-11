@@ -182,7 +182,10 @@ class Inversion:
 
     def invert(self, live=False) -> None:
         if live:
-            self._calculate_online()
+            try:
+                self._calculate_online()
+            except ValueError:
+                logging.error("Could not calculate, intensities are too small")
         else:
             self._calculate_offline()
 
