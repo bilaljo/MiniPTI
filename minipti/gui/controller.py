@@ -89,7 +89,6 @@ class Home:
         if close == QtWidgets.QMessageBox.StandardButton.Yes:
             _shutdown(self)
 
-
     def set_clean_air(self, bypass: bool) -> None:
         self.motherboard.bypass = bypass
 

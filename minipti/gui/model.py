@@ -611,7 +611,7 @@ class Serial:
     driver = hardware.serial_device.Driver()
 
     def __init__(self):
-        signals.destination_folder_changed.connect(self._update_file_path)
+        signals.destination_folder_changed.connect(self._update_destination_folder)
         self._destination_folder = os.getcwd()
         self._init_headers = True
         self._running = False
@@ -621,7 +621,7 @@ class Serial:
         self._running = running
 
     # @QtCore.pyqtSlot(str)
-    def _update_file_path(self, destination_folder: str) -> None:
+    def _update_destination_folder(self, destination_folder: str) -> None:
         self._destination_folder = destination_folder
         self._init_headers = True
 
@@ -845,6 +845,10 @@ class Laser(Serial):
     def _incoming_data(self):
         self._running = True
         while self.driver.connected.is_set():
+            received_data: hardware.laser.Data = self.driver.data.get(block=True)
+            Laser.buffer.append(received_data)
+            laser_signals.data.emit(Laser.buffer)
+            laser_signals.data_display.emit(received_data)
             if self._running:
                 if self._init_headers:
                     units = {"Time": "H:M:S",
@@ -856,11 +860,6 @@ class Laser(Serial):
                     pd.DataFrame(units, index=["Y:M:D"]).to_csv(self._destination_folder + "/laser.csv",
                                                                 index_label="Date")
                     self._init_headers = False
-            received_data: hardware.laser.Data = self.driver.data.get(block=True)
-            Laser.buffer.append(received_data)
-            laser_signals.data.emit(Laser.buffer)
-            laser_signals.data_display.emit(received_data)
-            if self._running:
                 now = datetime.now()
                 output_data = {"Time": str(now.strftime("%H:%M:%S")),
                                "Pump Laser Enabled": received_data.high_power_laser_enabled,
@@ -1284,6 +1283,10 @@ class Tec(Serial):
     def _incoming_data(self) -> None:
         self._running = True
         while self.driver.connected.is_set():
+            received_data: hardware.tec.Data = self.driver.data.get(block=True)
+            self._buffer.append(received_data)
+            signals.tec_data.emit(self._buffer)
+            signals.tec_data_display.emit(received_data)
             if self._running:
                 if self._init_headers:
                     units = {"Time": "H:M:S",
@@ -1296,11 +1299,6 @@ class Tec(Serial):
                     pd.DataFrame(units, index=["Y:M:D"]).to_csv(f"{self._destination_folder}/tec.csv",
                                                                 index_label="Date")
                     self._init_headers = False
-            received_data: hardware.tec.Data = self.driver.data.get(block=True)
-            self._buffer.append(received_data)
-            signals.tec_data.emit(self._buffer)
-            signals.tec_data_display.emit(received_data)
-            if self._running:
                 now = datetime.now()
                 tec_data = {"Time": str(now.strftime("%H:%M:%S")),
                             "TEC Pump Laser Enabled": self.driver.tec[Tec.PUMP_LASER].enabled,

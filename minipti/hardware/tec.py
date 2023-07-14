@@ -155,9 +155,7 @@ class Commands:
                             serial_device. SerialStream(f"SI{channel_number + 2}0000")]
         self.set_d_value = serial_device.SerialStream(f"SD{channel_number}0000")
         self.set_control_loop = serial_device.SerialStream(f"SL{channel_number}0000")
-        self.set_fan_control = serial_device. SerialStream(f"SF{channel_number}0000")
         self.set_max_output_power = serial_device.SerialStream(f"SO{channel_number}0000")
-        self.set_peltier_mode = serial_device.SerialStream(f"SM{channel_number}0000")
         self.set_loop_interval = serial_device.SerialStream(f"SR{channel_number}0000")
         self.set_ref_resistor = serial_device.SerialStream(f"SC{channel_number}0000")
         self.set_ntc_dac = serial_device.SerialStream(f"SN{channel_number}0000")
@@ -166,7 +164,7 @@ class Commands:
 class Tec:
     _COOLING = 1
     _HEATING = 2
-    _MIN_LOOP_TIME = 25  # 25 ms
+    _MIN_LOOP_TIME = 26  # 26 ms
     _MAX_LOOP_TIME = 5000  # 5 s
     MIN_PID_VALUE = 0
     MAX_PID_VALUE = 999
@@ -190,9 +188,7 @@ class Tec:
     def enabled(self, enable: bool) -> None:
         self._enabled = enable
         self.commands.set_control_loop.value = enable
-        self.commands.set_fan_control.value = enable
         self.driver.write(self.commands.set_control_loop)
-        self.driver.write(self.commands.set_fan_control)
 
     def set_ntc_dac(self) -> None:
         self.driver.write(self.commands.set_ntc_dac)
