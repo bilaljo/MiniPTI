@@ -71,20 +71,20 @@ class Driver(serial_device.Driver):
             received_data: str = self.get_data()
         except OSError:
             return
-        for received in received_data.split(Driver.TERMINATION_SYMBOL):
+        for received in received_data.split(Driver._TERMINATION_SYMBOL):
             if not received:
                 continue
             identifier = received[0]
             if identifier == "N":
                 logging.error("Invalid command %s", received)
-                self.ready_write.set()
+                self._ready_write.set()
             elif identifier == "S" or identifier == "C":
                 last_written = self.last_written_message[:-1]
                 if received != last_written and received != last_written.capitalize():
                     logging.error("Received message %s message, expected %s", received, last_written)
                 else:
                     logging.debug("Command %s successfully applied", received)
-                self.ready_write.set()
+                self._ready_write.set()
             elif identifier == "T":
                 data_frame = received.split("\t")[Driver._START_DATA_FRAME:]
                 status_byte_frame = int(data_frame[13])  # 13 is the index according to the protocol
@@ -107,7 +107,7 @@ class Driver(serial_device.Driver):
                 self.data.put(Data(set_point, actual_temperature))
             else:  # Broken data frame without header char
                 logging.error("Received invalid package without header")
-                self.ready_write.set()
+                self._ready_write.set()
                 continue
 
 

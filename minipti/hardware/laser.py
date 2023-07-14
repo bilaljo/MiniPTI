@@ -67,12 +67,12 @@ class Driver(serial_device.Driver):
             received_data: str = self.get_data()
         except OSError:
             return
-        for received in received_data.split(Driver.TERMINATION_SYMBOL):
+        for received in received_data.split(Driver._TERMINATION_SYMBOL):
             if not received:
                 continue
             if received[0] == "N":
                 logging.error(f"Invalid command {received}")
-                self.ready_write.set()
+                self._ready_write.set()
             elif received[0] == "S" or received[0] == "C":
                 self._check_ack(received)
             elif received[0] == "L":
@@ -84,7 +84,7 @@ class Driver(serial_device.Driver):
                                    high_power_laser_enabled=self.high_power_laser.enabled))
             else:  # Broken data frame without header char
                 logging.error("Received invalid package without header")
-                self.ready_write.set()
+                self._ready_write.set()
                 continue
 
 
