@@ -15,7 +15,7 @@
             "derivative_value": 0
         },
         "system_parameter": {
-            "setpoint_temperature": 19,
+            "setpoint_temperature": 18,
             "loop_time": 26,
             "reference_resistor": 0,
             "max_power": 210

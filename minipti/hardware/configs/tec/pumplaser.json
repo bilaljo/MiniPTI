@@ -10,9 +10,9 @@
             "cooling": true
         },
         "pid": {
-            "proportional_value": 30,
-            "integral_value": [10, 10],
-            "derivative_value": 0
+            "proportional_value": 25,
+            "integral_value": [5, 1],
+            "derivative_value": 5
         },
         "system_parameter": {
             "setpoint_temperature": 25,

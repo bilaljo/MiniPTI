@@ -311,7 +311,6 @@ class HighPowerLaser(Laser):
                 if self.configuration.DAC[j].continuous_wave[i]:
                     matrix |= HighPowerLaser._DAC_REGISTER[j][2 * i]
                 elif self.configuration.DAC[j].pulsed_mode[i]:
-                    matrix &= ~ HighPowerLaser._DAC_REGISTER[j][2 * i]  # Disable DC part first
                     matrix |= HighPowerLaser._DAC_REGISTER[j][2 * i + 1]
         self._control_register.value = matrix
         self._driver.write(self._control_register)
