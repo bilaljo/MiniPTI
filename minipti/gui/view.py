@@ -516,8 +516,6 @@ class PumpLaser(QtWidgets.QWidget, _Frames, _CreateButton):
         self.controller = controller.PumpLaser(self)
         self.create_configuration_buttons = _CreateConfigurationButtons(self.controller)
         self._init_frames()
-        self._init_current_configuration()
-        self._init_voltage_configuration()
         self._init_buttons()
         self.frames["Driver Voltage"].layout().addWidget(self.driver_voltage)
         sublayout = QtWidgets.QWidget()
@@ -529,6 +527,8 @@ class PumpLaser(QtWidgets.QWidget, _Frames, _CreateButton):
         self.controller.fire_configuration_change()
 
     def _init_signals(self) -> None:
+        self._init_current_configuration()
+        self._init_voltage_configuration()
         model.laser_signals.laser_voltage.connect(self._update_voltage_slider)
         model.laser_signals.current_dac.connect(self._update_current_dac)
         model.laser_signals.matrix_dac.connect(self._update_dac_matrix)

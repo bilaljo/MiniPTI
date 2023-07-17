@@ -3,6 +3,7 @@ import dataclasses
 import json
 import logging
 import os
+import typing
 from dataclasses import dataclass
 from typing import Annotated, Union
 
@@ -256,10 +257,11 @@ class LowPowerLaser(Laser):
 
 
 class HighPowerLaser(Laser):
-    _DAC_1_REGISTER: list[int] = [1 << 8, 1 << 9, 1 << 10, 1 << 11, 1 << 12, 1 << 13]
-    _DAC_2_REGISTER: list[int] = [1 << 14, 1 << 15, 1 << 0, 1 << 1, 1 << 2, 1 << 3]
     _CHANNELS = 3
     _DAC_CHANNELS = 2
+    _DAC = typing.Annotated[tuple[int], 6]
+    _DAC_REGISTER: tuple[_DAC, _DAC] = ((1 << 8, 1 << 9, 1 << 10, 1 << 11, 1 << 12, 1 << 13),
+                                        (1 << 14, 1 << 15, 1 << 0, 1 << 1, 1 << 2, 1 << 3))
 
     def __init__(self, driver: Driver):
         Laser.__init__(self, driver)
@@ -267,7 +269,7 @@ class HighPowerLaser(Laser):
         self.configuration: Union[None, HighPowerLaserConfig] = None
         self._init = serial_device.SerialStream("CHI0000")
         self._set_voltage = serial_device.SerialStream("SHV0000")
-        self._control_register = [serial_device.SerialStream("SC10000"), serial_device.SerialStream("SC20000")]
+        self._control_register = serial_device.SerialStream("SC10000")
         self._set_dac = [serial_device.SerialStream("SC30000"), serial_device.SerialStream("SC40000")]
         self._enable = serial_device.SerialStream("SHE0001")
         self.load_configuration()
@@ -314,8 +316,8 @@ class HighPowerLaser(Laser):
         for i in range(HighPowerLaser._CHANNELS):
             for j in range(HighPowerLaser._DAC_CHANNELS):
                 if self.configuration.DAC[j].continuous_wave[i]:
-                    matrix |= HighPowerLaser._DAC_1_REGISTER[2 * i]
+                    matrix |= HighPowerLaser._DAC_REGISTER[j][2 * i]
                 elif self.configuration.DAC[j].pulsed_mode[i]:
-                    matrix |= HighPowerLaser._DAC_1_REGISTER[2 * i + 1]
-        self._control_register[0].value = matrix
-        self._driver.write(self._control_register[0])
+                    matrix |= HighPowerLaser._DAC_REGISTER[j][2 * i + 1]
+        self._control_register.value = matrix
+        self._driver.write(self._control_register)
