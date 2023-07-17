@@ -71,20 +71,20 @@ class Driver(serial_device.Driver):
             received_data: str = self.get_data()
         except OSError:
             return
-        for received in received_data.split(Driver.TERMINATION_SYMBOL):
+        for received in received_data.split(Driver._TERMINATION_SYMBOL):
             if not received:
                 continue
             identifier = received[0]
             if identifier == "N":
                 logging.error("Invalid command %s", received)
-                self.ready_write.set()
+                self._ready_write.set()
             elif identifier == "S" or identifier == "C":
                 last_written = self.last_written_message[:-1]
                 if received != last_written and received != last_written.capitalize():
                     logging.error("Received message %s message, expected %s", received, last_written)
                 else:
                     logging.debug("Command %s successfully applied", received)
-                self.ready_write.set()
+                self._ready_write.set()
             elif identifier == "T":
                 data_frame = received.split("\t")[Driver._START_DATA_FRAME:]
                 status_byte_frame = int(data_frame[13])  # 13 is the index according to the protocol
@@ -107,7 +107,7 @@ class Driver(serial_device.Driver):
                 self.data.put(Data(set_point, actual_temperature))
             else:  # Broken data frame without header char
                 logging.error("Received invalid package without header")
-                self.ready_write.set()
+                self._ready_write.set()
                 continue
 
 
@@ -155,9 +155,7 @@ class Commands:
                             serial_device. SerialStream(f"SI{channel_number + 2}0000")]
         self.set_d_value = serial_device.SerialStream(f"SD{channel_number}0000")
         self.set_control_loop = serial_device.SerialStream(f"SL{channel_number}0000")
-        self.set_fan_control = serial_device. SerialStream(f"SF{channel_number}0000")
         self.set_max_output_power = serial_device.SerialStream(f"SO{channel_number}0000")
-        self.set_peltier_mode = serial_device.SerialStream(f"SM{channel_number}0000")
         self.set_loop_interval = serial_device.SerialStream(f"SR{channel_number}0000")
         self.set_ref_resistor = serial_device.SerialStream(f"SC{channel_number}0000")
         self.set_ntc_dac = serial_device.SerialStream(f"SN{channel_number}0000")
@@ -166,7 +164,7 @@ class Commands:
 class Tec:
     _COOLING = 1
     _HEATING = 2
-    _MIN_LOOP_TIME = 25  # 25 ms
+    _MIN_LOOP_TIME = 26  # 26 ms
     _MAX_LOOP_TIME = 5000  # 5 s
     MIN_PID_VALUE = 0
     MAX_PID_VALUE = 999
@@ -190,9 +188,7 @@ class Tec:
     def enabled(self, enable: bool) -> None:
         self._enabled = enable
         self.commands.set_control_loop.value = enable
-        self.commands.set_fan_control.value = enable
         self.driver.write(self.commands.set_control_loop)
-        self.driver.write(self.commands.set_fan_control)
 
     def set_ntc_dac(self) -> None:
         self.driver.write(self.commands.set_ntc_dac)

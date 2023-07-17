@@ -240,8 +240,7 @@ class Driver(serial_device.Driver):
         except OSError:
             return
         split_data = received_data.split("\n")
-        for i in range(len(split_data) - 1):
-            data = split_data[i]
+        for data in split_data[:-1]:
             if data[0] == "D" and len(data) == Driver._DAQ_PACKAGE_SIZE:
                 self._encode_daq(data)
             elif data[0] == "B" and len(data) == Driver._BMS_PACKAGE_SIZE:

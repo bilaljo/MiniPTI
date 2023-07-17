@@ -1,8 +1,7 @@
 import abc
 import collections
-import enum
-import functools
-import typing
+import platform
+from dataclasses import dataclass
 from typing import NamedTuple
 
 import pandas as pd
@@ -186,23 +185,16 @@ class Tab(NamedTuple):
     pti_signal: QtWidgets.QTabWidget
 
 
-class _Frames:
-    def __init__(self):
-        self.frames: dict[str, QtWidgets.QGroupBox] = {}
-
-    def create_frame(self, master: QtWidgets.QWidget, title, x_position=-1, y_position=-1,
-                     x_span=1, y_span=1) -> None:
-        self.frames[title] = QtWidgets.QGroupBox()
-        self.frames[title].setTitle(title)
-        self.frames[title].setLayout(QtWidgets.QGridLayout())
+@dataclass
+class Frames:
+    def set_frame(self, master: QtWidgets.QWidget, title, x_position=-1, y_position=-1, x_span=1, y_span=1,
+                  layout=QtWidgets.QGridLayout()):
+        self.__getattribute__(title).setTitle(title)
+        self.__getattribute__(title).setTitle(layout)
         try:
-            master.layout().addWidget(self.frames[title], x_position, y_position, x_span, y_span)
+            master.layout().addWidget(self.__getattribute__(title), x_position, y_position, x_span, y_span)
         except TypeError:
-            master.layout().addWidget(self.frames[title])
-
-    @abc.abstractmethod
-    def _init_frames(self) -> None:
-        ...
+            master.layout().addWidget(self.__getattribute__(title))
 
 
 class _CreateButton:
@@ -262,7 +254,10 @@ class Home(QtWidgets.QTabWidget, _CreateButton):
         sub_layout = QtWidgets.QWidget()
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
         self.create_button(master=sub_layout, title="Run Measurement", slot=self.controller.enable_motherboard)
-        self.create_button(master=sub_layout, title="Shutdown and Close", slot=self.controller.shutdown_by_button)
+        if platform.system() == "Windows":
+            self.create_button(master=sub_layout, title="Disable all Devices", slot=self.controller.shutdown_by_button)
+        else:
+            self.create_button(master=sub_layout, title="Shutdown and Close", slot=self.controller.shutdown_by_button)
         self.layout().addWidget(sub_layout, 1, 0)
         # self.create_button(master=sub_layout, title="Clean Air", slot=self.controller.update_bypass)
 
@@ -278,16 +273,26 @@ class Home(QtWidgets.QTabWidget, _CreateButton):
         model.signals.daq_running.connect(self.update_run_measurement)
 
 
-class Settings(QtWidgets.QTabWidget, _Frames, _CreateButton):
+@dataclass
+class SettingsFrames(Frames):
+    configuration = QtWidgets.QGroupBox()
+    file_path = QtWidgets.QGroupBox()
+    drivers = QtWidgets.QGroupBox()
+    save_data = QtWidgets.QGroupBox()
+    measurement = QtWidgets.QGroupBox()
+    valve = QtWidgets.QGroupBox()
+
+
+class Settings(QtWidgets.QTabWidget, _CreateButton):
     def __init__(self, main_app):
         QtWidgets.QTabWidget.__init__(self)
-        _Frames.__init__(self)
         _CreateButton.__init__(self)
+        self.frames = SettingsFrames()
         self.setLayout(QtWidgets.QGridLayout())
         self.controller = controller.Settings(main_app, self)
         self.destination_folder = QtWidgets.QLabel(self.controller.destination_folder.folder)
         self._init_frames()
-        self.settings = Table(parent=self.frames["Configuration"],
+        self.settings = Table(parent=self.frames.configuration,
                               table_model=self.controller.settings_table_model)
         self.destination_folder = QtWidgets.QLabel(self.controller.destination_folder.folder)
         self.save_raw_data = QtWidgets.QCheckBox("Save Raw Data")
@@ -300,7 +305,7 @@ class Settings(QtWidgets.QTabWidget, _Frames, _CreateButton):
         self.samples = QtWidgets.QLabel("8000 Samples")
         self._init_frames()
         self._init_average_period_box()
-        self.frames["Configuration"].layout().addWidget(self.settings)
+        self.frames.configuration.layout().addWidget(self.settings)
         self._init_buttons()
         self._init_valves()
         model.signals.destination_folder_changed.connect(self.update_destination_folder)
@@ -334,39 +339,40 @@ class Settings(QtWidgets.QTabWidget, _Frames, _CreateButton):
         sublayout.layout().addWidget(QtWidgets.QLabel("Averaging Time"))
         sublayout.layout().addWidget(self.average_period)
         sublayout.layout().addWidget(self.samples)
-        self.frames["Measurement"].layout().addWidget(sublayout)
+        self.frames.measurement.layout().addWidget(sublayout)
         self.average_period.currentIndexChanged.connect(self.update_samples)
 
     def _init_frames(self) -> None:
-        self.create_frame(master=self, title="File Path", x_position=2, y_position=1)
+        self.frames.set_frame(master=self, title="File Path", x_position=2, y_position=1)
         sublayout = QtWidgets.QWidget()
         sublayout.setLayout(QtWidgets.QHBoxLayout())
-        self.create_frame(master=sublayout, title="Drivers")
+        self.frames.set_frame(master=sublayout, title="Drivers")
         self.layout().addWidget(sublayout, 4, 0)
-        self.create_frame(master=self, title="Measurement", x_position=1, y_position=1)
-        self.create_frame(master=self, title="Configuration", x_position=0, y_position=0, x_span=4)
-        self.create_frame(master=self, title="Valve", x_position=3, y_position=1, x_span=2)
+        self.frames.set_frame(master=self, title="Save Data", x_position=0, y_position=1)
+        self.frames.set_frame(master=self, title="Measurement", x_position=1, y_position=1)
+        self.frames.set_frame(master=self, title="Configuration", x_position=0, y_position=0, x_span=4)
+        self.frames.set_frame(master=self, title="Valve", x_position=3, y_position=1, x_span=2)
 
     def _init_buttons(self) -> None:
         sub_layout = QtWidgets.QWidget()
-        self.frames["Configuration"].layout().addWidget(sub_layout)
+        self.frames.configuration.layout().addWidget(sub_layout)
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
 
-        sub_layout = QtWidgets.QWidget(parent=self.frames["Drivers"])
+        sub_layout = QtWidgets.QWidget(parent=self.frames.drivers)
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
-        self.frames["Drivers"].layout().addWidget(sub_layout)
+        self.frames.drivers.layout().addWidget(sub_layout)
         self.create_button(master=sub_layout, title="Connect Devices", slot=self.controller.init_devices)
 
-        sub_layout = QtWidgets.QWidget(parent=self.frames["Configuration"])
+        sub_layout = QtWidgets.QWidget(parent=self.frames.configuration)
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
-        self.frames["Configuration"].layout().addWidget(sub_layout)
+        self.frames.configuration.layout().addWidget(sub_layout)
         self.create_button(master=sub_layout, title="Save Settings", slot=self.controller.save_settings)
         self.create_button(master=sub_layout, title="Save Settings As", slot=self.controller.save_settings_as)
         self.create_button(master=sub_layout, title="Load Settings", slot=self.controller.load_settings)
-        self.frames["Measurement"].layout().addWidget(self.save_raw_data)
+        self.frames.measurement.layout().addWidget(self.save_raw_data)
 
         # Valve Control
-        sub_layout = QtWidgets.QWidget(parent=self.frames["Valve"])
+        sub_layout = QtWidgets.QWidget(parent=self.frames.valve)
         sub_layout.setLayout(QtWidgets.QGridLayout())
         sub_layout.layout().addWidget(self.automatic_valve_switch, 0, 0)
         sub_layout.layout().addWidget(QtWidgets.QLabel("Valve Period"), 1, 0)
@@ -375,20 +381,25 @@ class Settings(QtWidgets.QTabWidget, _Frames, _CreateButton):
         sub_layout.layout().addWidget(QtWidgets.QLabel("Valve Duty Cycle"), 2, 0)
         sub_layout.layout().addWidget(self.duty_cycle_field, 2, 1)
         sub_layout.layout().addWidget(QtWidgets.QLabel("%"), 2, 2)
-        self.frames["Valve"].layout().addWidget(sub_layout)
-        sub_layout = QtWidgets.QWidget(parent=self.frames["Valve"])
+        self.frames.valve.layout().addWidget(sub_layout)
+        sub_layout = QtWidgets.QWidget(parent=self.frames.valve)
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
         self.create_button(master=sub_layout, title="Save Settings",
                            slot=self.controller.save_motherboard_configuration)
         self.create_button(master=sub_layout, title="Load Settings",
                            slot=self.controller.load_motherboard_configuration)
-        self.frames["Valve"].layout().addWidget(sub_layout)
+        self.frames.valve.layout().addWidget(sub_layout)
 
-        sub_layout = QtWidgets.QWidget(parent=self.frames["File Path"])
+        sub_layout = QtWidgets.QWidget(parent=self.frames.file_path)
         sub_layout.setLayout(QtWidgets.QVBoxLayout())
-        self.frames["File Path"].layout().addWidget(sub_layout)
+        self.frames.file_path.layout().addWidget(sub_layout)
         self.create_button(master=sub_layout, title="Destination Folder", slot=self.controller.set_destination_folder)
         sub_layout.layout().addWidget(self.destination_folder)
+
+        self.frames.save_data.layout().addWidget(QtWidgets.QCheckBox())
+
+        self.frames.save_data.layout().addWidget(QtWidgets.QCheckBox())
+        self.frames.save_data.layout().addWidget(QtWidgets.QCheckBox())
 
     def _init_valves(self) -> None:
         self.automatic_valve_switch.stateChanged.connect(self._automatic_switch_changed)
@@ -405,20 +416,27 @@ class Settings(QtWidgets.QTabWidget, _Frames, _CreateButton):
         self.controller.update_valve_duty_cycle(self.duty_cycle_field.text())
 
 
-class Utilities(QtWidgets.QTabWidget, _Frames, _CreateButton):
+@dataclass
+class UtilitiesFrames(Frames):
+    decimation = QtWidgets.QGroupBox()
+    pti_inversion = QtWidgets.QGroupBox()
+    interferometer_characterisation = QtWidgets.QGroupBox()
+
+
+class Utilities(QtWidgets.QTabWidget, _CreateButton):
     def __init__(self, settings_controller):
         QtWidgets.QTabWidget.__init__(self)
-        _Frames.__init__(self)
         _CreateButton.__init__(self)
+        self.frames = UtilitiesFrames()
         self.setLayout(QtWidgets.QGridLayout())
         self.controller = controller.Utilities(self, settings_controller)
         self._init_frames()
         self._init_buttons()
 
     def _init_frames(self) -> None:
-        self.create_frame(master=self, title="Decimation", x_position=0, y_position=0)
-        self.create_frame(master=self, title="PTI Inversion", x_position=1, y_position=0)
-        self.create_frame(master=self, title="Interferometer Characterisation", x_position=2, y_position=0)
+        self.frames.set_frame(master=self, title="Decimation", x_position=0, y_position=0)
+        self.frames.set_frame(master=self, title="PTI Inversion", x_position=1, y_position=0)
+        self.frames.set_frame(master=self, title="Interferometer Characterisation", x_position=2, y_position=0)
 
     def _init_buttons(self) -> None:
         # Decimation
