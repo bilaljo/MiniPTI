@@ -224,14 +224,14 @@ class LowPowerLaser(Laser):
     def apply_configuration(self) -> None:
         self.set_mode()
         self.set_current()
-        # self.set_photo_diode_gain()
+        self.set_photo_diode_gain()
 
     def set_mode(self) -> None:
         if self.configuration.mode.constant_light:
             self.mode.value = LowPowerLaser._CONSTANT_LIGHT
         else:
             self.mode.value = LowPowerLaser._CONSTANT_CURRENT
-        # self._driver.write(self.mode)
+        self._driver.write(self.mode)
 
     def set_current(self) -> None:
         current = LowPowerLaserConfig.bit_to_current(self.configuration.current.bits)
