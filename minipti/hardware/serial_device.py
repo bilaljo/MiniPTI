@@ -258,15 +258,15 @@ class Driver:
 
     def _write(self) -> None:
         while self.connected.is_set():
-            if self.ready_write.wait(timeout=Driver.MAX_RESPONSE_TIME):
-                self.last_written_message = self._write_buffer.get(block=True) + Driver.TERMINATION_SYMBOL
-                try:
-                    self._transfer()
-                except OSError:
-                    logging.error("Could not transfer %s to %s", self.last_written_message)
-                    break
-                logging.debug("%s written to %s", self.last_written_message[:-1], self.device_name)
-                self.ready_write.clear()
+            self.ready_write.wait(timeout=Driver.MAX_RESPONSE_TIME)
+            self.last_written_message = self._write_buffer.get(block=True) + Driver.TERMINATION_SYMBOL
+            try:
+                self._transfer()
+            except OSError:
+                logging.error("Could not transfer %s to %s", self.last_written_message)
+                break
+            logging.debug("%s written to %s", self.last_written_message[:-1], self.device_name)
+            self.ready_write.clear()
 
     def _transfer(self) -> None:
         if platform.system() == "Windows":
