@@ -138,7 +138,7 @@ class Driver:
                     with serial.Serial(port.name, timeout=Driver._MAX_RESPONSE_TIME,
                                        write_timeout=Driver._MAX_RESPONSE_TIME) as device:
                         if self._check_hardware_id(device):
-                            self.port_name = port.name
+                            self._port_name = port.name
                             logging.info(f"Found {self.device_name} at {self.port_name}")
                             return
                 except serial.SerialException:
