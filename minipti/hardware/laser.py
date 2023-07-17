@@ -3,6 +3,7 @@ import dataclasses
 import json
 import logging
 import os
+import typing
 from dataclasses import dataclass
 from typing import Annotated, Union
 
@@ -35,8 +36,12 @@ class Driver(serial_device.Driver):
         self.low_power_laser = LowPowerLaser(self)
 
     def open(self) -> None:
-        self.low_power_laser.initialize()
+        super().open()
         self.high_power_laser.initialize()
+        self.low_power_laser.initialize()
+        # Disable lasers, if they were enabled by default, for safety
+        self.low_power_laser.enabled = False
+        self.high_power_laser.enabled = False
 
     @property
     def device_id(self) -> bytes:
@@ -49,14 +54,6 @@ class Driver(serial_device.Driver):
     @property
     def end_data_frame(self) -> int:
         return 4
-
-    def open(self) -> None:
-        super().open()
-        self.high_power_laser.initialize()
-        self.low_power_laser.initialize()
-        # Disable lasers, if they were enabled by default, for safety
-        self.low_power_laser.enabled = False
-        self.high_power_laser.enabled = False
 
     def _process_data(self) -> None:
         while self.connected.is_set():
@@ -102,8 +99,6 @@ class HighPowerLaserConfig:
     NUMBER_OF_STEPS = 1 << 7
     _PRE_RESISTOR = 1.6e3
 
-    _NUMBER_OF_DIGITS = serial_device.Driver.NUMBER_OF_HEX_BYTES
-
     max_current_mA: float
     bit_value: int
     DAC: list[DAC, DAC]
@@ -146,12 +141,11 @@ class LowPowerLaserConfig:
 
     @staticmethod
     def current_to_bit(current: float) -> int:
+        # Values and formula is given by hardware
         return int(-5.335 * current + 260.4)
 
 
 class Laser:
-    _NUMBER_OF_DIGITS = 4
-
     def __init__(self, driver: Driver):
         self.config_path = ""
         self._driver = driver
@@ -252,14 +246,15 @@ class LowPowerLaser(Laser):
 
     def set_photo_diode_gain(self) -> None:
         self.photo_diode_gain.value = self.configuration.photo_diode_gain
-        # self._driver.write(self.photo_diode_gain)
+        self._driver.write(self.photo_diode_gain)
 
 
 class HighPowerLaser(Laser):
-    _DAC_1_REGISTER: list[int] = [1 << 8, 1 << 9, 1 << 10, 1 << 11, 1 << 12, 1 << 13]
-    _DAC_2_REGISTER: list[int] = [1 << 14, 1 << 15, 1 << 0, 1 << 1, 1 << 2, 1 << 3]
     _CHANNELS = 3
     _DAC_CHANNELS = 2
+    _DAC = typing.Annotated[tuple[int], 6]
+    _DAC_REGISTER: tuple[_DAC, _DAC] = ((1 << 8, 1 << 9, 1 << 10, 1 << 11, 1 << 12, 1 << 13),
+                                        (1 << 14, 1 << 15, 1 << 0, 1 << 1, 1 << 2, 1 << 3))
 
     def __init__(self, driver: Driver):
         Laser.__init__(self, driver)
@@ -267,7 +262,7 @@ class HighPowerLaser(Laser):
         self.configuration: Union[None, HighPowerLaserConfig] = None
         self._init = serial_device.SerialStream("CHI0000")
         self._set_voltage = serial_device.SerialStream("SHV0000")
-        self._control_register = [serial_device.SerialStream("SC10000"), serial_device.SerialStream("SC20000")]
+        self._control_register = serial_device.SerialStream("SC10000")
         self._set_dac = [serial_device.SerialStream("SC30000"), serial_device.SerialStream("SC40000")]
         self._enable = serial_device.SerialStream("SHE0001")
         self.load_configuration()
@@ -314,8 +309,9 @@ class HighPowerLaser(Laser):
         for i in range(HighPowerLaser._CHANNELS):
             for j in range(HighPowerLaser._DAC_CHANNELS):
                 if self.configuration.DAC[j].continuous_wave[i]:
-                    matrix |= HighPowerLaser._DAC_1_REGISTER[2 * i]
+                    matrix |= HighPowerLaser._DAC_REGISTER[j][2 * i]
                 elif self.configuration.DAC[j].pulsed_mode[i]:
-                    matrix |= HighPowerLaser._DAC_1_REGISTER[2 * i + 1]
-        self._control_register[0].value = matrix
-        self._driver.write(self._control_register[0])
+                    matrix &= ~ HighPowerLaser._DAC_REGISTER[j][2 * i]  # Disable DC part first
+                    matrix |= HighPowerLaser._DAC_REGISTER[j][2 * i + 1]
+        self._control_register.value = matrix
+        self._driver.write(self._control_register)
