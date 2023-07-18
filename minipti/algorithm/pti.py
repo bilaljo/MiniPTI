@@ -207,7 +207,6 @@ class Decimation:
     """
     REF_VOLTAGE: float = 3.3  # V
     REF_PERIOD: int = 100  # Samples
-    SAMPLES: int = 8000
     DC_RESOLUTION: int = (1 << 12) - 1  # 12 Bit ADC
     AC_RESOLUTION: int = (1 << (16 - 1)) - 1  # 16 bit ADC with 2 complement
     AMPLIFICATION: int = 100  # Theoretical value given by the hardware
@@ -215,19 +214,33 @@ class Decimation:
     UNTIL_MICRO_SECONDS = -3
 
     def __init__(self):
-        self.dc_coupled: Union[NDArray[Shape[3, f"{Decimation.SAMPLES}"], UInt16], None] = None
-        self.ac_coupled: Union[NDArray[Shape[3, f"{Decimation.SAMPLES}"], Int16], None] = None
+        self._average_period: int = 8000  # Recommended default value
+        self.dc_coupled: Union[NDArray[UInt16], None] = None
+        self.ac_coupled: Union[NDArray[Int16], None] = None
         self.dc_signals: Union[np.ndarray, None] = None
         self.lock_in: LockIn = LockIn(np.empty(shape=3), np.empty(shape=3))
-        self.ref: Union[NDArray[Shape["1", f"{Decimation.SAMPLES}"], UInt16], None] = None
+        self.ref: Union[NDArray[UInt16], None] = None
         self.save_raw_data: bool = False
-        self.in_phase: np.ndarray = np.cos(2 * np.pi / Decimation.REF_PERIOD * np.arange(0, Decimation.SAMPLES))
-        self.quadrature: np.ndarray = np.sin(2 * np.pi / Decimation.REF_PERIOD * np.arange(0, Decimation.SAMPLES))
         self.destination_folder: str = "."
         self.file_path: str = ""
         self.raw_data_file_path = ""
         self.init_header: bool = True
         self.init_raw_data: bool = True
+        self._update_lock_in_look_up_table()
+
+    @property
+    def average_period(self) -> int:
+        return self._average_period
+
+    @average_period.setter
+    def average_period(self, average_period: int) -> None:
+        print("A")
+        self._average_period = average_period
+        self._update_lock_in_look_up_table()
+
+    def _update_lock_in_look_up_table(self) -> None:
+        self.in_phase: np.ndarray = np.cos(2 * np.pi / Decimation.REF_PERIOD * np.arange(0, self.average_period))
+        self.quadrature: np.ndarray = np.sin(2 * np.pi / Decimation.REF_PERIOD * np.arange(0, self.average_period))
 
     def process_raw_data(self) -> None:
         """

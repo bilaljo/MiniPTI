@@ -413,6 +413,7 @@ class Signals(QtCore.QObject):
     tec_data = QtCore.pyqtSignal(Buffer)
     tec_data_display = QtCore.pyqtSignal(hardware.tec.Data)
     clear_daq = QtCore.pyqtSignal()
+    samples_changed = QtCore.pyqtSignal(int)
 
     def __init__(self):
         QtCore.QObject.__init__(self)
@@ -483,12 +484,16 @@ class Calculation:
                        algorithm.pti.Inversion(interferometer=self.interferometry.interferometer))
         self._destination_folder = os.getcwd()
         signals.destination_folder_changed.connect(self._update_destination_folder)
+        signals.samples_changed.connect(self._update_decimation_average_period)
 
     def _update_destination_folder(self, folder: str) -> None:
         self.interferometry.characterization.destination_folder = folder
         self.pti.inversion.destination_folder = folder
         self.pti.decimation.destination_folder = folder
         self._destination_folder = folder
+
+    def _update_decimation_average_period(self, samples: int) -> None:
+        self.pti.decimation.average_period = samples
 
 
 class LiveCalculation(Calculation):
@@ -682,7 +687,21 @@ class Motherboard(Serial):
     def __init__(self):
         Serial.__init__(self)
         self.bms_data: tuple[float, float] = (0, 0)
+        self.initialized = False
+
+    def initialize(self) -> None:
         self.driver.load_config()
+        signals.samples_changed.emit(self.number_of_samples)
+        self.initialized = True
+
+    @property
+    def number_of_samples(self) -> int:
+        return self.driver.config.daq.number_of_samples
+
+    @number_of_samples.setter
+    def number_of_samples(self, samples: int) -> None:
+        signals.samples_changed.emit(samples)
+        self.driver.config.daq.number_of_samples = samples
 
     @property
     def connected(self) -> bool:
