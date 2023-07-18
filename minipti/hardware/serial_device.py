@@ -1,5 +1,6 @@
 import abc
 import functools
+import itertools
 import logging
 import os
 import platform
@@ -132,7 +133,7 @@ class Driver:
     def find_port(self) -> None:
         if self.is_open:
             return
-        for _ in range(Driver._SEARCH_ATTEMPTS):
+        for _ in itertools.repeat(None, Driver._SEARCH_ATTEMPTS):
             for port in list_ports.comports():
                 try:
                     with serial.Serial(port.name, timeout=Driver._MAX_RESPONSE_TIME,
