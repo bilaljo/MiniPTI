@@ -27,7 +27,8 @@ class SerialStream:
     _COMMAND = 0
     _VALUE = 1
     _NUMBER_OF_HEX_DIGITS = 4
-    _STREAM_PATTERN = re.compile(r"[GSC][a-zA-Z][\da-zA-Z][\da-fA-F]{4}")  # 4 Hex Digits
+    #_STREAM_PATTERN = re.compile(r"[GSC][a-zA-Z][\da-zA-Z][\da-fA-F]{4}")  # 4 Hex Digits
+    _STREAM_PATTERN = re.compile(r"[G|S]et[a-zA-Z]+:\[? ]\?")  # 4 Hex Digits
     _MIN_VALUE = 0
     _MAX_VALUE = (1 << _NUMBER_OF_HEX_DIGITS * 4) - 1  # 1 hex byte corresponds to 4 binary bytes
 
