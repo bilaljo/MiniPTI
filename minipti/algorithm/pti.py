@@ -6,7 +6,7 @@ import os
 from collections.abc import Generator
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Union
+from typing import Final, Union
 
 import h5py
 import numpy as np
@@ -29,13 +29,13 @@ class Inversion:
     [1]: Waveguide based passively demodulated photo-thermal
          interferometer for aerosol measurements
     """
-    MICRO_RAD = 1e6
-    LOCK_IN_HEADERS = [([f"X{i}" for i in range(1, 4)], [f"Y{i}" for i in range(1, 4)]),
-                       ([f"x{i}" for i in range(1, 4)], [f"y{i}" for i in range(1, 4)]),
-                       ([f"Lock In Amplitude CH{i}" for i in range(1, 4)],
-                        [f"Lock In Phase CH{i}" for i in range(1, 4)]),
-                       ([f"AC CH{i}" for i in range(1, 4)],
-                        [f"AC Phase CH{i}" for i in range(1, 4)])]
+    MICRO_RAD: Final[float] = 1e6
+    LOCK_IN_HEADERS: Final = [([f"X{i}" for i in range(1, 4)], [f"Y{i}" for i in range(1, 4)]),
+                              ([f"x{i}" for i in range(1, 4)], [f"y{i}" for i in range(1, 4)]),
+                              ([f"Lock In Amplitude CH{i}" for i in range(1, 4)],
+                              [f"Lock In Phase CH{i}" for i in range(1, 4)]),
+                              ([f"AC CH{i}" for i in range(1, 4)],
+                              [f"AC Phase CH{i}" for i in range(1, 4)])]
 
     def __init__(self, response_phases=None, sign=1, interferometer=None,
                  settings_path=f"{os.path.dirname(__file__)}/configs/settings.csv"):
@@ -215,11 +215,11 @@ class Decimation:
     UNTIL_MICRO_SECONDS = -3
 
     def __init__(self):
-        self.dc_coupled: Union[NDArray[Shape[3, f"{Decimation.SAMPLES}"], UInt16], None] = None
-        self.ac_coupled: Union[NDArray[Shape[3, f"{Decimation.SAMPLES}"], Int16], None] = None
-        self.dc_signals: Union[np.ndarray, None] = None
+        self.dc_coupled: Union[NDArray[UInt16], None] = None
+        self.ac_coupled: Union[NDArray[Int16], None] = None
+        self.dc_signals: Union[NDArray[float], None] = None
         self.lock_in: LockIn = LockIn(np.empty(shape=3), np.empty(shape=3))
-        self.ref: Union[NDArray[Shape["1", f"{Decimation.SAMPLES}"], UInt16], None] = None
+        self.ref: Union[NDArray[UInt16], None] = None
         self.save_raw_data: bool = False
         self.in_phase: np.ndarray = np.cos(2 * np.pi / Decimation.REF_PERIOD * np.arange(0, Decimation.SAMPLES))
         self.quadrature: np.ndarray = np.sin(2 * np.pi / Decimation.REF_PERIOD * np.arange(0, Decimation.SAMPLES))

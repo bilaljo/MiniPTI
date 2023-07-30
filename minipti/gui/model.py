@@ -1175,7 +1175,7 @@ class Tec(Serial):
     @p_value.setter
     def p_value(self, p_value: float) -> None:
         self.tec.configuration.pid.proportional_value = p_value
-        self.tec.set_pid_p_value()
+        self.tec.set_pid_p_gain()
 
     @property
     def i_1_value(self) -> float:
@@ -1184,7 +1184,7 @@ class Tec(Serial):
     @i_1_value.setter
     def i_1_value(self, i_value: int) -> None:
         self.tec.configuration.pid.integral_value[0] = i_value
-        self.tec.set_pid_i_value(0)
+        self.tec.set_pid_i_gain(0)
 
     @property
     def i_2_value(self) -> float:
@@ -1193,7 +1193,7 @@ class Tec(Serial):
     @i_2_value.setter
     def i_2_value(self, i_value: float) -> None:
         self.tec.configuration.pid.integral_value[1] = i_value
-        self.tec.set_pid_i_value(1)
+        self.tec.set_pid_i_gain(1)
 
     @property
     def d_value(self) -> int:
@@ -1203,7 +1203,7 @@ class Tec(Serial):
     def d_value(self, d_value: int) -> None:
         if isinstance(d_value, int) and d_value >= 0:
             self.tec.configuration.pid.derivative_value = d_value
-            self.tec.set_pid_d_value()
+            self.tec.set_pid_d_gain()
         else:
             self.tec_signals.d_value.emit(self.tec.configuration.pid.derivative_value)
 

@@ -8,7 +8,7 @@ import logging
 import os
 import threading
 import typing
-from typing import Union, Generator
+from typing import Final, Generator
 from collections import defaultdict
 
 import numpy as np
@@ -26,24 +26,24 @@ class Interferometer:
     """
     Provides the API for calculating the interferometric phase based on its characteristic values.
     """
-    CHANNELS = 3
+    CHANNELS: Final[int] = 3
 
-    DC_HEADERS = [[f"PD{i}" for i in range(1, 4)],
-                  [f"DC CH{i}" for i in range(1, 4)]]
+    DC_HEADERS: Final[list] = [[f"PD{i}" for i in range(1, 4)],
+                                         [f"DC CH{i}" for i in range(1, 4)]]
 
-    OPTIMAL_SYMMETRY = 86.58  # %
+    OPTIMAL_SYMMETRY: Final[float]  = 86.58  # %
 
     def __init__(self, settings_path=f"{os.path.dirname(__file__)}/configs/settings.csv",
                  decimation_filepath="data/Decimation.csv", output_phases=np.empty(shape=3),
                  amplitudes=np.empty(shape=3), offsets=np.empty(shape=3)):
         self.settings_path = settings_path
         self.decimation_filepath = decimation_filepath
-        self.phase: Union[float, np.ndarray] = 0
+        self.phase: float | np.ndarray = 0
         self._output_phases = output_phases
         self._amplitudes = amplitudes
         self._offsets = offsets
-        self.absolute_symmetry: Union[float, np.ndarray] = 100
-        self.relative_symmetry: Union[float, np.ndarray] = 100
+        self.absolute_symmetry: float | np.ndarray = 100
+        self.relative_symmetry: float | np.ndarray = 100
         self._locks = _Locks()
 
     def load_settings(self) -> None:
@@ -114,7 +114,7 @@ class Interferometer:
         with self._locks.output_phases:
             self._output_phases = output_phases
 
-    def read_decimation(self) -> Union[pd.DataFrame, None]:
+    def read_decimation(self) -> pd.DataFrame | None:
         try:
             with open(self.decimation_filepath, "r", encoding="UTF-8") as csv_file:
                 dc_delimiter = str(csv.Sniffer().sniff(csv_file.readline()).delimiter)
@@ -183,8 +183,8 @@ class Characterization:
     Provided an API for the characterization_live of an interferometer as described in [1].
     [1]:
     """
-    MAX_ITERATIONS = 30
-    STEP_SIZE = 100
+    MAX_ITERATIONS: Final[int] = 30
+    STEP_SIZE: Final[int] = 100
 
     def __init__(self, interferometer=Interferometer(), use_configuration=True, use_parameters=True):
         self.interferometer = interferometer

@@ -8,7 +8,7 @@ import time
 from collections import deque
 from configparser import ConfigParser
 from dataclasses import dataclass, asdict
-from typing import Sequence, Union
+from typing import Final, Sequence, Union
 
 from fastcrc import crc16
 
@@ -84,17 +84,17 @@ class Driver(serial_device.Driver):
     system. The data is accordingly to a defined protocol encoded and build into a packages of
     samples.
     """
-    _PACKAGE_SIZE_START_INDEX = 1
-    _PACKAGE_SIZE_END_INDEX = 9
-    _CRC_START_INDEX = 4
-    _DAQ_PACKAGE_SIZE = 4109
-    _BMS_PACKAGE_SIZE = 39
-    _WORD_SIZE = 32
+    _PACKAGE_SIZE_START_INDEX: Final[int] = 1
+    _PACKAGE_SIZE_END_INDEX: Final[int] = 9
+    _CRC_START_INDEX: Final[int] = 4
+    _DAQ_PACKAGE_SIZE: Final[int] = 4109
+    _BMS_PACKAGE_SIZE: Final[int] = 39
+    _WORD_SIZE: Final[int] = 32
 
-    HARDWARE_ID = b"0001"
-    NAME = "Motherboard"
+    HARDWARE_ID: Final[str] = b"0001"
+    NAME: Final[str] = "Motherboard"
 
-    _CHANNELS = 3
+    _CHANNELS: Final[int] = 3
 
     def __init__(self):
         serial_device.Driver.__init__(self)

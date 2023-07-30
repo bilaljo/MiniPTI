@@ -1,5 +1,5 @@
-import abc
-import functools
+from abc import abstractmethod, ABC
+from functools import singledispatchmethod
 import logging
 import os
 import platform
@@ -8,8 +8,11 @@ import time
 from dataclasses import dataclass
 from enum import Enum
 from typing import Union
+from numbers import Real
 import threading
 import queue
+
+from overrides import final
 
 
 if platform.system() == "Windows":
@@ -21,55 +24,10 @@ import serial
 from serial.tools import list_ports
 
 
-class SerialStream:
-    _COMMAND_PREFIX = 3
-    _COMMAND = 0
-    _VALUE = 1
-    _NUMBER_OF_HEX_DIGITS = 4
-    _STREAM_PATTERN = re.compile(r"[GSC][a-zA-Z][\da-zA-Z][\da-fA-F]{4}")  # 4 Hex Digits
-    _MIN_VALUE = 0
-    _MAX_VALUE = (1 << _NUMBER_OF_HEX_DIGITS * 4) - 1  # 1 hex byte corresponds to 4 binary bytes
-
-    def __init__(self, stream: str):
-        """
-        A serial stream consistent of three bytes whereby the first represents a command for the serial device
-        (G for Get, S for Set and C for Command ("execute")). The next 4 bytes represent the value that is needed for
-        the command. The values are represented in hex strings.
-        """
-        if not SerialStream._STREAM_PATTERN.fullmatch(stream):
-            raise ValueError(f"Stream {stream} is not valid")
-        self._stream = stream
-        self._package: list[str, str] = [stream[:SerialStream._COMMAND_PREFIX], stream[SerialStream._COMMAND_PREFIX:]]
-
-    def __str__(self) -> str:
-        return self._stream
-
-    def __repr__(self) -> str:
-        return f"SerialStream(command={self.command}, value={self.value}, stream={self.stream})"
-
-    @property
-    def command(self) -> str:
-        return self._package[SerialStream._COMMAND]
-
-    @property
-    def value(self) -> int:
-        return int(self._package[SerialStream._VALUE], base=16)
-
-    @value.setter
-    def value(self, value: Union[str, int]) -> None:
-        if not (SerialStream._MIN_VALUE <= int(value) < SerialStream._MAX_VALUE):
-            raise ValueError("Value is out of range for 4 digit hex values")
-        elif not isinstance(value, str):
-            value = f"{value:0{SerialStream._NUMBER_OF_HEX_DIGITS}X}"
-        self._package[SerialStream._VALUE] = value
-        self._stream = self._stream[:SerialStream._COMMAND_PREFIX] + self._package[SerialStream._VALUE]
-
-    @property
-    def stream(self) -> str:
-        return self._stream
 
 
-class Driver:
+
+class Driver(ABC):
     """
     Base class for serial port reading and writing. Note that the class uses for reading, writing and proceeding of
     incoming data respectively their own event loops, e.g. the reading is done blocking synchronously (without polling).
@@ -112,12 +70,12 @@ class Driver:
             self.port_name = old_port_name
 
     @property
-    @abc.abstractmethod
+    @abstractmethod
     def device_id(self) -> bytes:
         ...
 
     @property
-    @abc.abstractmethod
+    @abstractmethod
     def device_name(self) -> str:
         ...
 
@@ -129,6 +87,7 @@ class Driver:
                          f" port_name={self.port_name})"
         return representation
 
+    @final
     def find_port(self) -> None:
         if self.is_open:
             return
@@ -146,6 +105,7 @@ class Driver:
         else:
             raise OSError(f"Could not find {self.device_name}. Maybe it is already connected")
 
+    @final
     def _check_hardware_id(self, device) -> bool:
         device.write(Command.HARDWARE_ID + Driver._TERMINATION_SYMBOL.encode())
         time.sleep(0.1)
@@ -153,6 +113,7 @@ class Driver:
         self.received_data.put(device.read(available_bytes))
         return self.get_hardware_id() == self.device_id
 
+    @final
     def _clear(self) -> None:
         self._write_buffer = queue.Queue()
         self.data = queue.Queue()
@@ -161,6 +122,7 @@ class Driver:
         self._ready_write.set()
 
     if platform.system() == "Windows":
+        @final
         def open(self) -> None:
             if self.port_name and not self.is_open:
                 self._clear()
@@ -173,6 +135,7 @@ class Driver:
             else:
                 raise OSError("Could not connect with %s", self.device_name)
     else:
+        @final
         def open(self) -> None:
             if self.port_name and not self.is_open:
                 try:
@@ -207,12 +170,14 @@ class Driver:
             else:
                 raise OSError("Could not connect with %s", self.device_name)
 
+    @final
     def run(self) -> None:
         threading.Thread(target=self._write, daemon=True, name=f"{self.device_name} Write Thread").start()
         if platform.system() != "Windows":
             threading.Thread(target=self._receive, daemon=True, name=f"{self.device_name} Receive Thread").start()
         threading.Thread(target=self._process_data, daemon=True, name=f"{self.device_name} Processing Thread").start()
 
+    @final
     def get_hardware_id(self) -> Union[bytes, None]:
         try:
             received_data: bytes = self.received_data.get(timeout=Driver._MAX_RESPONSE_TIME)
@@ -223,53 +188,33 @@ class Driver:
             hardware_id = hardware_id.group()
             return Patterns.HEX_VALUE.search(hardware_id).group()
 
-    def command_error_handing(self, received: str) -> None:
-        if Patterns.ERROR.search(received) is not None:
-            error = Patterns.HEX_VALUE.search(Patterns.ERROR.search(received).group()).group()
-            if error == Error.COMMAND:
-                raise OSError(f"Packet length != 7 characters ('\n' excluded) from {self.port_name}")
-            elif error == Error.PARAMETER:
-                raise OSError(f"Error converting the hex parameter from {self.port_name}")
-            elif error == Error.COMMAND:
-                raise OSError(f"Request consists of an unknown/invalid command from {self.port_name}")
-            elif error == Error.UNKNOWN_COMMAND:
-                raise OSError(f"Unknown command from {self.port_name}")
-
-    @functools.singledispatchmethod
+    @singledispatchmethod   
+    @final
     def write(self, message: str) -> bool:
         if self.connected.is_set():
             self._write_buffer.put(message, block=False)
             return True
         return False
 
-    @write.register
-    def _(self, message: int) -> bool:
-        if self.connected.is_set():
-            self._write_buffer.put(str(message), block=False)
-            return True
-        return False
-
+    @write.register(int)
     @write.register(SerialStream)
-    def _(self, message: SerialStream) -> bool:
+    @final
+    def _(self, message: Union[int, SerialStream]) -> bool:
         if self.connected.is_set():
             self._write_buffer.put(str(message), block=False)
             return True
         return False
 
-    @write.register
-    def _(self, message: bytes) -> bool:
+    @write.register(bytes)
+    @write.register(bytearray)
+    @final
+    def _(self, message: Union[bytes, bytearray]) -> bool:
         if self.connected.is_set():
             self._write_buffer.put(message.decode(), block=False)
             return True
         return False
 
-    @write.register
-    def _(self, message: bytearray) -> bool:
-        if self.connected.is_set():
-            self._write_buffer.put(message.decode(), block=False)
-            return True
-        return False
-
+    @final
     def _write(self) -> None:
         while self.connected.is_set():
             self._ready_write.wait(timeout=Driver._MAX_RESPONSE_TIME)
@@ -282,12 +227,14 @@ class Driver:
             logging.debug("%s written to %s", self.last_written_message[:-1], self.device_name)
             self._ready_write.clear()
 
+    @final
     def _transfer(self) -> None:
         if platform.system() == "Windows":
             self._serial_port.Write(self.last_written_message)
         else:
             os.write(self._file_descriptor, self.last_written_message.encode())
 
+    @final
     def _check_ack(self, data: str) -> bool:
         last_written = self.last_written_message[:-1]
         if data != last_written and data != last_written.capitalize():
@@ -325,13 +272,15 @@ class Driver:
         """
         Serial Port Reading Implementation on Windows.
         """
-        def _receive(self, sender, arg: System.IO.Ports.SerialDataReceivedEventArgs) -> None:
+        @final
+        def _receive(self, _sender, _arg: System.IO.Ports.SerialDataReceivedEventArgs) -> None:
             self.received_data.put(self._serial_port.ReadExisting())
 
     else:
         """
         Serial Port Reading Implementation on Unix.
         """
+        @final
         def _receive(self) -> None:
             """
             This threads blocks until data on the serial port is available. If after 5 s now data has come it is assumed
@@ -347,6 +296,7 @@ class Driver:
                     self._file_descriptor = -1
                     self.connected.clear()
 
+    @final
     def get_data(self) -> str:
         try:
             received_data: str = self.received_data.get(block=True, timeout=Driver._MAX_WAIT_TIME)
@@ -358,14 +308,14 @@ class Driver:
                 self._file_descriptor = -1
             raise OSError
 
-    @abc.abstractmethod
+    @abstractmethod
     def _encode_data(self) -> None:
         """
         Encodes incoming data of the serial device. Each package has a package identifier, to decide the decoding
         algorithm of it.
         """
 
-    @abc.abstractmethod
+    @abstractmethod
     def _process_data(self) -> None:
         ...
 
