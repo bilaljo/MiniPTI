@@ -1,5 +1,5 @@
 from abc import abstractmethod, ABC
-from functools import singledispatchmethod
+import functools
 import logging
 import os
 import platform
@@ -8,9 +8,9 @@ import time
 from dataclasses import dataclass
 from enum import Enum
 from typing import Union
-from numbers import Real
 import threading
 import queue
+import itertools
 
 from overrides import final
 
@@ -22,9 +22,6 @@ else:
     import termios
 import serial
 from serial.tools import list_ports
-
-
-
 
 
 class Driver(ABC):
@@ -91,7 +88,7 @@ class Driver(ABC):
     def find_port(self) -> None:
         if self.is_open:
             return
-        for _ in range(Driver._SEARCH_ATTEMPTS):
+        for _ in itertools.repeat(None, Driver._SEARCH_ATTEMPTS):
             for port in list_ports.comports():
                 try:
                     with serial.Serial(port.name, timeout=Driver._MAX_RESPONSE_TIME,
@@ -188,7 +185,7 @@ class Driver(ABC):
             hardware_id = hardware_id.group()
             return Patterns.HEX_VALUE.search(hardware_id).group()
 
-    @singledispatchmethod   
+    @functools.singledispatchmethod   
     @final
     def write(self, message: str) -> bool:
         if self.connected.is_set():

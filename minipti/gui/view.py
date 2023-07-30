@@ -5,6 +5,7 @@ import functools
 import typing
 from typing import NamedTuple
 
+import numpy as np
 import pandas as pd
 import pyqtgraph as pg
 from PyQt5 import QtWidgets, QtCore, QtGui
@@ -312,6 +313,8 @@ class Settings(QtWidgets.QTabWidget, _Frames, _CreateButton):
             self.samples.setText(f"{int((float(text[:-3]) / 1000) * 8000)} Samples")
         else:
             self.samples.setText(f"{int(float(text[:-2]) * 8000)} Samples")
+        print("Called")
+        self.controller.update_average_period(self.samples.text())
 
     @QtCore.pyqtSlot(hardware.motherboard.Valve)
     def update_valve(self, valve: hardware.motherboard.Valve) -> None:

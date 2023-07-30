@@ -64,6 +64,7 @@ class Home:
         self.pump_laser_tec = model.Tec(model.Tec.PUMP_LASER)
         self.probe_laser_tec = model.Tec(model.Tec.PROBE_LASER)
         settings_controller.raw_data_changed.connect(self.calculation_model.set_raw_data_saving)
+        self.motherboard.initialize()
 
     def fire_motherboard_configuration_change(self) -> None:
         self.motherboard.fire_configuration_change()
@@ -113,6 +114,10 @@ class Settings:
     @property
     def raw_data_changed(self) -> QtCore.pyqtSignal:
         return self.view.save_raw_data.stateChanged
+
+    def update_average_period(self, samples: str) -> None:
+        samples_number = samples.split(" Samples")[0]  # Value has the structure "X Samples"
+        self.motherboard.number_of_samples = int(samples_number)
 
     def fire_mother_board_configuration(self) -> None:
         self.motherboard.fire_configuration_change()
