@@ -1,4 +1,5 @@
 .idea
+.vscode
 notebooks/__pycache__
 tests/__pycache__
 minipti/__pycache__
@@ -8,4 +9,4 @@ minipti/hardware/__pycache__
 *.log
 venv
 *.csv
-*.h5
+*.hdf5
