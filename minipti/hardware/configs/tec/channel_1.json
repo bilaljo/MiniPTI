@@ -10,13 +10,13 @@
             "cooling": true
         },
         "pid": {
-            "proportional_value": 30,
-            "integral_value": [10, 10],
-            "derivative_value": 0
+            "proportional_gain": 30,
+            "integral_gain": [10, 10],
+            "derivative_gain": 0
         },
         "system_parameter": {
             "setpoint_temperature": 25,
-            "loop_time": 26,
+            "loop_time_ms": 26,
             "reference_resistor": 0,
             "max_power": 330
         }

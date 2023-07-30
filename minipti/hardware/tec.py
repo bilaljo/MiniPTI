@@ -2,13 +2,14 @@ import dataclasses
 import json
 import logging
 import os
-import typing
+from typing import Final, NamedTuple
 from dataclasses import dataclass
 
 import dacite
 
 from . import serial_device
 from .. import json_parser
+from . import protocolls
 
 
 ROOM_TEMPERATURE_CELSIUS = 23
@@ -16,34 +17,42 @@ ROOM_TEMPERATURE_CELSIUS = 23
 
 @dataclass
 class Data:
-    set_point: [float, float]
-    actual_temperature: [float, float]
+    set_point: list[float]
+    actual_temperature: list[float]
 
 
-class _TemperatureIndex(typing.NamedTuple):
-    SET_POINT = [7, 8]
-    PT100B = [0, 1]
-    KT = [4, 5]
-    NTC = [16, 17]
+class Status(NamedTuple):
+    VALUE: Final = 0
+    TEXT: Final = 1
+    ERROR: Final = ((0x0010, "Chip Error"),
+                    (0x0020, "Kt1: Open"),
+                    (0x0040, "Kt1 VCC shorted"),
+                    (0x0080, "Kt1 GND shorted"),
+                    (0x2000, "Kt2 Open"),
+                    (0x4000, "Kt2 VCC shorted"),
+                    (0x8000, "Kt2 GND shorted"),
+                    (0x0100, "TEC overcurrent"),
+                    (0x0200, "TEC overtemperature"),
+                    (0x0400, "Pt100b chip error")
+                    )
 
-
-@dataclass(frozen=True)
-class Status:
-    VALUE = 0
-    TEXT = 1
-    ERROR = [(0x0010, "Chip Error"), (0x0020, "Kt1: Open"), (0x0040, "Kt1 VCC shorted"),
-             (0x0080, "Kt1 GND shorted"), (0x2000, "Kt2 Open"), (0x4000, "Kt2 VCC shorted"),
-             (0x8000, "Kt2 GND shorted"), (0x0100, "TEC overcurrent"), (0x0200, "TEC overtemperature"),
-             (0x0400, "Pt100b chip error")]
+class _TecDataIndex(NamedTuple):
+    PT1000: Final = (0, 1)
+    KT: Final = (5, 6)
+    PELTIER_STATUS: Final = 8
+    SET_POINT: Final = (9, 10)
+    PT1000_STATUS = 16
+    NTC: Final = (17, 18)
 
 
 class Driver(serial_device.Driver):
     _HARDWARE_ID = b"0003"
     NAME = "Tec"
+    CHANNELS = 2
 
     def __init__(self):
         serial_device.Driver.__init__(self)
-        self.tec = [Tec(1, self), Tec(2, self)]
+        self.tec = [Tec(0, self), Tec(1, self)]
 
     @property
     def device_id(self) -> bytes:
@@ -62,10 +71,6 @@ class Driver(serial_device.Driver):
         while self.connected.is_set():
             self._encode_data()
 
-    @staticmethod
-    def _bit_to_celsisus(bit_stream: str) -> float:
-        return float(bit_stream) / 100
-
     def _encode_data(self) -> None:
         try:
             received_data: str = self.get_data()
@@ -75,10 +80,10 @@ class Driver(serial_device.Driver):
             if not received:
                 continue
             identifier = received[0]
-            if identifier == "N":
+            if identifier == "E":
                 logging.error("Invalid command %s", received)
                 self._ready_write.set()
-            elif identifier == "S" or identifier == "C":
+            elif identifier == "S":
                 last_written = self.last_written_message[:-1]
                 if received != last_written and received != last_written.capitalize():
                     logging.error("Received message %s message, expected %s", received, last_written)
@@ -87,28 +92,158 @@ class Driver(serial_device.Driver):
                 self._ready_write.set()
             elif identifier == "T":
                 data_frame = received.split("\t")[Driver._START_DATA_FRAME:]
-                status_byte_frame = int(data_frame[13])  # 13 is the index according to the protocol
+                status_byte_frame = int(data_frame[_TecDataIndex.PT1000_STATUS])
                 for error in Status.ERROR:
                     if error[Status.VALUE] & status_byte_frame:
                         logging.error("Got \"%s\" from TEC Driver", error[Status.TEXT])
-                set_point = [Driver._bit_to_celsisus(data_frame[_TemperatureIndex.SET_POINT[0]]),
-                             Driver._bit_to_celsisus(data_frame[_TemperatureIndex.SET_POINT[1]])]
-                if self.tec[0].configuration.temperature_element.PT1000:
-                    actual_temperature = [float(data_frame[_TemperatureIndex.PT100B[0]]),
-                                          float(data_frame[_TemperatureIndex.PT100B[1]])]
-                elif self.tec[0].configuration.temperature_element.KT:
-                    actual_temperature = [float(data_frame[_TemperatureIndex.KT[0]]),
-                                          float(data_frame[_TemperatureIndex.KT[1]])]
-                elif self.tec[0].configuration.temperature_element.NTC:
-                    actual_temperature = [float(data_frame[_TemperatureIndex.NTC[0]]),
-                                          float(data_frame[_TemperatureIndex.NTC[1]])]
-                else:
-                    raise ValueError("Invalid Temperature Element")
-                self.data.put(Data(set_point, actual_temperature))
+                actual_temperature: list[float] = [0, 0]
+                setpoint_temperature: list[float] = [0, 0]
+                for i in range(Driver.CHANNELS):
+                    if self.tec[i].configuration.temperature_element.PT1000:
+                        actual_temperature[i] = float(data_frame[_TecDataIndex.PT1000[i]])
+                    elif self.tec[i].configuration.temperature_element.KT:
+                        actual_temperature[i] = float(data_frame[_TecDataIndex.KT[i]])
+                    elif self.tec[i].configuration.temperature_element.NTC:
+                        actual_temperature[i] = float(data_frame[_TecDataIndex.NTC[i]])
+                    else:
+                        raise ValueError("Invalid Temperature Element")
+                    actual_temperature[i] = Tec.kelvin_to_celsisus(actual_temperature[i])
+                    setpoint_temperature[i] = Tec.kelvin_to_celsisus(float(data_frame[_TecDataIndex.SET_POINT[i]]))
+                self.data.put(Data(setpoint_temperature, actual_temperature))
             else:  # Broken data frame without header char
                 logging.error("Received invalid package without header")
                 self._ready_write.set()
                 continue
+
+
+class Commands:
+    def __init__(self, channel: int):
+        self.set_setpoint = protocolls.ASCIIMultimap(key="SetT_InK", index=channel, value=283.15)
+        self.set_p_gain = protocolls.ASCIIMultimap(key="SetPID_KP", index=channel, value=0)
+        self.set_i_gain = protocolls.ASCIIMultimap(key="SetPID_KI", index=channel, value=0)
+        self.set_d_gain = protocolls.ASCIIMultimap(key="SetPID_KD", index=channel, value=0)
+        self.set_max_output_power = protocolls.ASCIIMultimap(key="SetPID_MaxPWM", index=channel, value=0)
+        self.set_loop_time_ms = protocolls.ASCIIMultimap(key="SetPID_LoopTimeMSecs", index=channel, value=0)
+        self.set_ref_resistor = protocolls.ASCIIMultimap(key="GetPTSenseResistor_InOhm", index=channel, value=0)
+        self.set_ntc_dac = protocolls.ASCIIMultimap(key="SetNTCDAC_CurSetpoint", index=channel, value=0)
+        self.set_enable = protocolls.ASCIIMultimap(key="SetPID_Active", index=channel, value=0)
+
+class Tec:
+    _NTC_DAC_CALIBRATION_VALUE = 800
+
+    MIN_LOOP_TIME = 26
+    MAX_LOOP_TIME = 5000
+
+    def __init__(self, channel: int, driver: Driver):
+        self.commands = Commands(channel)
+        self.commands.set_ntc_dac.value = Tec._NTC_DAC_CALIBRATION_VALUE
+        self.config_path = f"{os.path.dirname(__file__)}/configs/tec/channel_{channel}.json"
+        self.driver = driver
+        self._enabled = False
+        self.configuration = Configuration()
+        self.load_configuration()
+
+    @property
+    def enabled(self) -> bool:
+        return self._enabled
+
+    @enabled.setter
+    def enabled(self, enable: bool) -> None:
+        self._enabled = enable
+        self.commands.set_enable.value = enable
+        self.driver.write(self.commands.set_enable)
+
+    def set_ntc_dac(self) -> None:
+        self.driver.write(self.commands.set_ntc_dac)
+
+    def load_configuration(self) -> None:
+        if not os.path.exists(self.config_path):
+            logging.warning("Config File not found")
+            logging.info("Creating a new file")
+            self.save_configuration()
+        else:
+            with open(self.config_path) as config:
+                try:
+                    loaded_config = json.load(config)
+                    self.configuration = dacite.from_dict(Configuration, loaded_config["Tec"])
+                except (json.decoder.JSONDecodeError, dacite.WrongTypeError):
+                    # Config file corrupted or types are wrong
+                    logging.warning("Config File was corrupted or wrong")
+                    logging.info("Creating a new file")
+                    self.configuration = Configuration()
+                    self.save_configuration()
+    def save_configuration(self) -> None:
+        with open(self.config_path, "w") as configuration:
+            lasers = {f"Tec": dataclasses.asdict(self.configuration)}
+            configuration.write(json_parser.to_json(lasers) + "\n")
+
+    def apply_configuration(self) -> None:
+        self.set_pid_d_gain()
+        self.set_pid_p_gain()
+        self.set_pid_i_gain()
+        self.set_loop_time_ms()
+        if not self.configuration.temperature_element.NTC:
+            self.set_reference_resistor()
+        self.set_max_power()
+        self.set_setpoint_temperature_value()
+
+    def set_pid_d_gain(self) -> None:
+        self.commands.set_d_gain.value = self.configuration.pid.derivative_value
+        self.driver.write(self.commands.set_d_gain)
+
+    def set_pid_p_gain(self) -> None:
+        self.commands.set_p_gain.value = self.configuration.pid.proportional_value
+        self.driver.write(self.commands.set_p_gain)
+
+    def set_pid_i_gain(self) -> None:
+        self.commands.set_i_gain.value = self.configuration.pid.integral_value
+        self.driver.write(self.commands.set_i_gain)
+
+    def set_setpoint_temperature_value(self,) -> None:
+        # Given by hardware; °C -> Bit
+        setpoint_temperature: int = int(self.configuration.system_parameter.setpoint_temperature * 100 + 32768)
+        self.commands.set_setpoint.value = setpoint_temperature
+        self.driver.write(self.commands.set_setpoint)
+
+    def set_loop_time_ms(self) -> None:
+        if self.configuration.system_parameter.loop_time < Tec.MIN_LOOP_TIME:
+            logging.error("%s ms falls below the minimum loop time of %s ms",
+                          self.configuration.system_parameter.loop_time, Tec.MIN_LOOP_TIME)
+            logging.warning("Setting it to minimum value of %s ms", Tec.MIN_LOOP_TIME)
+            self.configuration.system_parameter.loop_time = Tec.MIN_LOOP_TIME
+        elif self.configuration.system_parameter.loop_time > Tec.MAX_LOOP_TIME:
+            logging.error("%s ms exceeds the maxium loop time of %s ms",
+                          self.configuration.system_parameter.loop_time, Tec.MAX_LOOP_TIME)
+            logging.warning("Setting it to maximum value of %s ms", Tec.MAX_LOOP_TIME)
+            self.configuration.system_parameter.loop_time = Tec.MAX_LOOP_TIME
+        self.commands.set_loop_time_ms.value = self.configuration.system_parameter.loop_time
+        self.driver.write(self.commands.set_loop_time_ms)
+
+    def set_reference_resistor(self) -> None:
+        self.commands.set_ref_resistor.value = int(self.configuration.system_parameter.reference_resistor * 10)
+        self.driver.write(self.commands.set_ref_resistor)
+
+    def set_max_power(self) -> None:
+        self.commands.set_max_output_power.value = self.configuration.system_parameter.max_power
+        self.driver.write(self.commands.set_max_output_power)
+
+    """
+    def set_mode(self) -> None:
+        if self.configuration.mode.heating:
+            self.commands.set_control_loop.value = Tec._HEATING
+        else:
+            self.commands.set_control_loop.value = Tec._COOLING
+        self.driver.write(self.commands.set_control_loop)
+    """
+
+    @staticmethod
+    def kelvin_to_celsisus(temperature: float) -> float:
+        """
+        Formula follows from definition, see also here
+        https://en.wikipedia.org/wiki/Conversion_of_scales_of_temperature#Kelvin_scale
+        "Celsius to Kelvin"
+        """
+        return temperature - 273.15
 
 
 @dataclass
@@ -126,9 +261,9 @@ class _Mode:
 
 @dataclass
 class _PID:
-    proportional_value: int
-    integral_value: typing.Annotated[list[int], 2]
-    derivative_value: int
+    proportional_value: float
+    integral_value: float
+    derivative_value: float
 
 
 @dataclass
@@ -141,162 +276,7 @@ class _SystemParameter:
 
 @dataclass
 class Configuration:
-    temperature_element: _TemperatureElement
-    mode: _Mode
-    pid: _PID
-    system_parameter: _SystemParameter
-
-
-class Commands:
-    def __init__(self, channel_number: int):
-        self.set_setpoint = serial_device.SerialStream(f"SS{channel_number}0000")
-        self.set_p_value = serial_device.SerialStream(f"SP{channel_number}0000")
-        self.set_i_value = [serial_device.SerialStream(f"SI{channel_number}0000"),
-                            serial_device. SerialStream(f"SI{channel_number + 2}0000")]
-        self.set_d_value = serial_device.SerialStream(f"SD{channel_number}0000")
-        self.set_control_loop = serial_device.SerialStream(f"SL{channel_number}0000")
-        self.set_max_output_power = serial_device.SerialStream(f"SO{channel_number}0000")
-        self.set_loop_interval = serial_device.SerialStream(f"SR{channel_number}0000")
-        self.set_ref_resistor = serial_device.SerialStream(f"SC{channel_number}0000")
-        self.set_ntc_dac = serial_device.SerialStream(f"SN{channel_number}0000")
-
-
-class Tec:
-    _COOLING = 1
-    _HEATING = 2
-    _MIN_LOOP_TIME = 26  # 26 ms
-    _MAX_LOOP_TIME = 5000  # 5 s
-    MIN_PID_VALUE = 0
-    MAX_PID_VALUE = 999
-    _NTC_DAC_CALIBRATION_VALUE = 800
-
-    def __init__(self, channel_number: int, driver: Driver):
-        self.configuration: typing.Union[Configuration, None] = None
-        self.channel_number = channel_number
-        self.commands = Commands(self.channel_number)
-        self.commands.set_ntc_dac.value = Tec._NTC_DAC_CALIBRATION_VALUE
-        self.config_path: str = f"{os.path.dirname(__file__)}/configs/tec/channel_{self.channel_number}.json"
-        self.driver = driver
-        self._enabled = False
-        self.load_configuration()
-
-    @property
-    def enabled(self) -> bool:
-        return self._enabled
-
-    @enabled.setter
-    def enabled(self, enable: bool) -> None:
-        self._enabled = enable
-        self.commands.set_control_loop.value = enable
-        self.driver.write(self.commands.set_control_loop)
-
-    def set_ntc_dac(self) -> None:
-        self.driver.write(self.commands.set_ntc_dac)
-
-    def load_configuration(self) -> None:
-        if not os.path.exists(self.config_path):
-            logging.warning("Config File not found")
-            logging.info("Creating a new file")
-            self._create_configuration()
-            self.save_configuration()
-        else:
-            with open(self.config_path) as config:
-                try:
-                    loaded_config = json.load(config)
-                    self.configuration = dacite.from_dict(Configuration, loaded_config["Tec"])
-                except (json.decoder.JSONDecodeError, dacite.exceptions.WrongTypeError):
-                    # Config file corrupted or types are wrong
-                    logging.warning("Config File was corrupted or wrong")
-                    logging.info("Creating a new file")
-                    self._create_configuration()
-                    self.save_configuration()
-
-    def _create_configuration(self) -> None:
-        self.configuration = Configuration(temperature_element=_TemperatureElement(PT1000=False, KT=False, NTC=True),
-                                           mode=_Mode(heating=False, cooling=True),
-                                           pid=_PID(proportional_value=0, integral_value=[0, 0], derivative_value=0),
-                                           system_parameter=_SystemParameter(ROOM_TEMPERATURE_CELSIUS,
-                                                                             Tec._MAX_LOOP_TIME, 0, 0))
-
-    def save_configuration(self) -> None:
-        with open(self.config_path, "w") as configuration:
-            lasers = {f"Tec": dataclasses.asdict(self.configuration)}
-            configuration.write(json_parser.to_json(lasers) + "\n")
-
-    def apply_configuration(self) -> None:
-        self.set_pid_d_value()
-        self.set_pid_p_value()
-        self.set_pid_i_value(i=0)
-        self.set_pid_i_value(i=1)
-        self.set_loop_time_value()
-        if not self.configuration.temperature_element.NTC:
-            self.set_reference_resistor_value()
-        self.set_max_power_value()
-        self.set_setpoint_temperature_value()
-
-    @staticmethod
-    def _check_pid_boundaries(value: int) -> typing.Union[int, None]:
-        if value < Tec.MIN_PID_VALUE:
-            logging.error("%s falls below the minimum PID value of %s",
-                          value, Tec.MIN_PID_VALUE)
-            logging.warning("Setting it to minimum value of %s", Tec.MIN_PID_VALUE)
-            return Tec.MIN_PID_VALUE
-        elif value > Tec.MAX_PID_VALUE:
-            logging.error("%s exceeds the maximum PID value of %s",
-                          value, Tec.MAX_PID_VALUE)
-            logging.warning("Setting it to minimum value of %s", Tec.MAX_PID_VALUE)
-            return Tec.MAX_PID_VALUE
-        return None
-
-    def set_pid_d_value(self) -> None:
-        if res := Tec._check_pid_boundaries(self.configuration.pid.derivative_value) is not None:
-            self.configuration.pid.derivative_value = res
-        self.commands.set_d_value.value = self.configuration.pid.derivative_value
-        self.driver.write(self.commands.set_d_value)
-
-    def set_pid_p_value(self) -> None:
-        if res := Tec._check_pid_boundaries(self.configuration.pid.proportional_value) is not None:
-            self.configuration.pid.proportional_value = res
-        self.commands.set_p_value.value = self.configuration.pid.proportional_value
-        self.driver.write(self.commands.set_p_value)
-
-    def set_pid_i_value(self, i: int) -> None:
-        if res := Tec._check_pid_boundaries(self.configuration.pid.integral_value[i]) is not None:
-            self.configuration.pid.integral_value[i] = res
-        self.commands.set_i_value[i].value = self.configuration.pid.integral_value[i]
-        self.driver.write(self.commands.set_i_value[i])
-
-    def set_setpoint_temperature_value(self,) -> None:
-        # Given by hardware; °C -> Bit
-        setpoint_temperature: int = int(self.configuration.system_parameter.setpoint_temperature * 100 + 32768)
-        self.commands.set_setpoint.value = setpoint_temperature
-        self.driver.write(self.commands.set_setpoint)
-
-    def set_loop_time_value(self) -> None:
-        if self.configuration.system_parameter.loop_time < Tec._MIN_LOOP_TIME:
-            logging.error("%s ms falls below the minimum loop time of %s ms",
-                          self.configuration.system_parameter.loop_time, Tec._MIN_LOOP_TIME)
-            logging.warning("Setting it to minimum value of %s ms", Tec._MIN_LOOP_TIME)
-            self.configuration.system_parameter.loop_time = Tec._MIN_LOOP_TIME
-        elif self.configuration.system_parameter.loop_time > Tec._MAX_LOOP_TIME:
-            logging.error("%s ms exceeds the maxium loop time of %s ms",
-                          self.configuration.system_parameter.loop_time, Tec._MAX_LOOP_TIME)
-            logging.warning("Setting it to maximum value of %s ms", Tec._MAX_LOOP_TIME)
-            self.configuration.system_parameter.loop_time = Tec._MAX_LOOP_TIME
-        self.commands.set_loop_interval.value = self.configuration.system_parameter.loop_time
-        self.driver.write(self.commands.set_loop_interval)
-
-    def set_reference_resistor_value(self) -> None:
-        self.commands.set_ref_resistor.value = int(self.configuration.system_parameter.reference_resistor * 10)
-        self.driver.write(self.commands.set_ref_resistor)
-
-    def set_max_power_value(self) -> None:
-        self.commands.set_max_output_power.value = self.configuration.system_parameter.max_power
-        self.driver.write(self.commands.set_max_output_power)
-
-    def set_mode(self) -> None:
-        if self.configuration.mode.heating:
-            self.commands.set_control_loop.value = Tec._HEATING
-        else:
-            self.commands.set_control_loop.value = Tec._COOLING
-        self.driver.write(self.commands.set_control_loop)
+    temperature_element = _TemperatureElement(PT1000=False, KT=False, NTC=True)
+    mode = _Mode(heating=False, cooling=True)
+    pid = _PID(proportional_value=0, integral_value=0, derivative_value=0)
+    system_parameter = _SystemParameter(ROOM_TEMPERATURE_CELSIUS, Tec.MAX_LOOP_TIME, 0, 0)
