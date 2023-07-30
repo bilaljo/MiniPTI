@@ -218,11 +218,10 @@ class Decimation:
         self._average_period: int = 8000  # Recommended default value
         self.dc_coupled: Union[NDArray[UInt16], None] = None
         self.ac_coupled: Union[NDArray[Int16], None] = None
-        self.dc_signals: Union[NDArray[float], None] = None
+        self.dc_signals: Union[np.ndarray, None] = None
         self.lock_in: LockIn = LockIn(np.empty(shape=3), np.empty(shape=3))
         self.ref: Union[NDArray[UInt16], None] = None
         self.save_raw_data: bool = False
-        self.in_phase: np.ndarray = np.cos(2 * np.pi / Decimation.REF_PERIOD * np.arange(0, Decimation.SAMPLES))
         self.destination_folder: str = "."
         self.file_path: str = ""
         self.raw_data_file_path = ""
