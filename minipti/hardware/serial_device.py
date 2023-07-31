@@ -121,7 +121,7 @@ class Driver(ABC):
         self._ready_write.set()
 
     if platform.system() == "Windows":
-        @final
+        #@final
         def open(self) -> None:
             if self.port_name and not self.is_open:
                 self._clear()
@@ -134,7 +134,7 @@ class Driver(ABC):
             else:
                 raise OSError("Could not connect with %s", self.device_name)
     else:
-        @final
+        #@final
         def open(self) -> None:
             if self.port_name and not self.is_open:
                 try:
@@ -216,6 +216,7 @@ class Driver(ABC):
     def _write(self) -> None:
         while self.connected.is_set():
             self._ready_write.wait(timeout=Driver._MAX_RESPONSE_TIME)
+            self._ready_write.clear()
             self.last_written_message = self._write_buffer.get(block=True) + Driver._TERMINATION_SYMBOL
             try:
                 self._transfer()
@@ -223,7 +224,6 @@ class Driver(ABC):
                 logging.error("Could not transfer %s to %s", self.last_written_message)
                 break
             logging.debug("%s written to %s", self.last_written_message[:-1], self.device_name)
-            self._ready_write.clear()
 
     @final
     def _transfer(self) -> None:

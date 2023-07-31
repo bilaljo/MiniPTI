@@ -119,7 +119,7 @@ class ASCIIHex(ASCIIProtocoll):
     _STREAM_PATTERN: Final = re.compile(r"(?P<command>([GSC][a-zA-Z][0-9a-zA-Z]))(?P<value>([0-9a-fA-F]{4}))")
     _MIN_VALUE = 0
     _MAX_VALUE = (1 << _NUMBER_OF_HEX_DIGITS * 4) - 1  # 1 hex byte corresponds to 4 binary bytes
-    _VALUE_INDEX = 4
+    _VALUE_INDEX = 3
 
     def __init__(self, stream: str):
         """
@@ -136,6 +136,7 @@ class ASCIIHex(ASCIIProtocoll):
 
     @override
     def __str__(self) -> str:
+        print(self._stream)
         return self._stream
 
     @override

@@ -149,7 +149,7 @@ class Tec:
     @enabled.setter
     def enabled(self, enable: bool) -> None:
         self._enabled = enable
-        self.commands.set_enable.value = enable
+        self.commands.set_enable.value = int(enable)
         self.driver.write(self.commands.set_enable)
 
     def set_ntc_dac(self) -> None:

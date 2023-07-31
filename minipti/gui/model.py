@@ -1238,7 +1238,7 @@ class Tec(Serial):
 
     @property
     def max_power(self) -> float:
-        return self.tec.configuration.system_parameter.max_power
+        return self.tec.configuration.system_parameter.max_power * 100  # percent
 
     @max_power.setter
     def max_power(self, max_power: float) -> None:

@@ -1,14 +1,14 @@
 {
     "Tec": {
         "pid": {
-            "proportional_gain": 30,
-            "integral_gain": 0,
-            "derivative_gain": 0
+            "proportional_value": -0.25,
+            "integral_value": -0.015,
+            "derivative_value": 0
         },
         "system_parameter": {
-            "setpoint_temperature": 25,
-            "loop_time_ms": 26,
-            "max_power": 330
+            "setpoint_temperature": 18,
+            "loop_time": 10,
+            "max_power": 0.33
         }
     }
 }

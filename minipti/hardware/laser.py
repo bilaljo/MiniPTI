@@ -182,8 +182,8 @@ class Laser:
 
 
 class LowPowerLaser(Laser):
-    _CONSTANT_CURRENT: Final[float] = "0001"
-    _CONSTANT_LIGHT: Final[float] = "0002"
+    _CONSTANT_CURRENT: Final[str] = "0001"
+    _CONSTANT_LIGHT: Final[str] = "0002"
     CURRENT_BITS: Final[int] = (1 << 8) - 1
 
     def __init__(self, driver: Driver):
@@ -229,9 +229,9 @@ class LowPowerLaser(Laser):
 
     @override
     def apply_configuration(self) -> None:
-        self.set_mode()
+        #self.set_mode()
         self.set_current()
-        self.set_photo_diode_gain()
+        #self.set_photo_diode_gain()
 
     def set_mode(self) -> None:
         if self.configuration.mode.constant_light:
