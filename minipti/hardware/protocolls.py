@@ -35,8 +35,10 @@ class CommandKeyValue:
 
 
 class ASCIIMultimap(ASCIIProtocoll):
-    _STREAM_PATTERNS: Final = [re.compile(r"(?P<key>(Set|Get|Do)\w+):(?P<value>([+-]?([0-9]*[.])?[0-9]+))"),
-                               re.compile(r"(?P<key>(Set|Get|Do)\w+):\[(?P<index>\d+),?(?P<value>[+-]?([0-9]*[.])?[0-9]+)\]")]
+    _STREAM_PATTERNS: Final = [re.compile(r"(?P<key>(Set|Get|Do)\w+):(?P<value>([+-]?([0-9]*[.])?[0-9]+))\n",
+                                          flags=re.MULTILINE),
+                               re.compile(r"(?P<key>(Set|Get|Do)\w+):\[(?P<index>\d+),?(?P<value>[+-]?([0-9]*[.])?[0-9]+)\]\n",
+                                          flags=re.MULTILINE)]
 
     def __init__(self, stream: Union[str, None] = None, key: Union[str, None] = None,
                  index: Union[int, None] = None, value: Union[float, str, None] = None) -> None:
@@ -45,11 +47,11 @@ class ASCIIMultimap(ASCIIProtocoll):
                 raise RuntimeWarning("Other parameters wont be used")
         elif key is not None and value is not None:
             if index is not None:
-                stream = f"{key}:[{index},{value}]"
+                stream = f"{key}:[{index},{value}]\n"
             else:
-                stream = f"{key}:{value}"
+                stream = f"{key}:{value}\n"
         else:
-            raise ValueError(f"Stream is None or key/value is missing")
+            raise ValueError(fr"Stream is None or key/value is missing")
         ASCIIProtocoll.__init__(self, stream)
         command = self.check_valid_command()
         self._command: CommandKeyValue = dacite.from_dict(CommandKeyValue, command)
@@ -61,14 +63,25 @@ class ASCIIMultimap(ASCIIProtocoll):
     @override
     def __str__(self) -> str:
         if self._command.index is None:
-            return f"{self._command.key}:{self._command.key}"
+            return f"{self._command.key}:{self._command.value}"
         else:
-            return f"{self._command.key}:[{self._command.index},{self._command.key}]"
+            return f"{self._command.key}:[{self._command.index},{self._command.value}]"
+
+    @property
+    def key(self) -> str:
+        return self._command.key
 
     @property
     def value(self) -> float:
         return float(self._command.value)
-    
+
+    @property
+    def index(self) -> int:
+        try:
+            return int(self._command.index)
+        except AttributeError:
+            return -1
+
     @value.setter
     def value(self, new_value: float) -> None:
         self._command.value = str(new_value)
@@ -89,7 +102,7 @@ class ASCIIMultimap(ASCIIProtocoll):
             if split_stream is not None:
                 return split_stream.groupdict()
         else:
-            raise ValueError(f"Command \"{self._stream}\" is not valid")
+            raise ValueError(f"Command {repr(self._stream)} is not valid")
 
 
 @dataclass
@@ -103,6 +116,7 @@ class ASCIIHex(ASCIIProtocoll):
     _STREAM_PATTERN: Final = re.compile(r"(?P<command>([GSC][a-zA-Z][0-9a-zA-Z]))(?P<value>([0-9a-fA-F]{4}))")
     _MIN_VALUE = 0
     _MAX_VALUE = (1 << _NUMBER_OF_HEX_DIGITS * 4) - 1  # 1 hex byte corresponds to 4 binary bytes
+    _VALUE_INDEX = 4
 
     def __init__(self, stream: str):
         """
@@ -148,6 +162,7 @@ class ASCIIHex(ASCIIProtocoll):
         elif not isinstance(value, str):
             value = f"{value:0{ASCIIHex._NUMBER_OF_HEX_DIGITS}X}"
         self._command.value = value
+        self._stream = self._stream[:ASCIIHex._VALUE_INDEX] + value
 
     @property
     def stream(self) -> str:

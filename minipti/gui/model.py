@@ -1148,7 +1148,7 @@ class Tec(Serial):
     driver = hardware.tec.Driver()
     _buffer = TecBuffer()
 
-    def __init__(self, channel: int = 0):
+    def __init__(self, channel: int = 1):
         Serial.__init__(self)
         self.tec = self.driver.tec[channel]
         self.tec_signals = tec_signals[channel]
@@ -1234,7 +1234,7 @@ class Tec(Serial):
     @loop_time.setter
     def loop_time(self, loop_time: int) -> None:
         self.tec.configuration.system_parameter.loop_time = loop_time
-        self.tec.set_loop_time_value()
+        self.tec.set_loop_time_ms()
 
     @property
     def max_power(self) -> float:
@@ -1244,7 +1244,7 @@ class Tec(Serial):
     def max_power(self, max_power: float) -> None:
         max_power /= 100
         self.tec.configuration.system_parameter.max_power = max_power
-        self.tec.set_max_power_value()
+        self.tec.set_max_power()
 
     @override
     def fire_configuration_change(self) -> None:

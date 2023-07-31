@@ -781,13 +781,12 @@ class Tec(QtWidgets.QWidget, _Frames, _CreateButton):
 
     @QtCore.pyqtSlot(hardware.tec.Data)
     def update_temperature(self, value: hardware.tec.Data) -> None:
-        self.temperature_display.setText(str(value.actual_temperature[self.laser]) + " °C")
+        self.temperature_display.setText(f"{round(value.actual_temperature[self.laser], 3)} °C")
 
     def _init_text_fields(self) -> None:
         self.create_button(master=self, title="Enable", slot=self.controller.enable, master_title="")
         with open(f"{os.path.dirname(__file__)}/style/fraction.css", "r") as css:
             style: str = css.read()
-        print(style)
         #p_gain_label = QtWidgets.QLabel(f"P Gain [{css_fraction('1', '°C')}]")
         #p_gain_label.setStyleSheet(style)
 

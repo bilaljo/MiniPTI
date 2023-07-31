@@ -1,4 +1,5 @@
 import dataclasses
+import enum
 import json
 import logging
 import os
@@ -22,11 +23,11 @@ class Data:
     actual_temperature: list[float]
 
 
-class Status(NamedTuple):
+class Status:
     VALUE: int = 0
     TEXT: int = 1
-    ERROR: tuple[int] = ((0x0010, "Chip Error"),
-                                (0x0020, "Kt1: Open"),
+    ERROR = [(0x0010, "Chip Error"),
+              (0x0020, "Kt1: Open"),
                                 (0x0040, "Kt1 VCC shorted"),
                                 (0x0080, "Kt1 GND shorted"),
                                 (0x2000, "Kt2 Open"),
@@ -34,16 +35,14 @@ class Status(NamedTuple):
                                 (0x8000, "Kt2 GND shorted"),
                                 (0x0100, "TEC overcurrent"),
                                 (0x0200, "TEC overtemperature"),
-                                (0x0400, "PT1000 chip error"))
+                                (0x0400, "PT1000 chip error")]
 
 
-class _TecDataIndex(NamedTuple):
-    PT1000: tuple[int] = (0, 1)
-    KT: tuple[int]  = (5, 6)
-    PELTIER_STATUS: int = 8
-    SET_POINT: tuple[int]  = (9, 10)
-    PT1000_STATUS: int = 16
-    NTC: tuple[int]  = (17, 18)
+class _TecDataIndex(enum.IntEnum):
+    PELTIER_STATUS = 0
+    PT1000_STATUS = 6
+    SET_POINT = 7
+    TEMPERATURE = 16
 
 
 class Driver(serial_device.Driver):
@@ -83,10 +82,14 @@ class Driver(serial_device.Driver):
                 continue
             identifier = received[0]
             if identifier == "S":
-                last_key = self.last_written_message[:Driver.KEY_SLICE]
-                received_key = received[:Driver.KEY_SLICE]
-                if received_key != last_key:
-                    logging.error("Received message with as key %s, expected key %s", received_key, last_key)
+                written = protocolls.ASCIIMultimap(self.last_written_message)
+                received = protocolls.ASCIIMultimap(received + "\n")
+                if received.key != written.key:
+                    logging.error("Received message with as key %s, expected key %s", received.key, received.key)
+                elif received.value == "PARAMERROR":
+                    logging.error("Value %s is not valid", received.value)
+                elif received.index != -1 and received.index == "INDEXERROR":
+                    logging.error("Index %s is not valid", received.value)
                 else:
                     logging.debug("Command %s successfully applied", received)
                 self._ready_write.set()
@@ -99,16 +102,8 @@ class Driver(serial_device.Driver):
                 actual_temperature: list[float] = [0, 0]
                 setpoint_temperature: list[float] = [0, 0]
                 for i in range(Driver.CHANNELS):
-                    if self.tec[i].configuration.temperature_element.PT1000:
-                        actual_temperature[i] = float(data_frame[_TecDataIndex.PT1000[i]])
-                    elif self.tec[i].configuration.temperature_element.KT:
-                        actual_temperature[i] = float(data_frame[_TecDataIndex.KT[i]])
-                    elif self.tec[i].configuration.temperature_element.NTC:
-                        actual_temperature[i] = float(data_frame[_TecDataIndex.NTC[i]])
-                    else:
-                        raise ValueError("Invalid Temperature Element")
-                    actual_temperature[i] = Tec.kelvin_to_celsisus(actual_temperature[i])
-                    setpoint_temperature[i] = Tec.kelvin_to_celsisus(float(data_frame[_TecDataIndex.SET_POINT[i]]))
+                    actual_temperature[i] = Tec.kelvin_to_celsisus(float(data_frame[_TecDataIndex.TEMPERATURE + i]))
+                    setpoint_temperature[i] = Tec.kelvin_to_celsisus(float(data_frame[_TecDataIndex.SET_POINT + i]))
                 self.data.put(Data(setpoint_temperature, actual_temperature))
             else:  # Broken data frame without header char
                 logging.error("Received invalid package without header")
@@ -124,7 +119,6 @@ class Commands:
         self.set_d_gain = protocolls.ASCIIMultimap(key="SetPID_KD", index=channel, value=0)
         self.set_max_output_power = protocolls.ASCIIMultimap(key="SetPID_MaxPWM", index=channel, value=0)
         self.set_loop_time_ms = protocolls.ASCIIMultimap(key="SetPID_LoopTimeMSecs", index=channel, value=0)
-        self.set_ref_resistor = protocolls.ASCIIMultimap(key="GetPTSenseResistor_InOhm", index=channel, value=0)
         self.set_ntc_dac = protocolls.ASCIIMultimap(key="SetNTCDAC_CurSetpoint", index=channel, value=0)
         self.set_enable = protocolls.ASCIIMultimap(key="SetPID_Active", index=channel, value=0)
 
@@ -184,8 +178,6 @@ class Tec:
         self.set_pid_p_gain()
         self.set_pid_i_gain()
         self.set_loop_time_ms()
-        if not self.configuration.temperature_element.NTC:
-            self.set_reference_resistor()
         self.set_max_power()
         self.set_setpoint_temperature_value()
 
@@ -220,10 +212,6 @@ class Tec:
         self.commands.set_loop_time_ms.value = self.configuration.system_parameter.loop_time
         self.driver.write(self.commands.set_loop_time_ms)
 
-    def set_reference_resistor(self) -> None:
-        self.commands.set_ref_resistor.value = int(self.configuration.system_parameter.reference_resistor)
-        self.driver.write(self.commands.set_ref_resistor)
-
     def set_max_power(self) -> None:
         self.commands.set_max_output_power.value = self.configuration.system_parameter.max_power
         self.driver.write(self.commands.set_max_output_power)
@@ -248,13 +236,6 @@ class Tec:
 
 
 @dataclass
-class _TemperatureElement:
-    PT1000: bool
-    KT: bool
-    NTC: bool
-
-
-@dataclass
 class _PID:
     proportional_value: float
     integral_value: float
@@ -270,6 +251,5 @@ class _SystemParameter:
 
 @dataclass
 class Configuration:
-    temperature_element = _TemperatureElement(PT1000=False, KT=False, NTC=True)
     pid = _PID(proportional_value=0, integral_value=0, derivative_value=0)
     system_parameter = _SystemParameter(ROOM_TEMPERATURE_CELSIUS, Tec.MAX_LOOP_TIME, 0)

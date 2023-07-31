@@ -1,10 +1,5 @@
 {
     "Tec": {
-        "temperature_element": {
-            "PT1000": false,
-            "KT": false,
-            "NTC": true
-        },
         "pid": {
             "proportional_gain": 30,
             "integral_gain": 0,

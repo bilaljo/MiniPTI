@@ -275,11 +275,13 @@ class HighPowerLaser(Laser):
         self.load_configuration()
 
     def initialize(self) -> None:
+        self._init.value = 1
+        self._initialized = True
         self._driver.write(self._init)
 
     @property
     def enabled(self) -> bool:
-        return self._enable.value == 1
+        return bool(self._enable.value)
 
     @enabled.setter
     def enabled(self, enabled: bool) -> None:

@@ -235,7 +235,6 @@ class Decimation:
 
     @average_period.setter
     def average_period(self, average_period: int) -> None:
-        print("A")
         self._average_period = average_period
         self._update_lock_in_look_up_table()
 
