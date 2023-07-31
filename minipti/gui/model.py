@@ -447,7 +447,7 @@ class TecSignals(QtCore.QObject):
     i_gain = QtCore.pyqtSignal(float)
     setpoint_temperature = QtCore.pyqtSignal(float)
     loop_time = QtCore.pyqtSignal(int)
-    max_power = QtCore.pyqtSignal(int)
+    max_power = QtCore.pyqtSignal(float)
     enabled = QtCore.pyqtSignal(bool)
     clear_plots = QtCore.pyqtSignal()
 

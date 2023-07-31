@@ -622,7 +622,7 @@ class ProbeLaser(QtWidgets.QWidget, _CreateButton, _Frames):
         self.controller = controller.ProbeLaser(self)
         self.laser_mode = QtWidgets.QComboBox()
         self.photo_gain = QtWidgets.QComboBox()
-        self.current_display = QtWidgets.QLabel("0")
+        self.current_display = QtWidgets.QLabel("0 mA")
         self.create_configuration_buttons = _CreateConfigurationButtons(self.controller)
         self._init_frames()
         self._init_slider()
@@ -647,7 +647,7 @@ class ProbeLaser(QtWidgets.QWidget, _CreateButton, _Frames):
 
     @QtCore.pyqtSlot(hardware.laser.Data)
     def _update_current(self, value: hardware.laser.Data) -> None:
-        self.current_display.setText(str(value.low_power_laser_current))
+        self.current_display.setText(str(value.low_power_laser_current) + " mA")
 
     @QtCore.pyqtSlot(bool)
     def enable(self, state: bool):
@@ -751,7 +751,7 @@ class Tec(QtWidgets.QWidget, _Frames, _CreateButton):
         model.tec_signals[self.laser].loop_time.connect(Tec._update_text_field(self.text_fields.loop_time,
                                                                                floating=False))
         model.tec_signals[self.laser].max_power.connect(Tec._update_text_field(self.text_fields.max_power,
-                                                                               floating=False))
+                                                                               floating=True))
 
     def _init_frames(self) -> None:
         self.create_frame(master=self, title="Temperature", x_position=0, y_position=0)

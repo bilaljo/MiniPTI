@@ -54,7 +54,7 @@ class Driver(serial_device.Driver):
 
     def __init__(self):
         serial_device.Driver.__init__(self)
-        self.tec = [Tec(0, self), Tec(1, self)]
+        self.tec = [Tec(1, self), Tec(2, self)]
 
     @property
     @override
@@ -77,7 +77,7 @@ class Driver(serial_device.Driver):
             received_data: str = self.get_data()
         except OSError:
             return
-        for received in received_data.split(Driver._TERMINATION_SYMBOL):
+        for received in received_data.split(Driver._TERMINATION_SYMBOL)[:-1]:
             if not received:
                 continue
             identifier = received[0]
@@ -88,8 +88,8 @@ class Driver(serial_device.Driver):
                     logging.error("Received message with as key %s, expected key %s", received.key, received.key)
                 elif received.value == "PARAMERROR":
                     logging.error("Value %s is not valid", received.value)
-                elif received.index != -1 and received.index == "INDEXERROR":
-                    logging.error("Index %s is not valid", received.value)
+                elif received.value == "INDEXERROR":
+                    logging.error("Index %s is not valid", written.index)
                 else:
                     logging.debug("Command %s successfully applied", received)
                 self._ready_write.set()
@@ -128,14 +128,18 @@ class Tec:
 
     MIN_LOOP_TIME = 10
     MAX_LOOP_TIME = 5000
+    MIN_POWER = 0
+    MAX_POWER = 1
 
     def __init__(self, channel: int, driver: Driver):
-        self.commands = Commands(channel)
+        self.commands = Commands(channel - 1)
         self.commands.set_ntc_dac.value = Tec._NTC_DAC_CALIBRATION_VALUE
         self.config_path = f"{os.path.dirname(__file__)}/configs/tec/channel_{channel}.json"
         self.driver = driver
         self._enabled = False
-        self.configuration = Configuration()
+        self.configuration = Configuration(pid=_PID(0, 0, 0),
+                                           system_parameter=_SystemParameter(ROOM_TEMPERATURE_CELSIUS,
+                                                                             Tec.MAX_LOOP_TIME, 0))
         self.load_configuration()
 
     @property
@@ -155,23 +159,28 @@ class Tec:
         if not os.path.exists(self.config_path):
             logging.warning("Config File not found")
             logging.info("Creating a new file")
+            self.configuration = Configuration(pid=_PID(0, 0, 0),
+                                               system_parameter=_SystemParameter(ROOM_TEMPERATURE_CELSIUS,
+                                                                                 Tec.MAX_LOOP_TIME, 0))
             self.save_configuration()
         else:
             with open(self.config_path) as config:
                 try:
                     loaded_config = json.load(config)
                     self.configuration = dacite.from_dict(Configuration, loaded_config["Tec"])
-                except (json.decoder.JSONDecodeError, dacite.WrongTypeError):
+                except (json.decoder.JSONDecodeError, dacite.WrongTypeError,  dacite.exceptions.MissingValueError):
                     # Config file corrupted or types are wrong
                     logging.warning("Config File was corrupted or wrong")
                     logging.info("Creating a new file")
-                    self.configuration = Configuration()
+                    self.configuration = Configuration(pid=_PID(0, 0, 0),
+                                                       system_parameter=_SystemParameter(ROOM_TEMPERATURE_CELSIUS,
+                                                                                         Tec.MAX_LOOP_TIME, 0))
                     self.save_configuration()
 
     def save_configuration(self) -> None:
         with open(self.config_path, "w") as configuration:
-            lasers = {f"Tec": dataclasses.asdict(self.configuration)}
-            configuration.write(json_parser.to_json(lasers) + "\n")
+            tec = {f"Tec": dataclasses.asdict(self.configuration)}
+            configuration.write(json_parser.to_json(tec) + "\n")
 
     def apply_configuration(self) -> None:
         self.set_pid_d_gain()
@@ -213,6 +222,10 @@ class Tec:
         self.driver.write(self.commands.set_loop_time_ms)
 
     def set_max_power(self) -> None:
+        if self.configuration.system_parameter.max_power > Tec.MAX_POWER:
+            self.configuration.system_parameter.max_power = Tec.MAX_POWER
+        elif self.configuration.system_parameter.max_power < Tec.MIN_POWER:
+            self.configuration.system_parameter.max_power = Tec.MIN_POWER
         self.commands.set_max_output_power.value = self.configuration.system_parameter.max_power
         self.driver.write(self.commands.set_max_output_power)
 
@@ -251,5 +264,5 @@ class _SystemParameter:
 
 @dataclass
 class Configuration:
-    pid = _PID(proportional_value=0, integral_value=0, derivative_value=0)
-    system_parameter = _SystemParameter(ROOM_TEMPERATURE_CELSIUS, Tec.MAX_LOOP_TIME, 0)
+    pid: _PID
+    system_parameter: _SystemParameter

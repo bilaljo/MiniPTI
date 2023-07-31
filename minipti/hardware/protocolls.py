@@ -35,7 +35,7 @@ class CommandKeyValue:
 
 
 class ASCIIMultimap(ASCIIProtocoll):
-    _STREAM_PATTERNS: Final = [re.compile(r"(?P<key>(Set|Get|Do)\w+):(?P<value>([+-]?([0-9]*[.])?[0-9]+))\n",
+    _STREAM_PATTERNS: Final = [re.compile(r"(?P<key>(Set|Get|Do)\w+):(?P<value>([+-]?([0-9]*[.])?[0-9]?|\w+))\n",
                                           flags=re.MULTILINE),
                                re.compile(r"(?P<key>(Set|Get|Do)\w+):\[(?P<index>\d+),?(?P<value>[+-]?([0-9]*[.])?[0-9]+)\]\n",
                                           flags=re.MULTILINE)]
@@ -72,14 +72,17 @@ class ASCIIMultimap(ASCIIProtocoll):
         return self._command.key
 
     @property
-    def value(self) -> float:
-        return float(self._command.value)
+    def value(self) -> Union[float, str]:
+        try:
+            return float(self._command.value)
+        except ValueError:
+            return self._command.value
 
     @property
     def index(self) -> int:
         try:
             return int(self._command.index)
-        except AttributeError:
+        except TypeError:
             return -1
 
     @value.setter
