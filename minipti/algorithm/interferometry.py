@@ -8,7 +8,7 @@ import logging
 import os
 import threading
 import typing
-from typing import Final, Generator
+from typing import Final, Generator, Union
 from collections import defaultdict
 
 import numpy as np
@@ -29,9 +29,9 @@ class Interferometer:
     CHANNELS: Final[int] = 3
 
     DC_HEADERS: Final[list] = [[f"PD{i}" for i in range(1, 4)],
-                                         [f"DC CH{i}" for i in range(1, 4)]]
+                               [f"DC CH{i}" for i in range(1, 4)]]
 
-    OPTIMAL_SYMMETRY: Final[float]  = 86.58  # %
+    OPTIMAL_SYMMETRY: Final[float] = 86.58  # %
 
     def __init__(self, settings_path=f"{os.path.dirname(__file__)}/configs/settings.csv",
                  decimation_filepath="data/Decimation.csv", output_phases=np.empty(shape=3),
@@ -114,7 +114,7 @@ class Interferometer:
         with self._locks.output_phases:
             self._output_phases = output_phases
 
-    def read_decimation(self) -> pd.DataFrame | None:
+    def read_decimation(self) -> Union[pd.DataFrame, None]:
         try:
             with open(self.decimation_filepath, "r", encoding="UTF-8") as csv_file:
                 dc_delimiter = str(csv.Sniffer().sniff(csv_file.readline()).delimiter)
