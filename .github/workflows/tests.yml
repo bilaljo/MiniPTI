@@ -17,10 +17,12 @@ jobs:
       - uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install Packages |
+      - name: Create Virtual Environment
+        run: python -m venv venv && source venv/bin/activate
+      - name: Install Packages
         run: python -m pip install --upgrade pip
              pip install fastcrc numpy pandas scipy dacite pyserial h5py nptyping[complete] \
-             beartype commented-configparser green
+             beartype commented-configparser green overrides
       - name: Run Hardware Tests
         run: green tests/hardware.py
       - name: Run Algorithm Tests

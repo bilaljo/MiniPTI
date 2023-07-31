@@ -27,15 +27,15 @@ class Status:
     VALUE: int = 0
     TEXT: int = 1
     ERROR = [(0x0010, "Chip Error"),
-              (0x0020, "Kt1: Open"),
-                                (0x0040, "Kt1 VCC shorted"),
-                                (0x0080, "Kt1 GND shorted"),
-                                (0x2000, "Kt2 Open"),
-                                (0x4000, "Kt2 VCC shorted"),
-                                (0x8000, "Kt2 GND shorted"),
-                                (0x0100, "TEC overcurrent"),
-                                (0x0200, "TEC overtemperature"),
-                                (0x0400, "PT1000 chip error")]
+             (0x0020, "Kt1: Open"),
+             (0x0040, "Kt1 VCC shorted"),
+             (0x0080, "Kt1 GND shorted"),
+             (0x2000, "Kt2 Open"),
+             (0x4000, "Kt2 VCC shorted"),
+             (0x8000, "Kt2 GND shorted"),
+             (0x0100, "TEC overcurrent"),
+             (0x0200, "TEC overtemperature"),
+             (0x0400, "PT1000 chip error")]
 
 
 class _TecDataIndex(enum.IntEnum):

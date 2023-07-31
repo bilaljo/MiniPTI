@@ -2,7 +2,7 @@ dacite==1.8.1
 fastcrc==0.2.1
 h5py==3.9.0
 nptyping==2.5.0
-numpy==1.25.1
+numpy==1.25.2
 pandas==2.0.3
 PyQt5==5.15.9
 pyqtgraph==0.13.3

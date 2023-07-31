@@ -3,6 +3,7 @@ import re
 from typing import Final, NoReturn, Union
 import dacite
 from abc import abstractmethod, ABC
+
 from overrides import override
 
 
@@ -160,7 +161,7 @@ class ASCIIHex(ASCIIProtocoll):
         return int(self._command.value, base=16)
 
     @value.setter
-    def value(self, value: str | int) -> None:
+    def value(self, value: Union[str, int]) -> None:
         if not (ASCIIHex._MIN_VALUE <= int(value) < ASCIIHex._MAX_VALUE):
             raise ValueError("Value is out of range for 4 digit hex values")
         elif not isinstance(value, str):
