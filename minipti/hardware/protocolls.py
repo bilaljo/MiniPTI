@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 import re
-from typing import Final, NoReturn, Union, TypeVar
+from typing import Final, NoReturn, Union
 import dacite
 from abc import abstractmethod, ABC
 from overrides import override
@@ -30,28 +30,29 @@ class ASCIIProtocoll(ABC):
 @dataclass
 class CommandKeyValue:
     key: str
-    value: float
-    index: Union[int, None] = None
+    value: str
+    index: Union[str, None] = None
 
 
 class ASCIIMultimap(ASCIIProtocoll):
     _STREAM_PATTERNS: Final = [re.compile(r"(?P<key>(Set|Get|Do)\w+):(?P<value>([+-]?([0-9]*[.])?[0-9]+))"),
-                               re.compile(r"(?P<key>(Set|Get|Do)\w+):\[(?P<index>\d+),\s?(?P<value>[+-]?([0-9]*[.])?[0-9]+)\]")]
+                               re.compile(r"(?P<key>(Set|Get|Do)\w+):\[(?P<index>\d+),?(?P<value>[+-]?([0-9]*[.])?[0-9]+)\]")]
 
-    def __init__(self, stream: Union[str, None]=None, key: Union[str, None]=None,
-                 index: Union[int, None]=None, value: Union[float, str, None]=None) -> None:
+    def __init__(self, stream: Union[str, None] = None, key: Union[str, None] = None,
+                 index: Union[int, None] = None, value: Union[float, str, None] = None) -> None:
         if stream is not None:
             if key is not None or index is not None or value is not None:
                 raise RuntimeWarning("Other parameters wont be used")
         elif key is not None and value is not None:
             if index is not None:
-                stream = f"{key}:[index, value]"
+                stream = f"{key}:[{index},{value}]"
             else:
-                stream = f"{key}:value"
+                stream = f"{key}:{value}"
         else:
             raise ValueError(f"Stream is None or key/value is missing")
         ASCIIProtocoll.__init__(self, stream)
-        self._command: CommandKeyValue =  dacite.from_dict(CommandKeyValue, self.check_valid_command())
+        command = self.check_valid_command()
+        self._command: CommandKeyValue = dacite.from_dict(CommandKeyValue, command)
 
     @override
     def __repr__(self) -> str:
@@ -66,11 +67,11 @@ class ASCIIMultimap(ASCIIProtocoll):
 
     @property
     def value(self) -> float:
-        return self._command.value
+        return float(self._command.value)
     
     @value.setter
     def value(self, new_value: float) -> None:
-        self._command.value = new_value
+        self._command.value = str(new_value)
 
     @property
     def stream(self) -> str:
@@ -82,13 +83,13 @@ class ASCIIMultimap(ASCIIProtocoll):
         self._stream = new_stream
 
     @override
-    def check_valid_command(self) ->  Union[dict[str, str], NoReturn]:
+    def check_valid_command(self) -> Union[dict[str, str], NoReturn]:
         for pattern in ASCIIMultimap._STREAM_PATTERNS:
-            split_stream =  pattern.fullmatch(self._stream)
+            split_stream = pattern.fullmatch(self._stream)
             if split_stream is not None:
                 return split_stream.groupdict()
         else:
-            raise ValueError(f"Stream {self._stream} is not valid")
+            raise ValueError(f"Command \"{self._stream}\" is not valid")
 
 
 @dataclass
@@ -99,7 +100,7 @@ class CommandHex:
 
 class ASCIIHex(ASCIIProtocoll):
     _NUMBER_OF_HEX_DIGITS = 4
-    _STREAM_PATTERN: Final = re.compile(r"(?P<Command>([GSC][a-zA-Z][0-9a-zA-Z]))(?P<Value>([0-9a-fA-F]{4}))")
+    _STREAM_PATTERN: Final = re.compile(r"(?P<command>([GSC][a-zA-Z][0-9a-zA-Z]))(?P<value>([0-9a-fA-F]{4}))")
     _MIN_VALUE = 0
     _MAX_VALUE = (1 << _NUMBER_OF_HEX_DIGITS * 4) - 1  # 1 hex byte corresponds to 4 binary bytes
 
@@ -110,7 +111,7 @@ class ASCIIHex(ASCIIProtocoll):
         the command. The values are represented in hex strings.
         """
         ASCIIProtocoll.__init__(self, stream)
-        self._command: CommandHex =  dacite.from_dict(CommandHex, self.check_valid_command())
+        self._command: CommandHex = dacite.from_dict(CommandHex, self.check_valid_command())
 
     @override
     def __repr__(self) -> str:

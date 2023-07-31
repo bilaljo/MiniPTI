@@ -5,19 +5,14 @@
             "KT": false,
             "NTC": true
         },
-        "mode": {
-            "heating": false,
-            "cooling": true
-        },
         "pid": {
             "proportional_gain": 30,
-            "integral_gain": [10, 10],
+            "integral_gain": 0,
             "derivative_gain": 0
         },
         "system_parameter": {
             "setpoint_temperature": 25,
             "loop_time_ms": 26,
-            "reference_resistor": 0,
             "max_power": 330
         }
     }

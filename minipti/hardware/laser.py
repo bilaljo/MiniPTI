@@ -11,6 +11,7 @@ import dacite
 from overrides import override
 
 from . import serial_device
+from . import protocolls
 from .. import json_parser
 
 
@@ -95,14 +96,14 @@ class DAC:
 
 @dataclass
 class HighPowerLaserConfig:
-    _RESISTOR: Final[float] = 2.2e4
-    _DIGITAL_POT: Final[float] = 1e4
-    NUMBER_OF_STEPS: Final[float] = 1 << 7
-    _PRE_RESISTOR: Final[float] = 1.6e3
-
     max_current_mA: float
     bit_value: int
     DAC: list[DAC, DAC]
+
+    _RESISTOR: Final[float] = 2.2e4
+    _DIGITAL_POT: Final[float] = 1e4
+    NUMBER_OF_STEPS: Final[int] = 1 << 7
+    _PRE_RESISTOR: Final[float] = 1.6e3
 
     @staticmethod
     def bit_to_voltage(bits: int) -> float:
@@ -189,11 +190,11 @@ class LowPowerLaser(Laser):
         Laser.__init__(self, driver)
         self.config_path: str = f"{os.path.dirname(__file__)}/configs/laser/low_power.json"
         self.configuration: Union[None, LowPowerLaserConfig] = None
-        self._init = serial_device.SerialStream("CLI0000")
-        self.mode = serial_device.SerialStream("SLM0000")
-        self.photo_diode_gain = serial_device.SerialStream("SLG0000")
-        self._set_digpot = serial_device.SerialStream("SLS0000")
-        self._enable = serial_device.SerialStream("SLE0001")
+        self._init = protocolls.ASCIIHex("CLI0000")
+        self.mode = protocolls.ASCIIHex("SLM0000")
+        self.photo_diode_gain = protocolls.ASCIIHex("SLG0000")
+        self._set_digpot = protocolls.ASCIIHex("SLS0000")
+        self._enable = protocolls.ASCIIHex("SLE0001")
         self.load_configuration()
     
     @property
@@ -266,11 +267,11 @@ class HighPowerLaser(Laser):
         Laser.__init__(self, driver)
         self.config_path: str = f"{os.path.dirname(__file__)}/configs/laser/high_power.json"
         self.configuration: Union[None, HighPowerLaserConfig] = None
-        self._init = serial_device.SerialStream("CHI0000")
-        self._set_voltage = serial_device.SerialStream("SHV0000")
-        self._control_register = serial_device.SerialStream("SC10000")
-        self._set_dac = [serial_device.SerialStream("SC30000"), serial_device.SerialStream("SC40000")]
-        self._enable = serial_device.SerialStream("SHE0001")
+        self._init = protocolls.ASCIIHex("CHI0000")
+        self._set_voltage = protocolls.ASCIIHex("SHV0000")
+        self._control_register = protocolls.ASCIIHex("SC10000")
+        self._set_dac = [protocolls.ASCIIHex("SC30000"), protocolls.ASCIIHex("SC40000")]
+        self._enable = protocolls.ASCIIHex("SHE0001")
         self.load_configuration()
 
     def initialize(self) -> None:

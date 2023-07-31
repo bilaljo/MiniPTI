@@ -2,6 +2,7 @@ import abc
 import collections
 import enum
 import functools
+import os
 import typing
 from typing import NamedTuple
 
@@ -708,14 +709,17 @@ class ProbeLaser(QtWidgets.QWidget, _CreateButton, _Frames):
         self.laser_mode.setCurrentIndex(index)
 
 
+def css_fraction(numerator: str, denomiator: str) -> str:
+    return f'<div class="frac"><span>{numerator}</span><span class="symbol">/</span><span class="bottom">{denomiator}</span></div>'
+
+
 class TecTextFields:
     def __init__(self):
-        self.p_value = QtWidgets.QLineEdit()
-        self.i_value = [QtWidgets.QLineEdit(), QtWidgets.QLineEdit()]
-        self.d_value = QtWidgets.QLineEdit()
+        self.p_gain = QtWidgets.QLineEdit()
+        self.i_gain = QtWidgets.QLineEdit()
+        self.d_gain = QtWidgets.QLineEdit()
         self.setpoint_temperature = QtWidgets.QLineEdit()
         self.loop_time = QtWidgets.QLineEdit()
-        self.reference_resistor = QtWidgets.QLineEdit()
         self.max_power = QtWidgets.QLineEdit()
 
 
@@ -732,32 +736,32 @@ class Tec(QtWidgets.QWidget, _Frames, _CreateButton):
         self.create_configuration_buttons = _CreateConfigurationButtons(self.controller)
         self._init_frames()
         self._init_text_fields()
-        self._init_buttons()
         self._init_signals()
+        self._init_buttons()
         self.controller.fire_configuration_change()
         model.tec_signals[self.laser].enabled.connect(self.update_enable)
 
     def _init_signals(self) -> None:
         model.signals.tec_data_display.connect(self.update_temperature)
-        model.tec_signals[self.laser].p_value.connect(Tec._update_text_field(self.text_fields.p_value))
-        model.tec_signals[self.laser].i_1_value.connect(Tec._update_text_field(self.text_fields.i_value[0]))
-        model.tec_signals[self.laser].i_2_value.connect(Tec._update_text_field(self.text_fields.i_value[1]))
-        model.tec_signals[self.laser].d_value.connect(Tec._update_text_field(self.text_fields.d_value))
+        model.tec_signals[self.laser].p_gain.connect(Tec._update_text_field(self.text_fields.p_gain))
+        model.tec_signals[self.laser].i_gain.connect(Tec._update_text_field(self.text_fields.i_gain))
+        model.tec_signals[self.laser].d_gain.connect(Tec._update_text_field(self.text_fields.d_gain))
         model.tec_signals[self.laser].setpoint_temperature.connect(
             Tec._update_text_field(self.text_fields.setpoint_temperature))
         model.tec_signals[self.laser].loop_time.connect(Tec._update_text_field(self.text_fields.loop_time,
                                                                                floating=False))
-        model.tec_signals[self.laser].reference_resistor.connect(
-            Tec._update_text_field(self.text_fields.reference_resistor))
         model.tec_signals[self.laser].max_power.connect(Tec._update_text_field(self.text_fields.max_power,
                                                                                floating=False))
-        model.tec_signals[self.laser].mode.connect(self.update_mode)
 
     def _init_frames(self) -> None:
-        self.create_frame(master=self, title="PID Configuration", x_position=0, y_position=0)
-        self.create_frame(master=self, title="System Settings", x_position=1, y_position=0)
-        self.create_frame(master=self, title="Temperature", x_position=2, y_position=0)
-        self.create_frame(master=self, title="Configuration", x_position=3, y_position=0)
+        self.create_frame(master=self, title="Temperature", x_position=0, y_position=0)
+        self.create_frame(master=self, title="PID Configuration", x_position=1, y_position=0, x_span=2)
+        self.create_frame(master=self, title="System Settings", x_position=3, y_position=0, x_span=2)
+        self.create_frame(master=self, title="Configuration", x_position=5, y_position=0, x_span=2)
+
+    def _init_buttons(self) -> None:
+        config = self.create_configuration_buttons()
+        self.frames["Configuration"].layout().addWidget(config, 3, 0)
 
     @QtCore.pyqtSlot(bool)
     def update_enable(self, state: bool):
@@ -773,46 +777,33 @@ class Tec(QtWidgets.QWidget, _Frames, _CreateButton):
             @QtCore.pyqtSlot(int)
             def update(value: int) -> None:
                 text_field.setText(str(value))
-
         return update
 
     @QtCore.pyqtSlot(hardware.tec.Data)
     def update_temperature(self, value: hardware.tec.Data) -> None:
         self.temperature_display.setText(str(value.actual_temperature[self.laser]) + " °C")
 
-    @QtCore.pyqtSlot(model.TecMode)
-    def update_mode(self, mode: model.TecMode):
-        if mode == model.TecMode.COOLING:
-            toggle_button(False, self.buttons["Heat"])
-            toggle_button(True, self.buttons["Cool"])
-        else:
-            toggle_button(True, self.buttons["Heat"])
-            toggle_button(False, self.buttons["Cool"])
-
-    @QtCore.pyqtSlot(bool)
-    def _update_resistor_visibility(self, use_ntc: bool) -> None:
-        self.text_fields.reference_resistor.setDisabled(use_ntc)
-
     def _init_text_fields(self) -> None:
-        self.create_button(master=self, title="Enable", slot=self.controller.enable,
-                           master_title="")
-        self.frames["PID Configuration"].layout().addWidget(QtWidgets.QLabel("P Value"), 0, 0)
-        self.frames["PID Configuration"].layout().addWidget(self.text_fields.p_value, 0, 1)
-        self.text_fields.p_value.editingFinished.connect(self.p_value_changed)
+        self.create_button(master=self, title="Enable", slot=self.controller.enable, master_title="")
+        with open(f"{os.path.dirname(__file__)}/style/fraction.css", "r") as css:
+            style: str = css.read()
+        print(style)
+        #p_gain_label = QtWidgets.QLabel(f"P Gain [{css_fraction('1', '°C')}]")
+        #p_gain_label.setStyleSheet(style)
 
-        self.frames["PID Configuration"].layout().addWidget(QtWidgets.QLabel("I<sub>1</sub> Value"), 2, 0)
-        self.frames["PID Configuration"].layout().addWidget(self.text_fields.i_value[0], 2, 1)
-        self.text_fields.i_value[0].editingFinished.connect(self.i_1_value_changed)
+        self.frames["PID Configuration"].layout().addWidget(QtWidgets.QLabel("P Gain [1/°C]"), 0, 0)
+        self.frames["PID Configuration"].layout().addWidget(self.text_fields.p_gain, 0, 1)
+        self.text_fields.p_gain.editingFinished.connect(self.p_gain_changed)
 
-        self.frames["PID Configuration"].layout().addWidget(QtWidgets.QLabel("I<sub>2</sub> Value"), 4, 0)
-        self.frames["PID Configuration"].layout().addWidget(self.text_fields.i_value[1], 4, 1)
-        self.text_fields.i_value[1].editingFinished.connect(self.i_2_value_changed)
+        self.frames["PID Configuration"].layout().addWidget(QtWidgets.QLabel("I Gain [1/°C]"), 2, 0)
+        self.frames["PID Configuration"].layout().addWidget(self.text_fields.i_gain, 2, 1)
+        self.text_fields.i_gain.editingFinished.connect(self.i_gain_changed)
 
-        self.frames["PID Configuration"].layout().addWidget(QtWidgets.QLabel("D Value"), 6, 0)
-        self.frames["PID Configuration"].layout().addWidget(self.text_fields.d_value, 6, 1)
-        self.text_fields.d_value.editingFinished.connect(self.d_value_changed)
+        self.frames["PID Configuration"].layout().addWidget(QtWidgets.QLabel("D Gain [1/°C]"), 6, 0)
+        self.frames["PID Configuration"].layout().addWidget(self.text_fields.d_gain, 6, 1)
+        self.text_fields.d_gain.editingFinished.connect(self.d_gain_changed)
 
-        self.frames["System Settings"].layout().addWidget(QtWidgets.QLabel("Setpoint Temperature"), 0, 0)
+        self.frames["System Settings"].layout().addWidget(QtWidgets.QLabel("Setpoint Temperature [°C]"), 0, 0)
         self.frames["System Settings"].layout().addWidget(self.text_fields.setpoint_temperature, 0, 1)
         self.text_fields.setpoint_temperature.editingFinished.connect(self.setpoint_temperature_changed)
 
@@ -820,28 +811,20 @@ class Tec(QtWidgets.QWidget, _Frames, _CreateButton):
         self.frames["System Settings"].layout().addWidget(self.text_fields.loop_time, 1, 1)
         self.text_fields.loop_time.editingFinished.connect(self.loop_time_changed)
 
-        self.frames["System Settings"].layout().addWidget(QtWidgets.QLabel("Reference Resistor"), 2, 0)
-        self.frames["System Settings"].layout().addWidget(self.text_fields.reference_resistor, 2, 1)
-        self.text_fields.reference_resistor.editingFinished.connect(self.reference_resistor_changed)
-        model.tec_signals[self.laser].use_ntc.connect(self._update_resistor_visibility)
-
-        self.frames["System Settings"].layout().addWidget(QtWidgets.QLabel("Max Power"), 3, 0)
+        self.frames["System Settings"].layout().addWidget(QtWidgets.QLabel("Max Power [%]"), 3, 0)
         self.frames["System Settings"].layout().addWidget(self.text_fields.max_power, 3, 1)
         self.text_fields.max_power.editingFinished.connect(self.max_power_changed)
 
         self.frames["Temperature"].layout().addWidget(self.temperature_display)
 
-    def d_value_changed(self) -> None:
-        self.controller.update_d_value(self.text_fields.d_value.text())
+    def d_gain_changed(self) -> None:
+        self.controller.update_d_gain(self.text_fields.d_gain.text())
 
-    def i_1_value_changed(self) -> None:
-        self.controller.update_i_1_value(self.text_fields.i_value[0].text())
+    def i_gain_changed(self) -> None:
+        self.controller.update_i_gain(self.text_fields.i_gain.text())
 
-    def i_2_value_changed(self) -> None:
-        self.controller.update_i_2_value(self.text_fields.i_value[1].text())
-
-    def p_value_changed(self) -> None:
-        self.controller.update_p_value(self.text_fields.p_value.text())
+    def p_gain_changed(self) -> None:
+        self.controller.update_p_gain(self.text_fields.p_gain.text())
 
     def setpoint_temperature_changed(self) -> None:
         self.controller.update_setpoint_temperature(self.text_fields.setpoint_temperature.text())
@@ -849,17 +832,8 @@ class Tec(QtWidgets.QWidget, _Frames, _CreateButton):
     def loop_time_changed(self) -> None:
         self.controller.update_loop_time(self.text_fields.loop_time.text())
 
-    def reference_resistor_changed(self) -> None:
-        self.controller.update_reference_resistor(self.text_fields.reference_resistor.text())
-
     def max_power_changed(self) -> None:
         self.controller.update_max_power(self.text_fields.max_power.text())
-
-    def _init_buttons(self) -> None:
-        self.create_button(master=self.frames["Temperature"], title="Heat", slot=self.controller.set_heating)
-        self.create_button(master=self.frames["Temperature"], title="Cool", slot=self.controller.set_cooling)
-        config = self.create_configuration_buttons()
-        self.frames["Configuration"].layout().addWidget(config, 3, 0)
 
 
 class _MatplotlibColors:

@@ -17,13 +17,16 @@ class MainApplication(QtWidgets.QApplication):
         QtWidgets.QApplication.__init__(self, argv)
         self.logging_model = model.Logging()
         self.view = view.MainWindow(self)
+        self.motherboard = model.Motherboard()
+        self.laser = model.Laser()
+        self.tec = model.Tec()
         # threading.excepthook = self.thread_exception
 
     def close(self) -> None:
-        model.Motherboard.driver.running.clear()
-        model.Motherboard.driver.close()
-        model.PumpLaser.driver.close()
-        model.Tec.close()
+        self.motherboard.driver.running.clear()
+        self.motherboard.driver.close()
+        self.laser.driver.close()
+        self.tec.close()
         self.view.close()
         QCoreApplication.quit()
 
@@ -99,7 +102,6 @@ class Settings:
         self.settings_table_model = model.SettingsTable()
         self.main_app = main_app
         self.view = parent
-        self.motherboard = model.Motherboard()
         self.destination_folder = model.DestinationFolder()
         self.last_file_path = os.getcwd()
         self.motherboard = model.Motherboard()
@@ -151,18 +153,17 @@ class Settings:
         self.connect_devices()
         self.apply_configurations()
 
-    @staticmethod
-    def find_devices() -> None:
+    def find_devices(self) -> None:
         try:
-            model.Motherboard.find_port()
+            self.motherboard.find_port()
         except OSError:
             logging.error("Could not find Motherboard")
         try:
-            model.Laser.find_port()
+            self.laser.find_port()
         except OSError:
             logging.error("Could not find Laser Driver")
         try:
-            model.Tec.find_port()
+            self.pump_laser_tec.find_port()
         except OSError:
             logging.error("Could not find TEC Driver")
 
@@ -232,9 +233,8 @@ class Settings:
         if destination_folder:
             self.destination_folder.folder = destination_folder
 
-    @staticmethod
-    def save_motherboard_configuration() -> None:
-        model.Motherboard.save_configuration()
+    def save_motherboard_configuration(self) -> None:
+        self.motherboard.save_configuration()
 
     def load_motherboard_configuration(self) -> None:
         file_path, self.last_file_path = _get_file_path(self.view, "Valve", self.last_file_path,
@@ -499,27 +499,21 @@ class Tec:
             logging.debug(f"{'Enabled' if self.tec.enabled else 'Disabled'} Tec Driver of %s",
                           "Pump Laser" if self.laser == model.Tec.PUMP_LASER else "Probe Laser")
 
-    def update_d_value(self, d_value: str) -> None:
+    def update_d_gain(self, d_gain: str) -> None:
         try:
-            self.tec.d_value = _string_to_number(self.view, d_value, cast=int)
+            self.tec.d_gain = _string_to_number(self.view, d_gain, cast=float)
         except ValueError:
-            self.tec.d_value = 0
+            self.tec.d_gain = 0
 
-    def update_i_1_value(self, i_1_value: str) -> None:
+    def update_i_gain(self, i_gain: str) -> None:
         try:
-            self.tec.i_1_value = _string_to_number(self.view, i_1_value, cast=int)
+            self.tec.i_gain = _string_to_number(self.view, i_gain, cast=float)
         except ValueError:
-            self.tec.i_1_value = 0
+            self.tec.i_gain = 0
 
-    def update_i_2_value(self, i_2_value: str) -> None:
+    def update_p_gain(self, p_gain: str) -> None:
         try:
-            self.tec.i_2_value = _string_to_number(self.view, i_2_value, cast=int)
-        except ValueError:
-            self.tec.i_2_value = 0
-
-    def update_p_value(self, p_value: str) -> None:
-        try:
-            self.tec.p_value = _string_to_number(self.view, p_value, cast=int)
+            self.tec.p_value = _string_to_number(self.view, p_gain, cast=float)
         except ValueError:
             self.tec.p_value = 0
 
@@ -532,23 +526,11 @@ class Tec:
     def update_loop_time(self, loop_time: str) -> None:
         self.tec.loop_time = _string_to_number(self.view, loop_time, cast=int)
 
-    def update_reference_resistor(self, reference_resistor: str) -> None:
-        try:
-            self.tec.reference_resistor = _string_to_number(self.view, reference_resistor, cast=float)
-        except ValueError:
-            self.tec.reference_resistor = 0
-
     def update_max_power(self, max_power: str) -> None:
         try:
-            self.tec.max_power = _string_to_number(self.view, max_power, cast=int)
+            self.tec.max_power = _string_to_number(self.view, max_power, cast=float)
         except ValueError:
             self.tec.max_power = 0
-
-    def set_heating(self) -> None:
-        self.tec.heating = True
-
-    def set_cooling(self) -> None:
-        self.tec.cooling = True
 
     def fire_configuration_change(self) -> None:
         self.tec.fire_configuration_change()

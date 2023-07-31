@@ -19,6 +19,7 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 from PyQt5 import QtCore
+from overrides import override
 from scipy import ndimage
 
 from .. import algorithm
@@ -439,25 +440,16 @@ class LaserSignals(QtCore.QObject):
         QtCore.QObject.__init__(self)
 
 
-class TecMode(enum.IntEnum):
-    COOLING = 0
-    HEATING = 1
-
-
 @dataclass(init=False, frozen=True)
 class TecSignals(QtCore.QObject):
-    mode = QtCore.pyqtSignal(TecMode)
-    p_value = QtCore.pyqtSignal(int)
-    d_value = QtCore.pyqtSignal(int)
-    i_1_value = QtCore.pyqtSignal(int)
-    i_2_value = QtCore.pyqtSignal(int)
+    p_gain = QtCore.pyqtSignal(float)
+    d_gain = QtCore.pyqtSignal(float)
+    i_gain = QtCore.pyqtSignal(float)
     setpoint_temperature = QtCore.pyqtSignal(float)
     loop_time = QtCore.pyqtSignal(int)
-    reference_resistor = QtCore.pyqtSignal(float)
     max_power = QtCore.pyqtSignal(int)
     enabled = QtCore.pyqtSignal(bool)
     clear_plots = QtCore.pyqtSignal()
-    use_ntc = QtCore.pyqtSignal(bool)
 
     def __init__(self):
         QtCore.QObject.__init__(self)
@@ -508,6 +500,7 @@ class LiveCalculation(Calculation):
         self.dc_signals = []
         self.pti_buffer = PTIBuffer()
         self.characterisation_buffer = CharacterisationBuffer()
+        self.motherboard = Motherboard()
         self.pti_signal_mean_queue = deque(maxlen=LiveCalculation.ONE_MINUTE)
         signals.clear_daq.connect(self.clear_buffer)
 
@@ -539,12 +532,12 @@ class LiveCalculation(Calculation):
 
     def _run_pti_inversion(self):
         self._init_calculation()
-        while Motherboard.driver.running.is_set():
+        while self.motherboard.driver.running.is_set():
             self._decimation()
             self._pti_inversion()
 
     def _run_characterization(self) -> None:
-        while Motherboard.driver.running.is_set():
+        while self.motherboard.driver.running.is_set():
             self.interferometry.characterization.characterise(live=True)
             self.characterisation_buffer.append(self.interferometry.characterization,
                                                 self.interferometry.interferometer)
@@ -557,9 +550,9 @@ class LiveCalculation(Calculation):
         self.interferometry.interferometer.load_settings()
 
     def _decimation(self) -> None:
-        self.pti.decimation.ref = np.array(Motherboard.driver.ref_signal)
-        self.pti.decimation.dc_coupled = np.array(Motherboard.driver.dc_coupled)
-        self.pti.decimation.ac_coupled = np.array(Motherboard.driver.ac_coupled)
+        self.pti.decimation.ref = np.array(self.motherboard.driver.ref_signal)
+        self.pti.decimation.dc_coupled = np.array(self.motherboard.driver.dc_coupled)
+        self.pti.decimation.ac_coupled = np.array(self.motherboard.driver.ac_coupled)
         self.pti.decimation.decimate(live=True)
         signals.decimation_live.emit(self.pti_buffer)
 
@@ -612,15 +605,16 @@ class Serial:
     """
     This class is a base class for subclasses of the driver objects from driver/serial.
     """
-
-    driver = hardware.serial_device.Driver()
-
     def __init__(self):
         signals.destination_folder_changed.connect(self._update_destination_folder)
         self._destination_folder = os.getcwd()
         self._init_headers = True
         self._running = False
-        signals.daq_running.connect(self._daq_running_changed)
+
+    @property
+    @abc.abstractmethod
+    def driver(self) -> hardware.serial_device.Driver:
+        ...
 
     def _daq_running_changed(self, running) -> None:
         self._running = running
@@ -630,27 +624,23 @@ class Serial:
         self._destination_folder = destination_folder
         self._init_headers = True
 
-    @classmethod
-    def find_port(cls) -> None:
-        cls.driver.find_port()
+    def find_port(self) -> None:
+        self.driver.find_port()
 
-    @classmethod
-    def open(cls) -> None:
+    def open(self) -> None:
         """
         Connects to a serial device and listens to incoming data.
         """
-        cls.driver.open()
+        self.driver.open()
 
-    @classmethod
-    def run(cls) -> None:
-        cls.driver.run()
+    def run(self) -> None:
+        self.driver.run()
 
-    @classmethod
-    def close(cls) -> None:
+    def close(self) -> None:
         """
         Disconnects to a serial device and stops listening to data
         """
-        cls.driver.close()
+        self.driver.close()
 
     @classmethod
     @abc.abstractmethod
@@ -682,17 +672,23 @@ class Serial:
 
 
 class Motherboard(Serial):
-    driver = hardware.motherboard.Driver()
+    _driver = hardware.motherboard.Driver()
 
     def __init__(self):
         Serial.__init__(self)
         self.bms_data: tuple[float, float] = (0, 0)
         self.initialized = False
+        signals.daq_running.connect(self._daq_running_changed)
 
     def initialize(self) -> None:
         self.driver.load_config()
         signals.samples_changed.emit(self.number_of_samples)
         self.initialized = True
+
+    @property
+    @override
+    def driver(self) -> hardware.motherboard.Driver:
+        return Motherboard._driver
 
     @property
     def number_of_samples(self) -> int:
@@ -713,7 +709,7 @@ class Motherboard(Serial):
 
     def _incoming_data(self) -> None:
         while self.driver.connected.is_set():
-            bms_data = Motherboard.driver.bms
+            bms_data = self.driver.bms
             bms_data.battery_temperature = Motherboard.centi_kelvin_to_celsius(bms_data.battery_temperature)
             signals.battery_state.emit(Battery(bms_data.battery_percentage, bms_data.minutes_left))
             if self.running:
@@ -795,17 +791,15 @@ class Motherboard(Serial):
         self.driver.bypass = state
         signals.bypass.emit(state)
 
-    @staticmethod
-    def shutdown() -> None:
-        Motherboard.driver.do_shutdown()
+    def shutdown(self) -> None:
+        self.driver.do_shutdown()
 
     def load_configuration(self) -> None:
-        Motherboard.driver.load_config()
+        self.driver.load_config()
         self.fire_configuration_change()
 
-    @classmethod
-    def save_configuration(cls) -> None:
-        cls.driver.save_config()
+    def save_configuration(self) -> None:
+        self.driver.save_config()
 
     @property
     def config_path(self) -> str:
@@ -818,16 +812,21 @@ class Motherboard(Serial):
         self.driver.config_path = config_path
 
     def fire_configuration_change(self) -> None:
-        signals.valve_change.emit(Motherboard.driver.config.valve)
+        signals.valve_change.emit(self.driver.config.valve)
 
 
 class Laser(Serial):
     buffer = LaserBuffer()
-    driver = hardware.laser.Driver()
+    _driver = hardware.laser.Driver()
 
     def __init__(self):
         Serial.__init__(self)
         self._config_path = "hardware/configs/laser.json"
+
+    @property
+    @override
+    def driver(self) -> hardware.laser.Driver:
+        return Laser._driver
 
     @property
     @abc.abstractmethod
@@ -1149,7 +1148,7 @@ class Tec(Serial):
     driver = hardware.tec.Driver()
     _buffer = TecBuffer()
 
-    def __init__(self, channel: int):
+    def __init__(self, channel: int = 0):
         Serial.__init__(self)
         self.tec = self.driver.tec[channel]
         self.tec_signals = tec_signals[channel]
@@ -1177,9 +1176,11 @@ class Tec(Serial):
     def config_path(self, config_path: str) -> None:
         self.tec.config_path = config_path
 
+    @override
     def save_configuration(self) -> None:
         self.tec.save_configuration()
 
+    @override
     def load_configuration(self) -> None:
         self.tec.load_configuration()
         self.fire_configuration_change()
@@ -1197,42 +1198,33 @@ class Tec(Serial):
         self.tec.set_pid_p_gain()
 
     @property
-    def i_1_value(self) -> float:
-        return self.tec.configuration.pid.integral_value[0]
+    def i_gain(self) -> float:
+        return self.tec.configuration.pid.integral_value
 
-    @i_1_value.setter
-    def i_1_value(self, i_value: int) -> None:
-        self.tec.configuration.pid.integral_value[0] = i_value
-        self.tec.set_pid_i_gain(0)
-
-    @property
-    def i_2_value(self) -> float:
-        return self.tec.configuration.pid.integral_value[1]
-
-    @i_2_value.setter
-    def i_2_value(self, i_value: float) -> None:
-        self.tec.configuration.pid.integral_value[1] = i_value
-        self.tec.set_pid_i_gain(1)
+    @i_gain.setter
+    def i_gain(self, i_value: int) -> None:
+        self.tec.configuration.pid.integral_value = i_value
+        self.tec.set_pid_i_gain()
 
     @property
-    def d_value(self) -> int:
+    def d_gain(self) -> int:
         return self.tec.configuration.pid.derivative_value
 
-    @d_value.setter
-    def d_value(self, d_value: int) -> None:
+    @d_gain.setter
+    def d_gain(self, d_value: int) -> None:
         if isinstance(d_value, int) and d_value >= 0:
             self.tec.configuration.pid.derivative_value = d_value
             self.tec.set_pid_d_gain()
         else:
-            self.tec_signals.d_value.emit(self.tec.configuration.pid.derivative_value)
+            self.tec_signals.d_gain.emit(self.tec.configuration.pid.derivative_value)
 
     @property
     def setpoint_temperature(self) -> float:
         return self.tec.configuration.system_parameter.setpoint_temperature
 
     @setpoint_temperature.setter
-    def setpoint_temperature(self, setpoint_temperature: float) -> None:
-        self.tec.configuration.system_parameter.setpoint_temperature = setpoint_temperature
+    def setpoint_temperature(self, new_setpoint_temperature: float) -> None:
+        self.tec.configuration.system_parameter.setpoint_temperature = new_setpoint_temperature
         self.tec.set_setpoint_temperature_value()
 
     @property
@@ -1245,60 +1237,25 @@ class Tec(Serial):
         self.tec.set_loop_time_value()
 
     @property
-    def reference_resistor(self) -> int:
-        return self.tec.configuration.system_parameter.reference_resistor
-
-    @reference_resistor.setter
-    def reference_resistor(self, reference_resistor: float) -> None:
-        self.tec.configuration.system_parameter.reference_resistor = reference_resistor
-        self.tec.set_reference_resistor_value()
-
-    @property
     def max_power(self) -> float:
         return self.tec.configuration.system_parameter.max_power
 
     @max_power.setter
     def max_power(self, max_power: float) -> None:
+        max_power /= 100
         self.tec.configuration.system_parameter.max_power = max_power
         self.tec.set_max_power_value()
 
-    @property
-    def cooling(self) -> bool:
-        return self.tec.configuration.mode.cooling
-
-    @cooling.setter
-    def cooling(self, cooling: bool) -> None:
-        self.tec.configuration.mode.cooling = cooling
-        self.tec.configuration.mode.heating = not cooling
-        self.tec.set_mode()
-        if cooling:
-            self.tec_signals.mode.emit(TecMode.COOLING)
-        else:
-            self.tec_signals.mode.emit(TecMode.HEATING)
-
-    @property
-    def heating(self) -> bool:
-        return not self.cooling
-
-    @heating.setter
-    def heating(self, heating: bool) -> None:
-        self.cooling = not heating
-
+    @override
     def fire_configuration_change(self) -> None:
-        self.tec_signals.d_value.emit(self.d_value)
-        self.tec_signals.p_value.emit(self.p_value)
-        self.tec_signals.i_1_value.emit(self.i_2_value)
-        self.tec_signals.i_2_value.emit(self.i_2_value)
+        self.tec_signals.d_gain.emit(self.d_gain)
+        self.tec_signals.p_gain.emit(self.p_value)
+        self.tec_signals.i_gain.emit(self.i_gain)
         self.tec_signals.setpoint_temperature.emit(self.setpoint_temperature)
         self.tec_signals.loop_time.emit(self.loop_time)
-        self.tec_signals.reference_resistor.emit(self.reference_resistor)
         self.tec_signals.max_power.emit(self.max_power)
-        if self.cooling:
-            self.tec_signals.mode.emit(TecMode.COOLING)
-        else:
-            self.tec_signals.mode.emit(TecMode.HEATING)
-        self.tec_signals.use_ntc.emit(self.tec.configuration.temperature_element.NTC)
 
+    @override
     def _incoming_data(self) -> None:
         self._running = True
         while self.driver.connected.is_set():

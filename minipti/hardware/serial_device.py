@@ -23,6 +23,8 @@ else:
 import serial
 from serial.tools import list_ports
 
+from . import protocolls
+
 
 class Driver(ABC):
     """
@@ -193,10 +195,9 @@ class Driver(ABC):
             return True
         return False
 
-    @write.register(int)
-    @write.register(SerialStream)
+    @write.register(protocolls.ASCIIProtocoll)
     @final
-    def _(self, message: Union[int, SerialStream]) -> bool:
+    def _(self, message: protocolls.ASCIIProtocoll) -> bool:
         if self.connected.is_set():
             self._write_buffer.put(str(message), block=False)
             return True

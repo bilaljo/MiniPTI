@@ -14,3 +14,4 @@ six==1.16.0
 types-pytz==2023.3.0.0
 tzdata==2023.3
 pythonnet==3.0.1; platform_system == "Windows"
+overrides==7.3.1

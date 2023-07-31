@@ -6,6 +6,7 @@ from typing import Final, NamedTuple
 from dataclasses import dataclass
 
 import dacite
+from overrides import override
 
 from . import serial_device
 from .. import json_parser
@@ -22,27 +23,27 @@ class Data:
 
 
 class Status(NamedTuple):
-    VALUE: Final = 0
-    TEXT: Final = 1
-    ERROR: Final = ((0x0010, "Chip Error"),
-                    (0x0020, "Kt1: Open"),
-                    (0x0040, "Kt1 VCC shorted"),
-                    (0x0080, "Kt1 GND shorted"),
-                    (0x2000, "Kt2 Open"),
-                    (0x4000, "Kt2 VCC shorted"),
-                    (0x8000, "Kt2 GND shorted"),
-                    (0x0100, "TEC overcurrent"),
-                    (0x0200, "TEC overtemperature"),
-                    (0x0400, "Pt100b chip error")
-                    )
+    VALUE: int = 0
+    TEXT: int = 1
+    ERROR: tuple[int] = ((0x0010, "Chip Error"),
+                                (0x0020, "Kt1: Open"),
+                                (0x0040, "Kt1 VCC shorted"),
+                                (0x0080, "Kt1 GND shorted"),
+                                (0x2000, "Kt2 Open"),
+                                (0x4000, "Kt2 VCC shorted"),
+                                (0x8000, "Kt2 GND shorted"),
+                                (0x0100, "TEC overcurrent"),
+                                (0x0200, "TEC overtemperature"),
+                                (0x0400, "PT1000 chip error"))
+
 
 class _TecDataIndex(NamedTuple):
-    PT1000: Final = (0, 1)
-    KT: Final = (5, 6)
-    PELTIER_STATUS: Final = 8
-    SET_POINT: Final = (9, 10)
-    PT1000_STATUS = 16
-    NTC: Final = (17, 18)
+    PT1000: tuple[int] = (0, 1)
+    KT: tuple[int]  = (5, 6)
+    PELTIER_STATUS: int = 8
+    SET_POINT: tuple[int]  = (9, 10)
+    PT1000_STATUS: int = 16
+    NTC: tuple[int]  = (17, 18)
 
 
 class Driver(serial_device.Driver):
@@ -50,27 +51,28 @@ class Driver(serial_device.Driver):
     NAME = "Tec"
     CHANNELS = 2
 
+    KEY_SLICE = 3
+
     def __init__(self):
         serial_device.Driver.__init__(self)
         self.tec = [Tec(0, self), Tec(1, self)]
 
     @property
+    @override
     def device_id(self) -> bytes:
         return Driver._HARDWARE_ID
 
     @property
+    @override
     def device_name(self) -> str:
         return Driver.NAME
 
-    def open(self) -> None:
-        super().open()
-        self.tec[0].set_ntc_dac()
-        self.tec[1].set_ntc_dac()
-
+    @override
     def _process_data(self) -> None:
         while self.connected.is_set():
             self._encode_data()
 
+    @override
     def _encode_data(self) -> None:
         try:
             received_data: str = self.get_data()
@@ -80,13 +82,11 @@ class Driver(serial_device.Driver):
             if not received:
                 continue
             identifier = received[0]
-            if identifier == "E":
-                logging.error("Invalid command %s", received)
-                self._ready_write.set()
-            elif identifier == "S":
-                last_written = self.last_written_message[:-1]
-                if received != last_written and received != last_written.capitalize():
-                    logging.error("Received message %s message, expected %s", received, last_written)
+            if identifier == "S":
+                last_key = self.last_written_message[:Driver.KEY_SLICE]
+                received_key = received[:Driver.KEY_SLICE]
+                if received_key != last_key:
+                    logging.error("Received message with as key %s, expected key %s", received_key, last_key)
                 else:
                     logging.debug("Command %s successfully applied", received)
                 self._ready_write.set()
@@ -128,10 +128,11 @@ class Commands:
         self.set_ntc_dac = protocolls.ASCIIMultimap(key="SetNTCDAC_CurSetpoint", index=channel, value=0)
         self.set_enable = protocolls.ASCIIMultimap(key="SetPID_Active", index=channel, value=0)
 
+
 class Tec:
     _NTC_DAC_CALIBRATION_VALUE = 800
 
-    MIN_LOOP_TIME = 26
+    MIN_LOOP_TIME = 10
     MAX_LOOP_TIME = 5000
 
     def __init__(self, channel: int, driver: Driver):
@@ -172,6 +173,7 @@ class Tec:
                     logging.info("Creating a new file")
                     self.configuration = Configuration()
                     self.save_configuration()
+
     def save_configuration(self) -> None:
         with open(self.config_path, "w") as configuration:
             lasers = {f"Tec": dataclasses.asdict(self.configuration)}
@@ -200,8 +202,7 @@ class Tec:
         self.driver.write(self.commands.set_i_gain)
 
     def set_setpoint_temperature_value(self,) -> None:
-        # Given by hardware; °C -> Bit
-        setpoint_temperature: int = int(self.configuration.system_parameter.setpoint_temperature * 100 + 32768)
+        setpoint_temperature: float = Tec.celsius_to_kelvin(self.configuration.system_parameter.setpoint_temperature)
         self.commands.set_setpoint.value = setpoint_temperature
         self.driver.write(self.commands.set_setpoint)
 
@@ -220,30 +221,30 @@ class Tec:
         self.driver.write(self.commands.set_loop_time_ms)
 
     def set_reference_resistor(self) -> None:
-        self.commands.set_ref_resistor.value = int(self.configuration.system_parameter.reference_resistor * 10)
+        self.commands.set_ref_resistor.value = int(self.configuration.system_parameter.reference_resistor)
         self.driver.write(self.commands.set_ref_resistor)
 
     def set_max_power(self) -> None:
         self.commands.set_max_output_power.value = self.configuration.system_parameter.max_power
         self.driver.write(self.commands.set_max_output_power)
 
-    """
-    def set_mode(self) -> None:
-        if self.configuration.mode.heating:
-            self.commands.set_control_loop.value = Tec._HEATING
-        else:
-            self.commands.set_control_loop.value = Tec._COOLING
-        self.driver.write(self.commands.set_control_loop)
-    """
-
     @staticmethod
-    def kelvin_to_celsisus(temperature: float) -> float:
+    def kelvin_to_celsisus(temperature_K: float) -> float:
         """
         Formula follows from definition, see also here
         https://en.wikipedia.org/wiki/Conversion_of_scales_of_temperature#Kelvin_scale
         "Celsius to Kelvin"
         """
-        return temperature - 273.15
+        return temperature_K - 273.15
+
+    @staticmethod
+    def celsius_to_kelvin(temperature_C: float) -> float:
+        """
+        Formula follows from definition, see also here
+        https://en.wikipedia.org/wiki/Conversion_of_scales_of_temperature#Celsius_scale
+        "Kelvin to Celsius"
+        """
+        return temperature_C + 273.15
 
 
 @dataclass
@@ -251,12 +252,6 @@ class _TemperatureElement:
     PT1000: bool
     KT: bool
     NTC: bool
-
-
-@dataclass
-class _Mode:
-    heating: bool
-    cooling: bool
 
 
 @dataclass
@@ -270,13 +265,11 @@ class _PID:
 class _SystemParameter:
     setpoint_temperature: float
     loop_time: int
-    reference_resistor: float
-    max_power: int
+    max_power: float
 
 
 @dataclass
 class Configuration:
     temperature_element = _TemperatureElement(PT1000=False, KT=False, NTC=True)
-    mode = _Mode(heating=False, cooling=True)
     pid = _PID(proportional_value=0, integral_value=0, derivative_value=0)
-    system_parameter = _SystemParameter(ROOM_TEMPERATURE_CELSIUS, Tec.MAX_LOOP_TIME, 0, 0)
+    system_parameter = _SystemParameter(ROOM_TEMPERATURE_CELSIUS, Tec.MAX_LOOP_TIME, 0)
