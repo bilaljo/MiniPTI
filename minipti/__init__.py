@@ -3,7 +3,7 @@ try:
 except ModuleNotFoundError:
     pass  # Hardware not needed
 from . import algorithm
-from . import json_parser
+
 try:
     from . import gui
 except (ModuleNotFoundError, ImportError):

@@ -1,14 +1,14 @@
 """
 API for characterisation and phases of an interferometer.
 """
-
-import csv
+from collections.abc import Generator
 import itertools
 import logging
 import os
 import threading
 import typing
-from typing import Final, Generator, Union
+from dataclasses import dataclass
+from typing import Final, Union
 from collections import defaultdict
 
 import numpy as np
@@ -20,6 +20,12 @@ class _Locks(typing.NamedTuple):
     output_phases = threading.Lock()
     amplitudes = threading.Lock()
     offsets = threading.Lock()
+
+
+@dataclass
+class Symmetry:
+    absolute: Union[float, np.ndarray] = 100
+    relative: Union[float, np.ndarray] = 100
 
 
 class Interferometer:
@@ -42,9 +48,9 @@ class Interferometer:
         self._output_phases = output_phases
         self._amplitudes = amplitudes
         self._offsets = offsets
-        self.absolute_symmetry: float | np.ndarray = 100
-        self.relative_symmetry: float | np.ndarray = 100
+        self.symmetry = Symmetry()
         self._locks = _Locks()
+        self.sensitivity: np.ndarray = np.empty(shape=3)
 
     def load_settings(self) -> None:
         """
@@ -114,15 +120,6 @@ class Interferometer:
         with self._locks.output_phases:
             self._output_phases = output_phases
 
-    def read_decimation(self) -> Union[pd.DataFrame, None]:
-        try:
-            with open(self.decimation_filepath, "r", encoding="UTF-8") as csv_file:
-                dc_delimiter = str(csv.Sniffer().sniff(csv_file.readline()).delimiter)
-        except FileNotFoundError:
-            logging.error("Could not find %s", self.decimation_filepath)
-            return None
-        return pd.read_csv(self.decimation_filepath, delimiter=dc_delimiter, skiprows=[1])
-
     def calculate_amplitudes(self, intensity: np.ndarray):
         """
         The amplitude of perfect sine wave can be calculated according to A = (I_max - I_min) / 2.
@@ -177,6 +174,22 @@ class Interferometer:
             else:
                 self.phase = np.fromiter(map(self._calculate_phase, intensities.T), dtype=float)
 
+    def calculate_sensitivity(self) -> None:
+        try:
+            self.sensitivity = np.empty(shape=(3, len(self.phase)))
+        except TypeError:
+            self.sensitivity = [0, 0, 0]
+        for channel in range(3):
+            amplitude = self.amplitudes[channel]
+            output_phase = self.output_phases[channel]
+            self.sensitivity[channel] = amplitude * np.abs(np.sin(self.phase - output_phase))
+
+
+@dataclass
+class InterferometryData:
+    dc_signals: Union[np.ndarray, None] = None
+    phases: Union[np.ndarray, None] = None
+
 
 class Characterization:
     """
@@ -196,23 +209,11 @@ class Characterization:
         self.event = threading.Event()
         self.destination_folder = os.getcwd()
         self.init_headers = True
-        self._signals = np.empty(1)
-        self.phases = []
-
-    @property
-    def signals(self) -> np.ndarray:
-        return self._signals
-
-    @signals.setter
-    def signals(self, data: np.ndarray) -> None:
-        if data.shape[0] == 3:
-            self._signals = data
-        else:
-            self._signals = data.T
+        self.interferometry_data = InterferometryData()
 
     def __repr__(self) -> str:
         class_name = self.__class__.__name__
-        representation = f"{class_name}(signals={self._signals}, use_settings={self.use_configuration}," \
+        representation = f"{class_name}(use_settings={self.use_configuration}," \
                          f"destination_folder={self.destination_folder}, phases={np.array(self.phases)}," \
                          f" init_headers={self.init_headers}, tracking_phase={np.array(self.tracking_phase)}" \
                          f" time_stamp={self.time_stamp}, interferometer={self.interferometer})"
@@ -238,11 +239,12 @@ class Characterization:
         self.interferometer.absolute_symmetry = absolute_symmetry
         self.interferometer.relative_symmetry = relative_symmetry
 
-    def characterise(self, live=False) -> None:
+    def characterise(self, live=False, file_path="") -> None:
         """
         Characterises the interferometer either live (with data from the motherboard) or offline.
         Args:
             live (bool): Decides if running live with motherboard connected or offline with already measured data.
+            file_path (str): File path to the DC data
         """
         if self.init_headers:
             units = {}
@@ -259,7 +261,7 @@ class Characterization:
         if live:
             self._calculate_online()
         else:
-            self._calculate_offline()
+            self._calculate_offline(file_path)
             self.init_headers = True
 
     def add_phase(self, phase: float) -> None:
@@ -281,7 +283,7 @@ class Characterization:
         Resets the characterisation buffers.
         """
         self.tracking_phase = []
-        self._signals = []
+        self.interferometry_data.dc_signals = []
         self._occurred_phases = np.full(Characterization.STEP_SIZE, False)
         self.event.clear()
 
@@ -309,8 +311,8 @@ class Characterization:
             self.interferometer.calculate_phase(dc_signals[i])
             self.add_phase(self.interferometer.phase)
             if self.enough_values:
-                self.signals = dc_signals[last_index:i + 1]
-                self.phases = self.tracking_phase
+                self.interferometry_data.dc_signals = dc_signals[last_index:i + 1]
+                self.interferometry_data.phases = self.tracking_phase
                 if not self.use_parameters:
                     self._iterate_characterization()
                     self.use_parameters = True  # For next time these values can be used now
@@ -338,21 +340,19 @@ class Characterization:
             amplitudes.append(np.sqrt(result[0] ** 2 + result[1] ** 2))
             offsets.append(result[2])
 
-        cosine_values = np.cos(self.phases)
-        sine_values = np.sin(self.phases)
+        cosine_values = np.cos(self.interferometry_data.phases)
+        sine_values = np.sin(self.interferometry_data.phases)
         results, _, _, _ = linalg.lstsq(np.array([cosine_values, np.ones(len(cosine_values))]).T,
-                                        self.signals[0], check_finite=False)
+                                        self.interferometry_data.dc_signals.T[0], check_finite=False)
         amplitudes.append(results[0])
         offsets.append(results[1])
         output_phases.append(0)
 
         parameters = np.array([cosine_values, sine_values, np.ones(len(sine_values))]).T
 
-        results, _, _, _ = linalg.lstsq(parameters, self.signals[1], check_finite=False)
-        add_values(results)
-
-        results, _, _, _ = linalg.lstsq(parameters, self.signals[2], check_finite=False)
-        add_values(results)
+        for i in range(1, Interferometer.CHANNELS):
+            results, _, _, _ = linalg.lstsq(parameters, self.interferometry_data.dc_signals.T[i], check_finite=False)
+            add_values(results)
 
         self.interferometer.output_phases = output_phases
         self.interferometer.amplitudes = amplitudes
@@ -361,7 +361,7 @@ class Characterization:
     def _iterate_characterization(self) -> None:
         logging.info("Start iteration ...")
         for _ in itertools.repeat(None, Characterization.MAX_ITERATIONS):
-            self.interferometer.calculate_phase(self.signals)
+            self.interferometer.calculate_phase(np.array(self.interferometry_data.dc_signals))
             self.phases = self.interferometer.phase
             self._characterise_interferometer()
             logging.info("Current estimation:\n%s", str(self.interferometer))
@@ -373,27 +373,26 @@ class Characterization:
             output_data[f"Output Phase CH{channel + 1}"].append(output_phase_deg)
             output_data[f"Amplitude CH{channel + 1}"].append(self.interferometer.amplitudes[channel])
             output_data[f"Offset CH{channel + 1}"].append(self.interferometer.offsets[channel])
-        output_data["Symmetry"].append(self.interferometer.absolute_symmetry)
-        output_data["Relative Symmetry"].append(self.interferometer.relative_symmetry)
+        output_data["Symmetry"].append(self.interferometer.symmetry.absolute)
+        output_data["Relative Symmetry"].append(self.interferometer.symmetry.relative)
 
-    def _calculate_offline(self, dc_signals=None):
+    def _calculate_offline(self, file_path: str):
         output_data = defaultdict(list)
         time_stamps = []
-        if dc_signals is None:
-            data = self.interferometer.read_decimation()
-            for header in Interferometer.DC_HEADERS:
-                try:
-                    dc_signals = data[header].to_numpy()
-                    break
-                except KeyError:
-                    continue
-            else:
-                raise KeyError("Invalid key for DC values given")
+        data = pd.read_csv(file_path, sep=None, engine="python", skiprows=[1])
+        for header in Interferometer.DC_HEADERS:
+            try:
+                dc_signals = data[header].to_numpy()
+                break
+            except KeyError:
+                continue
+        else:
+            raise KeyError("Invalid key for DC values given")
         process_characterisation = self.process_characterisation(dc_signals)
         try:
             for i in process_characterisation:
                 time_stamps.append(i)
-                self._add_characterised_data(output_data)
+            self._add_characterised_data(output_data)
         except ValueError:
             logging.warning("Not enough values for characterization")
         else:
@@ -404,7 +403,6 @@ class Characterization:
 
     def _calculate_online(self) -> None:
         self.event.wait()
-        self._signals = np.array(self._signals).T
         self._characterise_interferometer()
         characterised_data = {}
         for i in range(3):

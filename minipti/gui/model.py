@@ -15,7 +15,6 @@ from collections import deque
 from dataclasses import dataclass, asdict
 from datetime import datetime
 
-
 import numpy as np
 import pandas as pd
 from PyQt5 import QtCore
@@ -24,6 +23,13 @@ from scipy import ndimage
 
 from .. import algorithm
 from .. import hardware
+
+
+LaserData = hardware.laser.Data
+
+TecData = hardware.tec.Data
+
+Valve = hardware.motherboard.Valve
 
 
 class DestinationFolder:
@@ -229,12 +235,8 @@ class Buffer:
 
 class PTI(typing.NamedTuple):
     decimation: algorithm.pti.Decimation
-    inversion: algorithm.pti.Inversion
-
-
-class Interferometry(typing.NamedTuple):
     interferometer: algorithm.interferometry.Interferometer
-    characterization: algorithm.interferometry.Characterization
+    inversion: algorithm.pti.Inversion
 
 
 class PTIBuffer(Buffer):
@@ -251,16 +253,17 @@ class PTIBuffer(Buffer):
         self._pti_signal_mean_queue = deque(maxlen=PTIBuffer.MEAN_SIZE)
 
     @property
+    @override
     def is_empty(self) -> bool:
         return len(self._pti_signal) == 0
 
-    def append(self, pti_data: PTI, interferometer: algorithm.interferometry.Interferometer) -> None:
+    def append(self, pti: PTI) -> None:
         for i in range(3):
-            self._dc_values[i].append(pti_data.decimation.dc_signals[i])
-            self.sensitivity[i].append(pti_data.inversion.sensitivity[i])
-        self._interferometric_phase.append(interferometer.phase)
-        self._pti_signal.append(pti_data.inversion.pti_signal)
-        self._pti_signal_mean_queue.append(pti_data.inversion.pti_signal)
+            self._dc_values[i].append(pti.decimation.dc_signals[i])
+            self.sensitivity[i].append(pti.interferometer.sensitivity[i])
+        self._interferometric_phase.append(pti.interferometer.phase)
+        self._pti_signal.append(pti.inversion.pti_signal)
+        self._pti_signal_mean_queue.append(pti.inversion.pti_signal)
         self._pti_signal_mean.append(np.mean(self._pti_signal_mean_queue))
         self.time.append(next(self.time_counter))
 
@@ -306,8 +309,8 @@ class CharacterisationBuffer(Buffer):
             self._amplitudes[i].append(interferometer.amplitudes[i])
         for i in range(2):
             self._output_phases[i].append(interferometer.output_phases[i + 1])
-        self.symmetry.append(interferometer.absolute_symmetry)
-        self.relative_symmetry.append(interferometer.relative_symmetry)
+        self.symmetry.append(interferometer.symmetry.absolute)
+        self.relative_symmetry.append(interferometer.symmetry.relative)
         self.time.append(characterization.time_stamp)
 
     @property
@@ -469,17 +472,16 @@ def shutdown_procedure() -> None:
 class Calculation:
     def __init__(self):
         self.settings_path = ""
-        self.interferometry = Interferometry(algorithm.interferometry.Interferometer(),
-                                             algorithm.interferometry.Characterization())
-        self.interferometry.characterization.interferometer = self.interferometry.interferometer
-        self.pti = PTI(algorithm.pti.Decimation(),
-                       algorithm.pti.Inversion(interferometer=self.interferometry.interferometer))
+        self.pti = PTI(algorithm.pti.Decimation(), algorithm.interferometry.Interferometer(),
+                       algorithm.pti.Inversion())
+        self.pti.inversion.interferometer = self.pti.interferometer
+        self.interferometry_characterization = algorithm.interferometry.Characterization(self.pti.interferometer)
         self._destination_folder = os.getcwd()
         signals.destination_folder_changed.connect(self._update_destination_folder)
         signals.samples_changed.connect(self._update_decimation_average_period)
 
     def _update_destination_folder(self, folder: str) -> None:
-        self.interferometry.characterization.destination_folder = folder
+        self.interferometry_characterization.destination_folder = folder
         self.pti.inversion.destination_folder = folder
         self.pti.decimation.destination_folder = folder
         self._destination_folder = folder
@@ -538,16 +540,15 @@ class LiveCalculation(Calculation):
 
     def _run_characterization(self) -> None:
         while self.motherboard.driver.running.is_set():
-            self.interferometry.characterization.characterise(live=True)
-            self.characterisation_buffer.append(self.interferometry.characterization,
-                                                self.interferometry.interferometer)
+            self.interferometry_characterization.characterise(live=True)
+            self.characterisation_buffer.append(self.interferometry_characterization, self.pti.interferometer)
             signals.characterization_live.emit(self.characterisation_buffer)
 
     def _init_calculation(self) -> None:
         self.pti.inversion.init_header = True
         self.pti.decimation.init_header = True
-        self.interferometry.characterization.init_online = True
-        self.interferometry.interferometer.load_settings()
+        self.interferometry_characterization.init_online = True
+        self.pti.interferometer.load_settings()
 
     def _decimation(self) -> None:
         self.pti.decimation.ref = np.array(self.motherboard.driver.ref_signal)
@@ -557,20 +558,18 @@ class LiveCalculation(Calculation):
         signals.decimation_live.emit(self.pti_buffer)
 
     def _pti_inversion(self) -> None:
-        self.pti.inversion.lock_in = self.pti.decimation.lock_in
-        self.pti.inversion.dc_signals = self.pti.decimation.dc_signals
-        self.pti.inversion.invert(live=True)
-        self.pti_buffer.append(self.pti, self.interferometry.interferometer)
+        self.pti.inversion.invert(self.pti.decimation.lock_in, self.pti.decimation.dc_signals, live=True)
+        self.pti_buffer.append(self.pti)
         signals.inversion_live.emit(self.pti_buffer)
 
     def _characterisation(self) -> None:
-        self.interferometry.characterization.add_phase(self.interferometry.interferometer.phase)
+        self.interferometry_characterization.add_phase(self.pti.interferometer.phase)
         self.dc_signals.append(copy.deepcopy(self.pti.decimation.dc_signals))
-        if self.interferometry.characterization.enough_values:
-            self.interferometry.characterization._signals = copy.deepcopy(self.dc_signals)
-            self.interferometry.characterization.phases = copy.deepcopy(
-                self.interferometry.characterization.tracking_phase)
-            self.interferometry.characterization.event.set()
+        if self.interferometry_characterization.enough_values:
+            self.interferometry_characterization.dc_signals = copy.deepcopy(self.dc_signals)
+            self.interferometry_characterization.phases = copy.deepcopy(
+                self.interferometry_characterization.tracking_phase)
+            self.interferometry_characterization.event.set()
             self.dc_signals = []
 
 
@@ -579,21 +578,19 @@ class OfflineCalculation(Calculation):
         Calculation.__init__(self)
 
     def calculate_characterisation(self, dc_file_path: str, use_settings=False, settings_path="") -> None:
-        self.interferometry.interferometer.decimation_filepath = dc_file_path
-        self.interferometry.interferometer.settings_path = settings_path
-        self.interferometry.characterization.use_configuration = use_settings
-        self.interferometry.characterization.characterise()
-        signals.settings.emit(self.interferometry.interferometer)
+        self.pti.interferometer.settings_path = settings_path
+        self.interferometry_characterization.use_configuration = use_settings
+        self.interferometry_characterization.characterise(file_path=dc_file_path)
+        signals.settings.emit(self.pti.interferometer)
 
     def calculate_decimation(self, decimation_path: str) -> None:
         self.pti.decimation.file_path = decimation_path
         self.pti.decimation.decimate()
 
     def calculate_inversion(self, settings_path: str, inversion_path: str) -> None:
-        self.interferometry.interferometer.decimation_filepath = inversion_path
-        self.interferometry.interferometer.settings_path = settings_path
-        self.interferometry.interferometer.load_settings()
-        self.pti.inversion.invert()
+        self.pti.interferometer.settings_path = settings_path
+        self.pti.interferometer.load_settings()
+        self.pti.inversion.invert(file_path=inversion_path)
 
 
 class ProbeLaserMode(enum.IntEnum):
@@ -610,6 +607,10 @@ class Serial:
         self._destination_folder = os.getcwd()
         self._init_headers = True
         self._running = False
+
+    @property
+    def is_found(self) -> bool:
+        return self.driver.is_found
 
     @property
     @abc.abstractmethod

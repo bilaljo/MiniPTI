@@ -30,6 +30,7 @@ algorithm = [
 
 gui = [
     "minipti[algorithm]",
+    "overrides",
     # Hardware
     "fastcrc",
     "pyserial",

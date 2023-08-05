@@ -3,18 +3,18 @@ import enum
 import json
 import logging
 import os
-from typing import Final, NamedTuple
 from dataclasses import dataclass
 
 import dacite
 from overrides import override
 
 from . import serial_device
-from .. import json_parser
+from . import _json_parser
 from . import protocolls
 
 
 ROOM_TEMPERATURE_CELSIUS = 23
+ROOM_TEMPERATURE_KELVIN = 283.15
 
 
 @dataclass
@@ -113,7 +113,7 @@ class Driver(serial_device.Driver):
 
 class Commands:
     def __init__(self, channel: int):
-        self.set_setpoint = protocolls.ASCIIMultimap(key="SetT_InK", index=channel, value=283.15)
+        self.set_setpoint = protocolls.ASCIIMultimap(key="SetT_InK", index=channel, value=ROOM_TEMPERATURE_KELVIN)
         self.set_p_gain = protocolls.ASCIIMultimap(key="SetPID_KP", index=channel, value=0)
         self.set_i_gain = protocolls.ASCIIMultimap(key="SetPID_KI", index=channel, value=0)
         self.set_d_gain = protocolls.ASCIIMultimap(key="SetPID_KD", index=channel, value=0)
@@ -180,7 +180,7 @@ class Tec:
     def save_configuration(self) -> None:
         with open(self.config_path, "w") as configuration:
             tec = {f"Tec": dataclasses.asdict(self.configuration)}
-            configuration.write(json_parser.to_json(tec) + "\n")
+            configuration.write(_json_parser.to_json(tec) + "\n")
 
     def apply_configuration(self) -> None:
         self.set_pid_d_gain()

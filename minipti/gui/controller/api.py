@@ -6,10 +6,12 @@ import typing
 
 from PyQt5 import QtWidgets, QtCore
 from PyQt5.QtCore import Qt, QCoreApplication
+from overrides import override
 
-from .. import hardware
-from . import model
-from . import view
+from minipti import hardware
+from minipti.gui import model
+from minipti.gui import view
+import interface
 
 
 class MainApplication(QtWidgets.QApplication):
@@ -55,7 +57,7 @@ def _shutdown(controller) -> None:
     controller.main_app.quit()
 
 
-class Home:
+class Home(interface.Home):
     def __init__(self, parent, main_app: QtWidgets.QApplication, settings_controller: "Settings"):
         self.view = parent
         self.main_app = main_app
@@ -69,9 +71,11 @@ class Home:
         settings_controller.raw_data_changed.connect(self.calculation_model.set_raw_data_saving)
         self.motherboard.initialize()
 
+    @override
     def fire_motherboard_configuration_change(self) -> None:
         self.motherboard.fire_configuration_change()
 
+    @override
     def enable_motherboard(self) -> None:
         if not self.motherboard.connected:
             QtWidgets.QMessageBox.critical(self.view, "IO Error",
@@ -86,6 +90,7 @@ class Home:
                 self.motherboard.running = False
             logging.debug("%s Motherboard", "Enabled" if self.motherboard.running else "Disabled")
 
+    @override
     def shutdown_by_button(self) -> None:
         close = QtWidgets.QMessageBox.question(self.view, "QUIT", "Are you sure you want to shutdown?",
                                                QtWidgets.QMessageBox.StandardButton.Yes
@@ -93,16 +98,18 @@ class Home:
         if close == QtWidgets.QMessageBox.StandardButton.Yes:
             _shutdown(self)
 
+    @override
     def set_clean_air(self, bypass: bool) -> None:
         self.motherboard.bypass = bypass
 
 
-class Settings:
+class Settings(interface.Settings):
     def __init__(self, main_app, parent):
-        self.settings_table_model = model.SettingsTable()
+        interface.Settings.__init__(self)
         self.main_app = main_app
         self.view = parent
-        self.destination_folder = model.DestinationFolder()
+        self._settings_table = model.SettingsTable()
+        self._destination_folder = model.DestinationFolder()
         self.last_file_path = os.getcwd()
         self.motherboard = model.Motherboard()
         self.laser = model.Laser()
@@ -111,7 +118,16 @@ class Settings:
         self.pump_laser_tec = model.Tec(model.Tec.PUMP_LASER)
         self.probe_laser_tec = model.Tec(model.Tec.PROBE_LASER)
         self.motherboard.fire_configuration_change()
-        threading.Thread(target=self.init_devices, daemon=True, name="Init Devices Thread").start()
+
+    @property
+    @override
+    def settings_table_model(self) -> model.SettingsTable:
+        return self._settings_table
+
+    @property
+    @override
+    def destination_folder(self) -> model.DestinationFolder:
+        return self._destination_folder
 
     @property
     def raw_data_changed(self) -> QtCore.pyqtSignal:
@@ -124,9 +140,11 @@ class Settings:
     def fire_mother_board_configuration(self) -> None:
         self.motherboard.fire_configuration_change()
 
+    @override
     def save_settings(self) -> None:
         self.settings_table_model.save()
 
+    @override
     def save_settings_as(self) -> None:
         file_path = save_as(parent=self.view, file_type="CSV File", file_extension="csv",
                             name="Algorithm Configuration")
@@ -134,6 +152,7 @@ class Settings:
             self.settings_table_model.file_path = file_path
             self.settings_table_model.save()
 
+    @override
     def load_settings(self):
         file_path, self.last_file_path = _get_file_path(self.view, "Load SettingsTable", self.last_file_path,
                                                         "CSV File (*.csv);;"
@@ -148,55 +167,20 @@ class Settings:
         self.pump_laser_tec.apply_configuration()
         self.probe_laser_tec.apply_configuration()
 
-    def init_devices(self) -> None:
-        self.find_devices()
-        self.connect_devices()
-        self.apply_configurations()
+    @override
+    def set_destination_folder(self) -> None:
+        destination_folder = QtWidgets.QFileDialog.getExistingDirectory(self.view, "Destination Folder",
+                                                                        self.destination_folder.folder,
+                                                                        QtWidgets.QFileDialog.ShowDirsOnly)
+        if destination_folder:
+            self.destination_folder.folder = destination_folder
 
-    def find_devices(self) -> None:
-        try:
-            self.motherboard.find_port()
-        except OSError:
-            logging.error("Could not find Motherboard")
-        try:
-            self.laser.find_port()
-        except OSError:
-            logging.error("Could not find Laser Driver")
-        try:
-            self.pump_laser_tec.find_port()
-        except OSError:
-            logging.error("Could not find TEC Driver")
 
-    def await_shutdown(self):
-        def shutdown_low_energy() -> None:
-            self.motherboard.shutdown_event.wait()
-            _shutdown(self)
-        threading.Thread(target=shutdown_low_energy, daemon=True).start()
+class Motherboard(interface.MotherBoard):
+    def __init__(self):
+        interface.MotherBoard.__init__(self)
 
-    def update_bypass(self) -> None:
-        self.motherboard.bypass = not self.motherboard.bypass
-
-    def connect_devices(self) -> None:
-        try:
-            self.motherboard.open()
-            self.motherboard.run()
-            self.motherboard.process_measured_data()
-            self.await_shutdown()
-        except OSError:
-            logging.error("Could not connect with Motherboard")
-        try:
-            self.laser.open()
-            self.laser.run()
-            self.laser.process_measured_data()
-        except OSError:
-            logging.error("Could not connect with Laser Driver")
-        try:
-            self.pump_laser_tec.open()
-            self.pump_laser_tec.run()
-            self.pump_laser_tec.process_measured_data()
-        except OSError:
-            logging.error("Could not connect with TEC Driver")
-
+    @override
     def update_valve_period(self, period: str) -> None:
         try:
             period = _string_to_number(self.view, period, cast=int)
@@ -210,6 +194,14 @@ class Settings:
             logging.warning(info_text)
             QtWidgets.QMessageBox.critical(self.view, "Valve Error", f"{str(error)}. {info_text}")
 
+    @override
+    def await_shutdown(self):
+        def shutdown_low_energy() -> None:
+            self.motherboard.shutdown_event.wait()
+            _shutdown(self)
+        threading.Thread(target=shutdown_low_energy, daemon=True).start()
+
+    @override
     def update_valve_duty_cycle(self, duty_cycle: str) -> None:
         try:
             duty_cycle = _string_to_number(self.view, duty_cycle, cast=int)
@@ -223,9 +215,11 @@ class Settings:
             logging.warning(info_text)
             QtWidgets.QMessageBox.critical(self.view, "Valve Error", f"{str(error)}. {info_text}")
 
+    @override
     def update_automatic_valve_switch(self, automatic_valve_switch: bool) -> None:
         self.motherboard.automatic_valve_switch = automatic_valve_switch
 
+    @override
     def set_destination_folder(self) -> None:
         destination_folder = QtWidgets.QFileDialog.getExistingDirectory(self.view, "Destination Folder",
                                                                         self.destination_folder.folder,
@@ -233,9 +227,11 @@ class Settings:
         if destination_folder:
             self.destination_folder.folder = destination_folder
 
+    @override
     def save_motherboard_configuration(self) -> None:
         self.motherboard.save_configuration()
 
+    @override
     def load_motherboard_configuration(self) -> None:
         file_path, self.last_file_path = _get_file_path(self.view, "Valve", self.last_file_path,
                                                         "INI File (*.ini);; All Files (*)")
@@ -247,14 +243,36 @@ class Settings:
             else:
                 self.motherboard.load_configuration()
 
+    def update_bypass(self) -> None:
+        self.motherboard.bypass = not self.motherboard.bypass
 
-class Utilities:
+
+class Utilities(interface.Utilities):
     def __init__(self, parent, settings: "Settings"):
         self.view = parent
         self.calculation_model = model.OfflineCalculation()
         self.last_file_path = os.getcwd()
         self.settings_controller = settings
+        self._mother_board = model.Motherboard()
+        self._laser = model.Laser()
+        self._tec = model.Tec()
 
+    @property
+    @override
+    def motherboard(self) -> model.Motherboard:
+        return self._mother_board
+
+    @property
+    @override
+    def laser(self) -> model.Laser:
+        return self._laser
+
+    @property
+    @override
+    def tec(self) -> model.Tec:
+        return self._tec
+
+    @override
     def calculate_decimation(self) -> None:
         decimation_file_path, self.last_file_path = _get_file_path(self.view, "Decimation", self.last_file_path,
                                                                    "Binary File (*.bin);; All Files (*)")
@@ -263,6 +281,7 @@ class Utilities:
         threading.Thread(target=self.calculation_model.calculate_decimation,
                          args=[decimation_file_path]).start()
 
+    @override
     def plot_dc(self) -> None:
         try:
             decimation_path, self.last_file_path = _get_file_path(self.view, "Decimation", self.last_file_path,
@@ -272,6 +291,7 @@ class Utilities:
         except KeyError:
             QtWidgets.QMessageBox.critical(self.view, "Plotting Error", "Invalid data given. Could not plot.")
 
+    @override
     def calculate_pti_inversion(self) -> None:
         inversion_path, self.last_file_path = _get_file_path(self.view, "Inversion", self.last_file_path,
                                                              "CSV File (*.csv);; TXT File (*.txt);; All Files (*)")
@@ -280,17 +300,21 @@ class Utilities:
         threading.Thread(target=self.calculation_model.calculate_inversion,
                          args=[self.settings_controller.settings_table_model.file_path, inversion_path]).start()
 
+    @override
     def plot_inversion(self) -> None:
         try:
             inversion_path, self.last_file_path = _get_file_path(self.view, "Inversion", self.last_file_path,
-                                                                 "CSV File (*.csv);; TXT File (*.txt);; All Files (*)")
+                                                                 "CSV File (*.csv);; TXT File (*.txt);;"
+                                                                 " All Files (*)")
             if inversion_path:
                 model.process_inversion_data(inversion_path)
         except KeyError:
             QtWidgets.QMessageBox.critical(self.view, "Plotting Error", "Invalid data given. Could not plot.")
 
+    @override
     def calculate_characterisation(self) -> None:
-        characterisation_path, self.last_file_path = _get_file_path(self.view, "Characterisation", self.last_file_path,
+        characterisation_path, self.last_file_path = _get_file_path(self.view, "Characterisation",
+                                                                    self.last_file_path,
                                                                     "CSV File (*.csv);; TXT File (*.txt);;"
                                                                     " All Files (*)")
         if not characterisation_path:
@@ -304,6 +328,7 @@ class Utilities:
                          args=[characterisation_path, use_settings,
                                self.settings_controller.settings_table_model.file_path]).start()
 
+    @override
     def plot_characterisation(self) -> None:
         try:
             characterization_path, self.last_file_path = _get_file_path(self.view, "Characterization",
@@ -314,6 +339,52 @@ class Utilities:
                 model.process_characterization_data(characterization_path)
         except KeyError:
             QtWidgets.QMessageBox.critical(self.view, "Plotting Error", "Invalid data given. Could not plot.")
+
+    @override
+    def init_devices(self) -> None:
+        self.find_devices()
+        self.connect_devices()
+        # self.apply_configurations()
+
+    @override
+    def find_devices(self) -> None:
+        try:
+            self.motherboard.find_port()
+        except OSError:
+            logging.error("Could not find Motherboard")
+        try:
+            self.laser.find_port()
+        except OSError:
+            logging.error("Could not find Laser Driver")
+        try:
+            self.tec.find_port()
+        except OSError:
+            logging.error("Could not find TEC Driver")
+
+    @override
+    def connect_devices(self) -> None:
+        if self.motherboard.is_found:
+            try:
+                self.motherboard.open()
+                self.motherboard.run()
+                self.motherboard.process_measured_data()
+                # self.await_shutdown()
+            except OSError:
+                logging.error("Could not connect with Motherboard")
+        if self.laser.is_found:
+            try:
+                self.laser.open()
+                self.laser.run()
+                self.laser.process_measured_data()
+            except OSError:
+                logging.error("Could not connect with Laser Driver")
+        if self.tec.is_found:
+            try:
+                self.tec.open()
+                self.tec.run()
+                self.tec.process_measured_data()
+            except OSError:
+                logging.error("Could not connect with TEC Driver")
 
 
 T = typing.TypeVar("T")

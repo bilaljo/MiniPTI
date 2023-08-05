@@ -42,18 +42,19 @@ class Driver(ABC):
     _SEARCH_ATTEMPTS = 3
 
     def __init__(self):
-        self._port_name = ""
-        self._write_buffer = queue.Queue()
-        self.data = queue.Queue()
-        self._ready_write = threading.Event()
+        self._port_name: str = ""
+        self._is_found: bool = False
+        self._write_buffer: queue.Queue = queue.Queue()
+        self.data: queue.Queue = queue.Queue()
+        self._ready_write: threading.Event = threading.Event()
         self._ready_write.set()
         self.last_written_message = ""
         if platform.system() == "Windows":
-            self._serial_port = System.IO.Ports.SerialPort()
+            self._serial_port: System.IO.Ports.SerialPort = System.IO.Ports.SerialPort()
         else:
-            self._file_descriptor = -1
-        self.connected = threading.Event()
-        self.received_data = queue.Queue()
+            self._file_descriptor: int = -1
+        self.connected: threading.Event = threading.Event()
+        self.received_data: queue.Queue = queue.Queue()
 
     @property
     def port_name(self) -> str:
@@ -78,6 +79,10 @@ class Driver(ABC):
     def device_name(self) -> str:
         ...
 
+    @property
+    def is_found(self) -> bool:
+        return self._is_found
+
     def __repr__(self) -> str:
         name_space = os.path.splitext(os.path.basename(__file__))[0]
         class_name = self.__class__.__name__
@@ -98,6 +103,7 @@ class Driver(ABC):
                         if self._check_hardware_id(device):
                             self._port_name = port.name
                             logging.info(f"Found {self.device_name} at {self.port_name}")
+                            self._is_found = True
                             return
                 except serial.SerialException:
                     continue
@@ -292,6 +298,7 @@ class Driver(ABC):
                     logging.error("Connection to %s lost", self.device_name)
                     # Device might not be closed properly, so we mark the descriptor as invalid
                     self._file_descriptor = -1
+                    self._is_found = False
                     self.connected.clear()
 
     @final

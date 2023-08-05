@@ -5,14 +5,14 @@ import logging
 import os
 import typing
 from dataclasses import dataclass
-from typing import Annotated, Final, Union, overload, final
+from typing import Annotated, Final, Union
 
 import dacite
 from overrides import override
 
 from . import serial_device
 from . import protocolls
-from .. import json_parser
+from . import _json_parser
 
 
 @dataclass
@@ -261,7 +261,7 @@ class HighPowerLaser(Laser):
     _DAC_CHANNELS: Final[int] = 2
     _DAC = typing.Annotated[tuple[int], 6]
     _DAC_REGISTER: Final[tuple[_DAC, _DAC]] = ((1 << 8, 1 << 9, 1 << 10, 1 << 11, 1 << 12, 1 << 13),
-                                              (1 << 14, 1 << 15, 1 << 0, 1 << 1, 1 << 2, 1 << 3))
+                                               (1 << 14, 1 << 15, 1 << 0, 1 << 1, 1 << 2, 1 << 3))
 
     def __init__(self, driver: Driver):
         Laser.__init__(self, driver)

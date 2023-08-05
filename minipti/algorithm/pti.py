@@ -6,12 +6,12 @@ import os
 from collections.abc import Generator
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Final, Union
+from typing import Final, Union, NoReturn
 
 import h5py
 import numpy as np
 import pandas as pd
-from nptyping import NDArray, UInt16, Int16, Shape
+from overrides import override
 
 import minipti.algorithm.interferometry as interferometry
 
@@ -37,30 +37,27 @@ class Inversion:
                               ([f"AC CH{i}" for i in range(1, 4)],
                               [f"AC Phase CH{i}" for i in range(1, 4)])]
 
-    def __init__(self, response_phases=None, sign=1, interferometer=None,
+    def __init__(self, response_phases=None, sign=-1, interferometer=None,
                  settings_path=f"{os.path.dirname(__file__)}/configs/settings.csv"):
         self.response_phases: np.ndarray = response_phases
         self.pti_signal: Union[float, np.ndarray] = 0
-        self.sensitivity: np.ndarray = np.empty(shape=3)
-        self.dc_signals: np.ndarray = np.empty(shape=3)
         self.settings_path: str = settings_path
-        self.lock_in = LockIn(np.empty(shape=3), np.empty(shape=3))
         self.init_header: bool = True
         self.sign: int = sign  # Makes the pti signal positive if it isn't
         self.interferometer: interferometry.Interferometer = interferometer
         self.destination_folder: str = os.getcwd()
         self.load_response_phase()
 
+    @override
     def __repr__(self) -> str:
         class_name = self.__class__.__name__
         representation = f"{class_name}(response_phases={self.response_phases}," \
-                         f" pti_signal={self.pti_signal}, Sensitivity={self.sensitivity}," \
-                         f" lock_in={repr(self.lock_in)}"
+                         f" pti_signal={self.pti_signal})"
         return representation
 
+    @override
     def __str__(self) -> str:
-        return f"Interferometric Phase: {self.interferometer.phase}\n"\
-               f"Sensitivity: {self.sensitivity}\nPTI signal: {self.pti_signal}"
+        return f"Interferometric Phase: {self.interferometer.phase}\n PTI signal: {self.pti_signal}"
 
     def load_response_phase(self) -> None:
         settings = pd.read_csv(self.settings_path, index_col="Setting")
@@ -74,7 +71,7 @@ class Inversion:
             sign = 1 if np.sin(self.interferometer.phase - self.interferometer.output_phases[channel]) >= 0 else -1
         return sign
 
-    def calculate_pti_signal(self) -> None:
+    def calculate_pti_signal(self, lock_in: LockIn) -> None:
         try:
             pti_signal = np.zeros(shape=(len(self.interferometer.phase)))
         except TypeError:
@@ -82,58 +79,54 @@ class Inversion:
         for channel in range(3):
             sign = self._calculate_sign(channel)
             response_phase = self.response_phases[channel]
-            demodulated_signal = self.lock_in.amplitude[channel] * np.cos(self.lock_in.phase[channel] - response_phase)
+            demodulated_signal = lock_in.amplitude[channel] * np.cos(lock_in.phase[channel] - response_phase)
             pti_signal += demodulated_signal * sign
-        total_sensitivity = np.sum(self.sensitivity, axis=0)
+        total_sensitivity = np.sum(self.interferometer.sensitivity, axis=0)
         self.pti_signal = -pti_signal / total_sensitivity
         self.pti_signal *= Inversion.MICRO_RAD * self.sign
 
-    def calculate_sensitivity(self) -> None:
-        try:
-            self.sensitivity = np.empty(shape=(3, len(self.interferometer.phase)))
-        except TypeError:
-            self.sensitivity = [0, 0, 0]
-        for channel in range(3):
-            amplitude = self.interferometer.amplitudes[channel]
-            output_phase = self.interferometer.output_phases[channel]
-            self.sensitivity[channel] = amplitude * np.abs(np.sin(self.interferometer.phase - output_phase))
+    @staticmethod
+    def _get_lock_in_data(data: pd.DataFrame) -> Union[LockIn, NoReturn]:
+        for lock_in_header_1, lock_in_header_2 in Inversion.LOCK_IN_HEADERS:
+            if set(lock_in_header_1).issubset(set(data.columns)) and set(lock_in_header_2).issubset(set(data.columns)):
+                if lock_in_header_1[0].casefold() == "x1":
+                    in_phase_component = data[lock_in_header_1].to_numpy().T
+                    quadrature_component = data[lock_in_header_2].to_numpy().T
+                    return LockIn(np.sqrt(in_phase_component ** 2 + quadrature_component ** 2),
+                                  np.arctan2(quadrature_component, in_phase_component))
+                else:
+                    return LockIn(data[lock_in_header_1].to_numpy().T, data[lock_in_header_2].to_numpy().T)
+        raise KeyError("Invalid Keys for Lock In or Lock In Data not existing")
 
-    def _calculate_offline(self) -> None:
-        data = self.interferometer.read_decimation()
+    @staticmethod
+    def _get_dc_signals(data: pd.DataFrame) -> Union[np.ndarray, NoReturn]:
         for header in interferometry.Interferometer.DC_HEADERS:
             try:
-                dc_signals = data[header].to_numpy()
-                break
+                return data[header].to_numpy()
             except KeyError:
                 continue
         else:
             raise KeyError("Invalid key for DC values given")
-        for lock_in_header_1, lock_in_header_2 in Inversion.LOCK_IN_HEADERS:
-            try:
-                # If it uses the X, Y notation we need to calculate amplitudes and phases first
-                if lock_in_header_1[0].casefold == "x1":
-                    self.lock_in.amplitude = np.sqrt(data[lock_in_header_1] ** 2
-                                                     + data[lock_in_header_1] ** 2).to_numpy().T
-                    self.lock_in.phase = np.arctan2(data[lock_in_header_2],
-                                                    data[lock_in_header_1]).to_numpy().T
-                    pti_measurement = True
-                    break
-                self.lock_in.amplitude = data[lock_in_header_1].to_numpy().T
-                self.lock_in.phase = data[lock_in_header_2].to_numpy().T
-                pti_measurement = True
-                break
-            except KeyError:
-                continue
-        else:
-            pti_measurement = False
+
+    def _calculate_offline(self, file_path: str) -> None:
+        data = pd.read_csv(file_path, sep=None, engine="python", skiprows=[1])
+        dc_signals = Inversion._get_dc_signals(data)
         self.interferometer.calculate_phase(dc_signals)
-        self.calculate_sensitivity()
-        if pti_measurement:
-            self.calculate_pti_signal()
+        self.interferometer.calculate_sensitivity()
+        try:
+            lock_in_signals = Inversion._get_lock_in_data(data)
+            self.calculate_pti_signal(lock_in_signals)
+            pti_measurement = True
+        except KeyError:
+            pti_measurement = False
+        self._save_data(pti_measurement)
+
+    def _save_data(self, pti_measurement: bool) -> None:
         units, output_data = self._prepare_data(pti_measurement)
-        pd.DataFrame(units, index=["s"]).to_csv(f"{self.destination_folder}/PTI_Inversion.csv", index_label="Time")
-        pd.DataFrame(output_data).to_csv(
-            f"{self.destination_folder}/PTI_Inversion.csv",  index_label="Time",  mode="a",  header=False)
+        pd.DataFrame(units, index=["s"]).to_csv(f"{self.destination_folder}/PTI_Inversion.csv",
+                                                index_label="Time")
+        pd.DataFrame(output_data).to_csv(f"{self.destination_folder}/PTI_Inversion.csv", index_label="Time",
+                                         mode="a",  header=False)
         logging.info("PTI Inversion calculated.")
         logging.info("Saved results in %s", str(self.destination_folder))
 
@@ -144,13 +137,13 @@ class Inversion:
                                  "Sensitivity CH3": "V/rad"}
         output_data = {"Interferometric Phase": self.interferometer.phase}
         for i in range(3):
-            output_data[f"Sensitivity CH{i + 1}"] = self.sensitivity[i]
+            output_data[f"Sensitivity CH{i + 1}"] = self.interferometer.sensitivity[i]
         if pti_measurement:
             units["PTI Signal"] = "µrad"
             output_data["PTI Signal"] = self.pti_signal
         return units, output_data
 
-    def _calculate_online(self) -> None:
+    def _calculate_online(self, lock_in: LockIn, dc_signals: np.ndarray) -> None:
         output_data = {"Time": "H:M:S"}
         if self.init_header:
             output_data["Interferometric Phase"] = "rad"
@@ -160,17 +153,20 @@ class Inversion:
             pd.DataFrame(output_data, index=["Y:M:D"]).to_csv(f"{self.destination_folder}/PTI_Inversion.csv",
                                                               index_label="Date")
             self.init_header = False
-        self.interferometer.calculate_phase(self.dc_signals)
-        self.calculate_sensitivity()
-        self.calculate_pti_signal()
+        self.interferometer.calculate_phase(dc_signals)
+        self.interferometer.calculate_sensitivity()
+        self.calculate_pti_signal(lock_in)
+        self._save_live_data()
+
+    def _save_live_data(self) -> None:
         now = datetime.now()
         date = str(now.strftime("%Y-%m-%d"))
         time = str(now.strftime("%H:%M:%S"))
         output_data = {"Time": time,
                        "Interferometric Phase": self.interferometer.phase,
-                       "Sensitivity CH1": self.sensitivity[0],
-                       "Sensitivity CH2": self.sensitivity[1],
-                       "Sensitivity CH3": self.sensitivity[2],
+                       "Sensitivity CH1": self.interferometer.sensitivity[0],
+                       "Sensitivity CH2": self.interferometer.sensitivity[1],
+                       "Sensitivity CH3": self.interferometer.sensitivity[2],
                        "PTI Signal": self.pti_signal}
         try:
             pd.DataFrame(output_data, index=[date]).to_csv(f"{self.destination_folder}/PTI_Inversion.csv",
@@ -179,28 +175,26 @@ class Inversion:
             logging.warning("Could not write data. Missing values are: %s at %s.",
                             str(output_data)[1:-1], date + " " + time)
 
-    def invert(self, live=False) -> None:
+    def invert(self, lock_in: LockIn = None, dc_signals: np.ndarray = None, live=False, file_path="") -> None:
         if live:
             try:
-                self._calculate_online()
-            except ValueError:
+                self._calculate_online(lock_in, dc_signals)
+            except RuntimeWarning:
                 logging.error("Could not calculate, intensities are too small")
         else:
-            self._calculate_offline()
+            self._calculate_offline(file_path)
 
 
 @dataclass
 class RawData:
-    ref: NDArray[Shape["8000"], UInt16]
-    dc: NDArray[Shape["3, 8000"], UInt16]
-    ac: NDArray[Shape["3, 8000"], Int16]
+    ref: Union[np.ndarray[np.uint16], None]
+    dc:  Union[np.ndarray[np.uint16], None]
+    ac:  Union[np.ndarray[np.int16], None]
 
 
 class Decimation:
     """
     Provided an API for the PTI decimation described in [1] from Weingartner et al.
-
-    The number of samples
 
     [1]: Waveguide based passively demodulated photo-thermal
          interferometer for aerosol measurements
@@ -216,15 +210,12 @@ class Decimation:
     def __init__(self):
 
         self._average_period: int = 8000  # Recommended default value
-        self.dc_coupled: Union[NDArray[UInt16], None] = None
-        self.ac_coupled: Union[NDArray[Int16], None] = None
+        self.raw_data = RawData(None, None, None)
         self.dc_signals: Union[np.ndarray, None] = None
         self.lock_in: LockIn = LockIn(np.empty(shape=3), np.empty(shape=3))
-        self.ref: Union[NDArray[UInt16], None] = None
         self.save_raw_data: bool = False
         self.destination_folder: str = "."
         self.file_path: str = ""
-        self.raw_data_file_path = ""
         self.init_header: bool = True
         self.init_raw_data: bool = True
         self._update_lock_in_look_up_table()
@@ -249,33 +240,33 @@ class Decimation:
         """
         if self.save_raw_data:
             self.save()
-        self.dc_coupled = self.dc_coupled * Decimation.REF_VOLTAGE / Decimation.DC_RESOLUTION
-        self.ac_coupled = self.ac_coupled * Decimation.REF_VOLTAGE / (Decimation.AMPLIFICATION
-                                                                      * Decimation.AC_RESOLUTION)
+        self.raw_data.dc = self.raw_data.dc * Decimation.REF_VOLTAGE / Decimation.DC_RESOLUTION
+        self.raw_data.ac = self.raw_data.ac * Decimation.REF_VOLTAGE / (Decimation.AMPLIFICATION
+                                                                        * Decimation.AC_RESOLUTION)
 
     def save(self) -> None:
         with h5py.File(f"{self.destination_folder}/raw_data.hdf5", "a") as h5f:
             now = datetime.now()
             time_stamp = str(now.strftime("%Y-%m-%d %H:%M:%S:%S.%f")[:Decimation.UNTIL_MICRO_SECONDS])
             h5f.create_group(time_stamp)
-            h5f[time_stamp]["Ref"] = self.ref
-            h5f[time_stamp]["AC"] = self.ac_coupled
-            h5f[time_stamp]["DC"] = self.dc_coupled
+            h5f[time_stamp]["Ref"] = self.raw_data.ref
+            h5f[time_stamp]["AC"] = self.raw_data.ac
+            h5f[time_stamp]["DC"] = self.raw_data.dc
 
     def calculate_dc(self) -> None:
         """
         Applies a low pass to the DC-coupled _signals and decimate it to 1 s values.
         """
-        self.dc_signals = np.mean(self.dc_coupled, axis=1)
+        self.dc_signals = np.mean(self.raw_data.dc, axis=1)
 
     def common_mode_noise_reduction(self) -> None:
-        noise_factor = np.sum(self.ac_coupled, axis=0) / sum(self.dc_signals)
+        noise_factor = np.sum(self.raw_data.ac, axis=0) / sum(self.dc_signals)
         for channel in range(3):
-            self.ac_coupled[channel] = self.ac_coupled[channel] - noise_factor * self.dc_signals[channel]
+            self.raw_data.ac[channel] = self.raw_data.ac[channel] - noise_factor * self.dc_signals[channel]
 
     def lock_in_amplifier(self) -> None:
-        ac_x = np.mean(self.ac_coupled * self.in_phase, axis=1)
-        ac_y = np.mean(self.ac_coupled * self.quadrature, axis=1)
+        ac_x = np.mean(self.raw_data.ac * self.in_phase, axis=1)
+        ac_y = np.mean(self.raw_data.ac * self.quadrature, axis=1)
         self.lock_in.phase = np.arctan2(ac_y, ac_x)
         self.lock_in.amplitude = np.sqrt(ac_x ** 2 + ac_y ** 2)
 
@@ -299,19 +290,11 @@ class Decimation:
             logging.warning("Could not write data. Missing values are: %s at %s.",
                             str(output_data)[1:-1], date + " " + time)
 
-    def _save_meta_data(self) -> None:
-        """
-        Saves a header in the binary file that explains its structure.
-        """
-        with open(f"{self.destination_folder}/raw_data.bin", "ab") as file:
-            file.write(b"Ref: Array[uint16, 8000], DC: Aray[Array[uint16, 8000], 3],"
-                       b" AC Aray[Array[int16, 8000], 3]")
-
     def get_raw_data(self) -> Generator[None, None, None]:
         with h5py.File(self.file_path, "r") as h5f:
             for sample_package in h5f.values():
-                self.dc_coupled = np.array(sample_package["pa"]).T
-                self.ac_coupled = np.array(sample_package["AC"]).T
+                self.raw_data.dc = np.array(sample_package["DC"], dtype=np.uint16).T
+                self.raw_data.ac = np.array(sample_package["AC"], dtype=np.int16).T
                 yield None
 
     def decimate(self, live=False) -> None:
