@@ -29,4 +29,3 @@ def create_frame(parent, title: str, x_position: int, y_position: int, x_span: i
     else:
         parent.layout().addWidget(frame)
     return frame
-

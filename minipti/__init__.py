@@ -1,10 +1,13 @@
 try:
-    from . import hardware
+    import hardware
 except ModuleNotFoundError:
     pass  # Hardware not needed
-from . import algorithm
+import algorithm
 
+"""
 try:
     from . import gui
 except (ModuleNotFoundError, ImportError):
     pass  # In case the GUI is not needed
+"""
+import gui

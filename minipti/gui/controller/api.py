@@ -3,27 +3,53 @@ import logging
 import os
 import threading
 import typing
+from dataclasses import dataclass
 
 from PyQt5 import QtWidgets, QtCore
 from PyQt5.QtCore import Qt, QCoreApplication
 from overrides import override
 
-from minipti import hardware
 from minipti.gui import model
 from minipti.gui import view
-import interface
+from minipti.gui.controller import interface
 
 
-class MainApplication(QtWidgets.QApplication):
+@dataclass
+class Controllers(interface.Controllers):
+    main_application: "MainApplication"
+    home: "Home"
+    settings: "Settings"
+    utilities: "Utilities"
+    pump_laser: "PumpLaser"
+    probe_laser: "ProbeLaser"
+    tec: list["Tec"]
+
+
+class MainApplication(interface.MainApplication):
     def __init__(self, argv=""):
-        QtWidgets.QApplication.__init__(self, argv)
+        interface.MainApplication.__init__(self, argv)
+        """self._controllers: Controllers = Controllers(main_application=self,
+                                                     home=Home(),
+                                                     settings=Settings(),
+                                                     utilities=Utilities(),
+                                                     pump_laser=PumpLaser(),
+                                                     probe_laser=ProbeLaser(),
+                                                     tec=[Tec(laser=model.Tec.PUMP_LASER),
+                                                          Tec(laser=model.Tec.PUMP_LASER)])
         self.logging_model = model.Logging()
-        self.view = view.MainWindow(self)
+        self.view = view.api.MainWindow(self.controllers)
         self.motherboard = model.Motherboard()
         self.laser = model.Laser()
         self.tec = model.Tec()
+        """
         # threading.excepthook = self.thread_exception
 
+    @property
+    @override
+    def controllers(self) -> Controllers:
+        return self._controllers
+
+    @override
     def close(self) -> None:
         self.motherboard.driver.running.clear()
         self.motherboard.driver.close()
@@ -58,9 +84,8 @@ def _shutdown(controller) -> None:
 
 
 class Home(interface.Home):
-    def __init__(self, parent, main_app: QtWidgets.QApplication, settings_controller: "Settings"):
-        self.view = parent
-        self.main_app = main_app
+    def __init__(self):
+        self.view = view.api.Home(self)
         self.calculation_model = model.LiveCalculation()
         self.motherboard = model.Motherboard()
         self.laser = model.Laser()
@@ -68,7 +93,6 @@ class Home(interface.Home):
         self.probe_laser = model.ProbeLaser()
         self.pump_laser_tec = model.Tec(model.Tec.PUMP_LASER)
         self.probe_laser_tec = model.Tec(model.Tec.PROBE_LASER)
-        settings_controller.raw_data_changed.connect(self.calculation_model.set_raw_data_saving)
         self.motherboard.initialize()
 
     @override
@@ -104,19 +128,20 @@ class Home(interface.Home):
 
 
 class Settings(interface.Settings):
-    def __init__(self, main_app, parent):
+    def __init__(self):
         interface.Settings.__init__(self)
-        self.main_app = main_app
-        self.view = parent
+        self.view = view.api.Settings(self)
         self._settings_table = model.SettingsTable()
         self._destination_folder = model.DestinationFolder()
         self.last_file_path = os.getcwd()
+        self.calculation_model = model.LiveCalculation()
         self.motherboard = model.Motherboard()
         self.laser = model.Laser()
         self.pump_laser = model.PumpLaser()
         self.probe_laser = model.ProbeLaser()
         self.pump_laser_tec = model.Tec(model.Tec.PUMP_LASER)
         self.probe_laser_tec = model.Tec(model.Tec.PROBE_LASER)
+        self.raw_data_changed.connect(self.calculation_model.set_raw_data_saving)
         self.motherboard.fire_configuration_change()
 
     @property
@@ -220,19 +245,11 @@ class Motherboard(interface.MotherBoard):
         self.motherboard.automatic_valve_switch = automatic_valve_switch
 
     @override
-    def set_destination_folder(self) -> None:
-        destination_folder = QtWidgets.QFileDialog.getExistingDirectory(self.view, "Destination Folder",
-                                                                        self.destination_folder.folder,
-                                                                        QtWidgets.QFileDialog.ShowDirsOnly)
-        if destination_folder:
-            self.destination_folder.folder = destination_folder
-
-    @override
-    def save_motherboard_configuration(self) -> None:
+    def save_configurations(self) -> None:
         self.motherboard.save_configuration()
 
     @override
-    def load_motherboard_configuration(self) -> None:
+    def load_configuration(self) -> None:
         file_path, self.last_file_path = _get_file_path(self.view, "Valve", self.last_file_path,
                                                         "INI File (*.ini);; All Files (*)")
         if file_path:
@@ -248,11 +265,10 @@ class Motherboard(interface.MotherBoard):
 
 
 class Utilities(interface.Utilities):
-    def __init__(self, parent, settings: "Settings"):
-        self.view = parent
+    def __init__(self):
+        self.view = view.api.Utilities(self)
         self.calculation_model = model.OfflineCalculation()
         self.last_file_path = os.getcwd()
-        self.settings_controller = settings
         self._mother_board = model.Motherboard()
         self._laser = model.Laser()
         self._tec = model.Tec()
@@ -400,10 +416,14 @@ def _string_to_number(parent: QtWidgets.QWidget, string_number: str, cast: typin
 
 
 class Laser:
-    def __init__(self, parent):
-        self.view = parent
+    def __init__(self):
         self.laser = model.Laser()
         self.last_file_path = os.getcwd()
+
+    @property
+    @abc.abstractmethod
+    def view(self) -> view.hardware.Driver:
+        ...
 
     def load_configuration(self) -> None:
         config_path, self.last_file_path = _get_file_path(self.view, "Laser Driver", self.last_file_path,
@@ -438,9 +458,15 @@ class Laser:
 
 
 class PumpLaser(Laser):
-    def __init__(self, parent):
-        Laser.__init__(self, parent)
+    def __init__(self):
+        Laser.__init__(self)
+        self._view = view.hardware.PumpLaser(self)
         self.laser = model.PumpLaser()
+
+    @property
+    @override
+    def view(self) -> view.hardware.PumpLaser:
+        return self._view
 
     def enable_pump_laser(self) -> None:
         if not self.laser.connected:
@@ -484,10 +510,15 @@ class PumpLaser(Laser):
 
 
 class ProbeLaser(Laser):
-    def __init__(self, parent):
-        Laser.__init__(self, parent)
+    def __init__(self):
+        Laser.__init__(self)
         self.laser = model.ProbeLaser()
-        self.view = parent
+        self._view = view.hardware.ProbeLaser(self)
+
+    @property
+    @override
+    def view(self) -> view.hardware.ProbeLaser:
+        return self._view
 
     def enable_laser(self) -> None:
         if not self.laser.connected:
@@ -517,7 +548,7 @@ class ProbeLaser(Laser):
         self.laser.probe_laser_mode = index
 
     def update_current_probe_laser(self, bits: int) -> None:
-        effective_bits: int = hardware.laser.LowPowerLaser.CURRENT_BITS - bits
+        effective_bits: int = model.CURRENT_BITS - bits
         if effective_bits != self.laser.current_bits_probe_laser:
             self.laser.current_bits_probe_laser = effective_bits
 
@@ -526,13 +557,18 @@ class ProbeLaser(Laser):
 
 
 class Tec:
-    def __init__(self, laser: int, parent):
+    def __init__(self, laser: int):
         self.tec = model.Tec(laser)
         self.laser = laser
         self.heating = False
         self.cooling = False
-        self.view = parent
+        self._view = view.hardware.Tec(self, laser)
         self.last_file_path = os.getcwd()
+
+    @property
+    @override
+    def view(self) -> view.hardware.Tec:
+        return self._view
 
     def save_configuration_as(self) -> None:
         file_path = save_as(parent=self.view, file_type="JSON File", file_extension="json", name="TEC Configuration")
@@ -592,7 +628,7 @@ class Tec:
         try:
             self.tec.setpoint_temperature = _string_to_number(self.view, setpoint_temperature, cast=float)
         except ValueError:
-            self.tec.setpoint_temperature = hardware.tec.ROOM_TEMPERATURE_CELSIUS
+            self.tec.setpoint_temperature = model.ROOM_TEMPERATURE
 
     def update_loop_time(self, loop_time: str) -> None:
         self.tec.loop_time = _string_to_number(self.view, loop_time, cast=int)

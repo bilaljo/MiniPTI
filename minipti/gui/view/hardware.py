@@ -1,4 +1,4 @@
-from abc import abstractmethod, ABC
+from abc import ABC
 from overrides import override
 import functools
 import typing
@@ -6,8 +6,8 @@ from dataclasses import dataclass
 
 from PyQt5 import QtWidgets, QtCore
 
-from . import helper
-from .. import model
+from minipti.gui.view import helper
+from minipti.gui import model
 
 
 class Slider(QtWidgets.QWidget):
@@ -35,11 +35,11 @@ class Slider(QtWidgets.QWidget):
 
 @dataclass
 class DriverButtons:
-    enable: QtWidgets.QPushButton = QtWidgets.QPushButton()
-    save: QtWidgets.QPushButton = QtWidgets.QPushButton()
-    save_as: QtWidgets.QPushButton = QtWidgets.QPushButton()
-    load: QtWidgets.QPushButton = QtWidgets.QPushButton()
-    apply: QtWidgets.QPushButton = QtWidgets.QPushButton()
+    enable: QtWidgets.QPushButton
+    save: QtWidgets.QPushButton
+    save_as: QtWidgets.QPushButton
+    load: QtWidgets.QPushButton
+    apply: QtWidgets.QPushButton
 
 
 @dataclass
@@ -47,10 +47,8 @@ class Frames(ABC):
     ...
 
 
-class Driver(QtWidgets.QWidget, ABC):
+class Driver(ABC):
     def __init__(self, parent_controller, parent):
-        QtWidgets.QWidget.__init__(self)
-        ABC.__init__(self)
         self.parent = parent
         self.controller = parent_controller
         self.configuration_buttons = DriverButtons()
@@ -81,11 +79,11 @@ class Driver(QtWidgets.QWidget, ABC):
 
 @dataclass
 class PumpLaserFrames:
-    measured_values = QtWidgets.QGroupBox()
-    driver_voltage = QtWidgets.QGroupBox()
-    current = [QtWidgets.QGroupBox(), QtWidgets.QGroupBox()]
-    configuration = QtWidgets.QGroupBox()
-    enable = QtWidgets.QGroupBox()
+    measured_values: QtWidgets.QGroupBox
+    driver_voltage: QtWidgets.QGroupBox
+    current: list[QtWidgets.QGroupBox]
+    configuration: QtWidgets.QGroupBox
+    enable: QtWidgets.QGroupBox
 
 
 class PumpLaser(Driver):
@@ -161,7 +159,6 @@ class PumpLaser(Driver):
         self.current[dac].slider.setValue(index)
         self.current[dac].update_value(index)
 
-    @override
     def _init_frames(self) -> None:
         helper.create_frame(parent=self, title="Measured Values", x_position=1, y_position=0)
         helper.create_frame(parent=self, title="Driver Voltage", x_position=2, y_position=0)
@@ -189,12 +186,12 @@ class PumpLaser(Driver):
 
 @dataclass
 class ProbeLaserFrames:
-    maximum_current = QtWidgets.QGroupBox()
-    measured_values = QtWidgets.QGroupBox()
-    current = QtWidgets.QGroupBox()
-    mode = QtWidgets.QGroupBox()
-    photo_diode_gain = QtWidgets.QGroupBox()
-    configuration = QtWidgets.QGroupBox()
+    maximum_current: QtWidgets.QGroupBox
+    measured_values: QtWidgets.QGroupBox
+    current: QtWidgets.QGroupBox
+    mode: QtWidgets.QGroupBox
+    photo_diode_gain: QtWidgets.QGroupBox
+    configuration: QtWidgets.QGroupBox
 
 
 class ProbeLaser(Driver):
@@ -251,7 +248,6 @@ class ProbeLaser(Driver):
     def _max_current_changed(self) -> None:
         return self.controller.update_max_current_probe_laser(self.max_current_display.text())
 
-    @override
     def _init_frames(self) -> None:
         helper.create_frame(parent=self, title="Maximum Current", x_position=0, y_position=0)
         helper.create_frame(parent=self, title="Measured Values", x_position=1, y_position=0)
@@ -297,20 +293,20 @@ class ProbeLaser(Driver):
 
 @dataclass
 class TecTextFields:
-    p_gain = QtWidgets.QLineEdit()
-    i_gain = QtWidgets.QLineEdit()
-    d_gain = QtWidgets.QLineEdit()
-    setpoint_temperature = QtWidgets.QLineEdit()
-    loop_time = QtWidgets.QLineEdit()
-    max_power = QtWidgets.QLineEdit()
+    p_gain: QtWidgets.QLineEdit
+    i_gain: QtWidgets.QLineEdit
+    d_gain: QtWidgets.QLineEdit
+    setpoint_temperature: QtWidgets.QLineEdit
+    loop_time: QtWidgets.QLineEdit
+    max_power: QtWidgets.QLineEdit
 
 
 @dataclass
 class TecFrames:
-    temperature = QtWidgets.QGroupBox()
-    pid_configuration = QtWidgets.QGroupBox()
-    system_settings = QtWidgets.QGroupBox()
-    configuration = QtWidgets.QGroupBox()
+    temperature: QtWidgets.QGroupBox
+    pid_configuration: QtWidgets.QGroupBox
+    system_settings: QtWidgets.QGroupBox
+    configuration: QtWidgets.QGroupBox
 
 
 class Tec(Driver):

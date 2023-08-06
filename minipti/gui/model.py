@@ -21,8 +21,7 @@ from PyQt5 import QtCore
 from overrides import override
 from scipy import ndimage
 
-from .. import algorithm
-from .. import hardware
+from minipti import algorithm, hardware
 
 
 LaserData = hardware.laser.Data
@@ -30,6 +29,10 @@ LaserData = hardware.laser.Data
 TecData = hardware.tec.Data
 
 Valve = hardware.motherboard.Valve
+
+ROOM_TEMPERATURE = hardware.tec.ROOM_TEMPERATURE_CELSIUS
+
+CURRENT_BITS = hardware.laser.LowPowerLaser.CURRENT_BITS
 
 
 class DestinationFolder:

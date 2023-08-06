@@ -2,14 +2,14 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Callable
 
-from PyQt5 import QtCore
+from PyQt5 import QtWidgets
 
 from minipti.gui import model
 
 
 @dataclass
-class Controllers:
-    main_controller: "MainController"
+class Controllers(ABC):
+    main_application: QtWidgets.QApplication
     home: "Home"
     settings: "Settings"
     utilities: "Utilities"
@@ -18,10 +18,21 @@ class Controllers:
     tec: list["Tec"]
 
 
-class Home(ABC):
-    def __init__(self):
-        ABC.__init__(self)
+class MainApplication(QtWidgets.QApplication):
+    def __init__(self, argv=""):
+        QtWidgets.QApplication.__init__(self, argv)
 
+    @property
+    @abstractmethod
+    def controllers(self) -> Controllers:
+        ...
+
+    @abstractmethod
+    def close(self) -> None:
+        ...
+
+
+class Home(ABC):
     @abstractmethod
     def fire_motherboard_configuration_change(self) -> None:
         ...
@@ -41,7 +52,6 @@ class Home(ABC):
 
 class Settings(ABC):
     def __init__(self):
-        ABC.__init__(self)
         self.motherboard = MotherBoard()
 
     @property
@@ -72,9 +82,6 @@ class Settings(ABC):
 
 
 class Utilities(ABC):
-    def __init__(self):
-        ABC.__init__(self)
-
     @property
     @abstractmethod
     def motherboard(self) -> model.Motherboard:
@@ -128,9 +135,6 @@ class Utilities(ABC):
 
 
 class Driver(ABC):
-    def __int__(self):
-        ABC.__init__(self)
-
     @abstractmethod
     def save_configurations(self) -> None:
         ...
@@ -164,15 +168,19 @@ class Driver(ABC):
         ...
 
 
-class MotherBoard(ABC, Driver):
+class MotherBoard(Driver):
     def __init__(self):
-        ABC.__init__(self)
         Driver.__init__(self)
+
+    @abstractmethod
+    def await_shutdown(self):
+        ...
 
     @abstractmethod
     def shutdown_by_button(self) -> None:
         ...
 
+    @abstractmethod
     def set_clean_air(self, bypass: bool) -> None:
         ...
 
@@ -181,7 +189,7 @@ class MotherBoard(ABC, Driver):
         ...
 
     @abstractmethod
-    def update_valve_period(self) -> None:
+    def update_valve_period(self, period: str) -> None:
         ...
 
     @abstractmethod
@@ -197,9 +205,8 @@ class MotherBoard(ABC, Driver):
         ...
 
 
-class PumpLaser(ABC, Driver):
+class PumpLaser(Driver):
     def __init__(self):
-        ABC.__init__(self)
         Driver.__init__(self)
 
     @abstractmethod
@@ -223,9 +230,8 @@ class PumpLaser(ABC, Driver):
         ...
 
 
-class ProbeLaser(ABC, Driver):
+class ProbeLaser(Driver):
     def __init__(self):
-        ABC.__init__(self)
         Driver.__init__(self)
 
     @abstractmethod
@@ -249,10 +255,9 @@ class ProbeLaser(ABC, Driver):
         ...
 
 
-class Tec(Driver, ABC):
+class Tec(Driver):
     def __init__(self):
         Driver.__init__(self)
-        ABC.__init__(self)
 
     @abstractmethod
     def update_d_gain(self, d_gain: str) -> None:

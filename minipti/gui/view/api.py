@@ -5,8 +5,8 @@ from typing import NamedTuple, Union
 from PyQt5 import QtWidgets, QtCore, QtGui
 from PyQt5.QtCore import Qt
 
-import helper
-import plots
+from minipti.gui.view import helper
+from minipti.gui.view import plots
 from minipti.gui import controller
 from minipti.gui import model
 from minipti.gui.view import hardware
@@ -139,8 +139,8 @@ class Table(QtWidgets.QTableView):
 
 @dataclass
 class HomeButtons:
-    run_measurement: QtWidgets.QPushButton = QtWidgets.QPushButton()
-    shutdown_and_close: QtWidgets.QPushButton = QtWidgets.QPushButton()
+    run_measurement: QtWidgets.QPushButton
+    shutdown_and_close: QtWidgets.QPushButton
 
 
 class Home(QtWidgets.QTabWidget):
@@ -181,10 +181,10 @@ class Home(QtWidgets.QTabWidget):
 
 @dataclass
 class SettingsFrames:
-    pti_configuration: Union[QtWidgets.QGroupBox(), None] = None
-    measurement: Union[QtWidgets.QGroupBox(), None] = None
-    valve: Union[QtWidgets.QGroupBox(), None] = None
-    file_path: Union[QtWidgets.QGroupBox(), None] = None
+    pti_configuration: Union[QtWidgets.QGroupBox, None] = None
+    measurement: Union[QtWidgets.QGroupBox, None] = None
+    valve: Union[QtWidgets.QGroupBox, None] = None
+    file_path: Union[QtWidgets.QGroupBox, None] = None
 
 
 @dataclass

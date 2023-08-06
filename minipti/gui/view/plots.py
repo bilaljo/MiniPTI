@@ -14,9 +14,8 @@ class _MatplotlibColors:
     GREEN = "#118011"
 
 
-class Plotting(ABC, pg.PlotWidget):
+class Plotting(pg.PlotWidget):
     def __init__(self):
-        ABC.__init__(self)
         pg.PlotWidget.__init__(self)
         pg.setConfigOption('leftButtonPan', False)
         pg.setConfigOptions(antialias=True)
@@ -37,9 +36,8 @@ class Plotting(ABC, pg.PlotWidget):
         ...
 
 
-class DAQPlots(ABC, Plotting):
+class DAQPlots(Plotting):
     def __init__(self):
-        ABC.__init__(self)
         Plotting.__init__(self)
         model.signals.clear_daq.connect(self.clear)
         self.name = ""
@@ -69,7 +67,7 @@ class DC(DAQPlots):
             except KeyError:
                 self.curves[channel].setData(data[f"PD{channel + 1}"].to_numpy())
 
-    @override
+    #@override
     def update_data_live(self, data: model.PTIBuffer) -> None:
         for channel in range(3):
             self.curves[channel].setData(data.time, data.dc_values[channel])
@@ -98,7 +96,7 @@ class Amplitudes(DAQPlots):
         for channel in range(3):
             self.curves[channel].setData(data.index, data[f"Amplitude CH{channel + 1}"].to_numpy())
 
-    @override
+    #@override
     def update_data_live(self, data: model.CharacterisationBuffer) -> None:
         for channel in range(3):
             self.curves[channel].setData(data.time, data.amplitudes[channel])
@@ -122,7 +120,7 @@ class OutputPhases(DAQPlots):
         for channel in range(2):
             self.curves[channel].setData(data.index, data[f"Output Phase CH{channel + 2}"].to_numpy())
 
-    @override
+    #@override
     def update_data_live(self, data: model.CharacterisationBuffer) -> None:
         for channel in range(2):
             self.curves[channel].setData(data.time, data.output_phases[channel])
@@ -142,6 +140,7 @@ class InterferometricPhase(DAQPlots):
     def update_data(self, data: pd.DataFrame) -> None:
         self.curves.setData(data["Interferometric Phase"].to_numpy())
 
+    #@override
     def update_data_live(self, data: model.PTIBuffer) -> None:
         self.curves.setData(data.time, data.interferometric_phase)
 
@@ -163,7 +162,7 @@ class Sensitivity(DAQPlots):
         for channel in range(3):
             self.curves[channel].setData(data[f"Sensitivity CH{channel + 1}"].to_numpy())
 
-    @override
+    #@override
     def update_data_live(self, data: model.PTIBuffer) -> None:
         for channel in range(3):
             self.curves[channel].setData(data.time, data.sensitivity[channel])
@@ -187,6 +186,7 @@ class Symmetry(DAQPlots):
         self.curves[0].setData(data.index, data["Symmetry"].to_numpy())
         self.curves[1].setData(data.index, data["Relative Symmetry"].to_numpy())
 
+    #@override
     def update_data_live(self, data: model.CharacterisationBuffer) -> None:
         self.curves[0].setData(data.time, data.symmetry)
         self.curves[1].setData(data.time, data.relative_symmetry)
@@ -211,7 +211,7 @@ class PTISignal(DAQPlots):
         except KeyError:
             pass
 
-    @override
+    #@override
     def update_data_live(self, data: model.PTIBuffer) -> None:
         self.curves["PTI Signal"].setData(data.time, data.pti_signal)
         self.curves["PTI Signal Mean"].setData(data.time, data.pti_signal_mean)
@@ -226,7 +226,7 @@ class PumpLaserCurrent(Plotting):
         model.laser_signals.data.connect(self.update_data_live)
         model.laser_signals.clear_pumplaser.connect(self.clear)
 
-    @override
+    #@override
     def update_data_live(self, data: model.LaserBuffer) -> None:
         self.curves.setData(data.time, data.pump_laser_current)
 
@@ -240,14 +240,14 @@ class ProbeLaserCurrent(Plotting):
         model.laser_signals.data.connect(self.update_data_live)
         model.laser_signals.clear_probelaser.connect(self.clear)
 
-    @override
+    #@override
     def update_data_live(self, data: model.LaserBuffer) -> None:
         self.curves.setData(data.time, data.probe_laser_current)
 
 
 class TecTemperature(Plotting):
     SET_POINT = 0
-    MEASURAED = 1
+    MEASURED = 1
 
     def __init__(self, channel: int):
         Plotting.__init__(self)
@@ -259,7 +259,7 @@ class TecTemperature(Plotting):
         model.tec_signals[channel].clear_plots.connect(self.clear)
         model.signals.tec_data.connect(self.update_data_live)
 
-    @override
+    #@override
     def update_data_live(self, data: model.TecBuffer) -> None:
         self.curves[TecTemperature.SET_POINT].setData(data.time, data.set_point[self.laser])
-        self.curves[TecTemperature.MEASURAED].setData(data.time, data.actual_value[self.laser])
+        self.curves[TecTemperature.MEASURED].setData(data.time, data.actual_value[self.laser])
