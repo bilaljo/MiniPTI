@@ -35,6 +35,7 @@ class MainApplication(QtWidgets.QApplication):
     def await_shutdown(self):
         ...
 
+
 class Home(ABC):
     @abstractmethod
     def fire_motherboard_configuration_change(self) -> None:
@@ -172,7 +173,7 @@ class Utilities(ABC):
 
 class Driver(ABC):
     @abstractmethod
-    def save_configurations(self) -> None:
+    def save_configuration(self) -> None:
         ...
 
     @abstractmethod

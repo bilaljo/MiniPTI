@@ -80,7 +80,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.battery.setWidget(sub_layout)
         self.scroll.setWidget(self.logging_window)
 
-    def _init_laser_tab(self, laser: hardware.Driver, laser_index: int) -> QtWidgets.QTabWidget:
+    def _init_laser_tab(self, laser: QtWidgets.QWidget, laser_index: int) -> QtWidgets.QTabWidget:
         tab = QtWidgets.QTabWidget()
         sub_layout = QtWidgets.QSplitter()
         laser_tab = QtWidgets.QTabWidget()
@@ -187,6 +187,10 @@ class SettingsFrames:
     measurement: Union[QtWidgets.QGroupBox, None] = None
     valve: Union[QtWidgets.QGroupBox, None] = None
     file_path: Union[QtWidgets.QGroupBox, None] = None
+    tec_settings:  Union[QtWidgets.QGroupBox, None] = None
+    laser_settings: Union[QtWidgets.QGroupBox, None] = None
+    pti_mode: Union[QtWidgets.QGroupBox, None] = None
+    interferometric_mode: Union[QtWidgets.QGroupBox, None] = None
 
 
 @dataclass
@@ -197,6 +201,13 @@ class SettingsButtons:
     save_motherboard_settings: Union[QtWidgets.QPushButton, None] = None
     save_motherboard_settings_as: Union[QtWidgets.QPushButton, None] = None
     load_motherboard_settings: Union[QtWidgets.QPushButton, None] = None
+    destination_folder: Union[QtWidgets.QPushButton, None] = None
+
+
+@dataclass
+class SettingsCheckButtons:
+    save_raw_data: QtWidgets.QCheckBox
+    common_mode_noise_rejection: QtWidgets.QCheckBox
 
 
 class Settings(QtWidgets.QTabWidget):
@@ -208,8 +219,9 @@ class Settings(QtWidgets.QTabWidget):
         self.frames = SettingsFrames()
         self.buttons = SettingsButtons()
         self.algorithm_settings = Table(parent=self.frames.pti_configuration)
-        self.destination_folder = QtWidgets.QLabel("")
-        self.save_raw_data = QtWidgets.QCheckBox("Save Raw Data")
+        self.algorithm_settings.setModel(self.controller.settings_table_model)
+        self.check_boxes = SettingsCheckButtons(QtWidgets.QCheckBox("Save Raw Data"),
+                                                QtWidgets.QCheckBox("Common Mode Noise Rejection"))
         self.automatic_valve_switch = QtWidgets.QCheckBox("Automatic Valve Switch")
         self.duty_cycle_valve = QtWidgets.QLabel("%")
         self.period_valve = QtWidgets.QLabel("s")
@@ -231,7 +243,7 @@ class Settings(QtWidgets.QTabWidget):
             self.samples.setText(f"{int((float(text[:-3]) / 1000) * 8000)} Samples")
         else:
             self.samples.setText(f"{int(float(text[:-2]) * 8000)} Samples")
-        self.controller.motherboard.update_average_period(self.samples.text())
+        self.controller.update_average_period(self.samples.text())
 
     @QtCore.pyqtSlot(model.Valve)
     def update_valve(self, valve: model.Valve) -> None:
@@ -258,16 +270,16 @@ class Settings(QtWidgets.QTabWidget):
         self.average_period.currentIndexChanged.connect(self.update_samples)
 
     def _init_frames(self) -> None:
-        self.frames.file_path = helper.create_frame(parent=self, title="File Path", x_position=2, y_position=1)
-        self.frames.measurement = helper.create_frame(parent=self, title="Measurement", x_position=1, y_position=1)
         self.frames.pti_configuration = helper.create_frame(parent=self, title="Configuration", x_position=0,
-                                                            y_position=0, x_span=4)
-        self.frames.valve = helper.create_frame(parent=self, title="Valve", x_position=3, y_position=1, x_span=2)
+                                                            y_position=0, x_span=2)
+        self.frames.file_path = helper.create_frame(parent=self, title="File Path", x_position=3, y_position=0)
+        self.frames.measurement = helper.create_frame(parent=self, title="Measurement", x_position=2, y_position=0)
+        self.frames.valve = helper.create_frame(parent=self, title="Valve", x_position=0, y_position=1, x_span=1)
+        self.frames.tec_settings = helper.create_frame(parent=self, title="TEC", x_position=1, y_position=1, y_span=4)
+        self.frames.laser_settings = helper.create_frame(parent=self, title="Laser", x_position=2, y_position=1)
+        self.frames.laser_settings = helper.create_frame(parent=self, title="BMS", x_position=3, y_position=1)
 
     def _init_buttons(self) -> None:
-        # sub_layout = QtWidgets.QWidget()
-        # self.frames.pti_configuration.layout().addWidget(sub_layout)
-        # sub_layout.setLayout(QtWidgets.QHBoxLayout())
         sub_layout = QtWidgets.QWidget(parent=self.frames.pti_configuration)
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
         self.frames.pti_configuration.layout().addWidget(sub_layout)
@@ -277,13 +289,15 @@ class Settings(QtWidgets.QTabWidget):
                                                              slot=self.controller.save_settings_as)
         self.buttons.load_settings = helper.create_button(parent=sub_layout, title="Load Settings",
                                                           slot=self.controller.load_settings)
-        self.frames.measurement.layout().addWidget(self.save_raw_data)
+        self.frames.measurement.layout().addWidget(self.check_boxes.save_raw_data)
+        self.frames.measurement.layout().addWidget(self.check_boxes.common_mode_noise_rejection)
         sub_layout = QtWidgets.QWidget(parent=self.frames.file_path)
         sub_layout.setLayout(QtWidgets.QVBoxLayout())
-        self.frames.file_path.layout().addWidget(sub_layout)
-        self.destination_folder = helper.create_button(parent=sub_layout, title="Destination Folder",
-                                                       slot=self.controller.set_destination_folder)
+        self.buttons.destination_folder = helper.create_button(parent=sub_layout, title="Destination Folder",
+                                                               slot=self.controller.set_destination_folder)
+        sub_layout.layout().addWidget(self.buttons.destination_folder)
         sub_layout.layout().addWidget(self.destination_folder)
+        self.frames.file_path.layout().addWidget(sub_layout)
 
     def _init_valves(self) -> None:
         sub_layout = QtWidgets.QWidget(parent=self.frames.valve)

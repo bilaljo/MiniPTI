@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 from PyQt5 import QtWidgets, QtCore
 
+from minipti.gui.controller import interface
 from minipti.gui.view import helper
 from minipti.gui import model
 
@@ -35,7 +36,6 @@ class Slider(QtWidgets.QWidget):
 
 @dataclass
 class DriverButtons:
-    enable: QtWidgets.QPushButton
     save: QtWidgets.QPushButton
     save_as: QtWidgets.QPushButton
     load: QtWidgets.QPushButton
@@ -47,36 +47,31 @@ class Frames(ABC):
     ...
 
 
-class Driver(QtWidgets.QWidget):
-    def __init__(self, parent_controller, parent):
+class DriverConfig(QtWidgets.QWidget):
+    def __init__(self, controller: interface.Driver):
         QtWidgets.QWidget.__init__(self)
-        self.parent = parent
-        self.controller = parent_controller
-        self.configuration_buttons = DriverButtons(enable=QtWidgets.QPushButton(), save_as=QtWidgets.QPushButton(),
+        self.controller = controller
+        self.configuration_buttons = DriverButtons(save_as=QtWidgets.QPushButton(),
                                                    save=QtWidgets.QPushButton(), load=QtWidgets.QPushButton(),
                                                    apply=QtWidgets.QPushButton())
-        self.frames = Frames()
-
-    def create_config_widgts(self) -> QtWidgets.QWidget:
-        config = QtWidgets.QWidget()
-        config.setLayout(QtWidgets.QGridLayout())
-        config.layout().addWidget(self.configuration_buttons.save, 0, 0)
-        config.layout().addWidget(self.configuration_buttons.save_as, 0, 1)
-        config.layout().addWidget(self.configuration_buttons.load, 1, 0)
-        config.layout().addWidget(self.configuration_buttons.apply, 1, 1)
-        return config
+        self.setLayout(QtWidgets.QVBoxLayout())
+        self._init_buttons()
 
     def _init_buttons(self) -> None:
-        self._init_button(title="Save")
-        self._init_button(title="Save As")
-        self._init_button(title="Load")
-        self._init_button(title="Apply")
-
-    def _init_button(self, title: str) -> None:
-        button_name: str = title.casefold().replace(" ", "_")
-        self.__setattr__(button_name, helper.create_button(self.parent, title,
-                                                           self.controller.__getattribute__(title + "_configuration")))
-        self.parent.layout().addWidget(self.__getattribute__(button_name))
+        sub_layout = QtWidgets.QWidget()
+        sub_layout.setLayout(QtWidgets.QHBoxLayout())
+        self.configuration_buttons.save = helper.create_button(parent=sub_layout, title="Save",
+                                                               slot=self.controller.save_configuration)
+        self.configuration_buttons.save_as = helper.create_button(parent=sub_layout, title="Save As",
+                                                                  slot=self.controller.save_configuration_as)
+        self.layout().addWidget(sub_layout)
+        sub_layout = QtWidgets.QWidget()
+        sub_layout.setLayout(QtWidgets.QHBoxLayout())
+        self.configuration_buttons.load = helper.create_button(parent=sub_layout, title="Load",
+                                                               slot=self.controller.load_configuration)
+        self.configuration_buttons.apply = helper.create_button(parent=sub_layout, title="Apply Configuration",
+                                                                slot=self.controller.apply_configuration)
+        self.layout().addWidget(sub_layout)
 
 
 @dataclass
@@ -88,18 +83,20 @@ class PumpLaserFrames:
     enable: QtWidgets.QGroupBox
 
 
-class PumpLaser(Driver):
+class PumpLaser(QtWidgets.QWidget):
     _MIN_DRIVER_BIT = 0
     _MAX_DRIVER_BIT = (1 << 7) - 1
     _MIN_CURRENT = 0
     _MAX_CURRENT = (1 << 12) - 1
 
-    def __init__(self, controller):
-        Driver.__init__(self, controller, self)
+    def __init__(self, controller: interface.PumpLaser):
+        QtWidgets.QWidget.__init__(self)
         self.frames = PumpLaserFrames(QtWidgets.QGroupBox(), QtWidgets.QGroupBox(),
                                       [QtWidgets.QGroupBox(), QtWidgets.QGroupBox()], QtWidgets.QGroupBox(),
                                       QtWidgets.QGroupBox())
         self.setLayout(QtWidgets.QGridLayout())
+        self.controller = controller
+        self.driver_config = DriverConfig(controller)
         self.current_display = QtWidgets.QLabel("0 mA")
         self.voltage_display = QtWidgets.QLabel("0 V")
         self.driver_voltage = Slider(minimum=PumpLaser._MIN_DRIVER_BIT, maximum=PumpLaser._MAX_DRIVER_BIT, unit="V")
@@ -188,7 +185,7 @@ class PumpLaser(Driver):
                 sub_frames[i].layout().addWidget(QtWidgets.QLabel(f"Channel {i + 1}"))
                 sub_frames[i].layout().addWidget(self.mode_matrix[j][i])
             self.frames.current[j].layout().addWidget(dac_inner_frames[j])
-        self.frames.configuration.layout().addWidget(self.create_config_widgts(), 4, 0)
+        self.frames.configuration.layout().addWidget(self.driver_config, 4, 0)
 
 
 @dataclass
@@ -201,15 +198,17 @@ class ProbeLaserFrames:
     configuration: QtWidgets.QGroupBox
 
 
-class ProbeLaser(Driver):
+class ProbeLaser(QtWidgets.QWidget):
     MIN_CURRENT_BIT = 10  # Heuristic value. Is needed to be > 0 to avoid current peaks at start up
     MAX_CURRENT_BIT = (1 << 8) - 1
     CONSTANT_CURRENT = 0
     CONSTANT_LIGHT = 1
 
-    def __init__(self, controller):
-        Driver.__init__(self, controller, self)
+    def __init__(self, controller: interface.ProbeLaser):
+        QtWidgets.QWidget.__init__(self)
+        self.controller = controller
         self.setLayout(QtWidgets.QGridLayout())
+        self.driver_config = DriverConfig(controller)
         self.current_slider = Slider(minimum=ProbeLaser.MIN_CURRENT_BIT, maximum=ProbeLaser.MAX_CURRENT_BIT, unit="mA")
         self.frames = ProbeLaserFrames(QtWidgets.QGroupBox(), QtWidgets.QGroupBox(), QtWidgets.QGroupBox(),
                                        QtWidgets.QGroupBox(), QtWidgets.QGroupBox(), QtWidgets.QGroupBox())
@@ -219,17 +218,17 @@ class ProbeLaser(Driver):
         self._init_frames()
         self._init_slider()
         self._init_buttons()
-        self.photo_gain.currentIndexChanged.connect(self.controller.update_photo_gain)
-        self.laser_mode.currentIndexChanged.connect(self.controller.update_probe_laser_mode)
         self.frames.measured_values.layout().addWidget(self.current_display)
         self.max_current_display = QtWidgets.QLineEdit("")
-        self.max_current_display.editingFinished.connect(self._max_current_changed)
         self.frames.maximum_current.layout().addWidget(self.max_current_display, 0, 0)
         self.frames.maximum_current.layout().addWidget(QtWidgets.QLabel("mA"), 0, 1)
         self._init_signals()
         self.controller.fire_configuration_change()
 
     def _init_signals(self) -> None:
+        self.photo_gain.currentIndexChanged.connect(self.controller.update_photo_gain)
+        self.laser_mode.currentIndexChanged.connect(self.controller.update_probe_laser_mode)
+        self.max_current_display.editingFinished.connect(self._max_current_changed)
         model.laser_signals.current_probe_laser.connect(self._update_current_slider)
         model.laser_signals.photo_gain.connect(self._update_photo_gain)
         model.laser_signals.probe_laser_mode.connect(self._update_mode)
@@ -291,7 +290,7 @@ class ProbeLaser(Driver):
         self.photo_gain.addItem("4x")
         sub_layout.layout().addWidget(self.photo_gain)
         self.frames.photo_diode_gain.layout().addWidget(sub_layout)
-        self.frames.configuration.layout().addWidget(self.create_config_widgts(), 3, 0)
+        self.frames.configuration.layout().addWidget(self.driver_config, 3, 0)
 
     @QtCore.pyqtSlot(int)
     def _update_photo_gain(self, index: int) -> None:
@@ -320,9 +319,11 @@ class TecFrames:
     configuration: QtWidgets.QGroupBox
 
 
-class Tec(Driver):
-    def __init__(self, controller, laser: int):
-        Driver.__init__(self, controller, self)
+class Tec(QtWidgets.QWidget):
+    def __init__(self, controller: interface.Tec, laser: int):
+        QtWidgets.QWidget.__init__(self)
+        self.controller = controller
+        self.driver_config = DriverConfig(controller)
         self.frames = TecFrames(QtWidgets.QGroupBox(), QtWidgets.QGroupBox(), QtWidgets.QGroupBox(),
                                 QtWidgets.QGroupBox())
         self.laser = laser
@@ -359,7 +360,7 @@ class Tec(Driver):
                                                         x_span=2)
 
     def _init_buttons(self) -> None:
-        self.frames.configuration.layout().addWidget(self.create_config_widgts(), 3, 0)
+        self.frames.configuration.layout().addWidget(self.driver_config, 3, 0)
 
     @QtCore.pyqtSlot(bool)
     def update_enable(self, state: bool):

@@ -136,8 +136,8 @@ class Home(interface.Home):
 class Settings(interface.Settings):
     def __init__(self):
         interface.Settings.__init__(self)
-        self.view = view.api.Settings(self)
         self._settings_table = model.SettingsTable()
+        self.view = view.api.Settings(self)
         self._destination_folder = model.DestinationFolder()
         self.last_file_path = os.getcwd()
         self.calculation_model = model.LiveCalculation()
@@ -148,7 +148,7 @@ class Settings(interface.Settings):
         self.pump_laser_tec = model.Tec(model.Tec.PUMP_LASER)
         self.probe_laser_tec = model.Tec(model.Tec.PROBE_LASER)
         self.raw_data_changed.connect(self.calculation_model.set_raw_data_saving)
-        self.view.algorithm_settings.setModel(self._settings_table)
+        self.view.destination_folder.setText(self.destination_folder.folder)
         self.motherboard.fire_configuration_change()
 
     @property
@@ -163,7 +163,7 @@ class Settings(interface.Settings):
 
     @property
     def raw_data_changed(self) -> QtCore.pyqtSignal:
-        return self.view.save_raw_data.stateChanged
+        return self.view.check_boxes.save_raw_data.stateChanged
 
     @override
     def update_average_period(self, samples: str) -> None:
@@ -432,7 +432,7 @@ class Laser:
 
     @property
     @abc.abstractmethod
-    def view(self) -> view.hardware.Driver:
+    def view(self) -> QtWidgets.QWidget:
         ...
 
     def load_configuration(self) -> None:

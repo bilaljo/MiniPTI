@@ -24,7 +24,7 @@ def create_frame(parent, title: str, x_position: int, y_position: int, x_span: i
     frame: QtWidgets.QGroupBox = QtWidgets.QGroupBox()
     frame.setTitle(title)
     frame.setLayout(QtWidgets.QGridLayout())
-    if parent.layout() == QtWidgets.QGridLayout():
+    if isinstance(parent.layout(), QtWidgets.QGridLayout):
         parent.layout().addWidget(frame, x_position, y_position, x_span, y_span)
     else:
         parent.layout().addWidget(frame)
