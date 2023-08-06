@@ -118,13 +118,13 @@ class MainWindow(QtWidgets.QMainWindow):
                                                QtWidgets.QMessageBox.StandardButton.No)
         if close == QtWidgets.QMessageBox.StandardButton.Yes:
             close_event.accept()
-            self.controllers.main_controller.close()
+            self.controllers.main_application.close()
         else:
             close_event.ignore()
 
 
 class Table(QtWidgets.QTableView):
-    def __init__(self, parent, table_model: model.Table):
+    def __init__(self, parent, table_model: Union[model.Table, None] = None):
         QtWidgets.QTableView.__init__(self, parent=parent)
         header = self.horizontalHeader()
         header.setStretchLastSection(True)
@@ -139,8 +139,8 @@ class Table(QtWidgets.QTableView):
 
 @dataclass
 class HomeButtons:
-    run_measurement: QtWidgets.QPushButton
-    shutdown_and_close: QtWidgets.QPushButton
+    run_measurement: Union[QtWidgets.QPushButton, None] = None
+    shutdown_and_close: Union[QtWidgets.QPushButton, None] = None
 
 
 class Home(QtWidgets.QTabWidget):
@@ -162,8 +162,10 @@ class Home(QtWidgets.QTabWidget):
     def _init_buttons(self) -> None:
         sub_layout = QtWidgets.QWidget()
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
-        helper.create_button(parent=sub_layout, title="Run Measurement", slot=self.controller.enable_motherboard)
-        helper.create_button(parent=sub_layout, title="Shutdown and Close", slot=self.controller.shutdown_by_button)
+        self.buttons.run_measurement = helper.create_button(parent=sub_layout, title="Run Measurement",
+                                                            slot=self.controller.enable_motherboard)
+        self.buttons.shutdown_and_close = helper.create_button(parent=sub_layout, title="Shutdown and Close",
+                                                               slot=self.controller.shutdown_by_button)
         self.layout().addWidget(sub_layout, 1, 0)
         # self.create_button(master=sub_layout, title="Clean Air", slot=self.controller.update_bypass)
 
@@ -202,12 +204,11 @@ class Settings(QtWidgets.QTabWidget):
         QtWidgets.QTabWidget.__init__(self)
         self.setLayout(QtWidgets.QGridLayout())
         self.controller = settings_controller
-        self.destination_folder = QtWidgets.QLabel(self.controller.destination_folder.folder)
+        self.destination_folder = QtWidgets.QLabel("")
         self.frames = SettingsFrames()
         self.buttons = SettingsButtons()
-        self.settings = Table(parent=self.frames.pti_configuration,
-                              table_model=self.controller.settings_table_model)
-        self.destination_folder = QtWidgets.QLabel(self.controller.destination_folder.folder)
+        self.algorithm_settings = Table(parent=self.frames.pti_configuration)
+        self.destination_folder = QtWidgets.QLabel("")
         self.save_raw_data = QtWidgets.QCheckBox("Save Raw Data")
         self.automatic_valve_switch = QtWidgets.QCheckBox("Automatic Valve Switch")
         self.duty_cycle_valve = QtWidgets.QLabel("%")
@@ -218,7 +219,7 @@ class Settings(QtWidgets.QTabWidget):
         self.samples = QtWidgets.QLabel("8000 Samples")
         self._init_frames()
         self._init_average_period_box()
-        self.frames.pti_configuration.layout().addWidget(self.settings)
+        self.frames.pti_configuration.layout().addWidget(self.algorithm_settings)
         self._init_buttons()
         self._init_valves()
         model.signals.destination_folder_changed.connect(self.update_destination_folder)
@@ -257,7 +258,7 @@ class Settings(QtWidgets.QTabWidget):
         self.average_period.currentIndexChanged.connect(self.update_samples)
 
     def _init_frames(self) -> None:
-        helper.create_frame(parent=self, title="File Path", x_position=2, y_position=1)
+        self.frames.file_path = helper.create_frame(parent=self, title="File Path", x_position=2, y_position=1)
         self.frames.measurement = helper.create_frame(parent=self, title="Measurement", x_position=1, y_position=1)
         self.frames.pti_configuration = helper.create_frame(parent=self, title="Configuration", x_position=0,
                                                             y_position=0, x_span=4)
@@ -304,13 +305,13 @@ class Settings(QtWidgets.QTabWidget):
         self.duty_cycle_field.editingFinished.connect(self._duty_cycle_changed)
 
     def _automatic_switch_changed(self) -> None:
-        self.controller.motherboard.update_automatic_valve_switch(self.automatic_valve_switch.isChecked())
+        self.controller.update_automatic_valve_switch(self.automatic_valve_switch.isChecked())
 
     def _period_changed(self) -> None:
-        self.controller.motherboard.update_valve_period(self.period_field.text())
+        self.controller.update_valve_period(self.period_field.text())
 
     def _duty_cycle_changed(self) -> None:
-        self.controller.motherboard.update_valve_duty_cycle(self.duty_cycle_field.text())
+        self.controller.update_valve_duty_cycle(self.duty_cycle_field.text())
 
 
 @dataclass

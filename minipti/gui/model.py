@@ -142,7 +142,7 @@ class SettingsTable(Table):
         inversion.load_response_phase()
 
     def setup_settings_file(self) -> None:
-        # If no settings found, a new empty file is created filled with NaN.
+        # If no algorithm_settings found, a new empty file is created filled with NaN.
         algorithm_dir: str = f"{os.path.dirname(os.path.dirname(__file__))}/algorithm"
         if not os.path.exists(f"{algorithm_dir}/configs/settings.csv"):
             self.save()

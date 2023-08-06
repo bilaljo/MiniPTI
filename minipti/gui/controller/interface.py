@@ -9,7 +9,7 @@ from minipti.gui import model
 
 @dataclass
 class Controllers(ABC):
-    main_application: QtWidgets.QApplication
+    main_application: "MainApplication"
     home: "Home"
     settings: "Settings"
     utilities: "Utilities"
@@ -31,6 +31,9 @@ class MainApplication(QtWidgets.QApplication):
     def close(self) -> None:
         ...
 
+    @abstractmethod
+    def await_shutdown(self):
+        ...
 
 class Home(ABC):
     @abstractmethod
@@ -51,9 +54,6 @@ class Home(ABC):
 
 
 class Settings(ABC):
-    def __init__(self):
-        self.motherboard = MotherBoard()
-
     @property
     @abstractmethod
     def destination_folder(self) -> model.DestinationFolder:
@@ -78,6 +78,34 @@ class Settings(ABC):
 
     @abstractmethod
     def load_settings(self) -> None:
+        ...
+
+    @abstractmethod
+    def save_motherboard_conifugration(self) -> None:
+        ...
+
+    @abstractmethod
+    def load_motherboard_conifugration(self) -> None:
+        ...
+
+    @abstractmethod
+    def update_average_period(self, samples: str) -> None:
+        ...
+
+    @abstractmethod
+    def update_automatic_valve_switch(self, automatic_valve_switch: bool) -> None:
+        ...
+
+    @abstractmethod
+    def update_valve_period(self, period: str) -> None:
+        ...
+
+    @abstractmethod
+    def update_bypass(self) -> None:
+        ...
+
+    @abstractmethod
+    def update_valve_duty_cycle(self, duty_cycle: str) -> None:
         ...
 
 
@@ -133,6 +161,14 @@ class Utilities(ABC):
     def plot_characterisation(self) -> None:
         ...
 
+    @abstractmethod
+    def shutdown_by_button(self) -> None:
+        ...
+
+    @abstractmethod
+    def set_clean_air(self, bypass: bool) -> None:
+        ...
+
 
 class Driver(ABC):
     @abstractmethod
@@ -165,43 +201,6 @@ class Driver(ABC):
 
     @abstractmethod
     def fire_configuration_change(self) -> None:
-        ...
-
-
-class MotherBoard(Driver):
-    def __init__(self):
-        Driver.__init__(self)
-
-    @abstractmethod
-    def await_shutdown(self):
-        ...
-
-    @abstractmethod
-    def shutdown_by_button(self) -> None:
-        ...
-
-    @abstractmethod
-    def set_clean_air(self, bypass: bool) -> None:
-        ...
-
-    @abstractmethod
-    def update_average_period(self) -> None:
-        ...
-
-    @abstractmethod
-    def update_valve_period(self, period: str) -> None:
-        ...
-
-    @abstractmethod
-    def update_bypass(self) -> None:
-        ...
-
-    @abstractmethod
-    def update_valve_duty_cycle(self, duty_cycle: str) -> None:
-        ...
-
-    @abstractmethod
-    def update_automatic_valve_switch(self, automatic_valve_switch: bool) -> None:
         ...
 
 

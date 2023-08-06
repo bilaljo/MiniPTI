@@ -28,7 +28,7 @@ class Controllers(interface.Controllers):
 class MainApplication(interface.MainApplication):
     def __init__(self, argv=""):
         interface.MainApplication.__init__(self, argv)
-        """self._controllers: Controllers = Controllers(main_application=self,
+        self._controllers: Controllers = Controllers(main_application=self,
                                                      home=Home(),
                                                      settings=Settings(),
                                                      utilities=Utilities(),
@@ -41,7 +41,6 @@ class MainApplication(interface.MainApplication):
         self.motherboard = model.Motherboard()
         self.laser = model.Laser()
         self.tec = model.Tec()
-        """
         # threading.excepthook = self.thread_exception
 
     @property
@@ -57,6 +56,13 @@ class MainApplication(interface.MainApplication):
         self.tec.close()
         self.view.close()
         QCoreApplication.quit()
+
+    @override
+    def await_shutdown(self):
+        def shutdown_low_energy() -> None:
+            self.motherboard.shutdown_event.wait()
+            _shutdown(self)
+        threading.Thread(target=shutdown_low_energy, daemon=True).start()
 
     def thread_exception(self, args) -> None:
         if args.exc_type == KeyError:
@@ -142,6 +148,7 @@ class Settings(interface.Settings):
         self.pump_laser_tec = model.Tec(model.Tec.PUMP_LASER)
         self.probe_laser_tec = model.Tec(model.Tec.PROBE_LASER)
         self.raw_data_changed.connect(self.calculation_model.set_raw_data_saving)
+        self.view.algorithm_settings.setModel(self._settings_table)
         self.motherboard.fire_configuration_change()
 
     @property
@@ -158,6 +165,7 @@ class Settings(interface.Settings):
     def raw_data_changed(self) -> QtCore.pyqtSignal:
         return self.view.save_raw_data.stateChanged
 
+    @override
     def update_average_period(self, samples: str) -> None:
         samples_number = samples.split(" Samples")[0]  # Value has the structure "X Samples"
         self.motherboard.number_of_samples = int(samples_number)
@@ -200,11 +208,6 @@ class Settings(interface.Settings):
         if destination_folder:
             self.destination_folder.folder = destination_folder
 
-
-class Motherboard(interface.MotherBoard):
-    def __init__(self):
-        interface.MotherBoard.__init__(self)
-
     @override
     def update_valve_period(self, period: str) -> None:
         try:
@@ -218,13 +221,6 @@ class Motherboard(interface.MotherBoard):
             logging.error(str(error))
             logging.warning(info_text)
             QtWidgets.QMessageBox.critical(self.view, "Valve Error", f"{str(error)}. {info_text}")
-
-    @override
-    def await_shutdown(self):
-        def shutdown_low_energy() -> None:
-            self.motherboard.shutdown_event.wait()
-            _shutdown(self)
-        threading.Thread(target=shutdown_low_energy, daemon=True).start()
 
     @override
     def update_valve_duty_cycle(self, duty_cycle: str) -> None:
@@ -245,11 +241,11 @@ class Motherboard(interface.MotherBoard):
         self.motherboard.automatic_valve_switch = automatic_valve_switch
 
     @override
-    def save_configurations(self) -> None:
+    def save_motherboard_conifugration(self) -> None:
         self.motherboard.save_configuration()
 
     @override
-    def load_configuration(self) -> None:
+    def load_motherboard_conifugration(self) -> None:
         file_path, self.last_file_path = _get_file_path(self.view, "Valve", self.last_file_path,
                                                         "INI File (*.ini);; All Files (*)")
         if file_path:
@@ -260,6 +256,7 @@ class Motherboard(interface.MotherBoard):
             else:
                 self.motherboard.load_configuration()
 
+    @override
     def update_bypass(self) -> None:
         self.motherboard.bypass = not self.motherboard.bypass
 
@@ -287,6 +284,19 @@ class Utilities(interface.Utilities):
     @override
     def tec(self) -> model.Tec:
         return self._tec
+
+    @override
+    def set_clean_air(self, bypass: bool) -> None:
+        self.motherboard.bypass = bypass
+
+    @override
+    @override
+    def shutdown_by_button(self) -> None:
+        close = QtWidgets.QMessageBox.question(self.view, "QUIT", "Are you sure you want to shutdown?",
+                                               QtWidgets.QMessageBox.StandardButton.Yes
+                                               | QtWidgets.QMessageBox.StandardButton.No)
+        if close == QtWidgets.QMessageBox.StandardButton.Yes:
+            _shutdown(self)
 
     @override
     def calculate_decimation(self) -> None:
@@ -336,7 +346,7 @@ class Utilities(interface.Utilities):
         if not characterisation_path:
             return
         use_settings = QtWidgets.QMessageBox.question(self.view, "Characterisation",
-                                                      "Do you want to use the settings values?",
+                                                      "Do you want to use the algorithm_settings values?",
                                                       QtWidgets.QMessageBox.StandardButton.Yes
                                                       | QtWidgets.QMessageBox.StandardButton.No)
         use_settings = use_settings == QtWidgets.QMessageBox.StandardButton.Yes

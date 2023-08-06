@@ -11,10 +11,10 @@ from minipti.algorithm import interferometry, pti
 
 
 if __name__ == "__main__":
-    interferometer = interferometry.Interferometer(settings_path="examples/sample_configs/settings.csv")
+    interferometer = interferometry.Interferometer(settings_path="examples/sample_configs/algorithm_settings.csv")
     interferometer.load_settings()
     interferometer.decimation_filepath = "examples/sample_data/Decimation_Comercial.csv"
-    inversion = pti.Inversion(interferometer=interferometer, settings_path="examples/sample_configs/settings.csv")
+    inversion = pti.Inversion(interferometer=interferometer, settings_path="examples/sample_configs/algorithm_settings.csv")
     inversion.load_response_phase()
 
     # Using the wrapper for pti inversion

@@ -47,13 +47,15 @@ class Frames(ABC):
     ...
 
 
-class Driver(ABC):
+class Driver(QtWidgets.QWidget):
     def __init__(self, parent_controller, parent):
+        QtWidgets.QWidget.__init__(self)
         self.parent = parent
         self.controller = parent_controller
-        self.configuration_buttons = DriverButtons()
+        self.configuration_buttons = DriverButtons(enable=QtWidgets.QPushButton(), save_as=QtWidgets.QPushButton(),
+                                                   save=QtWidgets.QPushButton(), load=QtWidgets.QPushButton(),
+                                                   apply=QtWidgets.QPushButton())
         self.frames = Frames()
-        self._init_buttons()
 
     def create_config_widgts(self) -> QtWidgets.QWidget:
         config = QtWidgets.QWidget()
@@ -94,7 +96,9 @@ class PumpLaser(Driver):
 
     def __init__(self, controller):
         Driver.__init__(self, controller, self)
-        self.frames = PumpLaserFrames()
+        self.frames = PumpLaserFrames(QtWidgets.QGroupBox(), QtWidgets.QGroupBox(),
+                                      [QtWidgets.QGroupBox(), QtWidgets.QGroupBox()], QtWidgets.QGroupBox(),
+                                      QtWidgets.QGroupBox())
         self.setLayout(QtWidgets.QGridLayout())
         self.current_display = QtWidgets.QLabel("0 mA")
         self.voltage_display = QtWidgets.QLabel("0 V")
@@ -160,11 +164,14 @@ class PumpLaser(Driver):
         self.current[dac].update_value(index)
 
     def _init_frames(self) -> None:
-        helper.create_frame(parent=self, title="Measured Values", x_position=1, y_position=0)
-        helper.create_frame(parent=self, title="Driver Voltage", x_position=2, y_position=0)
-        for i in range(1, 3):
-            helper.create_frame(parent=self, title=f"DAC {i}", x_position=i + 2, y_position=0)
-        helper.create_frame(parent=self, title="Configuration", x_position=5, y_position=0)
+        self.frames.measured_values = helper.create_frame(parent=self, title="Measured Values", x_position=1,
+                                                          y_position=0)
+        self.frames.driver_voltage = helper.create_frame(parent=self, title="Driver Voltage", x_position=2,
+                                                         y_position=0)
+        for i in range(2):
+            self.frames.current[i] = helper.create_frame(parent=self, title=f"DAC {i + 1}", x_position=i + 2,
+                                                         y_position=0)
+        self.frames.configuration = helper.create_frame(parent=self, title="Configuration", x_position=5, y_position=0)
 
     def _init_buttons(self) -> None:
         dac_inner_frames = [QtWidgets.QWidget() for _ in range(2)]  # For slider and button-matrices
@@ -204,7 +211,8 @@ class ProbeLaser(Driver):
         Driver.__init__(self, controller, self)
         self.setLayout(QtWidgets.QGridLayout())
         self.current_slider = Slider(minimum=ProbeLaser.MIN_CURRENT_BIT, maximum=ProbeLaser.MAX_CURRENT_BIT, unit="mA")
-        self.frames = ProbeLaserFrames()
+        self.frames = ProbeLaserFrames(QtWidgets.QGroupBox(), QtWidgets.QGroupBox(), QtWidgets.QGroupBox(),
+                                       QtWidgets.QGroupBox(), QtWidgets.QGroupBox(), QtWidgets.QGroupBox())
         self.laser_mode = QtWidgets.QComboBox()
         self.photo_gain = QtWidgets.QComboBox()
         self.current_display = QtWidgets.QLabel("0 mA")
@@ -216,8 +224,8 @@ class ProbeLaser(Driver):
         self.frames.measured_values.layout().addWidget(self.current_display)
         self.max_current_display = QtWidgets.QLineEdit("")
         self.max_current_display.editingFinished.connect(self._max_current_changed)
-        self.frames["Maximum Current"].layout().addWidget(self.max_current_display, 0, 0)
-        self.frames["Maximum Current"].layout().addWidget(QtWidgets.QLabel("mA"), 0, 1)
+        self.frames.maximum_current.layout().addWidget(self.max_current_display, 0, 0)
+        self.frames.maximum_current.layout().addWidget(QtWidgets.QLabel("mA"), 0, 1)
         self._init_signals()
         self.controller.fire_configuration_change()
 
@@ -249,12 +257,15 @@ class ProbeLaser(Driver):
         return self.controller.update_max_current_probe_laser(self.max_current_display.text())
 
     def _init_frames(self) -> None:
-        helper.create_frame(parent=self, title="Maximum Current", x_position=0, y_position=0)
-        helper.create_frame(parent=self, title="Measured Values", x_position=1, y_position=0)
-        helper.create_frame(parent=self, title="Current", x_position=2, y_position=0)
-        helper.create_frame(parent=self, title="Mode", x_position=3, y_position=0)
-        helper.create_frame(parent=self, title="Photo Diode Gain", x_position=4, y_position=0)
-        helper.create_frame(parent=self, title="Configuration", x_position=5, y_position=0)
+        self.frames.maximum_current = helper.create_frame(parent=self, title="Maximum Current", x_position=0,
+                                                          y_position=0)
+        self.frames.measured_values = helper.create_frame(parent=self, title="Measured Values", x_position=1,
+                                                          y_position=0)
+        self.frames.current = helper.create_frame(parent=self, title="Current", x_position=2, y_position=0)
+        self.frames.mode = helper.create_frame(parent=self, title="Mode", x_position=3, y_position=0)
+        self.frames.photo_diode_gain = helper.create_frame(parent=self, title="Photo Diode Gain", x_position=4,
+                                                           y_position=0)
+        self.frames.configuration = helper.create_frame(parent=self, title="Configuration", x_position=5, y_position=0)
 
     def _init_slider(self) -> None:
         self.frames.current.layout().addWidget(self.current_slider)
@@ -312,10 +323,12 @@ class TecFrames:
 class Tec(Driver):
     def __init__(self, controller, laser: int):
         Driver.__init__(self, controller, self)
-        self.frames = TecFrames()
+        self.frames = TecFrames(QtWidgets.QGroupBox(), QtWidgets.QGroupBox(), QtWidgets.QGroupBox(),
+                                QtWidgets.QGroupBox())
         self.laser = laser
         self.setLayout(QtWidgets.QGridLayout())
-        self.text_fields = TecTextFields()
+        self.text_fields = TecTextFields(QtWidgets.QLineEdit(), QtWidgets.QLineEdit(), QtWidgets.QLineEdit(),
+                                         QtWidgets.QLineEdit(), QtWidgets.QLineEdit(), QtWidgets.QLineEdit())
         self.temperature_display = QtWidgets.QLabel("NaN °C")
         self._init_frames()
         self._init_text_fields()
@@ -337,10 +350,13 @@ class Tec(Driver):
         model.tec_signals[self.laser].enabled.connect(self.update_enable)
 
     def _init_frames(self) -> None:
-        helper.create_frame(parent=self, title="Temperature", x_position=0, y_position=0)
-        helper.create_frame(parent=self, title="PID Configuration", x_position=1, y_position=0, x_span=2)
-        helper.create_frame(parent=self, title="System Settings", x_position=3, y_position=0, x_span=2)
-        helper.create_frame(parent=self, title="Configuration", x_position=5, y_position=0, x_span=2)
+        self.frames.temperature = helper.create_frame(parent=self, title="Temperature", x_position=0, y_position=0)
+        self.frames.pid_configuration = helper.create_frame(parent=self, title="PID Configuration", x_position=1,
+                                                            y_position=0, x_span=2)
+        self.frames.system_settings = helper.create_frame(parent=self, title="System Settings", x_position=3,
+                                                          y_position=0, x_span=2)
+        self.frames.configuration = helper.create_frame(parent=self, title="Configuration", x_position=5, y_position=0,
+                                                        x_span=2)
 
     def _init_buttons(self) -> None:
         self.frames.configuration.layout().addWidget(self.create_config_widgts(), 3, 0)
