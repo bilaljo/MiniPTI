@@ -93,10 +93,14 @@ class Driver(ABC):
         for _ in itertools.repeat(None, Driver._SEARCH_ATTEMPTS):
             for port in list_ports.comports():
                 try:
-                    with serial.Serial(port.name, timeout=Driver._MAX_RESPONSE_TIME,
+                    if platform.system() != "Windows":
+                        port_name = "/dev/" + port.name
+                    else:
+                        port_name = port.name
+                    with serial.Serial(port_name, timeout=Driver._MAX_RESPONSE_TIME,
                                        write_timeout=Driver._MAX_RESPONSE_TIME) as device:
                         if self._check_hardware_id(device):
-                            self._port_name = port.name
+                            self._port_name = port_name
                             logging.info(f"Found {self.device_name} at {self.port_name}")
                             return
                 except serial.SerialException:
