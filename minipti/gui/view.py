@@ -772,7 +772,7 @@ class Tec(QtWidgets.QWidget, _Frames, _CreateButton):
         if floating:
             @QtCore.pyqtSlot(float)
             def update(value: float) -> None:
-                text_field.setText(str(round(value, 2)))
+                text_field.setText(str(round(value, 3)))
         else:
             @QtCore.pyqtSlot(int)
             def update(value: int) -> None:
