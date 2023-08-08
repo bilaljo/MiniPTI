@@ -8,7 +8,7 @@
         "system_parameter": {
             "setpoint_temperature": 18,
             "loop_time": 10,
-            "max_power": 0.33
+            "max_power": 0.24
         }
     }
 }
