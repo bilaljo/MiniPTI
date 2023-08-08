@@ -277,7 +277,8 @@ class Driver(ABC):
         """
         @final
         def _receive(self, _sender, _arg: System.IO.Ports.SerialDataReceivedEventArgs) -> None:
-            self.received_data.put(self._serial_port.ReadExisting())
+            if self._serial_port.BytesToRead:
+                self.received_data.put(self._serial_port.ReadExisting())
 
     else:
         """
@@ -322,12 +323,13 @@ class Driver(ABC):
             received_data: str = self._package_buffer + self.get_data()
         except OSError:
             return
-        for received in received_data.split(Driver._TERMINATION_SYMBOL)[:-1]:
+        split_data = received_data.split(Driver._TERMINATION_SYMBOL)
+        for received in split_data[:-1]:
             self._encode(received)
-        self._package_buffer = received_data[-1]
+        self._package_buffer = split_data[-1]
 
     @abstractmethod
-    def _encode(self, received: str) -> bool:
+    def _encode(self, data: str) -> None:
         ...
 
     @abstractmethod
