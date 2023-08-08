@@ -1,7 +1,7 @@
 {
     "Tec": {
         "pid": {
-            "proportional_value": -0.25,
+            "proportional_value": -0.15,
             "integral_value": -0.015,
             "derivative_value": 0
         },
