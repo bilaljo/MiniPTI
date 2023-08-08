@@ -1,11 +1,6 @@
 .idea
 .vscode
-notebooks/__pycache__
-tests/__pycache__
-minipti/__pycache__
-minipti/gui/__pycache__
-minipti/algorithm/__pycache__
-minipti/hardware/__pycache__
+**/__pycache__
 *.log
 venv
 *.csv

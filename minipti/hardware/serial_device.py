@@ -43,6 +43,7 @@ class Driver(ABC):
 
     def __init__(self):
         self._port_name = ""
+        self._package_buffer = ""
         self._write_buffer = queue.Queue()
         self.data = queue.Queue()
         self._ready_write = threading.Event()
@@ -191,7 +192,7 @@ class Driver(ABC):
             hardware_id = hardware_id.group()
             return Patterns.HEX_VALUE.search(hardware_id).group()
 
-    @functools.singledispatchmethod   
+    @functools.singledispatchmethod
     @final
     def write(self, message: str) -> bool:
         if self.connected.is_set():
@@ -296,6 +297,7 @@ class Driver(ABC):
                     logging.error("Connection to %s lost", self.device_name)
                     # Device might not be closed properly, so we mark the descriptor as invalid
                     self._file_descriptor = -1
+                    self._is_found = False
                     self.connected.clear()
 
     @final
@@ -310,12 +312,23 @@ class Driver(ABC):
                 self._file_descriptor = -1
             raise OSError
 
-    @abstractmethod
+    @final
     def _encode_data(self) -> None:
         """
         Encodes incoming data of the serial device. Each package has a package identifier, to decide the decoding
         algorithm of it.
         """
+        try:
+            received_data: str = self._package_buffer + self.get_data()
+        except OSError:
+            return
+        for received in received_data.split(Driver._TERMINATION_SYMBOL)[:-1]:
+            self._encode(received)
+        self._package_buffer = received_data[-1]
+
+    @abstractmethod
+    def _encode(self, received: str) -> bool:
+        ...
 
     @abstractmethod
     def _process_data(self) -> None:
