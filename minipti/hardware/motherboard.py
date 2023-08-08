@@ -116,6 +116,7 @@ class Driver(serial_device.Driver):
         self.bypass = False
         self.running = threading.Event()
         self.running.clear()
+        self.new_run = True
         self.load_config()
 
     @property
@@ -144,7 +145,7 @@ class Driver(serial_device.Driver):
 
     @property
     def buffer_size(self) -> int:
-        return len(self._buffer)
+        return len(self._package_buffer)
 
     @property
     def encoded_buffer_ref_size(self) -> int:
@@ -228,11 +229,12 @@ class Driver(serial_device.Driver):
         self.clear_buffer()
 
     def _reset(self) -> None:
-        self.synchronize = True
         self._encoded_buffer.ref_signal = deque()
         self._encoded_buffer.dc_coupled = [deque(), deque(), deque()]
         self._encoded_buffer.ac_coupled = [deque(), deque(), deque()]
         self._sample_numbers = deque(maxlen=2)
+        self._package_buffer = ""
+        self.synchronize = True
 
     @override
     def _encode(self, data: str) -> None:
@@ -257,8 +259,10 @@ class Driver(serial_device.Driver):
         self._sample_numbers.append(data[Driver._PACKAGE_SIZE_START_INDEX:Driver._PACKAGE_SIZE_END_INDEX])
         if len(self._sample_numbers) > 1 and not self._check_package_difference():
             self._reset()
+            self.synchronize = True
         ref_signal, ac_coupled, dc_coupled = Driver._encode_binary(data)
         if self.synchronize:
+            self._reset()
             self._synchronize_with_ref(ref_signal, ac_coupled, dc_coupled)
         self._encoded_buffer.ref_signal.extend(ref_signal)
         for channel in range(Driver._CHANNELS):
@@ -300,7 +304,7 @@ class Driver(serial_device.Driver):
         self.data.BMS.put(bms)
 
     @staticmethod
-    def _crc_check(data: str, source) -> bool:
+    def _crc_check(data: str, source: str) -> bool:
         crc_calculated = crc16.arc(data[:-Driver._CRC_START_INDEX].encode())
         crc_received = int(data[-Driver._CRC_START_INDEX:], base=16)
         if crc_calculated != crc_received:  # Corrupted data
@@ -318,12 +322,13 @@ class Driver(serial_device.Driver):
 
     def _synchronize_with_ref(self, ref_signal: _Samples, ac_coupled: list[_Samples],
                               dc_coupled: list[_Samples]) -> None:
+        logging.warning("Trying to synchronise")
         while sum(itertools.islice(ref_signal, 0, self.config.daq.ref_period // 2)):
             ref_signal.popleft()
             for channel in range(Driver._CHANNELS):
                 ac_coupled[channel].popleft()
                 dc_coupled[channel].popleft()
-            dc_coupled[3].popleft()
+            dc_coupled[Driver._CHANNELS].popleft()
         if len(ref_signal) < self.config.daq.ref_period // 2:
             return
         self.synchronize = False
@@ -334,12 +339,11 @@ class Driver(serial_device.Driver):
         samples.
         """
         ref = [self._encoded_buffer.ref_signal.popleft() for _ in range(self.config.daq.number_of_samples)]
-        for i in range(len(ref), self.config.daq.ref_period):
-            if sum(ref[i:i + self.config.daq.ref_period // 2]):
-                logging.warning("Not synchron with reference signal. Trying to synchronise")
-                self.synchronize = True
-                return
         self.data.DAQ.ref_signal.put(ref)
+        if sum(itertools.islice(ref, 0, self.config.daq.ref_period // 2)):
+            logging.warning("Not synchron with reference signal")
+            self._reset()
+            return
         dc_package = [[], [], []]
         ac_package = [[], [], []]
         for _ in itertools.repeat(None, self.config.daq.number_of_samples):
@@ -363,13 +367,17 @@ class Driver(serial_device.Driver):
                                         queue.Queue(maxsize=Driver._QUEUE_SIZE),
                                         queue.Queue(maxsize=Driver._QUEUE_SIZE)),
                                 queue.Queue(maxsize=Driver._QUEUE_SIZE))
-        self._buffer = ""
+        self._package_buffer = ""
         self._encoded_buffer = DAQData(deque(), [deque(), deque(), deque()], [deque(), deque(), deque()])
         self._sample_numbers = deque(maxlen=2)
         while self.connected.is_set():
+            if self.new_run:
+                self.reset()
+                self.new_run = False
             self._encode_data()
             if self.running.is_set() and len(self._encoded_buffer.ref_signal) >= self.config.daq.number_of_samples:
                 self.build_sample_package()
+        self.new_run = True
 
     def automatic_valve_change(self) -> None:
         """
