@@ -1,3 +1,4 @@
+import multiprocessing
 from abc import abstractmethod, ABC
 import functools
 import logging
@@ -8,7 +9,6 @@ import time
 from dataclasses import dataclass
 from enum import Enum
 from typing import Union
-import threading
 import queue
 import itertools
 
@@ -18,6 +18,7 @@ from overrides import final
 if platform.system() == "Windows":
     import clr
     import System
+    import threading
 else:
     import termios
 import serial
@@ -44,17 +45,17 @@ class Driver(ABC):
     def __init__(self):
         self._port_name = ""
         self._package_buffer = ""
-        self._write_buffer = queue.Queue()
-        self.data = queue.Queue()
         self._ready_write = threading.Event()
+        self._write_buffer = queue.Queue()
         self._ready_write.set()
         self.last_written_message = ""
         if platform.system() == "Windows":
             self._serial_port = System.IO.Ports.SerialPort()
+            self.data = queue.Queue()
         else:
             self._file_descriptor = -1
+            self.data = multiprocessing.Queue()
         self.connected = threading.Event()
-        self.received_data = queue.Queue()
 
     @property
     def port_name(self) -> str:
@@ -114,15 +115,18 @@ class Driver(ABC):
         device.write(Command.HARDWARE_ID + Driver._TERMINATION_SYMBOL.encode())
         time.sleep(0.1)
         available_bytes = device.in_waiting
-        self.received_data.put(device.read(available_bytes))
+        self._received_data.put(device.read(available_bytes))
         return self.get_hardware_id() == self.device_id
 
     @final
     def _clear(self) -> None:
+        if platform.system() == "Windows":
+            self.data = queue.Queue()
+        else:
+            self.data = multiprocessing.Queue()
         self._write_buffer = queue.Queue()
-        self.data = queue.Queue()
         self.last_written_message = ""
-        self.received_data = queue.Queue()
+        self._received_data = queue.Queue()
         self._ready_write.set()
 
     if platform.system() == "Windows":
@@ -184,7 +188,7 @@ class Driver(ABC):
     @final
     def get_hardware_id(self) -> Union[bytes, None]:
         try:
-            received_data: bytes = self.received_data.get(timeout=Driver._MAX_RESPONSE_TIME)
+            received_data: bytes = self._received_data.get(timeout=Driver._MAX_RESPONSE_TIME)
             hardware_id = Patterns.HARDWARE_ID.search(received_data)
         except queue.Empty:
             return
@@ -278,7 +282,7 @@ class Driver(ABC):
         @final
         def _receive(self, _sender, _arg: System.IO.Ports.SerialDataReceivedEventArgs) -> None:
             if self._serial_port.BytesToRead:
-                self.received_data.put(self._serial_port.ReadExisting())
+                self._received_data.put(self._serial_port.ReadExisting())
 
     else:
         """
@@ -291,20 +295,19 @@ class Driver(ABC):
             that the connection is lost.
             """
             while self.connected.is_set():
-                try:
-                    received = os.read(self._file_descriptor, Driver._IO_BUFFER_SIZE)
-                    self.received_data.put(received.decode())
-                except OSError:
+                received = os.read(self._file_descriptor, Driver._IO_BUFFER_SIZE)
+                if not received:
                     logging.error("Connection to %s lost", self.device_name)
-                    # Device might not be closed properly, so we mark the descriptor as invalid
                     self._file_descriptor = -1
                     self._is_found = False
                     self.connected.clear()
+                else:
+                    self._received_data.put(received.decode())
 
     @final
     def get_data(self) -> str:
         try:
-            received_data: str = self.received_data.get(block=True, timeout=Driver._MAX_WAIT_TIME)
+            received_data: str = self._received_data.get(block=True, timeout=Driver._MAX_WAIT_TIME)
             return received_data
         except queue.Empty:
             self.connected.clear()
