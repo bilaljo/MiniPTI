@@ -13,12 +13,11 @@ import queue
 import itertools
 
 from overrides import final
-
+import threading
 
 if platform.system() == "Windows":
     import clr
     import System
-    import threading
 else:
     import termios
 import serial
@@ -46,15 +45,17 @@ class Driver(ABC):
         self._port_name = ""
         self._package_buffer = ""
         self._ready_write = threading.Event()
-        self._write_buffer = queue.Queue()
+        self._received_data = queue.Queue()
         self._ready_write.set()
         self.last_written_message = ""
         if platform.system() == "Windows":
             self._serial_port = System.IO.Ports.SerialPort()
             self.data = queue.Queue()
+            self._write_buffer = queue.Queue()
         else:
             self._file_descriptor = -1
             self.data = multiprocessing.Queue()
+            self._write_buffer = multiprocessing.Queue()
         self.connected = threading.Event()
 
     @property
@@ -120,10 +121,6 @@ class Driver(ABC):
 
     @final
     def _clear(self) -> None:
-        if platform.system() == "Windows":
-            self.data = queue.Queue()
-        else:
-            self.data = multiprocessing.Queue()
         self._write_buffer = queue.Queue()
         self.last_written_message = ""
         self._received_data = queue.Queue()
@@ -149,30 +146,8 @@ class Driver(ABC):
                 try:
                     self._clear()
                     self._file_descriptor = os.open(path=self.port_name, flags=os.O_RDWR | os.O_NOCTTY | os.O_SYNC)
-                    old_attribute = termios.tcgetattr(self._file_descriptor)
-                    iflag, oflag, cflag, lflag, ispeed, ospeed, cc = old_attribute
-
-                    iflag &= ~termios.BRKINT
-                    lflag = 0
-                    oflag = 0
-
-                    cc[termios.VMIN] = 1
-                    cc[termios.VTIME] = Driver._MAX_WAIT_TIME * 1000  # in ms on Unix
-
-                    iflag &= ~(termios.IXON | termios.IXOFF | termios.IXANY)
-
-                    cflag |= (termios.CLOCAL | termios.CREAD)
-
-                    cflag &= ~(termios.PARENB | termios.PARODD)
-
-                    cflag &= ~termios.CSTOPB
-
-                    cflag &= ~termios.CSTOPB
-
-                    new_attribute = [iflag, oflag, cflag, lflag, ispeed, ospeed, cc]
-                    termios.tcsetattr(self._file_descriptor, termios.TCSANOW, new_attribute)
                 except OSError:
-                    raise OSError("Could not connect find %s", self.device_name)
+                    raise OSError("Could not connect with %s", self.device_name)
                 self.connected.set()
                 logging.info(f"Connected with {self.device_name}")
             else:

@@ -709,10 +709,6 @@ class ProbeLaser(QtWidgets.QWidget, _CreateButton, _Frames):
         self.laser_mode.setCurrentIndex(index)
 
 
-def css_fraction(numerator: str, denomiator: str) -> str:
-    return f'<div class="frac"><span>{numerator}</span><span class="symbol">/</span><span class="bottom">{denomiator}</span></div>'
-
-
 class TecTextFields:
     def __init__(self):
         self.p_gain = QtWidgets.QLineEdit()
@@ -785,10 +781,6 @@ class Tec(QtWidgets.QWidget, _Frames, _CreateButton):
 
     def _init_text_fields(self) -> None:
         self.create_button(master=self, title="Enable", slot=self.controller.enable, master_title="")
-        with open(f"{os.path.dirname(__file__)}/style/fraction.css", "r") as css:
-            style: str = css.read()
-        #p_gain_label = QtWidgets.QLabel(f"P Gain [{css_fraction('1', '°C')}]")
-        #p_gain_label.setStyleSheet(style)
 
         self.frames["PID Configuration"].layout().addWidget(QtWidgets.QLabel("P Gain [1/°C]"), 0, 0)
         self.frames["PID Configuration"].layout().addWidget(self.text_fields.p_gain, 0, 1)

@@ -1,7 +1,9 @@
 import enum
 import itertools
 import logging
+import multiprocessing
 import os
+import platform
 import queue
 import threading
 import time
@@ -100,10 +102,6 @@ class Driver(serial_device.Driver):
     def __init__(self):
         serial_device.Driver.__init__(self)
         self.connected = threading.Event()
-        self.data = PackageData(DAQData(queue.Queue(maxsize=Driver._QUEUE_SIZE),
-                                        queue.Queue(maxsize=Driver._QUEUE_SIZE),
-                                        queue.Queue(maxsize=Driver._QUEUE_SIZE)),
-                                queue.Queue(maxsize=Driver._QUEUE_SIZE))
         self._encoded_buffer = DAQData(deque(), [deque(), deque(), deque()],
                                        [deque(), deque(), deque()])
         self._sample_numbers = deque(maxlen=2)
