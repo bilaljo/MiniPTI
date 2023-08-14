@@ -19,7 +19,7 @@ if platform.system() == "Windows":
     import clr
     import System
 else:
-    import termios
+    import multiprocessing
 import serial
 from serial.tools import list_ports
 

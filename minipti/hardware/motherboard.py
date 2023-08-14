@@ -115,6 +115,16 @@ class Driver(serial_device.Driver):
         self.running = threading.Event()
         self.running.clear()
         self.new_run: bool = True
+        if platform.system() == "Windows":
+            self.data = PackageData(DAQData(queue.Queue(maxsize=Driver._QUEUE_SIZE),
+                                            queue.Queue(maxsize=Driver._QUEUE_SIZE),
+                                            queue.Queue(maxsize=Driver._QUEUE_SIZE)),
+                                    queue.Queue(maxsize=Driver._QUEUE_SIZE))
+        else:
+            self.data = PackageData(DAQData(multiprocessing.Queue(maxsize=Driver._QUEUE_SIZE),
+                                            multiprocessing.Queue(maxsize=Driver._QUEUE_SIZE),
+                                            multiprocessing.Queue(maxsize=Driver._QUEUE_SIZE)),
+                                    multiprocessing.Queue(maxsize=Driver._QUEUE_SIZE))
         self.load_config()
 
     @property
