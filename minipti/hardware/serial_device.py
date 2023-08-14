@@ -18,6 +18,8 @@ import threading
 if platform.system() == "Windows":
     import clr
     import System
+else:
+    import  termios
 import serial
 from serial.tools import list_ports
 
@@ -141,7 +143,29 @@ class Driver(ABC):
             if self.port_name and not self.is_open:
                 try:
                     self._clear()
-                    self._file_descriptor = os.open(path=self.port_name, flags=os.O_RDWR | os.O_NOCTTY | os.O_SYNC)
+                    self._file_descriptor = os.open(path=self.port_name, flags=os.O_RDWR)
+                    old_attribute = termios.tcgetattr(self._file_descriptor)
+                    iflag, oflag, cflag, lflag, ispeed, ospeed, cc = old_attribute
+
+                    iflag &= ~termios.BRKINT
+                    lflag = 0
+                    oflag = 0
+
+                    cc[termios.VMIN] = 1
+                    cc[termios.VTIME] = Driver._MAX_WAIT_TIME * 1000  # in ms on Unix
+
+                    iflag &= ~(termios.IXON | termios.IXOFF | termios.IXANY)
+
+                    cflag |= (termios.CLOCAL | termios.CREAD)
+
+                    cflag &= ~(termios.PARENB | termios.PARODD)
+
+                    cflag &= ~termios.CSTOPB
+
+                    cflag &= ~termios.CSTOPB
+
+                    new_attribute = [iflag, oflag, cflag, lflag, ispeed, ospeed, cc]
+                    termios.tcsetattr(self._file_descriptor, termios.TCSANOW, new_attribute)
                 except OSError:
                     raise OSError("Could not connect with %s", self.device_name)
                 self.connected.set()
