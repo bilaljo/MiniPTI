@@ -18,8 +18,6 @@ import threading
 if platform.system() == "Windows":
     import clr
     import System
-else:
-    import multiprocessing
 import serial
 from serial.tools import list_ports
 
@@ -32,7 +30,7 @@ class Driver(ABC):
     incoming data respectively their own event loops, e.g. the reading is done blocking synchronously (without polling).
     It is not intended to be used asynchron (with an event-driven approach).
     """
-    _QUEUE_SIZE = 15
+    _QUEUE_SIZE = 4095
     _MAX_RESPONSE_TIME = 500e-3  # s
     _MAX_WAIT_TIME = 5  # s
 
@@ -45,17 +43,15 @@ class Driver(ABC):
         self._port_name = ""
         self._package_buffer = ""
         self._ready_write = threading.Event()
-        self._received_data = queue.Queue()
+        self._received_data = queue.Queue(maxsize=Driver._QUEUE_SIZE)
         self._ready_write.set()
         self.last_written_message = ""
+        self.data = queue.Queue(maxsize=Driver._QUEUE_SIZE)
+        self._write_buffer = queue.Queue(maxsize=Driver._QUEUE_SIZE)
         if platform.system() == "Windows":
             self._serial_port = System.IO.Ports.SerialPort()
-            self.data = queue.Queue()
-            self._write_buffer = queue.Queue()
         else:
             self._file_descriptor = -1
-            self.data = multiprocessing.Queue()
-            self._write_buffer = multiprocessing.Queue()
         self.connected = threading.Event()
 
     @property

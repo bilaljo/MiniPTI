@@ -4,7 +4,6 @@ import csv
 import enum
 import itertools
 import logging
-import multiprocessing
 import os
 import platform
 import subprocess
@@ -635,10 +634,7 @@ class Serial:
         self.driver.open()
 
     def run(self) -> None:
-        if platform.system() != "Windows":
-            multiprocessing.Process(target=self.driver.run, daemon=True).start()
-        else:
-            self.driver.run()
+        self.driver.run()
 
     def close(self) -> None:
         """
