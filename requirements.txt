@@ -3,14 +3,14 @@ fastcrc==0.2.1
 h5py==3.9.0
 numpy==1.25.2
 pandas==2.0.3
-PyQt5==5.15.9
+PyQt5>=5.15.2
 pyqtgraph==0.13.3
 pyserial==3.5
 python-dateutil==2.8.2
 pytz==2023.3
 scipy==1.11.1
 six==1.16.0
-types-pytz==2023.3.0.0
+types-pytz==2023.3.0.1
 tzdata==2023.3
 pythonnet==3.0.1; platform_system == "Windows"
-overrides==7.3.1
+overrides==7.4.0

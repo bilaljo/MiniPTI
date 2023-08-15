@@ -677,11 +677,12 @@ class Serial:
 
 class Motherboard(Serial):
     _driver = hardware.motherboard.Driver()
+    running_event: threading.Event = threading.Event()
 
     def __init__(self):
         Serial.__init__(self)
         self.bms_data: tuple[float, float] = (0, 0)
-        self.initialized = False
+        self.initialized: bool = False
         signals.daq_running.connect(self._daq_running_changed)
 
     def initialize(self) -> None:
@@ -712,7 +713,7 @@ class Motherboard(Serial):
         return round((temperature - 273.15) / 100, 2)
 
     def _incoming_data(self) -> None:
-        while self.driver.connected.is_set():
+        while self.driver.connected:
             bms_data = self.driver.bms
             bms_data.battery_temperature = Motherboard.centi_kelvin_to_celsius(bms_data.battery_temperature)
             signals.battery_state.emit(Battery(bms_data.battery_percentage, bms_data.minutes_left))
@@ -734,7 +735,7 @@ class Motherboard(Serial):
 
     @property
     def running(self) -> bool:
-        return self._running
+        return Motherboard.running_event.is_set()
 
     @running.setter
     def running(self, running):
@@ -745,9 +746,11 @@ class Motherboard(Serial):
             signals.clear_daq.emit()
             self.driver.running.set()
             signals.daq_running.emit(True)
+            self.running_event.set()
         else:
             self.driver.running.clear()
             signals.daq_running.emit(False)
+            self.running_event.clear()
 
     @property
     def shutdown_event(self) -> threading.Event:
@@ -865,13 +868,12 @@ class Laser(Serial):
         ...
 
     def _incoming_data(self):
-        self._running = True
-        while self.driver.connected.is_set():
+        while self.driver.connected:
             received_data: hardware.laser.Data = self.driver.data.get(block=True)
             Laser.buffer.append(received_data)
             laser_signals.data.emit(Laser.buffer)
             laser_signals.data_display.emit(received_data)
-            if self._running:
+            if Motherboard.running_event.is_set():
                 if self._init_headers:
                     units = {"Time": "H:M:S",
                              "Pump Laser Enabled": "bool",
@@ -1261,13 +1263,12 @@ class Tec(Serial):
 
     @override
     def _incoming_data(self) -> None:
-        self._running = True
         while self.driver.connected.is_set():
             received_data: hardware.tec.Data = self.driver.data.get(block=True)
             self._buffer.append(received_data)
             signals.tec_data.emit(self._buffer)
             signals.tec_data_display.emit(received_data)
-            if self._running:
+            if Motherboard.running_event.is_set():
                 if self._init_headers:
                     units = {"Time": "H:M:S",
                              "TEC Pump Laser Enabled": "bool",

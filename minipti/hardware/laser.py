@@ -1,3 +1,6 @@
+import multiprocessing
+import platform
+import queue
 from abc import abstractmethod
 import dataclasses
 import json
@@ -61,30 +64,20 @@ class Driver(serial_device.Driver):
         while self.connected.is_set():
             self._encode_data()
 
-    def _encode_data(self) -> None:
-        try:
-            received_data: str = self.get_data()
-        except OSError:
-            return
-        for received in received_data.split(Driver._TERMINATION_SYMBOL):
-            if not received:
-                continue
-            if received[0] == "N":
-                logging.error(f"Invalid command {received}")
-                self._ready_write.set()
-            elif received[0] == "S" or received[0] == "C":
-                self._check_ack(received)
-            elif received[0] == "L":
-                data_frame = received.split("\t")[Driver._START_DATA_FRAME:self.end_data_frame]
-                self.data.put(Data(high_power_laser_current=float(data_frame[0]),
-                                   high_power_laser_voltage=float(data_frame[1]),
-                                   low_power_laser_current=float(data_frame[2]),
-                                   low_power_laser_enabled=self.low_power_laser.enabled,
-                                   high_power_laser_enabled=self.high_power_laser.enabled))
-            else:  # Broken data frame without header char
-                logging.error("Received invalid package without header")
-                self._ready_write.set()
-                continue
+    @override
+    def _encode(self, data: str) -> None:
+        if data[0] == "N":
+            logging.error(f"Invalid command {data}")
+            self._ready_write.set()
+        elif data[0] == "S" or data[0] == "C":
+            self._check_ack(data)
+        elif data[0] == "L":
+            data_frame = data.split("\t")[Driver._START_DATA_FRAME:self.end_data_frame]
+            self.data.put(Data(high_power_laser_current=float(data_frame[0]),
+                               high_power_laser_voltage=float(data_frame[1]),
+                               low_power_laser_current=float(data_frame[2]),
+                               low_power_laser_enabled=self.low_power_laser.enabled,
+                               high_power_laser_enabled=self.high_power_laser.enabled))
 
 
 @dataclass
@@ -196,7 +189,7 @@ class LowPowerLaser(Laser):
         self._set_digpot = protocolls.ASCIIHex("SLS0000")
         self._enable = protocolls.ASCIIHex("SLE0001")
         self.load_configuration()
-    
+
     @property
     @override
     def enabled(self) -> bool:
@@ -213,7 +206,7 @@ class LowPowerLaser(Laser):
         self._init.value = True
         self._initialized = True
         self._driver.write(self._init)
-    
+
     @override
     def load_configuration(self) -> None:
         with open(self.config_path) as config:
@@ -229,9 +222,9 @@ class LowPowerLaser(Laser):
 
     @override
     def apply_configuration(self) -> None:
-        #self.set_mode()
+        # self.set_mode()
         self.set_current()
-        #self.set_photo_diode_gain()
+        # self.set_photo_diode_gain()
 
     def set_mode(self) -> None:
         if self.configuration.mode.constant_light:

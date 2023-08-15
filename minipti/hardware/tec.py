@@ -72,43 +72,31 @@ class Driver(serial_device.Driver):
             self._encode_data()
 
     @override
-    def _encode_data(self) -> None:
-        try:
-            received_data: str = self.get_data()
-        except OSError:
-            return
-        for received in received_data.split(Driver._TERMINATION_SYMBOL)[:-1]:
-            if not received:
-                continue
-            identifier = received[0]
-            if identifier == "S":
-                written = protocolls.ASCIIMultimap(self.last_written_message)
-                received = protocolls.ASCIIMultimap(received + "\n")
-                if received.key != written.key:
-                    logging.error("Received message with as key %s, expected key %s", received.key, received.key)
-                elif received.value == "PARAMERROR":
-                    logging.error("Value %s is not valid", received.value)
-                elif received.value == "INDEXERROR":
-                    logging.error("Index %s is not valid", written.index)
-                else:
-                    logging.debug("Command %s successfully applied", received)
-                self._ready_write.set()
-            elif identifier == "T":
-                data_frame = received.split("\t")[Driver._START_DATA_FRAME:]
-                status_byte_frame = int(data_frame[_TecDataIndex.PT1000_STATUS])
-                for error in Status.ERROR:
-                    if error[Status.VALUE] & status_byte_frame:
-                        logging.error("Got \"%s\" from TEC Driver", error[Status.TEXT])
-                actual_temperature: list[float] = [0, 0]
-                setpoint_temperature: list[float] = [0, 0]
-                for i in range(Driver.CHANNELS):
-                    actual_temperature[i] = Tec.kelvin_to_celsisus(float(data_frame[_TecDataIndex.TEMPERATURE + i]))
-                    setpoint_temperature[i] = Tec.kelvin_to_celsisus(float(data_frame[_TecDataIndex.SET_POINT + i]))
-                self.data.put(Data(setpoint_temperature, actual_temperature))
-            else:  # Broken data frame without header char
-                logging.error("Received invalid package without header")
-                self._ready_write.set()
-                continue
+    def _encode(self, data: str) -> None:
+        if data[0] == "S":
+            written = protocolls.ASCIIMultimap(self.last_written_message)
+            data = protocolls.ASCIIMultimap(data + "\n")
+            if data.key != written.key:
+                logging.error("Received message with as key %s, expected key %s", data.key, data.key)
+            elif data.value == "PARAMERROR":
+                logging.error("Value %s is not valid", data.value)
+            elif data.value == "INDEXERROR":
+                logging.error("Index %s is not valid", written.index)
+            else:
+                logging.debug("Command %s successfully applied", data)
+            self._ready_write.set()
+        elif data[0] == "T":
+            data_frame = data.split("\t")[Driver._START_DATA_FRAME:]
+            status_byte_frame = int(data_frame[_TecDataIndex.PT1000_STATUS])
+            for error in Status.ERROR:
+                if error[Status.VALUE] & status_byte_frame:
+                    logging.error("Got \"%s\" from TEC Driver", error[Status.TEXT])
+            actual_temperature: list[float] = [0, 0]
+            setpoint_temperature: list[float] = [0, 0]
+            for i in range(Driver.CHANNELS):
+                actual_temperature[i] = Tec.kelvin_to_celsisus(float(data_frame[_TecDataIndex.TEMPERATURE + i]))
+                setpoint_temperature[i] = Tec.kelvin_to_celsisus(float(data_frame[_TecDataIndex.SET_POINT + i]))
+            self.data.put(Data(setpoint_temperature, actual_temperature))
 
 
 class Commands:

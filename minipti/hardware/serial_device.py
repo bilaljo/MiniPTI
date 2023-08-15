@@ -1,3 +1,4 @@
+import multiprocessing
 from abc import abstractmethod, ABC
 import functools
 import logging
@@ -8,18 +9,17 @@ import time
 from dataclasses import dataclass
 from enum import Enum
 from typing import Union
-import threading
 import queue
 import itertools
 
 from overrides import final
-
+import threading
 
 if platform.system() == "Windows":
     import clr
     import System
 else:
-    import termios
+    import  termios
 import serial
 from serial.tools import list_ports
 
@@ -32,7 +32,7 @@ class Driver(ABC):
     incoming data respectively their own event loops, e.g. the reading is done blocking synchronously (without polling).
     It is not intended to be used asynchron (with an event-driven approach).
     """
-    _QUEUE_SIZE = 15
+    _QUEUE_SIZE = 4095
     _MAX_RESPONSE_TIME = 500e-3  # s
     _MAX_WAIT_TIME = 5  # s
 
@@ -42,19 +42,19 @@ class Driver(ABC):
     _SEARCH_ATTEMPTS = 3
 
     def __init__(self):
-        self._port_name: str = ""
-        self._is_found: bool = False
-        self._write_buffer: queue.Queue = queue.Queue()
-        self.data: queue.Queue = queue.Queue()
-        self._ready_write: threading.Event = threading.Event()
+        self._port_name = ""
+        self._package_buffer = ""
+        self._ready_write = threading.Event()
+        self._received_data = queue.Queue(maxsize=Driver._QUEUE_SIZE)
         self._ready_write.set()
         self.last_written_message = ""
+        self.data = queue.Queue(maxsize=Driver._QUEUE_SIZE)
+        self._write_buffer = queue.Queue(maxsize=Driver._QUEUE_SIZE)
         if platform.system() == "Windows":
-            self._serial_port: System.IO.Ports.SerialPort = System.IO.Ports.SerialPort()
+            self._serial_port = System.IO.Ports.SerialPort()
         else:
-            self._file_descriptor: int = -1
-        self.connected: threading.Event = threading.Event()
-        self.received_data: queue.Queue = queue.Queue()
+            self._file_descriptor = -1
+        self.connected = threading.Event()
 
     @property
     def port_name(self) -> str:
@@ -98,10 +98,14 @@ class Driver(ABC):
         for _ in itertools.repeat(None, Driver._SEARCH_ATTEMPTS):
             for port in list_ports.comports():
                 try:
-                    with serial.Serial(port.name, timeout=Driver._MAX_RESPONSE_TIME,
+                    if platform.system() != "Windows":
+                        port_name = "/dev/" + port.name
+                    else:
+                        port_name = port.name
+                    with serial.Serial(port_name, timeout=Driver._MAX_RESPONSE_TIME,
                                        write_timeout=Driver._MAX_RESPONSE_TIME) as device:
                         if self._check_hardware_id(device):
-                            self._port_name = port.name
+                            self._port_name = port_name
                             logging.info(f"Found {self.device_name} at {self.port_name}")
                             self._is_found = True
                             return
@@ -115,15 +119,14 @@ class Driver(ABC):
         device.write(Command.HARDWARE_ID + Driver._TERMINATION_SYMBOL.encode())
         time.sleep(0.1)
         available_bytes = device.in_waiting
-        self.received_data.put(device.read(available_bytes))
+        self._received_data.put(device.read(available_bytes))
         return self.get_hardware_id() == self.device_id
 
     @final
     def _clear(self) -> None:
         self._write_buffer = queue.Queue()
-        self.data = queue.Queue()
         self.last_written_message = ""
-        self.received_data = queue.Queue()
+        self._received_data = queue.Queue()
         self._ready_write.set()
 
     if platform.system() == "Windows":
@@ -145,7 +148,7 @@ class Driver(ABC):
             if self.port_name and not self.is_open:
                 try:
                     self._clear()
-                    self._file_descriptor = os.open(path=self.port_name, flags=os.O_RDWR | os.O_NOCTTY | os.O_SYNC)
+                    self._file_descriptor = os.open(path=self.port_name, flags=os.O_RDWR)
                     old_attribute = termios.tcgetattr(self._file_descriptor)
                     iflag, oflag, cflag, lflag, ispeed, ospeed, cc = old_attribute
 
@@ -169,7 +172,7 @@ class Driver(ABC):
                     new_attribute = [iflag, oflag, cflag, lflag, ispeed, ospeed, cc]
                     termios.tcsetattr(self._file_descriptor, termios.TCSANOW, new_attribute)
                 except OSError:
-                    raise OSError("Could not connect find %s", self.device_name)
+                    raise OSError("Could not connect with %s", self.device_name)
                 self.connected.set()
                 logging.info(f"Connected with {self.device_name}")
             else:
@@ -185,7 +188,7 @@ class Driver(ABC):
     @final
     def get_hardware_id(self) -> Union[bytes, None]:
         try:
-            received_data: bytes = self.received_data.get(timeout=Driver._MAX_RESPONSE_TIME)
+            received_data: bytes = self._received_data.get(timeout=Driver._MAX_RESPONSE_TIME)
             hardware_id = Patterns.HARDWARE_ID.search(received_data)
         except queue.Empty:
             return
@@ -193,7 +196,7 @@ class Driver(ABC):
             hardware_id = hardware_id.group()
             return Patterns.HEX_VALUE.search(hardware_id).group()
 
-    @functools.singledispatchmethod   
+    @functools.singledispatchmethod
     @final
     def write(self, message: str) -> bool:
         if self.connected.is_set():
@@ -278,7 +281,8 @@ class Driver(ABC):
         """
         @final
         def _receive(self, _sender, _arg: System.IO.Ports.SerialDataReceivedEventArgs) -> None:
-            self.received_data.put(self._serial_port.ReadExisting())
+            if self._serial_port.BytesToRead:
+                self._received_data.put(self._serial_port.ReadExisting())
 
     else:
         """
@@ -291,20 +295,19 @@ class Driver(ABC):
             that the connection is lost.
             """
             while self.connected.is_set():
-                try:
-                    received = os.read(self._file_descriptor, Driver._IO_BUFFER_SIZE)
-                    self.received_data.put(received.decode())
-                except OSError:
+                received = os.read(self._file_descriptor, Driver._IO_BUFFER_SIZE)
+                if not received:
                     logging.error("Connection to %s lost", self.device_name)
-                    # Device might not be closed properly, so we mark the descriptor as invalid
                     self._file_descriptor = -1
                     self._is_found = False
                     self.connected.clear()
+                else:
+                    self._received_data.put(received.decode())
 
     @final
     def get_data(self) -> str:
         try:
-            received_data: str = self.received_data.get(block=True, timeout=Driver._MAX_WAIT_TIME)
+            received_data: str = self._received_data.get(block=True, timeout=Driver._MAX_WAIT_TIME)
             return received_data
         except queue.Empty:
             self.connected.clear()
@@ -313,12 +316,24 @@ class Driver(ABC):
                 self._file_descriptor = -1
             raise OSError
 
-    @abstractmethod
+    @final
     def _encode_data(self) -> None:
         """
         Encodes incoming data of the serial device. Each package has a package identifier, to decide the decoding
         algorithm of it.
         """
+        try:
+            received_data: str = self._package_buffer + self.get_data()
+        except OSError:
+            return
+        split_data = received_data.split(Driver._TERMINATION_SYMBOL)
+        for received in split_data[:-1]:
+            self._encode(received)
+        self._package_buffer = split_data[-1]
+
+    @abstractmethod
+    def _encode(self, data: str) -> None:
+        ...
 
     @abstractmethod
     def _process_data(self) -> None:

@@ -137,7 +137,6 @@ class ASCIIHex(ASCIIProtocoll):
 
     @override
     def __str__(self) -> str:
-        print(self._stream)
         return self._stream
 
     @override
