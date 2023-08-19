@@ -18,7 +18,7 @@ from minipti.gui.controller import interface
 class Controllers(interface.Controllers):
     main_application: "MainApplication"
     home: "Home"
-    settings: "Settings"
+    settings: "SettingsTab"
     utilities: "Utilities"
     pump_laser: "PumpLaser"
     probe_laser: "ProbeLaser"
@@ -137,7 +137,7 @@ class Settings(interface.Settings):
     def __init__(self):
         interface.Settings.__init__(self)
         self._settings_table = model.SettingsTable()
-        self.view = view.api.Settings(self)
+        self.view = view.settings.SettingsTab(self)
         self._destination_folder = model.DestinationFolder()
         self.last_file_path = os.getcwd()
         self.calculation_model = model.LiveCalculation()
@@ -148,7 +148,7 @@ class Settings(interface.Settings):
         self.pump_laser_tec = model.Tec(model.Tec.PUMP_LASER)
         self.probe_laser_tec = model.Tec(model.Tec.PROBE_LASER)
         self.raw_data_changed.connect(self.calculation_model.set_raw_data_saving)
-        self.view.destination_folder.setText(self.destination_folder.folder)
+        self.view.save_settings.destination_folder.setText(self.destination_folder.folder)
         self.motherboard.fire_configuration_change()
 
     @property

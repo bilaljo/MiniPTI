@@ -11,7 +11,7 @@ from minipti.gui import model
 class Controllers(ABC):
     main_application: "MainApplication"
     home: "Home"
-    settings: "Settings"
+    settings: "SettingsTab"
     utilities: "Utilities"
     pump_laser: "PumpLaser"
     probe_laser: "ProbeLaser"

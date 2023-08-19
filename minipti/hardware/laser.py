@@ -1,6 +1,3 @@
-import multiprocessing
-import platform
-import queue
 from abc import abstractmethod
 import dataclasses
 import json
@@ -217,7 +214,7 @@ class LowPowerLaser(Laser):
     def save_configuration(self) -> None:
         with open(self.config_path, "w") as configuration:
             laser = {"Low Power Laser": dataclasses.asdict(self.configuration)}
-            configuration.write(json_parser.to_json(laser) + "\n")
+            configuration.write(_json_parser.to_json(laser) + "\n")
             logging.info("Saved low power laser configuration in %s", self.config_path)
 
     @override
@@ -291,7 +288,7 @@ class HighPowerLaser(Laser):
     def save_configuration(self) -> None:
         with open(self.config_path, "w") as configuration:
             laser = {"High Power Laser": dataclasses.asdict(self.configuration)}
-            configuration.write(json_parser.to_json(laser) + "\n")
+            configuration.write(_json_parser.to_json(laser) + "\n")
             logging.info("Saved high power laser configuration in %s", self.config_path)
 
     @override
