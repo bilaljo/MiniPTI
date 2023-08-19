@@ -16,6 +16,7 @@ from fastcrc import crc16
 from overrides import override
 
 from . import serial_device
+from . import protocolls
 
 
 @dataclass
@@ -102,6 +103,8 @@ class Driver(serial_device.Driver):
     def __init__(self):
         serial_device.Driver.__init__(self)
         self.connected = threading.Event()
+        self._set_bypass = protocolls.ASCIIHex("SBP0000")
+        self._do_shutdown = protocolls.ASCIIHex("SHD0001")
         self._encoded_buffer = DAQData(deque(), [deque(), deque(), deque()],
                                        [deque(), deque(), deque()])
         self._sample_numbers = deque(maxlen=2)
@@ -362,12 +365,9 @@ class Driver(serial_device.Driver):
         self.data.DAQ.ac_coupled.put(ac_package)
 
     def set_valve(self) -> None:
-        if self.bypass:
-            self.write(serial_device.SerialStream("SBP0000"))
-            self.bypass = False
-        else:
-            self.write(serial_device.SerialStream("SBP0001"))
-            self.bypass = True
+        self._set_bypass.value = self.bypass
+        self.bypass = not self.bypass
+        self.write(self._set_bypass)
 
     def _process_data(self) -> None:
         self._reset()
@@ -393,15 +393,13 @@ class Driver(serial_device.Driver):
         or not) is spent.
         """
         def switch() -> None:
-            while self.connected and self.automatic_switch.set():
+            while self.connected.is_set() and self.automatic_switch.is_set():
+                self.set_valve()
                 if self.bypass:
-                    self.set_valve()
                     time.sleep(self.config.valve.period * self.config.valve.duty_cycle / 100)
                 else:
-                    self.set_valve()
                     time.sleep(self.config.valve.period * (1 - self.config.valve.duty_cycle / 100))
-
         threading.Thread(target=switch, daemon=True).start()
 
     def do_shutdown(self) -> None:
-        self.write(serial_device.SerialStream("SHD0001"))
+        self.write(self._do_shutdown)

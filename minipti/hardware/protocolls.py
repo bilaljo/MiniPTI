@@ -117,7 +117,7 @@ class CommandHex:
 
 class ASCIIHex(ASCIIProtocoll):
     _NUMBER_OF_HEX_DIGITS = 4
-    _STREAM_PATTERN: Final = re.compile(r"(?P<command>([GSC][a-zA-Z][0-9a-zA-Z]))(?P<value>([0-9a-fA-F]{4}))")
+    _STREAM_PATTERN: Final = re.compile(r"(?P<command>([GSC][a-zA-Z][\da-zA-Z]))(?P<value>([\da-fA-F]{4}))")
     _MIN_VALUE = 0
     _MAX_VALUE = (1 << _NUMBER_OF_HEX_DIGITS * 4) - 1  # 1 hex byte corresponds to 4 binary bytes
     _VALUE_INDEX = 3
