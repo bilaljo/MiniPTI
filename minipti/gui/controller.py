@@ -20,7 +20,12 @@ class MainApplication(QtWidgets.QApplication):
         self.motherboard = model.Motherboard()
         self.laser = model.Laser()
         self.tec = model.Tec()
+        model.signals.warning_battery.connect(self._battery_warning)
         # threading.excepthook = self.thread_exception
+
+    def _battery_warning(self) -> None:
+        logging.warning("Battery has reached 10 %, almost empty")
+        QtWidgets.QMessageBox.warning(self.view, "Battery State", "Battery has reached 10 %, almost empty")
 
     def close(self) -> None:
         self.motherboard.driver.running.clear()

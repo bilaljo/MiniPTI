@@ -415,6 +415,7 @@ class Signals(QtCore.QObject):
     tec_data_display = QtCore.pyqtSignal(hardware.tec.Data)
     clear_daq = QtCore.pyqtSignal()
     samples_changed = QtCore.pyqtSignal(int)
+    warning_battery = QtCore.pyqtSignal()
 
     def __init__(self):
         QtCore.QObject.__init__(self)
@@ -674,6 +675,8 @@ class Serial:
 class Motherboard(Serial):
     _driver = hardware.motherboard.Driver()
     running_event: threading.Event = threading.Event()
+    WARNING_PERCENTAGE: typing.Final[float] = 10
+    MINIUM_PERCENTAGE: typing.Final[float] = 5
 
     def __init__(self):
         Serial.__init__(self)
@@ -712,6 +715,10 @@ class Motherboard(Serial):
         while self.driver.connected:
             bms_data = self.driver.bms
             bms_data.battery_temperature = Motherboard.centi_kelvin_to_celsius(bms_data.battery_temperature)
+            if bms_data.battery_percentage < Motherboard.WARNING_PERCENTAGE:
+                signals.warning_battery()
+            elif bms_data.battery_percentage < Motherboard.MINIUM_PERCENTAGE:
+                self.shutdown()
             signals.battery_state.emit(Battery(bms_data.battery_percentage, bms_data.minutes_left))
             if self.running:
                 if self._init_headers:
