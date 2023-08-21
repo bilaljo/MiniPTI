@@ -721,7 +721,7 @@ class Motherboard(Serial):
                              "Voltage": "V", "Full Charge Capacity": "mAh", "Remaining Charge Capacity": "mAh"}
                     pd.DataFrame(units, index=["Y:M:D"]).to_csv(self._destination_folder + "/BMS.csv",
                                                                 index_label="Date")
-                    self.init_header = False
+                    self._init_header = False
                 now = datetime.now()
                 output_data = {"Time": str(now.strftime("%H:%M:%S"))}
                 for key, value in asdict(bms_data).items():
