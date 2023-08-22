@@ -1,3 +1,4 @@
+import time
 from abc import abstractmethod
 import dataclasses
 import json
@@ -75,6 +76,7 @@ class Driver(serial_device.Driver):
                                low_power_laser_current=float(data_frame[2]),
                                low_power_laser_enabled=self.low_power_laser.enabled,
                                high_power_laser_enabled=self.high_power_laser.enabled))
+            time.sleep(1)
 
 
 @dataclass
