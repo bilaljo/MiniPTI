@@ -5,7 +5,7 @@ import threading
 import typing
 
 from PyQt5 import QtWidgets, QtCore
-from PyQt5.QtCore import Qt, QCoreApplication
+from PyQt5.QtCore import QCoreApplication
 
 from .. import hardware
 from . import model
@@ -29,8 +29,8 @@ class MainApplication(QtWidgets.QApplication):
 
     def close(self) -> None:
         self.motherboard.driver.running.clear()
-        self.motherboard.driver.close()
-        self.laser.driver.close()
+        self.motherboard.close()
+        self.laser.close()
         self.tec.close()
         self.view.close()
         QCoreApplication.quit()
@@ -50,14 +50,6 @@ def _get_file_path(parent, dialog_name: str, last_file_path: str, files: str) ->
     if file_path[0]:
         last_file_path = file_path[0]
     return file_path[0], last_file_path
-
-
-def _shutdown(controller) -> None:
-    QtWidgets.QApplication.setOverrideCursor(Qt.WaitCursor)
-    logging.warning("Shutdown started")
-    model.shutdown_procedure()
-    controller.view.close()
-    controller.main_app.quit()
 
 
 class Home:
@@ -96,7 +88,7 @@ class Home:
                                                QtWidgets.QMessageBox.StandardButton.Yes
                                                | QtWidgets.QMessageBox.StandardButton.No)
         if close == QtWidgets.QMessageBox.StandardButton.Yes:
-            _shutdown(self)
+            self.motherboard.shutdown_procedure()
 
     def set_clean_air(self, bypass: bool) -> None:
         self.motherboard.bypass = bypass
@@ -172,12 +164,6 @@ class Settings:
         except OSError:
             logging.error("Could not find TEC Driver")
 
-    def await_shutdown(self):
-        def shutdown_low_energy() -> None:
-            self.motherboard.shutdown_event.wait()
-            _shutdown(self)
-        threading.Thread(target=shutdown_low_energy, daemon=True).start()
-
     def update_bypass(self) -> None:
         self.motherboard.bypass = not self.motherboard.bypass
 
@@ -186,7 +172,6 @@ class Settings:
             self.motherboard.open()
             self.motherboard.run()
             self.motherboard.process_measured_data()
-            self.await_shutdown()
         except OSError:
             logging.error("Could not connect with Motherboard")
         try:

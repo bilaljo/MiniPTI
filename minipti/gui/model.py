@@ -456,17 +456,6 @@ class TecSignals(QtCore.QObject):
         QtCore.QObject.__init__(self)
 
 
-def shutdown_procedure() -> None:
-    Laser.driver.close()
-    Tec.driver.close()
-    time.sleep(0.5)  # Give the calculations threads time to finish their write operation
-    Motherboard.shutdown()
-    if platform.system() == "Windows":
-        subprocess.run(r"shutdown /s /t 1", shell=True)
-    else:
-        subprocess.run("sleep 0.5s && poweroff", shell=True)
-
-
 class Calculation:
     def __init__(self):
         self.settings_path = ""
@@ -682,6 +671,8 @@ class Motherboard(Serial):
         Serial.__init__(self)
         self.bms_data: tuple[float, float] = (0, 0)
         self.initialized: bool = False
+        self.laser = Laser()
+        self.tec = Tec()
         signals.daq_running.connect(self._daq_running_changed)
 
     def initialize(self) -> None:
@@ -711,14 +702,33 @@ class Motherboard(Serial):
     def centi_kelvin_to_celsius(temperature: float) -> float:
         return round((temperature - 273.15) / 100, 2)
 
+    def shutdown_procedure(self) -> None:
+        self.laser.close()
+        self.tec.close()
+        time.sleep(0.5)  # Give the calculations threads time to finish their write operation
+        self.shutdown()
+        if platform.system() == "Windows":
+            subprocess.run(r"shutdown /s /t 1", shell=True)
+        else:
+            subprocess.run("sleep 0.5s && poweroff", shell=True)
+        self.driver.close()
+
     def _incoming_data(self) -> None:
+        already_warned = False
         while self.driver.connected:
             bms_data = self.driver.bms
             bms_data.battery_temperature = Motherboard.centi_kelvin_to_celsius(bms_data.battery_temperature)
-            if bms_data.battery_percentage < Motherboard.WARNING_PERCENTAGE:
-                signals.warning_battery()
+            if bms_data.shutdown:
+                logging.critical("BMS has initialized an emergency shutdown. System will enforce shutdown now")
+                self.shutdown_procedure()
+            if not already_warned and bms_data.battery_percentage < Motherboard.WARNING_PERCENTAGE:
+                signals.warning_battery.emit()
+                already_warned = True
+                logging.warning("Battery below %s", str(Motherboard.WARNING_PERCENTAGE))
             elif bms_data.battery_percentage < Motherboard.MINIUM_PERCENTAGE:
-                self.shutdown()
+                logging.info("Battery has fallen below %s", str(Motherboard.MINIUM_PERCENTAGE))
+                logging.critical("Will do a shutdown a now")
+                self.shutdown_procedure()
             signals.battery_state.emit(Battery(bms_data.battery_percentage, bms_data.minutes_left))
             if self.running:
                 if self._init_headers:
@@ -754,10 +764,6 @@ class Motherboard(Serial):
             self.driver.running.clear()
             signals.daq_running.emit(False)
             self.running_event.clear()
-
-    @property
-    def shutdown_event(self) -> threading.Event:
-        return self.driver.shutdown
 
     @property
     def valve_period(self) -> int:
