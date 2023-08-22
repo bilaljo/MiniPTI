@@ -721,11 +721,11 @@ class Motherboard(Serial):
             if bms_data.shutdown:
                 logging.critical("BMS has initialized an emergency shutdown. System will enforce shutdown now")
                 self.shutdown_procedure()
-            if not already_warned and bms_data.battery_percentage < Motherboard.WARNING_PERCENTAGE:
+            if not already_warned and bms_data.battery_percentage <= Motherboard.WARNING_PERCENTAGE:
                 signals.warning_battery.emit()
                 already_warned = True
                 logging.warning("Battery has fallen below %s", str(Motherboard.WARNING_PERCENTAGE))
-            elif bms_data.battery_percentage < Motherboard.MINIUM_PERCENTAGE:
+            elif bms_data.battery_percentage <= Motherboard.MINIUM_PERCENTAGE:
                 logging.info("Battery has fallen below %s", str(Motherboard.MINIUM_PERCENTAGE))
                 logging.critical("Will do a shutdown a now")
                 self.shutdown_procedure()
