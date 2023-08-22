@@ -61,7 +61,6 @@ class Driver(serial_device.Driver):
         return 4
 
     def _process_data(self) -> None:
-        self._encode_event()
         while self.connected.is_set():
             self._encode_data()
 
@@ -72,20 +71,13 @@ class Driver(serial_device.Driver):
             self._ready_write.set()
         elif data[0] == "S" or data[0] == "C":
             self._check_ack(data)
-        elif data[0] == "L" and self.encode:
+        elif data[0] == "L":
             data_frame = data.split("\t")[Driver._START_DATA_FRAME:self.end_data_frame]
             self.data.put(Data(high_power_laser_current=float(data_frame[0]),
                                high_power_laser_voltage=float(data_frame[1]),
                                low_power_laser_current=float(data_frame[2]),
                                low_power_laser_enabled=self.low_power_laser.enabled,
                                high_power_laser_enabled=self.high_power_laser.enabled))
-
-    def _encode_event(self) -> None:
-        def event():
-            self.encode = True
-            time.sleep(1)
-            self.encode = False
-        threading.Thread(target=event, daemon=True)
 
 
 @dataclass
