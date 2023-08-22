@@ -24,8 +24,8 @@ class MainApplication(QtWidgets.QApplication):
         # threading.excepthook = self.thread_exception
 
     def _battery_warning(self) -> None:
-        logging.warning("Battery has reached 10 %, almost empty")
-        QtWidgets.QMessageBox.warning(self.view, "Battery State", "Battery has reached 10 %, almost empty")
+        QtWidgets.QMessageBox.warning(self.view, "Battery State", f"Battery has fallen below"
+                                                                  f" {model.Motherboard.WARNING_PERCENTAGE}")
 
     def close(self) -> None:
         self.motherboard.driver.running.clear()

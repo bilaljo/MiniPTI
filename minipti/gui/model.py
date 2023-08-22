@@ -724,7 +724,7 @@ class Motherboard(Serial):
             if not already_warned and bms_data.battery_percentage < Motherboard.WARNING_PERCENTAGE:
                 signals.warning_battery.emit()
                 already_warned = True
-                logging.warning("Battery below %s", str(Motherboard.WARNING_PERCENTAGE))
+                logging.warning("Battery has fallen below %s", str(Motherboard.WARNING_PERCENTAGE))
             elif bms_data.battery_percentage < Motherboard.MINIUM_PERCENTAGE:
                 logging.info("Battery has fallen below %s", str(Motherboard.MINIUM_PERCENTAGE))
                 logging.critical("Will do a shutdown a now")
