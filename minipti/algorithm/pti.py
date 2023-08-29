@@ -299,19 +299,11 @@ class Decimation:
             logging.warning("Could not write data. Missing values are: %s at %s.",
                             str(output_data)[1:-1], date + " " + time)
 
-    def _save_meta_data(self) -> None:
-        """
-        Saves a header in the binary file that explains its structure.
-        """
-        with open(f"{self.destination_folder}/raw_data.bin", "ab") as file:
-            file.write(b"Ref: Array[uint16, 8000], DC: Aray[Array[uint16, 8000], 3],"
-                       b" AC Aray[Array[int16, 8000], 3]")
-
     def get_raw_data(self) -> Generator[None, None, None]:
         with h5py.File(self.file_path, "r") as h5f:
             for sample_package in h5f.values():
-                self.dc_coupled = np.array(sample_package["pa"]).T
-                self.ac_coupled = np.array(sample_package["AC"]).T
+                self.dc_coupled = np.array(sample_package["DC"])
+                self.ac_coupled = np.array(sample_package["AC"])
                 yield None
 
     def decimate(self, live=False) -> None:
@@ -325,8 +317,6 @@ class Decimation:
                                                               index_label="Date")
             self.init_header = False
         if live:
-            # if self.save_raw_data and self.init_raw_data:
-            #    self._save_meta_data()
             self.process_raw_data()
             self._calculate_decimation()
         else:
