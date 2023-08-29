@@ -55,6 +55,7 @@ class BMSData:
     battery_voltage: int  # mV
     full_charged_capacity: int  # mAh
     remaining_capacity: int  # mAh
+    shutdown: bool
 
 
 @dataclass
@@ -110,7 +111,6 @@ class Driver(serial_device.Driver):
         self._sample_numbers = deque(maxlen=2)
         self.synchronize = False
         self.config: Union[MotherBoardConfig, None] = None
-        self.shutdown = threading.Event()
         self.config_path = f"{os.path.dirname(__file__)}/configs/motherboard.ini"
         self.config_parser = ConfigParser()
         self.automatic_switch = threading.Event()
@@ -293,8 +293,7 @@ class Driver(serial_device.Driver):
         """
         if not Driver._crc_check(data, "BMS"):
             return
-        if int(data[BMS.SHUTDOWN_INDEX:BMS.SHUTDOWN_INDEX + 2], base=16) < BMS.SHUTDOWN:
-            self.shutdown.set()
+        shutdown = int(data[BMS.SHUTDOWN_INDEX:BMS.SHUTDOWN_INDEX + 2], base=16) < BMS.SHUTDOWN
         if not int(data[BMS.VALID_IDENTIFIER_INDEX:BMS.VALID_IDENTIFIER_INDEX + 2], base=16):
             logging.error("Invalid package from BMS")
             return
@@ -309,7 +308,8 @@ class Driver(serial_device.Driver):
             battery_voltage=int(data[BMS.VOLTAGE_INDEX: BMS.VOLTAGE_INDEX + 4], base=16),
             full_charged_capacity=int(data[BMS.FULL_CHARGED_CAPACITY_INDEX:BMS.FULL_CHARGED_CAPACITY_INDEX + 4],
                                       base=16),
-            remaining_capacity=int(data[BMS.REMAINING_CAPACITY_INDEX:BMS.REMAINING_CAPACITY_INDEX + 4], base=16))
+            remaining_capacity=int(data[BMS.REMAINING_CAPACITY_INDEX:BMS.REMAINING_CAPACITY_INDEX + 4], base=16),
+            shutdown=shutdown)
         if bms.charging:
             bms.minutes_left = float("inf")
         self.data.BMS.put(bms)

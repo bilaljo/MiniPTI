@@ -1,3 +1,5 @@
+import threading
+import time
 from abc import abstractmethod
 import dataclasses
 import json
@@ -36,6 +38,7 @@ class Driver(serial_device.Driver):
         serial_device.Driver.__init__(self)
         self.high_power_laser = HighPowerLaser(self)
         self.low_power_laser = LowPowerLaser(self)
+        self.encode = False
 
     def open(self) -> None:
         super().open()
