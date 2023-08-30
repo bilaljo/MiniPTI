@@ -1,3 +1,5 @@
+https://freesvg.org/qubodup-cog-cogwheel-gear-zahnrad
+
 # MiniPTI
 
 <p style="text-align: center;">

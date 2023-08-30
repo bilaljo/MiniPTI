@@ -2,6 +2,7 @@ from abc import abstractmethod, ABC
 
 import pandas as pd
 import pyqtgraph as pg
+from pyqtgraph import dockarea
 from PyQt5 import QtCore
 from overrides import override
 
@@ -19,8 +20,7 @@ class Plotting(pg.PlotWidget):
         pg.PlotWidget.__init__(self)
         pg.setConfigOption('leftButtonPan', False)
         pg.setConfigOptions(antialias=True)
-        pg.setConfigOption('background', "white")
-        pg.setConfigOption('foreground', 'k')
+        pg.setConfigOption('background', "k")
         self.window = pg.GraphicsLayoutWidget()
         self.plot = self.window.addPlot()
         self.curves = self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE))
@@ -56,6 +56,7 @@ class DC(DAQPlots):
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="Intensity [V]")
         self.name = "DC Plots"
+        self.dock = pg.dockarea.DockArea()
         model.signals.decimation.connect(self.update_data)
         model.signals.decimation_live.connect(self.update_data_live)
 

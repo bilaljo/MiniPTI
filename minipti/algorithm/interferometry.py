@@ -79,12 +79,12 @@ class Interferometer:
         amplitude_str = "Amplitudes [V]:\n"
         offset_str = "Offsets [V]:\n"
         for i in range(2):
-            output_phase_str += f"CH {i + 1}: {round(np.rad2deg(self.output_phases[i]), 2)}, "
-            amplitude_str += f"CH {i + 1}: {round(self.amplitudes[i], 2)}, "
-            offset_str += f"CH {i + 1}: {round(self.offsets[i], 2)}, "
-        output_phase_str += f"CH3: {round(np.rad2deg(self.output_phases[2]), 2)}"
-        amplitude_str += f"CH3: {round(self.amplitudes[2], 2)}"
-        offset_str += f"CH3: {round(self.offsets[2], 2)}"
+            output_phase_str += f"CH {i + 1}: {np.round(np.rad2deg(self.output_phases[i]), 2)}, "
+            amplitude_str += f"CH {i + 1}: {np.round(self.amplitudes[i], 2)}, "
+            offset_str += f"CH {i + 1}: {np.round(self.offsets[i], 2)}, "
+        output_phase_str += f"CH3: {np.round(np.rad2deg(self.output_phases[2]), 2)}"
+        amplitude_str += f"CH3: {np.round(self.amplitudes[2], 2)}"
+        offset_str += f"CH3: {np.round(self.offsets[2], 2)}"
         return amplitude_str + "\n" + offset_str + "\n" + output_phase_str
 
     @property

@@ -9,8 +9,9 @@ from minipti.gui.view import helper
 from minipti.gui.view import plots
 from minipti.gui import controller
 from minipti.gui import model
-from minipti.gui.view import settings
 from minipti.gui.view import hardware
+import pyqtgraph as pg
+from pyqtgraph import dockarea
 
 
 class DAQPlots(NamedTuple):
@@ -28,6 +29,13 @@ class LaserPlots(NamedTuple):
     temperature: tuple[plots.TecTemperature, plots.TecTemperature]
 
 
+@dataclass
+class Docks:
+    home: pg.dockarea.Dock
+    dc_signals: pg.dockarea.Dock
+    amplitudes: pg.dockarea.Dock
+
+
 class MainWindow(QtWidgets.QMainWindow):
     HORIZONTAL_SIZE = 1200
     VERTICAL_SIZE = 1000
@@ -35,26 +43,30 @@ class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, controllers: controller.interface.Controllers):
         QtWidgets.QMainWindow.__init__(self)
         self.setWindowTitle("MiniPTI")
-        self.setWindowIcon(QtGui.QIcon("../images/icon.png"))
+        self.setWindowIcon(QtGui.QIcon("minipti/gui/images/logo.png"))
         self.controllers = controllers
-        self.tab_bar = QtWidgets.QTabWidget(self)
-        self.setCentralWidget(self.tab_bar)
+        self.dock_area = pg.dockarea.DockArea()
+        self.docks = [pg.dockarea.Dock(name="Home", widget=Home(self.controllers.home)),
+                      pg.dockarea.Dock(name="Probe Laser", widget=self._init_probe_laser()),
+                      pg.dockarea.Dock(name="Pump Laser", widget=self._init_pump_laser()),
+                      pg.dockarea.Dock(name="DC Signals", widget=plots.DC().window),
+                      pg.dockarea.Dock(name="Amplitudes", widget=plots.Amplitudes().window),
+                      pg.dockarea.Dock(name="Output Phases", widget=plots.OutputPhases().window),
+                      pg.dockarea.Dock(name="Interferometric Phase", widget=plots.InterferometricPhase().window),
+                      pg.dockarea.Dock(name="Sensitivity", widget=plots.Sensitivity().window),
+                      pg.dockarea.Dock(name="PTI Signal", widget=plots.PTISignal().window)]
+        for dock in self.docks:
+            self.dock_area.addDock(dock)
+        for i in range(len(self.docks) - 1, 0, -1):
+            self.dock_area.moveDock(self.docks[i - 1], "above", self.docks[i])
+        self.setCentralWidget(self.dock_area)
         self.logging_window = QtWidgets.QLabel()
-        self.daq_plots = DAQPlots(dc_signals=plots.DC(), amplitudes=plots.Amplitudes(),
-                                  output_phases=plots.OutputPhases(), symmetry=plots.Symmetry(),
-                                  pti_signal=plots.PTISignal(), interferometric_phase=plots.InterferometricPhase(),
-                                  sensitivity=plots.Sensitivity())
-        self.laser_plots = LaserPlots(current=(plots.PumpLaserCurrent(), plots.ProbeLaserCurrent()),
-                                      temperature=(plots.TecTemperature(model.Tec.PUMP_LASER),
-                                                   plots.TecTemperature(model.Tec.PROBE_LASER)))
-        self.log = QtWidgets.QDockWidget("Log", self)
+        self.log = QtWidgets.QDockWidget("Log")
         self.scroll = QtWidgets.QScrollArea(widgetResizable=True)
-        self.battery = QtWidgets.QDockWidget("Battery", self)
+        self.battery = QtWidgets.QDockWidget("Battery")
         self.charge_level = QtWidgets.QLabel("NaN % left")
         self.minutes_left = QtWidgets.QLabel("NaN Minutes left")
-        self._init_tabs()
         self._init_dock_widgets()
-        self.setCorner(Qt.BottomRightCorner, Qt.RightDockWidgetArea)
         self.resize(MainWindow.HORIZONTAL_SIZE, MainWindow.VERTICAL_SIZE)
         self.show()
 
@@ -65,6 +77,41 @@ class MainWindow(QtWidgets.QMainWindow):
     def update_battery_state(self, battery: model.Battery) -> None:
         self.minutes_left.setText(f"Minutes left: {battery.minutes_left}")
         self.charge_level.setText(f"{battery.percentage} % left")
+
+    def _init_tec(self, laser: int) -> QtWidgets.QWidget:
+        tec_ch = QtWidgets.QWidget()
+        tec_ch.setLayout(QtWidgets.QHBoxLayout())
+        tec_ch.layout().addWidget(hardware.Tec(self.controllers.tec[laser], laser))
+        tec_ch.layout().addWidget(plots.TecTemperature(laser).window)
+        return tec_ch
+
+    def _init_probe_laser(self) -> pg.dockarea.DockArea:
+        probe_laser = QtWidgets.QWidget()
+        probe_laser.setLayout(QtWidgets.QHBoxLayout())
+        probe_laser.layout().addWidget(hardware.ProbeLaser(self.controllers.probe_laser))
+        probe_laser.layout().addWidget(plots.ProbeLaserCurrent().window)
+        dock_area = pg.dockarea.DockArea()
+        tec = self._init_tec(model.Tec.PROBE_LASER)
+        laser_dock = pg.dockarea.Dock(name="Laser Driver", widget=probe_laser)
+        tec_dock = pg.dockarea.Dock(name="TEC Driver", widget=tec)
+        dock_area.addDock(laser_dock)
+        dock_area.addDock(tec_dock)
+        dock_area.moveDock(laser_dock, "above", tec_dock)
+        return dock_area
+
+    def _init_pump_laser(self) -> pg.dockarea.DockArea:
+        pump_laser = QtWidgets.QWidget()
+        pump_laser.setLayout(QtWidgets.QHBoxLayout())
+        pump_laser.layout().addWidget(hardware.PumpLaser(self.controllers.pump_laser))
+        pump_laser.layout().addWidget(plots.PumpLaserCurrent().window)
+        dock_area = pg.dockarea.DockArea()
+        tec = self._init_tec(model.Tec.PUMP_LASER)
+        laser_dock = pg.dockarea.Dock(name="Laser Driver", widget=pump_laser)
+        tec_dock = pg.dockarea.Dock(name="TEC Driver", widget=tec)
+        dock_area.addDock(laser_dock)
+        dock_area.addDock(tec_dock)
+        dock_area.moveDock(laser_dock, "above", tec_dock)
+        return dock_area
 
     def _init_dock_widgets(self) -> None:
         self.addDockWidget(Qt.BottomDockWidgetArea, self.log)
@@ -81,38 +128,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.battery.setWidget(sub_layout)
         self.scroll.setWidget(self.logging_window)
 
-    def _init_laser_tab(self, laser: QtWidgets.QWidget, laser_index: int) -> QtWidgets.QTabWidget:
-        tab = QtWidgets.QTabWidget()
-        sub_layout = QtWidgets.QSplitter()
-        laser_tab = QtWidgets.QTabWidget()
-        laser_tab.setLayout(QtWidgets.QHBoxLayout())
-        sub_layout.insertWidget(0, laser)
-        sub_layout.insertWidget(1, self.laser_plots.current[laser_index].window)
-        laser_tab.layout().addWidget(sub_layout)
-        tab.addTab(laser_tab, "Laser Driver")
-        sub_layout = QtWidgets.QSplitter()
-        tec_tab = QtWidgets.QTabWidget()
-        tec_tab.setLayout(QtWidgets.QHBoxLayout())
-        sub_layout.insertWidget(0, hardware.Tec(self.controllers.tec[laser_index], laser_index))
-        sub_layout.insertWidget(1, self.laser_plots.temperature[laser_index].window)
-        tec_tab.layout().addWidget(sub_layout)
-        tab.addTab(tec_tab, "Tec Driver")
-        return tab
-
-    def _init_tabs(self):
-        self.tab_bar.addTab(Home(self.controllers.home), "Home")
-        self.tab_bar.addTab(settings.SettingsTab(self.controllers.settings), "Settings")
-        self.tab_bar.addTab(Utilities(self.controllers.utilities), "Utilities")
-        self.tab_bar.addTab(self._init_laser_tab(hardware.PumpLaser(self.controllers.pump_laser),
-                                                 model.Tec.PUMP_LASER), "Pump Laser")
-        self.tab_bar.addTab(self._init_laser_tab(hardware.ProbeLaser(self.controllers.probe_laser),
-                                                 model.Tec.PROBE_LASER), "Probe Laser")
-        for plot in self.daq_plots:  # type: plots.DAQPlots
-            plot_tab = QtWidgets.QTabWidget()
-            plot_tab.setLayout(QtWidgets.QHBoxLayout())
-            plot_tab.layout().addWidget(plot.window)
-            self.tab_bar.addTab(plot_tab, plot.name)
-
     def closeEvent(self, close_event):
         close = QtWidgets.QMessageBox.question(self, "QUIT", "Are you sure you want to close?",
                                                QtWidgets.QMessageBox.StandardButton.Yes |
@@ -127,11 +142,12 @@ class MainWindow(QtWidgets.QMainWindow):
 @dataclass
 class HomeButtons:
     run_measurement: Union[QtWidgets.QPushButton, None] = None
-    shutdown_and_close: Union[QtWidgets.QPushButton, None] = None
+    settings: Union[QtWidgets.QPushButton, None] = None
+    utilities: Union[QtWidgets.QPushButton, None] = None
 
 
 class Home(QtWidgets.QTabWidget):
-    def __init__(self, home_controller):
+    def __init__(self, home_controller: controller.interface.Home):
         QtWidgets.QTabWidget.__init__(self)
         self.setLayout(QtWidgets.QGridLayout())
         self.controller = home_controller
@@ -149,10 +165,20 @@ class Home(QtWidgets.QTabWidget):
     def _init_buttons(self) -> None:
         sub_layout = QtWidgets.QWidget()
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
-        self.buttons.run_measurement = helper.create_button(parent=sub_layout, title="Run Measurement",
+        self.buttons.run_measurement = helper.create_button(parent=sub_layout, title="Run Measurement", only_icon=True,
                                                             slot=self.controller.enable_motherboard)
-        self.buttons.shutdown_and_close = helper.create_button(parent=sub_layout, title="Shutdown and Close",
-                                                               slot=self.controller.shutdown_by_button)
+        icon = self.style().standardIcon(QtWidgets.QStyle.SP_MediaPlay)
+        self.buttons.run_measurement.setIcon(icon)
+        self.buttons.run_measurement.setIconSize(QtCore.QSize(30, 30))
+
+        self.buttons.settings = helper.create_button(parent=sub_layout, title="Settings", only_icon=True,
+                                                     slot=self.controller.show_settings)
+        self.buttons.utilities = helper.create_button(parent=sub_layout, title="Utilities",
+                                                      slot=self.controller.show_utilities)
+
+        self.buttons.settings.setIcon(QtGui.QIcon("minipti/gui/images/settings.svg"))
+        self.buttons.settings.setIconSize(QtCore.QSize(30, 30))
+        self.buttons.settings.setToolTip("Settings")
         self.layout().addWidget(sub_layout, 1, 0)
         # self.create_button(master=sub_layout, title="Clean Air", slot=self.controller.update_bypass)
 
@@ -166,64 +192,3 @@ class Home(QtWidgets.QTabWidget):
 
     def _init_signals(self) -> None:
         model.signals.daq_running.connect(self.update_run_measurement)
-
-
-@dataclass
-class UtilitiesFrames:
-    driver: Union[QtWidgets.QGroupBox, None] = None
-    decimation: Union[QtWidgets.QGroupBox, None] = None
-    pti_inversion: Union[QtWidgets.QGroupBox, None] = None
-    characterisation: Union[QtWidgets.QGroupBox, None] = None
-
-
-@dataclass
-class UtilitiesButtons:
-    plot_dc: Union[QtWidgets.QPushButton, None] = None
-    calculate_decimation: Union[QtWidgets.QPushButton, None] = None
-    plot_pti: Union[QtWidgets.QPushButton, None] = None
-    calculate_pti_inversion: Union[QtWidgets.QPushButton, None] = None
-    plot_characterisation: Union[QtWidgets.QPushButton, None] = None
-    calculate_characterisation: Union[QtWidgets.QPushButton, None] = None
-
-
-class Utilities(QtWidgets.QTabWidget):
-    def __init__(self, utilities_controller):
-        QtWidgets.QTabWidget.__init__(self)
-        self.setLayout(QtWidgets.QGridLayout())
-        self.controller = utilities_controller
-        self.frames = UtilitiesFrames()
-        self.buttons = UtilitiesButtons()
-        self._init_frames()
-        self._init_buttons()
-
-    def _init_frames(self) -> None:
-        self.frames.decimation = helper.create_frame(parent=self, title="Decimation", x_position=0, y_position=0)
-        self.frames.pti_inversion = helper.create_frame(parent=self, title="PTI Inversion", x_position=1, y_position=0)
-        self.frames.characterisation = helper.create_frame(parent=self, title="Interferometer Characterisation",
-                                                           x_position=2, y_position=0)
-
-    def _init_buttons(self) -> None:
-        # Decimation
-        sub_layout = QtWidgets.QWidget()
-        sub_layout.setLayout(QtWidgets.QVBoxLayout())
-        self.frames.decimation.layout().addWidget(sub_layout)
-        self.buttons.calculate_decimation = helper.create_button(parent=sub_layout, title="Calculate",
-                                                                 slot=self.controller.calculate_decimation)
-        self.buttons.plot_dc = helper.create_button(parent=sub_layout, title="Plot DC Signals",
-                                                    slot=self.controller.plot_dc)
-        # PTI Inversion
-        sub_layout = QtWidgets.QWidget()
-        sub_layout.setLayout(QtWidgets.QVBoxLayout())
-        self.frames.pti_inversion.layout().addWidget(sub_layout)
-        self.buttons.calculate_pti_inversion = helper.create_button(parent=sub_layout, title="Calculate",
-                                                                    slot=self.controller.calculate_pti_inversion)
-        self.buttons.plot_pti = helper.create_button(parent=sub_layout, title="Plot",
-                                                     slot=self.controller.plot_inversion)
-        # Characterisation
-        sub_layout = QtWidgets.QWidget()
-        sub_layout.setLayout(QtWidgets.QVBoxLayout())
-        self.frames.characterisation.layout().addWidget(sub_layout)
-        self.buttons.calculate_characterisation = helper.create_button(parent=sub_layout, title="Calculate",
-                                                                       slot=self.controller.calculate_characterisation)
-        self.buttons.plot_characterisation = helper.create_button(parent=sub_layout, title="Plot",
-                                                                  slot=self.controller.plot_characterisation)

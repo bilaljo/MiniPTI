@@ -1,4 +1,4 @@
-from typing import Any, Callable
+from typing import Any, Callable, Union
 
 from PyQt5 import QtWidgets
 
@@ -10,8 +10,12 @@ def toggle_button(checked, button: QtWidgets.QPushButton) -> None:
         button.setStyleSheet("background-color : light gray")
 
 
-def create_button(parent, title: str, slot: Callable[[Any], Any]) -> QtWidgets.QPushButton:
-    button: QtWidgets.QPushButton = QtWidgets.QPushButton()
+def create_button(parent, title: str, slot: Callable[[Any], Any], only_icon=False) -> Union[QtWidgets.QPushButton,
+                                                                                            QtWidgets.QToolButton]:
+    if only_icon:
+        button: QtWidgets.QToolButton = QtWidgets.QToolButton()
+    else:
+        button: QtWidgets.QPushButton = QtWidgets.QPushButton()
     button.setParent(parent)
     button.setText(title)
     button.clicked.connect(slot)

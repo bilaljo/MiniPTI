@@ -18,7 +18,7 @@ from minipti.gui.controller import interface
 class Controllers(interface.Controllers):
     main_application: "MainApplication"
     home: "Home"
-    settings: "SettingsTab"
+    settings: "Settings"
     utilities: "Utilities"
     pump_laser: "PumpLaser"
     probe_laser: "ProbeLaser"
@@ -92,6 +92,8 @@ def _shutdown(controller) -> None:
 class Home(interface.Home):
     def __init__(self):
         self.view = view.api.Home(self)
+        self.settings = view.settings.SettingsWindow(Settings())
+        self.utilities = view.utilities.UtilitiesWindow(Utilities())
         self.calculation_model = model.LiveCalculation()
         self.motherboard = model.Motherboard()
         self.laser = model.Laser()
@@ -100,6 +102,14 @@ class Home(interface.Home):
         self.pump_laser_tec = model.Tec(model.Tec.PUMP_LASER)
         self.probe_laser_tec = model.Tec(model.Tec.PROBE_LASER)
         self.motherboard.initialize()
+
+    @override
+    def show_settings(self) -> None:
+        self.settings.show()
+
+    @override
+    def show_utilities(self) -> None:
+        self.utilities.show()
 
     @override
     def fire_motherboard_configuration_change(self) -> None:
@@ -120,24 +130,12 @@ class Home(interface.Home):
                 self.motherboard.running = False
             logging.debug("%s Motherboard", "Enabled" if self.motherboard.running else "Disabled")
 
-    @override
-    def shutdown_by_button(self) -> None:
-        close = QtWidgets.QMessageBox.question(self.view, "QUIT", "Are you sure you want to shutdown?",
-                                               QtWidgets.QMessageBox.StandardButton.Yes
-                                               | QtWidgets.QMessageBox.StandardButton.No)
-        if close == QtWidgets.QMessageBox.StandardButton.Yes:
-            _shutdown(self)
-
-    @override
-    def set_clean_air(self, bypass: bool) -> None:
-        self.motherboard.bypass = bypass
-
 
 class Settings(interface.Settings):
     def __init__(self):
         interface.Settings.__init__(self)
         self._settings_table = model.SettingsTable()
-        self.view = view.settings.SettingsTab(self)
+        self.view = view.settings.SettingsWindow(self)
         self._destination_folder = model.DestinationFolder()
         self.last_file_path = os.getcwd()
         self.calculation_model = model.LiveCalculation()
@@ -148,7 +146,7 @@ class Settings(interface.Settings):
         self.pump_laser_tec = model.Tec(model.Tec.PUMP_LASER)
         self.probe_laser_tec = model.Tec(model.Tec.PROBE_LASER)
         self.raw_data_changed.connect(self.calculation_model.set_raw_data_saving)
-        self.view.save_settings.destination_folder.setText(self.destination_folder.folder)
+        self.view.measurement_configuration.destination_folder_label.setText(self.destination_folder.folder)
         self.motherboard.fire_configuration_change()
 
     @property
@@ -163,7 +161,7 @@ class Settings(interface.Settings):
 
     @property
     def raw_data_changed(self) -> QtCore.pyqtSignal:
-        return self.view.check_boxes.save_raw_data.stateChanged
+        return self.view.measurement_configuration.save_raw_data.stateChanged
 
     @override
     def update_average_period(self, samples: str) -> None:
@@ -263,7 +261,7 @@ class Settings(interface.Settings):
 
 class Utilities(interface.Utilities):
     def __init__(self):
-        self.view = view.api.Utilities(self)
+        self.view = view.utilities.UtilitiesWindow(self)
         self.calculation_model = model.OfflineCalculation()
         self.last_file_path = os.getcwd()
         self._mother_board = model.Motherboard()
@@ -288,15 +286,6 @@ class Utilities(interface.Utilities):
     @override
     def set_clean_air(self, bypass: bool) -> None:
         self.motherboard.bypass = bypass
-
-    @override
-    @override
-    def shutdown_by_button(self) -> None:
-        close = QtWidgets.QMessageBox.question(self.view, "QUIT", "Are you sure you want to shutdown?",
-                                               QtWidgets.QMessageBox.StandardButton.Yes
-                                               | QtWidgets.QMessageBox.StandardButton.No)
-        if close == QtWidgets.QMessageBox.StandardButton.Yes:
-            _shutdown(self)
 
     @override
     def calculate_decimation(self) -> None:

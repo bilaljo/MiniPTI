@@ -11,7 +11,7 @@ from minipti.gui import model
 class Controllers(ABC):
     main_application: "MainApplication"
     home: "Home"
-    settings: "SettingsTab"
+    settings: "Settings"
     utilities: "Utilities"
     pump_laser: "PumpLaser"
     probe_laser: "ProbeLaser"
@@ -46,11 +46,11 @@ class Home(ABC):
         ...
 
     @abstractmethod
-    def shutdown_by_button(self) -> None:
+    def show_settings(self) -> None:
         ...
 
     @abstractmethod
-    def set_clean_air(self, bypass: bool) -> None:
+    def show_utilities(self) -> None:
         ...
 
 
@@ -160,10 +160,6 @@ class Utilities(ABC):
 
     @abstractmethod
     def plot_characterisation(self) -> None:
-        ...
-
-    @abstractmethod
-    def shutdown_by_button(self) -> None:
         ...
 
     @abstractmethod

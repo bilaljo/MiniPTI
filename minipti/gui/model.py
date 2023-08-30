@@ -102,7 +102,7 @@ class Table(QtCore.QAbstractTableModel):
 
 
 class SettingsTable(Table):
-    SIGNIFICANT_VALUES = 4
+    SIGNIFICANT_VALUES = 2
 
     def __init__(self):
         Table.__init__(self)
