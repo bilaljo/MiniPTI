@@ -136,6 +136,7 @@ class SettingsTable(Table):
 
     def update_settings_paths(self, interferometer: algorithm.interferometry.Interferometer,
                               inversion: algorithm.pti.Inversion) -> None:
+        signals.settings_path_changed.emit(self.file_path)
         interferometer.settings_path = self.file_path
         inversion.settings_path = self.file_path
         interferometer.load_settings()
@@ -238,7 +239,6 @@ class Buffer:
 
 class PTI(typing.NamedTuple):
     decimation: algorithm.pti.Decimation
-    interferometer: algorithm.interferometry.Interferometer
     inversion: algorithm.pti.Inversion
 
 
@@ -260,11 +260,11 @@ class PTIBuffer(Buffer):
     def is_empty(self) -> bool:
         return len(self._pti_signal) == 0
 
-    def append(self, pti: PTI) -> None:
+    def append(self, pti: PTI, interferometer: algorithm.interferometry.Interferometer) -> None:
         for i in range(3):
             self._dc_values[i].append(pti.decimation.dc_signals[i])
-            self.sensitivity[i].append(pti.interferometer.sensitivity[i])
-        self._interferometric_phase.append(pti.interferometer.phase)
+            self.sensitivity[i].append(interferometer.sensitivity[i])
+        self._interferometric_phase.append(interferometer.phase)
         self._pti_signal.append(pti.inversion.pti_signal)
         self._pti_signal_mean_queue.append(pti.inversion.pti_signal)
         self._pti_signal_mean.append(np.mean(self._pti_signal_mean_queue))
@@ -414,6 +414,7 @@ class Signals(QtCore.QObject):
     daq_running = QtCore.pyqtSignal(bool)
     settings = QtCore.pyqtSignal(algorithm.interferometry.Interferometer)
     destination_folder_changed = QtCore.pyqtSignal(str)
+    settings_path_changed = QtCore.pyqtSignal(str)
     battery_state = QtCore.pyqtSignal(Battery)
     valve_change = QtCore.pyqtSignal(hardware.motherboard.Valve)
     bypass = QtCore.pyqtSignal(bool)
@@ -475,13 +476,18 @@ def shutdown_procedure() -> None:
 class Calculation:
     def __init__(self):
         self.settings_path = ""
-        self.pti = PTI(algorithm.pti.Decimation(), algorithm.interferometry.Interferometer(),
-                       algorithm.pti.Inversion())
-        self.pti.inversion.interferometer = self.pti.interferometer
-        self.interferometry_characterization = algorithm.interferometry.Characterization(self.pti.interferometer)
+        self.pti = PTI(algorithm.pti.Decimation(), algorithm.pti.Inversion())
+        self.interferometer = algorithm.interferometry.Interferometer()
+        self.pti.inversion.interferometer = self.interferometer
+        self.interferometry_characterization = algorithm.interferometry.Characterization(self.interferometer)
         self._destination_folder = os.getcwd()
         signals.destination_folder_changed.connect(self._update_destination_folder)
         signals.samples_changed.connect(self._update_decimation_average_period)
+        signals.settings_path_changed.connect(self.update_settings_path)
+
+    def update_settings_path(self, settings_path: str) -> None:
+        print("Called")
+        self.interferometer.settings_path = settings_path
 
     def _update_destination_folder(self, folder: str) -> None:
         self.interferometry_characterization.destination_folder = folder
@@ -544,14 +550,14 @@ class LiveCalculation(Calculation):
     def _run_characterization(self) -> None:
         while self.motherboard.driver.running.is_set():
             self.interferometry_characterization.characterise(live=True)
-            self.characterisation_buffer.append(self.interferometry_characterization, self.pti.interferometer)
+            self.characterisation_buffer.append(self.interferometry_characterization, self.interferometer)
             signals.characterization_live.emit(self.characterisation_buffer)
 
     def _init_calculation(self) -> None:
         self.pti.inversion.init_header = True
         self.pti.decimation.init_header = True
         self.interferometry_characterization.init_online = True
-        self.pti.interferometer.load_settings()
+        self.interferometer.load_settings()
 
     def _decimation(self) -> None:
         self.pti.decimation.ref = np.array(self.motherboard.driver.ref_signal)
@@ -562,11 +568,11 @@ class LiveCalculation(Calculation):
 
     def _pti_inversion(self) -> None:
         self.pti.inversion.invert(self.pti.decimation.lock_in, self.pti.decimation.dc_signals, live=True)
-        self.pti_buffer.append(self.pti)
+        self.pti_buffer.append(self.pti, self.interferometer)
         signals.inversion_live.emit(self.pti_buffer)
 
     def _characterisation(self) -> None:
-        self.interferometry_characterization.add_phase(self.pti.interferometer.phase)
+        self.interferometry_characterization.add_phase(self.interferometer.phase)
         self.dc_signals.append(copy.deepcopy(self.pti.decimation.dc_signals))
         if self.interferometry_characterization.enough_values:
             self.interferometry_characterization.dc_signals = copy.deepcopy(self.dc_signals)
@@ -580,19 +586,17 @@ class OfflineCalculation(Calculation):
     def __init__(self):
         Calculation.__init__(self)
 
-    def calculate_characterisation(self, dc_file_path: str, use_settings=False, settings_path="") -> None:
-        self.pti.interferometer.settings_path = settings_path
+    def calculate_characterisation(self, dc_file_path: str, use_settings=False) -> None:
         self.interferometry_characterization.use_configuration = use_settings
         self.interferometry_characterization.characterise(file_path=dc_file_path)
-        signals.settings.emit(self.pti.interferometer)
+        signals.settings.emit(self.interferometer)
 
     def calculate_decimation(self, decimation_path: str) -> None:
         self.pti.decimation.file_path = decimation_path
         self.pti.decimation.decimate()
 
-    def calculate_inversion(self, settings_path: str, inversion_path: str) -> None:
-        self.pti.interferometer.settings_path = settings_path
-        self.pti.interferometer.load_settings()
+    def calculate_inversion(self, inversion_path: str) -> None:
+        self.interferometer.load_settings()
         self.pti.inversion.invert(file_path=inversion_path)
 
 

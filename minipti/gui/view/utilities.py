@@ -58,9 +58,9 @@ class PTIInversion(Algorithm):
     @override
     def _init_button(self) -> None:
         self.calculate = helper.create_button(parent=self, title="Calculate",
-                                              slot=self.utilities_controller.calculate_decimation)
+                                              slot=self.utilities_controller.calculate_pti_inversion)
         self.plot = helper.create_button(parent=self, title="Plot",
-                                         slot=self.utilities_controller.plot_dc)
+                                         slot=self.utilities_controller.plot_inversion)
 
 
 class Characterisation(Algorithm):
@@ -71,7 +71,7 @@ class Characterisation(Algorithm):
     @override
     def _init_button(self) -> None:
         self.calculate = helper.create_button(parent=self, title="Calculates",
-                                              slot=self.utilities_controller.calculate_decimation)
+                                              slot=self.utilities_controller.calculate_characterisation)
         self.plot = helper.create_button(parent=self, title="Plot",
-                                         slot=self.utilities_controller.plot_dc)
+                                         slot=self.utilities_controller.plot_characterisation)
 

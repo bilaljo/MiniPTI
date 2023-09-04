@@ -312,8 +312,7 @@ class Utilities(interface.Utilities):
                                                              "CSV File (*.csv);; TXT File (*.txt);; All Files (*)")
         if not inversion_path:
             return
-        threading.Thread(target=self.calculation_model.calculate_inversion,
-                         args=[self.settings_controller.settings_table_model.file_path, inversion_path]).start()
+        threading.Thread(target=self.calculation_model.calculate_inversion, args=[inversion_path]).start()
 
     @override
     def plot_inversion(self) -> None:
@@ -340,8 +339,7 @@ class Utilities(interface.Utilities):
                                                       | QtWidgets.QMessageBox.StandardButton.No)
         use_settings = use_settings == QtWidgets.QMessageBox.StandardButton.Yes
         threading.Thread(target=self.calculation_model.calculate_characterisation,
-                         args=[characterisation_path, use_settings,
-                               self.settings_controller.settings_table_model.file_path]).start()
+                         args=[characterisation_path, use_settings]).start()
 
     @override
     def plot_characterisation(self) -> None:
