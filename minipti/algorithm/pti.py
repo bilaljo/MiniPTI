@@ -227,6 +227,8 @@ class Decimation:
         self.raw_data_file_path = ""
         self.init_header: bool = True
         self.init_raw_data: bool = True
+        self.masks_zero = [(25 + 100 * i, 50 + 100 * i) for i in range(80)]
+        self.masks_ones = [(75 + 100 * i, 100 + 100 * i) for i in range(80)]
         self._update_lock_in_look_up_table()
 
     @property
@@ -239,8 +241,9 @@ class Decimation:
         self._update_lock_in_look_up_table()
 
     def _update_lock_in_look_up_table(self) -> None:
-        self.in_phase: np.ndarray = np.cos(2 * np.pi / Decimation.REF_PERIOD * np.arange(0, self.average_period))
-        self.quadrature: np.ndarray = np.sin(2 * np.pi / Decimation.REF_PERIOD * np.arange(0, self.average_period))
+        samples = np.arange(0, self.average_period)
+        self.in_phase: np.ndarray = np.cos(2 * np.pi / Decimation.REF_PERIOD * samples)
+        self.quadrature: np.ndarray = np.sin(2 * np.pi / Decimation.REF_PERIOD * samples)
 
     def process_raw_data(self) -> None:
         """
@@ -274,8 +277,12 @@ class Decimation:
             self.ac_coupled[channel] = self.ac_coupled[channel] - noise_factor * self.dc_signals[channel]
 
     def lock_in_amplifier(self) -> None:
-        ac_x = np.mean(self.ac_coupled * self.in_phase, axis=1)
-        ac_y = np.mean(self.ac_coupled * self.quadrature, axis=1)
+        ac_x = self.ac_coupled * self.in_phase
+        ac_y = self.ac_coupled * self.quadrature
+        ac_x = np.mean(ac_x.reshape(3, self.average_period // Decimation.REF_PERIOD, Decimation.REF_PERIOD).take(
+            indices=list(range(25, 50)) + list(range(75, 100)), axis=2).reshape(3, self.average_period // 2), axis=1)
+        ac_y = np.mean(ac_y.reshape(3, self.average_period // Decimation.REF_PERIOD, Decimation.REF_PERIOD).take(
+            indices=list(range(25, 50)) + list(range(75, 100)), axis=2).reshape(3, self.average_period // 2), axis=1)
         self.lock_in.phase = np.arctan2(ac_y, ac_x)
         self.lock_in.amplitude = np.sqrt(ac_x ** 2 + ac_y ** 2)
 
