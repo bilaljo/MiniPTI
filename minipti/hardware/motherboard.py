@@ -14,6 +14,7 @@ from typing import Final, Sequence, Union
 
 from fastcrc import crc16
 from overrides import override
+import numpy as np
 
 from . import serial_device
 from . import protocolls
@@ -106,8 +107,6 @@ class Driver(serial_device.Driver):
         self.connected = threading.Event()
         self._set_bypass = protocolls.ASCIIHex("SBP0000")
         self._do_shutdown = protocolls.ASCIIHex("SHD0001")
-        self._encoded_buffer = DAQData(deque(), [deque(), deque(), deque()],
-                                       [deque(), deque(), deque()])
         self._sample_numbers = deque(maxlen=2)
         self.synchronize = False
         self.config: Union[MotherBoardConfig, None] = None
@@ -129,6 +128,9 @@ class Driver(serial_device.Driver):
                                             multiprocessing.Queue(maxsize=Driver._QUEUE_SIZE)),
                                     multiprocessing.Queue(maxsize=Driver._QUEUE_SIZE))
         self.load_config()
+        self._encoded_buffer = DAQData(np.empty(self.config.daq.number_of_samples), np.empty(shape=(3, self.config.daq.ref_period)),
+                                       np.empty(shape=(3, self.config.daq.number_of_samples)))
+        self.current_sample = 0
 
     @property
     def device_id(self) -> str:
@@ -206,8 +208,7 @@ class Driver(serial_device.Driver):
         with open(self.config_path, "w") as savefile:
             self.config_parser.write(savefile)
 
-    @staticmethod
-    def _encode_binary(raw_data: Sequence) -> tuple[_Samples, list[_Samples], list[_Samples]]:
+    def _encode_binary(self, raw_data: str) -> None:
         """
         A block of data has the following structure:
         Ref, DC 1, DC 2, DC 3, DC, 4 AC 1, AC 2, AC 3, AC 4
@@ -216,33 +217,21 @@ class Driver(serial_device.Driver):
         before the last 4 bytes (crc checksum).
         """
         raw_data = raw_data[Driver._PACKAGE_SIZE_END_INDEX:Driver._DAQ_PACKAGE_SIZE - Driver._CRC_START_INDEX]
-        ref: _Samples = deque()
-        ac: list[_Samples] = [deque(), deque(), deque()]
-        dc: list[_Samples] = [deque(), deque(), deque(), deque()]
         for i in range(0, len(raw_data), Driver._WORD_SIZE):
-            ref.append(int(raw_data[i:i + 4], base=16))
-            # AC signed
-            ac_value = Driver._binary_to_2_complement(int(raw_data[i + 4:i + 8], base=16), 16)
-            ac[0].append(ac_value)
-            ac_value = Driver._binary_to_2_complement(int(raw_data[i + 8:i + 12], base=16), 16)
-            ac[1].append(ac_value)
-            ac_value = Driver._binary_to_2_complement(int(raw_data[i + 12:i + 16], base=16), 16)
-            ac[2].append(ac_value)
-            # DC unsigned
-            dc[0].append(int(raw_data[i + 16:i + 20], base=16))
-            dc[1].append(int(raw_data[i + 20:i + 24], base=16))
-            dc[2].append(int(raw_data[i + 24:i + 28], base=16))
-            dc[3].append(int(raw_data[i + 28:i + 32], base=16))
-        return ref, ac, dc
+            self._encoded_buffer.ref_signal[i] = int(raw_data[i:i + 4], base=16)
+            for channel in range(3):
+                self._encoded_buffer.dc_coupled[channel][i] = int(raw_data[i + 16 + channel * 4:i + 20 + channel * 4],
+                                                                  base=16)
+                self._encoded_buffer.dc_coupled[channel][i] = Driver._binary_to_2_complementint(raw_data[i + 16 + channel * 4:i + 20 + channel * 4],
+                                                                              base=16)
+            self._sample_numbers += 1
 
     def reset(self) -> None:
         self._reset()
         self.clear_buffer()
 
     def _reset(self) -> None:
-        self._encoded_buffer.ref_signal = deque()
-        self._encoded_buffer.dc_coupled = [deque(), deque(), deque()]
-        self._encoded_buffer.ac_coupled = [deque(), deque(), deque()]
+        self.current_sample = 0
         self._sample_numbers = deque(maxlen=2)
         self._package_buffer = ""
         self.synchronize = True
@@ -271,14 +260,10 @@ class Driver(serial_device.Driver):
         if len(self._sample_numbers) > 1 and not self._check_package_difference():
             self._reset()
             self.synchronize = True
-        ref_signal, ac_coupled, dc_coupled = Driver._encode_binary(data)
+        self._encode_binary(data)
         if self.synchronize:
             self._reset()
-            self._synchronize_with_ref(ref_signal, ac_coupled, dc_coupled)
-        self._encoded_buffer.ref_signal.extend(ref_signal)
-        for channel in range(Driver._CHANNELS):
-            self._encoded_buffer.dc_coupled[channel].extend(dc_coupled[channel])
-            self._encoded_buffer.ac_coupled[channel].extend(ac_coupled[channel])
+            self._synchronize_with_ref()
 
     def _encode_bms(self, data: str) -> None:
         """
@@ -349,20 +334,13 @@ class Driver(serial_device.Driver):
         Creates a package of samples that represents approximately 1 s data. It contains 8000
         samples.
         """
-        ref = [self._encoded_buffer.ref_signal.popleft() for _ in range(self.config.daq.number_of_samples)]
-        self.data.DAQ.ref_signal.put(ref)
-        if sum(itertools.islice(ref, 0, self.config.daq.ref_period // 2)):
+        if np.sum(self._encoded_buffer.ref_signal[:self.config.daq.ref_period // 2]):
             logging.warning("Not synchron with reference signal")
             self._reset()
             return
-        dc_package = [[], [], []]
-        ac_package = [[], [], []]
-        for _ in itertools.repeat(None, self.config.daq.number_of_samples):
-            for channel in range(Driver._CHANNELS):
-                dc_package[channel].append(self._encoded_buffer.dc_coupled[channel].popleft())
-                ac_package[channel].append(self._encoded_buffer.ac_coupled[channel].popleft())
-        self.data.DAQ.dc_coupled.put(dc_package)
-        self.data.DAQ.ac_coupled.put(ac_package)
+        self.data.DAQ.ref_signal.put(self._encoded_buffer.ref_signal)
+        self.data.DAQ.dc_coupled.put(self._encoded_buffer.dc_coupled)
+        self.data.DAQ.ac_coupled.put(self._encoded_buffer.ac_coupled)
 
     def set_valve(self) -> None:
         self._set_bypass.value = self.bypass
