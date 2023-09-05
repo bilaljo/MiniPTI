@@ -19,7 +19,7 @@ class SettingsWindow(QtWidgets.QMainWindow):
         self.measurement_configuration = MeasurementSettings(settings_controller)
         self.setCentralWidget(self.parent)
         self.setWindowTitle("Settings")
-        self.setFixedSize(600, 750)
+        self.setFixedSize(700, 800)
         self._init_frames()
         self.setWindowIcon(QtGui.QIcon("minipti/gui/images/settings.svg"))
 
@@ -44,8 +44,16 @@ class MeasurementSettings(QtWidgets.QGroupBox):
         self.average_period = QtWidgets.QComboBox()
         self.controller = settings_controller
         model.signals.destination_folder_changed.connect(self.update_destination_folder)
+        model.daq_signals.samples_changed.connect(self.update_average_period)
         self._init_destination_folder()
         self._init_average_period_box()
+        sub_layout = QtWidgets.QWidget()
+        sub_layout.setLayout(QtWidgets.QHBoxLayout())
+        self.save_settings = helper.create_button(sub_layout, title="Save Settings",
+                                                  slot=self.controller.save_daq_settings)
+        self.load_settings = helper.create_button(sub_layout, title="Load Settings",
+                                                  slot=self.controller.load_daq_settings)
+        self.layout().addWidget(sub_layout)
 
     def _init_destination_folder(self) -> None:
         self.destination_folder_button = helper.create_button(parent=self, title="Destination Folder",
@@ -62,6 +70,10 @@ class MeasurementSettings(QtWidgets.QGroupBox):
         self.layout().addWidget(self.average_period)
         self.layout().addWidget(self.samples)
         self.average_period.currentIndexChanged.connect(self.update_samples)
+
+    def update_average_period(self, samples: int) -> None:
+        print(samples)
+        self.average_period.setCurrentIndex(samples)
 
     def update_samples(self) -> None:
         text = self.average_period.currentText()
@@ -88,12 +100,13 @@ class ValveConfiguration(QtWidgets.QGroupBox):
         self.controller = settings_controller
         self._init_valves()
         self._init_signals()
-
-    @QtCore.pyqtSlot(model.Valve)
-    def update_valve(self, valve: model.Valve) -> None:
-        self.duty_cycle_field.setText(str(valve.duty_cycle))
-        self.period_field.setText(str(valve.period))
-        self.automatic_valve_switch.setChecked(valve.automatic_switch)
+        sub_layout = QtWidgets.QWidget()
+        sub_layout.setLayout(QtWidgets.QHBoxLayout())
+        self.save = helper.create_button(parent=sub_layout, title="Save Settings",
+                                         slot=self.controller.save_valve_settings)
+        self.load = helper.create_button(parent=sub_layout, title="Load Settings",
+                                         slot=self.controller.load_valve_settings)
+        self.layout().addWidget(sub_layout)
 
     def _init_valves(self) -> None:
         self.layout().addWidget(self.automatic_valve_switch, 0, 0)
@@ -108,7 +121,9 @@ class ValveConfiguration(QtWidgets.QGroupBox):
         self.automatic_valve_switch.stateChanged.connect(self._automatic_switch_changed)
         self.period_field.editingFinished.connect(self._period_changed)
         self.duty_cycle_field.editingFinished.connect(self._duty_cycle_changed)
-        model.signals.valve_change.connect(self.update_valve)
+        model.valve_signals.period.connect(self._period_changed)
+        model.valve_signals.automatic_switch.connect(self._automatic_switch_changed)
+        model.valve_signals.duty_cycle.connect(self._duty_cycle_changed)
 
     def _automatic_switch_changed(self) -> None:
         self.controller.update_automatic_valve_switch(self.automatic_valve_switch.isChecked())
@@ -142,9 +157,9 @@ class PTIConfiguration(QtWidgets.QGroupBox):
         sub_layout = QtWidgets.QWidget()
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
         self.buttons.save_settings = helper.create_button(parent=sub_layout, title="Save Settings",
-                                                          slot=self.controller.save_settings)
+                                                          slot=self.controller.save_pti_settings)
         self.buttons.save_settings_as = helper.create_button(parent=sub_layout, title="Save Settings As",
-                                                             slot=self.controller.save_settings_as)
+                                                             slot=self.controller.save_pti_settings_as)
         self.buttons.load_settings = helper.create_button(parent=sub_layout, title="Load Settings",
-                                                          slot=self.controller.load_settings)
+                                                          slot=self.controller.load_pti_settings)
         self.layout().addWidget(sub_layout)

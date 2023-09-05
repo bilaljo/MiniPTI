@@ -70,23 +70,35 @@ class Settings(ABC):
         ...
 
     @abstractmethod
-    def save_settings(self) -> None:
+    def save_pti_settings(self) -> None:
         ...
 
     @abstractmethod
-    def save_settings_as(self) -> None:
+    def save_pti_settings_as(self) -> None:
         ...
 
     @abstractmethod
-    def load_settings(self) -> None:
+    def load_pti_settings(self) -> None:
+        ...
+
+    #@abstractmethod
+    #def save_valve_settings_as(self) -> None:
+    #    ...
+
+    @abstractmethod
+    def save_valve_settings(self) -> None:
         ...
 
     @abstractmethod
-    def save_motherboard_conifugration(self) -> None:
+    def load_valve_settings(self) -> None:
         ...
 
     @abstractmethod
-    def load_motherboard_conifugration(self) -> None:
+    def save_daq_settings(self) -> None:
+        ...
+
+    @abstractmethod
+    def load_daq_settings(self) -> None:
         ...
 
     @abstractmethod

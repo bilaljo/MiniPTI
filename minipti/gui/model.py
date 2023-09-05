@@ -1,4 +1,4 @@
-import abc
+from abc import abstractmethod
 import copy
 import csv
 import enum
@@ -28,8 +28,6 @@ LaserData = hardware.laser.Data
 
 TecData = hardware.tec.Data
 
-Valve = hardware.motherboard.Valve
-
 ROOM_TEMPERATURE = hardware.tec.ROOM_TEMPERATURE_CELSIUS
 
 CURRENT_BITS = hardware.laser.LowPowerLaser.CURRENT_BITS
@@ -55,12 +53,12 @@ class Table(QtCore.QAbstractTableModel):
         self._data = pd.DataFrame()
 
     @property
-    @abc.abstractmethod
+    @abstractmethod
     def _headers(self) -> list[str]:
         ...
 
     @property
-    @abc.abstractmethod
+    @abstractmethod
     def _indices(self) -> list[str]:
         ...
 
@@ -220,11 +218,11 @@ class Buffer:
                 yield getattr(self, member)
 
     @property
-    @abc.abstractmethod
+    @abstractmethod
     def is_empty(self) -> bool:
         ...
 
-    @abc.abstractmethod
+    @abstractmethod
     def append(self, *args: typing.Any) -> None:
         ...
 
@@ -402,26 +400,42 @@ class Battery:
 
 
 @dataclass(init=False, frozen=True)
-class Signals(QtCore.QObject):
+class DAQSignals(QtCore.QObject):
     decimation = QtCore.pyqtSignal(pd.DataFrame)
     decimation_live = QtCore.pyqtSignal(Buffer)
     inversion = QtCore.pyqtSignal(pd.DataFrame)
     inversion_live = QtCore.pyqtSignal(Buffer)
     characterization = QtCore.pyqtSignal(pd.DataFrame)
     characterization_live = QtCore.pyqtSignal(Buffer)
+    samples_changed = QtCore.pyqtSignal(int)
+    running = QtCore.pyqtSignal(bool)
+    clear = QtCore.pyqtSignal()
+
+    def __init__(self):
+        QtCore.QObject.__init__(self)
+
+
+@dataclass(init=False, frozen=True)
+class ValveSignals(QtCore.QObject):
+    bypass = QtCore.pyqtSignal(bool)
+    period = QtCore.pyqtSignal(int)
+    duty_cycle = QtCore.pyqtSignal(int)
+    automatic_switch = QtCore.pyqtSignal(bool)
+
+    def __init__(self):
+        QtCore.QObject.__init__(self)
+
+
+@dataclass(init=False, frozen=True)
+class Signals(QtCore.QObject):
     settings_pti = QtCore.pyqtSignal()
     logging_update = QtCore.pyqtSignal(deque)
-    daq_running = QtCore.pyqtSignal(bool)
     settings = QtCore.pyqtSignal(algorithm.interferometry.Interferometer)
     destination_folder_changed = QtCore.pyqtSignal(str)
     settings_path_changed = QtCore.pyqtSignal(str)
     battery_state = QtCore.pyqtSignal(Battery)
-    valve_change = QtCore.pyqtSignal(hardware.motherboard.ValveConfiguration)
-    bypass = QtCore.pyqtSignal(bool)
     tec_data = QtCore.pyqtSignal(Buffer)
     tec_data_display = QtCore.pyqtSignal(hardware.tec.Data)
-    clear_daq = QtCore.pyqtSignal()
-    samples_changed = QtCore.pyqtSignal(int)
 
     def __init__(self):
         QtCore.QObject.__init__(self)
@@ -482,11 +496,10 @@ class Calculation:
         self.interferometry_characterization = algorithm.interferometry.Characterization(self.interferometer)
         self._destination_folder = os.getcwd()
         signals.destination_folder_changed.connect(self._update_destination_folder)
-        signals.samples_changed.connect(self._update_decimation_average_period)
+        daq_signals.samples_changed.connect(self._update_decimation_average_period)
         signals.settings_path_changed.connect(self.update_settings_path)
 
     def update_settings_path(self, settings_path: str) -> None:
-        print("Called")
         self.interferometer.settings_path = settings_path
 
     def _update_destination_folder(self, folder: str) -> None:
@@ -513,7 +526,7 @@ class LiveCalculation(Calculation):
         self.characterisation_buffer = CharacterisationBuffer()
         self.motherboard = Motherboard()
         self.pti_signal_mean_queue = deque(maxlen=LiveCalculation.ONE_MINUTE)
-        signals.clear_daq.connect(self.clear_buffer)
+        daq_signals.clear.connect(self.clear_buffer)
 
     def process_daq_data(self) -> None:
         threading.Thread(target=self._run_pti_inversion, daemon=True).start()
@@ -551,7 +564,7 @@ class LiveCalculation(Calculation):
         while self.motherboard.driver.running.is_set():
             self.interferometry_characterization.characterise(live=True)
             self.characterisation_buffer.append(self.interferometry_characterization, self.interferometer)
-            signals.characterization_live.emit(self.characterisation_buffer)
+            daq_signals.characterization_live.emit(self.characterisation_buffer)
 
     def _init_calculation(self) -> None:
         self.pti.inversion.init_header = True
@@ -565,12 +578,12 @@ class LiveCalculation(Calculation):
         self.pti.decimation.raw_data.ac = self.motherboard.driver.ac_coupled
 
         self.pti.decimation.decimate(live=True)
-        signals.decimation_live.emit(self.pti_buffer)
+        daq_signals.decimation_live.emit(self.pti_buffer)
 
     def _pti_inversion(self) -> None:
         self.pti.inversion.invert(self.pti.decimation.lock_in, self.pti.decimation.dc_signals, live=True)
         self.pti_buffer.append(self.pti, self.interferometer)
-        signals.inversion_live.emit(self.pti_buffer)
+        daq_signals.inversion_live.emit(self.pti_buffer)
 
     def _characterisation(self) -> None:
         self.interferometry_characterization.add_phase(self.interferometer.phase)
@@ -621,7 +634,7 @@ class Serial:
         return self.driver.is_found
 
     @property
-    @abc.abstractmethod
+    @abstractmethod
     def driver(self) -> hardware.serial_device.Driver:
         ...
 
@@ -652,11 +665,11 @@ class Serial:
         self.driver.close()
 
     @classmethod
-    @abc.abstractmethod
+    @abstractmethod
     def save_configuration(cls) -> None:
         ...
 
-    @abc.abstractmethod
+    @abstractmethod
     def fire_configuration_change(self) -> None:
         """
         By initiation of a Serial Object (on which the laser model relies) the configuration is
@@ -664,7 +677,7 @@ class Serial:
         once to manually activate the firing.
         """
 
-    @abc.abstractmethod
+    @abstractmethod
     def load_configuration(self) -> None:
         self.fire_configuration_change()
 
@@ -688,26 +701,12 @@ class Motherboard(Serial):
         Serial.__init__(self)
         self.bms_data: tuple[float, float] = (0, 0)
         self.initialized: bool = False
-        signals.daq_running.connect(self._daq_running_changed)
-
-    def initialize(self) -> None:
-        self.driver.valve.load_configuration()
-        signals.samples_changed.emit(self.number_of_samples)
-        self.initialized = True
+        daq_signals.running.connect(self._daq_running_changed)
 
     @property
     @override
     def driver(self) -> hardware.motherboard.Driver:
         return Motherboard._driver
-
-    @property
-    def number_of_samples(self) -> int:
-        return self.driver.daq.configuration.number_of_samples
-
-    @number_of_samples.setter
-    def number_of_samples(self, samples: int) -> None:
-        signals.samples_changed.emit(samples)
-        self.driver.daq.configuration.number_of_samples = samples
 
     @property
     def connected(self) -> bool:
@@ -748,70 +747,29 @@ class Motherboard(Serial):
         if running:
             # Before we start a new run, we clear all old data
             self.driver.reset()
-            signals.clear_daq.emit()
+            daq_signals.clear.emit()
             self.driver.running.set()
-            signals.daq_running.emit(True)
+            daq_signals.running.emit(True)
             self.running_event.set()
         else:
             self.driver.running.clear()
-            signals.daq_running.emit(False)
+            daq_signals.running.emit(False)
             self.running_event.clear()
 
     @property
     def shutdown_event(self) -> threading.Event:
         return self.driver.shutdown
 
-    @property
-    def valve_period(self) -> int:
-        return self.driver.valve.configuration.period
-
-    @valve_period.setter
-    def valve_period(self, period: int) -> None:
-        if period < 0:
-            raise ValueError("Invalid value for period")
-        self.driver.valve.configuration.period = period
-
-    @property
-    def valve_duty_cycle(self) -> int:
-        return self.driver.valve.configuration.duty_cycle
-
-    @valve_duty_cycle.setter
-    def valve_duty_cycle(self, duty_cycle: int) -> None:
-        if not 0 < self.driver.valve.configuration.duty_cycle < 100:
-            raise ValueError("Invalid value for duty cycle")
-        self.driver.valve.configuration.duty_cycle = duty_cycle
-
-    @property
-    def automatic_valve_switch(self) -> bool:
-        return self.driver.valve.automatic_switch.is_set()
-
-    @automatic_valve_switch.setter
-    def automatic_valve_switch(self, automatic_switch: bool) -> None:
-        self.driver.valve.configuration.automatic_switch = automatic_switch
-        if automatic_switch:
-            self.driver.valve.automatic_switch.set()
-            self.driver.valve.automatic_valve_change()
-        else:
-            self.driver.valve.automatic_switch.clear()
-
-    @property
-    def bypass(self) -> bool:
-        return self.driver.valve.bypass
-
-    @bypass.setter
-    def bypass(self, state: bool) -> None:
-        self.driver.bypass = state
-        signals.bypass.emit(state)
-
     def shutdown(self) -> None:
         self.driver.bms.do_shutdown()
 
+    @abstractmethod
     def load_configuration(self) -> None:
-        self.driver.bms.load_configuration()
-        self.fire_configuration_change()
+        ...
 
+    @abstractmethod
     def save_configuration(self) -> None:
-        self.driver.valve.save_configuration()
+        ...
 
     @property
     def config_path(self) -> str:
@@ -823,8 +781,100 @@ class Motherboard(Serial):
             raise ValueError("File does not exist")
         self.driver.config_path = config_path
 
+    @abstractmethod
     def fire_configuration_change(self) -> None:
-        signals.valve_change.emit(self.driver.valve.configuration)
+        ...
+
+
+class DAQ(Motherboard):
+    def __init__(self):
+        Motherboard.__init__(self)
+        self.daq = DAQ._driver.daq
+
+    @property
+    def number_of_samples(self) -> int:
+        return self.daq.configuration.number_of_samples
+
+    @number_of_samples.setter
+    def number_of_samples(self, samples: int) -> None:
+        daq_signals.samples_changed.emit(samples)
+        self.daq.configuration.number_of_samples = samples
+
+    def save_configuration(self) -> None:
+        self.daq.save_configuration()
+
+    def load_configuration(self) -> None:
+        self.daq.load_configuration()
+        self.fire_configuration_change()
+
+    @override
+    def fire_configuration_change(self) -> None:
+        daq_signals.samples_changed.emit(self.daq.configuration.number_of_samples)
+
+
+class Valve(Motherboard):
+    def __init__(self):
+        Motherboard.__init__(self)
+        self.valve = Valve._driver.valve
+
+    @property
+    def period(self) -> int:
+        return self.valve.configuration.period
+
+    @period.setter
+    def period(self, period: int) -> None:
+        if period < 0:
+            raise ValueError("Invalid value for period")
+        self.valve.configuration.period = period
+        valve_signals.period.emit(period)
+
+    @property
+    def duty_cycle(self) -> int:
+        return self.valve.configuration.duty_cycle
+
+    @duty_cycle.setter
+    def duty_cycle(self, duty_cycle: int) -> None:
+        if not 0 < self.valve.configuration.duty_cycle < 100:
+            raise ValueError("Invalid value for duty cycle")
+        self.valve.configuration.duty_cycle = duty_cycle
+        valve_signals.duty_cycle.emit(duty_cycle)
+
+    @property
+    def automatic_switch(self) -> bool:
+        return self.valve.automatic_switch.is_set()
+
+    @automatic_switch.setter
+    def automatic_switch(self, automatic_switch: bool) -> None:
+        self.valve.configuration.automatic_switch = automatic_switch
+        if automatic_switch:
+            self.valve.automatic_switch.set()
+            self.valve.automatic_valve_change()
+        else:
+            self.valve.automatic_switch.clear()
+        valve_signals.automatic_switch.emit(automatic_switch)
+
+    @property
+    def bypass(self) -> bool:
+        return self.valve.bypass
+
+    @bypass.setter
+    def bypass(self, state: bool) -> None:
+        self.bypass = state
+        valve_signals.bypass.emit(state)
+
+    @override
+    def save_configuration(self) -> None:
+        self.valve.save_configuration()
+
+    @override
+    def load_configuration(self) -> None:
+        self.valve.load_configuration()
+        self.fire_configuration_change()
+
+    def fire_configuration_change(self) -> None:
+        valve_signals.duty_cycle.emit(self.valve.configuration.duty_cycle)
+        valve_signals.period.emit(self.valve.configuration.period)
+        valve_signals.automatic_switch.emit(self.valve.configuration.automatic_switch)
 
 
 class Laser(Serial):
@@ -841,34 +891,34 @@ class Laser(Serial):
         return Laser._driver
 
     @property
-    @abc.abstractmethod
+    @abstractmethod
     def config_path(self) -> str:
         ...
 
     @config_path.setter
-    @abc.abstractmethod
+    @abstractmethod
     def config_path(self, config_path: str) -> None:
         ...
 
     @property
-    @abc.abstractmethod
+    @abstractmethod
     def enabled(self) -> bool:
         ...
 
     @enabled.setter
-    @abc.abstractmethod
+    @abstractmethod
     def enabled(self, enabled: bool) -> None:
         ...
 
-    @abc.abstractmethod
+    @abstractmethod
     def load_configuration(self) -> None:
         ...
 
-    @abc.abstractmethod
+    @abstractmethod
     def save_configuration(self) -> None:
         ...
 
-    @abc.abstractmethod
+    @abstractmethod
     def apply_configuration(self) -> None:
         ...
 
@@ -929,7 +979,7 @@ class PumpLaser(Laser):
         return self.pump_laser.config_path
 
     @config_path.setter
-    @abc.abstractmethod
+    @abstractmethod
     def config_path(self, config_path: str) -> None:
         self.pump_laser.config_path = config_path
 
@@ -1067,7 +1117,7 @@ class ProbeLaser(Laser):
         return self.probe_laser.config_path
 
     @config_path.setter
-    @abc.abstractmethod
+    @abstractmethod
     def config_path(self, config_path: str) -> None:
         self.probe_laser.config_path = config_path
 
@@ -1328,7 +1378,7 @@ def process_dc_data(dc_file_path: str) -> None:
         data = _process_data(dc_file_path, headers)
     except FileNotFoundError:
         return
-    signals.decimation.emit(data)
+    daq_signals.decimation.emit(data)
 
 
 def process_inversion_data(inversion_file_path: str) -> None:
@@ -1341,7 +1391,7 @@ def process_inversion_data(inversion_file_path: str) -> None:
         data = _process_data(inversion_file_path, headers)
     except FileNotFoundError:
         return
-    signals.inversion.emit(data)
+    daq_signals.inversion.emit(data)
 
 
 def process_characterization_data(characterization_file_path: str) -> None:
@@ -1353,9 +1403,11 @@ def process_characterization_data(characterization_file_path: str) -> None:
         data = _process_data(characterization_file_path, headers)
     except FileNotFoundError:
         return
-    signals.characterization.emit(data)
+    daq_signals.characterization.emit(data)
 
 
 signals = Signals()
+daq_signals = DAQSignals()
+valve_signals = ValveSignals()
 laser_signals = LaserSignals()
 tec_signals = [TecSignals(), TecSignals()]

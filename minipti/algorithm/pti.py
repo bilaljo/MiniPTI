@@ -200,7 +200,7 @@ class Decimation:
          interferometer for aerosol measurements
     """
     REF_VOLTAGE: float = 3.3  # V
-    REF_PERIOD: int = 100  # Samples
+    REF_PERIOD: int = 500  # Samples
     DC_RESOLUTION: int = (1 << 12) - 1  # 12 Bit ADC
     AC_RESOLUTION: int = (1 << (16 - 1)) - 1  # 16 bit ADC with 2 complement
     AMPLIFICATION: int = 100  # Theoretical value given by the hardware
@@ -209,7 +209,7 @@ class Decimation:
 
     def __init__(self):
 
-        self._average_period: int = 8000  # Recommended default value
+        self._average_period: int = 100 #8000  # Recommended default value
         self.raw_data = RawData(None, None, None)
         self.dc_signals: Union[np.ndarray, None] = None
         self.lock_in: LockIn = LockIn(np.empty(shape=3), np.empty(shape=3))

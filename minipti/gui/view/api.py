@@ -202,4 +202,4 @@ class Home(QtWidgets.QTabWidget):
     #    helper.toggle_button(state, self.buttons["Clean Air"])
 
     def _init_signals(self) -> None:
-        model.signals.daq_running.connect(self.update_run_measurement)
+        model.daq_signals.running.connect(self.update_run_measurement)

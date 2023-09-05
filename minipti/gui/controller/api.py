@@ -98,7 +98,6 @@ class Home(interface.Home):
         self.utilities = view.utilities.UtilitiesWindow(Utilities())
         self.calculation_model = model.LiveCalculation()
         self.motherboard = model.Motherboard()
-        self.motherboard.initialize()
 
     @override
     def show_settings(self) -> None:
@@ -139,7 +138,10 @@ class Settings(interface.Settings):
         self.motherboard = model.Motherboard()
         self.raw_data_changed.connect(self.calculation_model.set_raw_data_saving)
         self.view.measurement_configuration.destination_folder_label.setText(self.destination_folder.folder)
-        self.motherboard.fire_configuration_change()
+        self.daq = model.DAQ()
+        self.valve = model.Valve()
+        self.daq.fire_configuration_change()
+        #self.valve.fire_configuration_change()
 
     @property
     @override
@@ -164,11 +166,11 @@ class Settings(interface.Settings):
         self.motherboard.fire_configuration_change()
 
     @override
-    def save_settings(self) -> None:
+    def save_pti_settings(self) -> None:
         self.settings_table_model.save()
 
     @override
-    def save_settings_as(self) -> None:
+    def save_pti_settings_as(self) -> None:
         file_path = save_as(parent=self.view, file_type="CSV File", file_extension="csv",
                             name="Algorithm Configuration")
         if file_path:
@@ -176,13 +178,55 @@ class Settings(interface.Settings):
             self.settings_table_model.save()
 
     @override
-    def load_settings(self):
+    def load_pti_settings(self):
         file_path, self.last_file_path = _get_file_path(self.view, "Load SettingsTable", self.last_file_path,
                                                         "CSV File (*.csv);;"
                                                         " TXT File (*.txt);; All Files (*);;")
         if file_path:
             self.settings_table_model.file_path = file_path
             self.settings_table_model.load()
+
+    @override
+    def save_daq_settings(self) -> None:
+        self.daq.save_configuration()
+
+    def save_daq_settings_as(self) -> None:
+        file_path = save_as(parent=self.view, file_type="JSON", file_extension="json",
+                            name="DAQ Configuration")
+        if file_path:
+            self.daq.config_path = file_path
+            self.daq.save_configuration()
+
+    @override
+    def load_daq_settings(self) -> None:
+        config_path, self.last_file_path = _get_file_path(self.view, "Laser Driver", self.last_file_path,
+                                                          "JSON File (*.json);; All Files (*)")
+        if config_path:
+            self.daq.config_path = config_path
+        else:
+            return
+        self.daq.load_configuration()
+
+    @override
+    def save_valve_settings(self) -> None:
+        self.valve.save_configuration()
+
+    def save_valve_settings_as(self) -> None:
+        file_path = save_as(parent=self.view, file_type="JSON", file_extension="json",
+                            name="Valve Configuration")
+        if file_path:
+            self.valve.config_path = file_path
+            self.valve.save_configuration()
+
+    @override
+    def load_valve_settings(self) -> None:
+        config_path, self.last_file_path = _get_file_path(self.view, "Valve", self.last_file_path,
+                                                          "JSON File (*.json);; All Files (*)")
+        if config_path:
+            self.valve.config_path = config_path
+        else:
+            return
+        self.valve.load_configuration()
 
     @override
     def set_destination_folder(self) -> None:
@@ -199,7 +243,7 @@ class Settings(interface.Settings):
         except ValueError:
             period = 600
         try:
-            self.motherboard.valve_period = period
+            self.valve.valve_period = period
         except ValueError as error:
             info_text = "Value must be a positive integer"
             logging.error(str(error))
@@ -213,7 +257,7 @@ class Settings(interface.Settings):
         except ValueError:
             duty_cycle = 50
         try:
-            self.motherboard.valve_duty_cycle = duty_cycle
+            self.valve.duty_cycle = duty_cycle
         except ValueError as error:
             info_text = "Value must be an integer between 0 and 100"
             logging.error(str(error))
@@ -222,23 +266,7 @@ class Settings(interface.Settings):
 
     @override
     def update_automatic_valve_switch(self, automatic_valve_switch: bool) -> None:
-        self.motherboard.automatic_valve_switch = automatic_valve_switch
-
-    @override
-    def save_motherboard_conifugration(self) -> None:
-        self.motherboard.save_configuration()
-
-    @override
-    def load_motherboard_conifugration(self) -> None:
-        file_path, self.last_file_path = _get_file_path(self.view, "Valve", self.last_file_path,
-                                                        "INI File (*.ini);; All Files (*)")
-        if file_path:
-            try:
-                self.motherboard.config_path = file_path
-            except ValueError as error:
-                logging.error(error)
-            else:
-                self.motherboard.load_configuration()
+        self.valve.automatic_valve_switch = automatic_valve_switch
 
     @override
     def update_bypass(self) -> None:

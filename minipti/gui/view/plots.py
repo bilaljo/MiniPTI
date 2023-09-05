@@ -39,7 +39,7 @@ class Plotting(pg.PlotWidget):
 class DAQPlots(Plotting):
     def __init__(self):
         Plotting.__init__(self)
-        model.signals.clear_daq.connect(self.clear)
+        model.daq_signals.clear.connect(self.clear)
         self.name = ""
 
     @abstractmethod
@@ -57,8 +57,8 @@ class DC(DAQPlots):
         self.plot.setLabel(axis="left", text="Intensity [V]")
         self.name = "DC Plots"
         self.dock = pg.dockarea.DockArea()
-        model.signals.decimation.connect(self.update_data)
-        model.signals.decimation_live.connect(self.update_data_live)
+        model.daq_signals.decimation.connect(self.update_data)
+        model.daq_signals.decimation_live.connect(self.update_data_live)
 
     @override
     def update_data(self, data: pd.DataFrame) -> None:
@@ -89,8 +89,8 @@ class Amplitudes(DAQPlots):
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="Amplitude [V]")
         self.name = "Amplitudes"
-        model.signals.characterization.connect(self.update_data)
-        model.signals.characterization_live.connect(self.update_data_live)
+        model.daq_signals.characterization.connect(self.update_data)
+        model.daq_signals.characterization_live.connect(self.update_data_live)
 
     @override
     def update_data(self, data: pd.DataFrame) -> None:
@@ -113,8 +113,8 @@ class OutputPhases(DAQPlots):
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="Output Phase [deg]")
         self.name = "Output Phases"
-        model.signals.characterization.connect(self.update_data)
-        model.signals.characterization_live.connect(self.update_data_live)
+        model.daq_signals.characterization.connect(self.update_data)
+        model.daq_signals.characterization_live.connect(self.update_data_live)
 
     @override
     def update_data(self, data: pd.DataFrame) -> None:
@@ -134,8 +134,8 @@ class InterferometricPhase(DAQPlots):
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="Interferometric Phase [rad]")
         self.name = "Interferometric Phase"
-        model.signals.inversion.connect(self.update_data)
-        model.signals.inversion_live.connect(self.update_data_live)
+        model.daq_signals.inversion.connect(self.update_data)
+        model.daq_signals.inversion_live.connect(self.update_data_live)
 
     @override
     def update_data(self, data: pd.DataFrame) -> None:
@@ -155,8 +155,8 @@ class Sensitivity(DAQPlots):
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="Sensitivity [V/rad]")
         self.name = "Sensitivity"
-        model.signals.inversion.connect(self.update_data)
-        model.signals.inversion_live.connect(self.update_data_live)
+        model.daq_signals.inversion.connect(self.update_data)
+        model.daq_signals.inversion_live.connect(self.update_data_live)
 
     @override
     def update_data(self, data: pd.DataFrame) -> None:
@@ -179,8 +179,8 @@ class Symmetry(DAQPlots):
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="Symmetry [%]")
         self.name = "Symmetry"
-        model.signals.characterization.connect(self.update_data)
-        model.signals.characterization_live.connect(self.update_data_live)
+        model.daq_signals.characterization.connect(self.update_data)
+        model.daq_signals.characterization_live.connect(self.update_data_live)
 
     @override
     def update_data(self, data: pd.DataFrame) -> None:
@@ -201,8 +201,8 @@ class PTISignal(DAQPlots):
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="PTI Signal [µrad]")
         self.name = "PTI Signal"
-        model.signals.inversion.connect(self.update_data)
-        model.signals.inversion_live.connect(self.update_data_live)
+        model.daq_signals.inversion.connect(self.update_data)
+        model.daq_signals.inversion_live.connect(self.update_data_live)
 
     @override
     def update_data(self, data: pd.DataFrame) -> None:

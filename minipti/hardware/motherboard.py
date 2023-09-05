@@ -216,7 +216,6 @@ class DAQ:
         self.driver.data.DAQ[PackageIndex.DC].put(self.encoded_buffer.ac_coupled.copy(), block=False)
         self.driver.data.DAQ[PackageIndex.AC].put(self.encoded_buffer.dc_coupled.copy(), block=False)
 
-    #@njit(parallel=True)
     def _encode_binary(self, raw_data: str) -> None:
         """
         A block of data has the following structure:
