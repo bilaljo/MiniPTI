@@ -19,7 +19,7 @@ if platform.system() == "Windows":
     import clr
     import System
 else:
-    import  termios
+    import termios
 import serial
 from serial.tools import list_ports
 
@@ -164,8 +164,6 @@ class Driver(ABC):
                     cflag |= (termios.CLOCAL | termios.CREAD)
 
                     cflag &= ~(termios.PARENB | termios.PARODD)
-
-                    cflag &= ~termios.CSTOPB
 
                     cflag &= ~termios.CSTOPB
 

@@ -4,6 +4,7 @@ from typing import NamedTuple, Union
 
 from PyQt5 import QtWidgets, QtCore, QtGui
 from PyQt5.QtCore import Qt
+import qtawesome as qta
 
 from minipti.gui.view import helper
 from minipti.gui.view import plots

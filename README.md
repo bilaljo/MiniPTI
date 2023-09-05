@@ -1,5 +1,6 @@
 https://freesvg.org/qubodup-cog-cogwheel-gear-zahnrad
-
+https://publicdomainvectors.org/en/free-clipart/Vector-clip-art-of-gray-computer-spreadsheet-document-icon/21207.html
+https://freesvg.org/play-button
 # MiniPTI
 
 <p style="text-align: center;">
