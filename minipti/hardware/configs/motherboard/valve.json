@@ -1,0 +1,7 @@
+{
+    "Valve": {
+        "automatic_switch": true,
+        "period": 600,
+        "duty_cycle": 50
+    }
+}

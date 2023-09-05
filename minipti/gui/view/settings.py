@@ -19,8 +19,9 @@ class SettingsWindow(QtWidgets.QMainWindow):
         self.measurement_configuration = MeasurementSettings(settings_controller)
         self.setCentralWidget(self.parent)
         self.setWindowTitle("Settings")
-        self.setFixedSize(520, 600)
+        self.setFixedSize(600, 750)
         self._init_frames()
+        self.setWindowIcon(QtGui.QIcon("minipti/gui/images/settings.svg"))
 
     def _init_frames(self) -> None:
         self.parent.layout().addWidget(self.pti_configuration, 0, 0)
@@ -141,8 +142,7 @@ class PTIConfiguration(QtWidgets.QGroupBox):
         sub_layout = QtWidgets.QWidget()
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
         self.buttons.save_settings = helper.create_button(parent=sub_layout, title="Save Settings",
-                                                          slot=self.controller.save_settings, only_icon=True)
-        #self.buttons.save_settings.style().standardIcon(QtGui.QIcon.QS)
+                                                          slot=self.controller.save_settings)
         self.buttons.save_settings_as = helper.create_button(parent=sub_layout, title="Save Settings As",
                                                              slot=self.controller.save_settings_as)
         self.buttons.load_settings = helper.create_button(parent=sub_layout, title="Load Settings",

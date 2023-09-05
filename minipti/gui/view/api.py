@@ -68,6 +68,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.minutes_left = QtWidgets.QLabel("NaN Minutes left")
         self._init_dock_widgets()
         self.resize(MainWindow.HORIZONTAL_SIZE, MainWindow.VERTICAL_SIZE)
+        self.setWindowIcon(QtGui.QIcon("minipti/gui/images/logo.png"))
         self.show()
 
     def logging_update(self, log_queue: collections.deque) -> None:
@@ -167,18 +168,20 @@ class Home(QtWidgets.QTabWidget):
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
         self.buttons.run_measurement = helper.create_button(parent=sub_layout, title="Run Measurement", only_icon=True,
                                                             slot=self.controller.enable_motherboard)
-        icon = self.style().standardIcon(QtWidgets.QStyle.SP_MediaPlay)
-        self.buttons.run_measurement.setIcon(icon)
-        self.buttons.run_measurement.setIconSize(QtCore.QSize(30, 30))
+        self.buttons.run_measurement.setIcon(QtGui.QIcon("minipti/gui/images/run.svg"))
+        self.buttons.run_measurement.setIconSize(QtCore.QSize(40, 40))
 
         self.buttons.settings = helper.create_button(parent=sub_layout, title="Settings", only_icon=True,
                                                      slot=self.controller.show_settings)
-        self.buttons.utilities = helper.create_button(parent=sub_layout, title="Utilities",
+        self.buttons.utilities = helper.create_button(parent=sub_layout, title="Utilities", only_icon=True,
                                                       slot=self.controller.show_utilities)
 
         self.buttons.settings.setIcon(QtGui.QIcon("minipti/gui/images/settings.svg"))
-        self.buttons.settings.setIconSize(QtCore.QSize(30, 30))
+        self.buttons.settings.setIconSize(QtCore.QSize(40, 40))
         self.buttons.settings.setToolTip("Settings")
+        self.buttons.utilities.setIcon(QtGui.QIcon("minipti/gui/images/calculation.svg"))
+        self.buttons.utilities.setIconSize(QtCore.QSize(40, 40))
+        self.buttons.utilities.setToolTip("Utilities")
         self.layout().addWidget(sub_layout, 1, 0)
         # self.create_button(master=sub_layout, title="Clean Air", slot=self.controller.update_bypass)
 

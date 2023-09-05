@@ -37,7 +37,7 @@ class Inversion:
                               ([f"AC CH{i}" for i in range(1, 4)],
                               [f"AC Phase CH{i}" for i in range(1, 4)])]
 
-    def __init__(self, response_phases=None, sign=-1, interferometer=None,
+    def __init__(self, response_phases=None, sign=1, interferometer=None,
                  settings_path=f"{os.path.dirname(__file__)}/configs/settings.csv"):
         self.response_phases: np.ndarray = response_phases
         self.pti_signal: Union[float, np.ndarray] = 0
