@@ -12,7 +12,7 @@ from typing import Final, Union
 import json
 
 import dacite
-from numba import njit, prange
+from numba import jit
 from fastcrc import crc16
 from overrides import override
 import numpy as np
