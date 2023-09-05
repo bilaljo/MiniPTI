@@ -308,8 +308,6 @@ class Decimation:
                                                               index_label="Date")
             self.init_header = False
         if live:
-            # if self.save_raw_data and self.init_raw_data:
-            #    self._save_meta_data()
             self.process_raw_data()
             self._calculate_decimation()
         else:

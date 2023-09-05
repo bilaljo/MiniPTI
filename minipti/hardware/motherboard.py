@@ -5,6 +5,7 @@ import os
 import queue
 import threading
 import time
+import typing
 from collections import deque
 from dataclasses import dataclass
 from typing import Final, Union
@@ -173,8 +174,9 @@ class DAQData:
 
 
 class DAQ:
-    _SEQUENCE_NUMBER: Final = 8
-    PACKAGE_SIZE: Final = 4108
+    PACKAGE_SIZE: Final = 4104
+    _SEQUENZE_SIZE: Final = 8
+    RAW_DATA_SIZE: Final = PACKAGE_SIZE - _SEQUENZE_SIZE
     _WORD_SIZE: Final = 32
 
     def __init__(self, driver: "Driver"):
@@ -185,11 +187,11 @@ class DAQ:
         self.current_sample = 0
         self.config_path = f"{os.path.dirname(__file__)}/configs/motherboard/daq.json"
         self.driver = driver
-        self._ref_index = [(i, (i + 4)) for i in range(DAQ.PACKAGE_SIZE // DAQ._WORD_SIZE)]
+        self._ref_index = [(i, (i + 4)) for i in range(0, DAQ.RAW_DATA_SIZE, DAQ._WORD_SIZE)]
         self._ac_index = [[(i + 4 * (channel + 1), (i + 4 * (channel + 2))) for channel in range(3)]
-                          for i in range(DAQ.PACKAGE_SIZE // DAQ._WORD_SIZE)]
+                          for i in range(0, DAQ.RAW_DATA_SIZE, DAQ._WORD_SIZE)]
         self._dc_index = [[(i + 4 * (channel + 1) + 12, (i + 4 * (channel + 2) + 12)) for channel in range(3)]
-                          for i in range(DAQ.PACKAGE_SIZE // DAQ._WORD_SIZE)]
+                          for i in range(0, DAQ.RAW_DATA_SIZE, DAQ._WORD_SIZE)]
         self.load_configuration()
 
     def update_buffer_size(self) -> None:
@@ -197,10 +199,24 @@ class DAQ:
             logging.warning("Encoding is running. Need to pause is to update the buffer size")
             self.driver.running.clear()
         self.encoded_buffer = DAQData(np.empty(self.configuration.number_of_samples),
-                                      np.empty(shape=(3, self.configuration.ref_period)),
+                                      np.empty(shape=(3, self.configuration.number_of_samples)),
                                       np.empty(shape=(3, self.configuration.number_of_samples)))
 
-    @njit
+    def build_sample_package(self) -> Union[tuple[np.ndarray, np.ndarray, np.ndarray], None]:
+        """
+        Creates a package of samples that represents approximately 1 s data. It contains 8000
+        samples.
+        """
+        high_begin = np.argmax(self.encoded_buffer.ref_signal[:self.configuration.ref_period])
+        if high_begin != self.configuration.ref_period // 2:
+            logging.warning("Not synchron with reference signal")
+            self.reset()
+            return
+        self.driver.data.DAQ[PackageIndex.REF].put(self.encoded_buffer.ref_signal.copy(), block=False)
+        self.driver.data.DAQ[PackageIndex.DC].put(self.encoded_buffer.ac_coupled.copy(), block=False)
+        self.driver.data.DAQ[PackageIndex.AC].put(self.encoded_buffer.dc_coupled.copy(), block=False)
+
+    #@njit(parallel=True)
     def _encode_binary(self, raw_data: str) -> None:
         """
         A block of data has the following structure:
@@ -209,16 +225,20 @@ class DAQ:
         repeats periodically. It starts with below the first 10 bytes (meta information) and ends
         before the last 4 bytes (crc checksum).
         """
-        raw_data = raw_data[DAQ._SEQUENCE_NUMBER:]
-        for i in prange(DAQ.PACKAGE_SIZE // DAQ._WORD_SIZE):
-            self.encoded_buffer.ref_signal[i] = int(raw_data[self._ref_index[i][0]:self._ref_index[i][1]], base=16)
+        raw_data = raw_data[DAQ._SEQUENZE_SIZE:]
+        for i in range(DAQ.RAW_DATA_SIZE // DAQ._WORD_SIZE):
+            self.encoded_buffer.ref_signal[self.current_sample] = int(raw_data[self._ref_index[i][0]:self._ref_index[i][1]], base=16)
             for channel in range(3):
                 ac = Driver.binary_to_2_complement(
                     int(raw_data[self._ac_index[i][channel][0]:self._ac_index[i][channel][1]], base=16))
                 dc = int(raw_data[self._dc_index[i][channel][0]:self._dc_index[i][channel][1]], base=16)
-                self.encoded_buffer.dc_coupled[channel][i] = dc
-                self.encoded_buffer.dc_coupled[channel][i] = ac
-        self.current_sample += DAQ.PACKAGE_SIZE // DAQ._WORD_SIZE
+                self.encoded_buffer.dc_coupled[channel][self.current_sample] = dc
+                self.encoded_buffer.ac_coupled[channel][self.current_sample] = ac
+            self.current_sample += 1
+            if self.current_sample == self.configuration.number_of_samples:
+                self.current_sample -= self.configuration.number_of_samples
+                if self.driver.running.is_set():
+                    self.build_sample_package()
 
     def encode(self, data: str) -> None:
         """
@@ -228,18 +248,26 @@ class DAQ:
             - Byte 10 to 32 contain the data as period sequence of blocks in hex decimal
             - The last 4 bytes represent a CRC checksum in hex decimal
         """
-        self._sample_numbers.append(data[:DAQ._SEQUENCE_NUMBER])
+        self._sample_numbers.append(data[:DAQ._SEQUENZE_SIZE])
         if len(self._sample_numbers) > 1 and not self._check_package_difference():
             self.reset()
             self.synchronize = True
         self._encode_binary(data)
         if self.synchronize:
-            self.reset()
             self._synchronize_with_ref()
+
+    def high_begin(self) -> int:
+        high_begin = np.argmax(self.encoded_buffer.ref_signal[:self.configuration.ref_period])
+        return self.configuration.ref_period - high_begin
 
     def _synchronize_with_ref(self) -> None:
         logging.warning("Trying to synchronise")
-        self.current_sample -= np.argmin(self.encoded_buffer.ref_signal[:self.configuration.ref_period // 2])
+        high_begin = np.argmax(self.encoded_buffer.ref_signal[:self.configuration.ref_period])
+        # self.current_sample -= (self.configuration.ref_period // 2 + high_begin)
+        delete_index = 0
+        while np.sum(self.encoded_buffer.ref_signal[delete_index:self.configuration.ref_period // 2 + delete_index]):
+            self.current_sample -= 1
+            delete_index += 1
         if self.current_sample < self.configuration.ref_period // 2:
             return
         self.synchronize = False
@@ -288,6 +316,7 @@ class Driver(serial_device.Driver):
     samples.
     """
     _CRC_START: Final = 4
+    CRC_SIZE: Final = 4
 
     HARDWARE_ID: Final = b"0001"
     NAME: Final = "Motherboard"
@@ -351,11 +380,11 @@ class Driver(serial_device.Driver):
 
     @override
     def _encode(self, data: str) -> None:
-        if data[0] == "D" and len(data) == DAQ.PACKAGE_SIZE:
+        if data[0] == "D" and len(data) == DAQ.PACKAGE_SIZE + Driver.CRC_SIZE + 1:
             if not self._crc_check(data, "DAQ"):
                 return
             self.daq.encode(data[1:-Driver._CRC_START])
-        elif data[0] == "B" and len(data) == BMS.PACKAGE_SIZE:
+        elif data[0] == "B" and len(data) == BMS.PACKAGE_SIZE + 1:
             if self.bms.configuration.use_battery:
                 if not self._crc_check(data, "BMS"):
                     return
@@ -373,19 +402,6 @@ class Driver(serial_device.Driver):
             return False
         return True
 
-    def build_sample_package(self) -> None:
-        """
-        Creates a package of samples that represents approximately 1 s data. It contains 8000
-        samples.
-        """
-        if np.argmin(self.daq.encoded_buffer.ref_signal[:self.daq.configuration.ref_period // 2]):
-            logging.warning("Not synchron with reference signal")
-            self.daq.reset()
-            return
-        self.data.DAQ[PackageIndex.REF].put(self.daq.encoded_buffer.ref_signal.copy())
-        self.data.DAQ[PackageIndex.AC].put(self.daq.encoded_buffer.ac_coupled.copy())
-        self.data.DAQ[PackageIndex.DC].put(self.daq.encoded_buffer.dc_coupled.copy())
-
     def _process_data(self) -> None:
         self.daq.reset()
         self.data = PackageData([queue.Queue(maxsize=Driver._QUEUE_SIZE),
@@ -398,6 +414,4 @@ class Driver(serial_device.Driver):
                 self.reset()
                 self.new_run = False
             self._encode_data()
-            if self.running.is_set() and self.daq.current_sample == self.daq.configuration.number_of_samples:
-                self.build_sample_package()
         self.new_run = True

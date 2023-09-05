@@ -560,9 +560,10 @@ class LiveCalculation(Calculation):
         self.interferometer.load_settings()
 
     def _decimation(self) -> None:
-        self.pti.decimation.ref = np.array(self.motherboard.driver.ref_signal)
-        self.pti.decimation.dc_coupled = np.array(self.motherboard.driver.dc_coupled)
-        self.pti.decimation.ac_coupled = np.array(self.motherboard.driver.ac_coupled)
+        self.pti.decimation.raw_data.ref = self.motherboard.driver.ref_signal
+        self.pti.decimation.raw_data.dc = self.motherboard.driver.dc_coupled
+        self.pti.decimation.raw_data.ac = self.motherboard.driver.ac_coupled
+
         self.pti.decimation.decimate(live=True)
         signals.decimation_live.emit(self.pti_buffer)
 

@@ -35,7 +35,7 @@ class MainApplication(interface.MainApplication):
                                                      pump_laser=PumpLaser(),
                                                      probe_laser=ProbeLaser(),
                                                      tec=[Tec(laser=model.Tec.PUMP_LASER),
-                                                          Tec(laser=model.Tec.PUMP_LASER)])
+                                                          Tec(laser=model.Tec.PROBE_LASER)])
         self.logging_model = model.Logging()
         self.view = view.api.MainWindow(self.controllers)
         self.motherboard = model.Motherboard()

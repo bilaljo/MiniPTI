@@ -14,21 +14,6 @@ import pyqtgraph as pg
 from pyqtgraph import dockarea
 
 
-class DAQPlots(NamedTuple):
-    dc_signals: plots.DC
-    amplitudes: plots.Amplitudes
-    output_phases: plots.OutputPhases
-    interferometric_phase: plots.InterferometricPhase
-    sensitivity: plots.Sensitivity
-    symmetry: plots.Symmetry
-    pti_signal: plots.PTISignal
-
-
-class LaserPlots(NamedTuple):
-    current: tuple[plots.PumpLaserCurrent, plots.ProbeLaserCurrent]
-    temperature: tuple[plots.TecTemperature, plots.TecTemperature]
-
-
 @dataclass
 class Docks:
     home: pg.dockarea.Dock
@@ -37,11 +22,14 @@ class Docks:
 
 
 class Plots(NamedTuple):
+    dc: plots.DC
+    interferometric_phase: plots.InterferometricPhase
     probe_laser: plots.ProbeLaserCurrent
     pump_laser: plots.PumpLaserCurrent
     amplitudes: plots.Amplitudes
     output_phases: plots.OutputPhases
     sensitivity: plots.Sensitivity
+    pti_signal: plots.PTISignal
     tec: list[plots.TecTemperature]
 
 
@@ -55,23 +43,25 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setWindowIcon(QtGui.QIcon("minipti/gui/images/logo.png"))
         self.controllers = controllers
         self.dock_area = pg.dockarea.DockArea()
-        self.plots = Plots(plots.ProbeLaserCurrent(),
+        self.plots = Plots(plots.DC(),
+                           plots.InterferometricPhase(),
+                           plots.ProbeLaserCurrent(),
                            plots.PumpLaserCurrent(),
                            plots.Amplitudes(),
                            plots.OutputPhases(),
                            plots.Sensitivity(),
+                           plots.PTISignal(),
                            [plots.TecTemperature(model.Tec.PUMP_LASER),
                             plots.TecTemperature(model.Tec.PROBE_LASER)])
-        self.home = Home(self.controllers.home)
-        self.docks = [pg.dockarea.Dock(name="Home", widget=self.home),
+        self.docks = [pg.dockarea.Dock(name="Home", widget= Home(self.controllers.home)),
                       pg.dockarea.Dock(name="Probe Laser", widget=self._init_probe_laser()),
                       pg.dockarea.Dock(name="Pump Laser", widget=self._init_pump_laser()),
-                      pg.dockarea.Dock(name="DC Signals", widget=self.home.dc.window),
+                      pg.dockarea.Dock(name="DC Signals", widget=self.plots.dc.window),
                       pg.dockarea.Dock(name="Amplitudes", widget=self.plots.amplitudes.window),
                       pg.dockarea.Dock(name="Output Phases", widget=self.plots.amplitudes.window),
-                      pg.dockarea.Dock(name="Interferometric Phase", widget=self.home.interferometric_phase.window),
+                      pg.dockarea.Dock(name="Interferometric Phase", widget=self.plots.interferometric_phase.window),
                       pg.dockarea.Dock(name="Sensitivity", widget=self.plots.sensitivity.window),
-                      pg.dockarea.Dock(name="PTI Signal", widget=self.home.pti_signal.window)]
+                      pg.dockarea.Dock(name="PTI Signal", widget=self.plots.pti_signal.window)]
         for dock in self.docks:
             self.dock_area.addDock(dock)
         for i in range(len(self.docks) - 1, 0, -1):
