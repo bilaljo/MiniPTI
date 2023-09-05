@@ -718,7 +718,7 @@ class Motherboard(Serial):
 
     def _incoming_data(self) -> None:
         while self.driver.connected:
-            bms_data = self.driver.bms
+            bms_data = self.driver.bms_data
             bms_data.battery_temperature = Motherboard.centi_kelvin_to_celsius(bms_data.battery_temperature)
             signals.battery_state.emit(Battery(bms_data.battery_percentage, bms_data.minutes_left))
             if self.running:
@@ -1164,7 +1164,6 @@ class Tec(Serial):
         Serial.__init__(self)
         self.tec = self.driver.tec[channel]
         self.tec_signals = tec_signals[channel]
-        self.apply_configuration()
 
     @property
     def connected(self) -> bool:

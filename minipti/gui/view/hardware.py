@@ -103,6 +103,7 @@ class PumpLaser(QtWidgets.QWidget):
         self.current = [Slider(minimum=PumpLaser._MIN_CURRENT, maximum=PumpLaser._MAX_CURRENT, unit="Bit"),
                         Slider(minimum=PumpLaser._MIN_CURRENT, maximum=PumpLaser._MAX_CURRENT, unit="Bit")]
         self.mode_matrix = [[QtWidgets.QComboBox() for _ in range(3)], [QtWidgets.QComboBox() for _ in range(3)]]
+        self.enable_button: typing.Union[None, QtWidgets.QPushButton] = None
         self._init_frames()
         self._init_buttons()
         self.frames.driver_voltage.layout().addWidget(self.driver_voltage)
@@ -133,7 +134,7 @@ class PumpLaser(QtWidgets.QWidget):
 
     @QtCore.pyqtSlot(bool)
     def enable(self, state: bool):
-        helper.toggle_button(state, self.configuration_buttons.enable)
+        helper.toggle_button(state, self.enable_button)
 
     def _init_voltage_configuration(self) -> None:
         self.driver_voltage.slider.valueChanged.connect(self.controller.update_driver_voltage)
@@ -161,9 +162,9 @@ class PumpLaser(QtWidgets.QWidget):
         self.current[dac].update_value(index)
 
     def _init_frames(self) -> None:
-        self.frames.measured_values = helper.create_frame(parent=self, title="Measured Values", x_position=1,
+        self.frames.measured_values = helper.create_frame(parent=self, title="Measured Values", x_position=0,
                                                           y_position=0)
-        self.frames.driver_voltage = helper.create_frame(parent=self, title="Driver Voltage", x_position=2,
+        self.frames.driver_voltage = helper.create_frame(parent=self, title="Driver Voltage", x_position=1,
                                                          y_position=0)
         for i in range(2):
             self.frames.current[i] = helper.create_frame(parent=self, title=f"DAC {i + 1}", x_position=i + 2,
@@ -186,6 +187,7 @@ class PumpLaser(QtWidgets.QWidget):
                 sub_frames[i].layout().addWidget(self.mode_matrix[j][i])
             self.frames.current[j].layout().addWidget(dac_inner_frames[j])
         self.frames.configuration.layout().addWidget(self.driver_config, 4, 0)
+        self.enable_button = helper.create_button(self, title="Enable", slot=self.controller.enable)
 
 
 @dataclass
@@ -215,6 +217,7 @@ class ProbeLaser(QtWidgets.QWidget):
         self.laser_mode = QtWidgets.QComboBox()
         self.photo_gain = QtWidgets.QComboBox()
         self.current_display = QtWidgets.QLabel("0 mA")
+        self.enable_button: typing.Union[None, QtWidgets.QPushButton] = None
         self._init_frames()
         self._init_slider()
         self._init_buttons()
@@ -242,7 +245,7 @@ class ProbeLaser(QtWidgets.QWidget):
 
     @QtCore.pyqtSlot(bool)
     def enable(self, state: bool):
-        helper.toggle_button(state, self.configuration_buttons.enable)
+        helper.toggle_button(state, self.enable_button)
 
     @functools.singledispatchmethod
     def _update_max_current(self, value: int):
@@ -291,6 +294,7 @@ class ProbeLaser(QtWidgets.QWidget):
         sub_layout.layout().addWidget(self.photo_gain)
         self.frames.photo_diode_gain.layout().addWidget(sub_layout)
         self.frames.configuration.layout().addWidget(self.driver_config, 3, 0)
+        self.enable_button = helper.create_button(self, title="Enable", slot=self.controller.enable)
 
     @QtCore.pyqtSlot(int)
     def _update_photo_gain(self, index: int) -> None:
@@ -331,10 +335,12 @@ class Tec(QtWidgets.QWidget):
         self.text_fields = TecTextFields(QtWidgets.QLineEdit(), QtWidgets.QLineEdit(), QtWidgets.QLineEdit(),
                                          QtWidgets.QLineEdit(), QtWidgets.QLineEdit(), QtWidgets.QLineEdit())
         self.temperature_display = QtWidgets.QLabel("NaN °C")
+        self.enable_button: typing.Union[None, QtWidgets.QPushButton] = None
         self._init_frames()
         self._init_text_fields()
         self._init_signals()
         self._init_buttons()
+        self.frames.temperature.layout().addWidget(self.temperature_display)
         self.controller.fire_configuration_change()
 
     def _init_signals(self) -> None:
@@ -361,10 +367,11 @@ class Tec(QtWidgets.QWidget):
 
     def _init_buttons(self) -> None:
         self.frames.configuration.layout().addWidget(self.driver_config, 3, 0)
+        self.enable_button = helper.create_button(self, title="Enable", slot=self.controller.enable)
 
     @QtCore.pyqtSlot(bool)
     def update_enable(self, state: bool):
-        helper.toggle_button(state, self.configuration_buttons.enable)
+        helper.toggle_button(state, self.enable_button)
 
     @staticmethod
     def _update_text_field(text_field: QtWidgets.QLineEdit, floating=True):

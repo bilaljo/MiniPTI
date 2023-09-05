@@ -173,8 +173,8 @@ class DAQData:
 
 
 class DAQ:
-    _SEQUENCE_NUMBER: Final = 9
-    PACKAGE_SIZE: Final = 4109
+    _SEQUENCE_NUMBER: Final = 8
+    PACKAGE_SIZE: Final = 4108
     _WORD_SIZE: Final = 32
 
     def __init__(self, driver: "Driver"):
@@ -185,6 +185,11 @@ class DAQ:
         self.current_sample = 0
         self.config_path = f"{os.path.dirname(__file__)}/configs/motherboard/daq.json"
         self.driver = driver
+        self._ref_index = [(i, (i + 4)) for i in range(DAQ.PACKAGE_SIZE // DAQ._WORD_SIZE)]
+        self._ac_index = [[(i + 4 * (channel + 1), (i + 4 * (channel + 2))) for channel in range(3)]
+                          for i in range(DAQ.PACKAGE_SIZE // DAQ._WORD_SIZE)]
+        self._dc_index = [[(i + 4 * (channel + 1) + 12, (i + 4 * (channel + 2) + 12)) for channel in range(3)]
+                          for i in range(DAQ.PACKAGE_SIZE // DAQ._WORD_SIZE)]
         self.load_configuration()
 
     def update_buffer_size(self) -> None:
@@ -195,7 +200,7 @@ class DAQ:
                                       np.empty(shape=(3, self.configuration.ref_period)),
                                       np.empty(shape=(3, self.configuration.number_of_samples)))
 
-    @njit(parallel=True)
+    @njit
     def _encode_binary(self, raw_data: str) -> None:
         """
         A block of data has the following structure:
@@ -205,14 +210,15 @@ class DAQ:
         before the last 4 bytes (crc checksum).
         """
         raw_data = raw_data[DAQ._SEQUENCE_NUMBER:]
-        for i in prange(0, len(raw_data), DAQ._WORD_SIZE):
-            self.encoded_buffer.ref_signal[i] = int(raw_data[i:i + 4], base=16)
+        for i in prange(DAQ.PACKAGE_SIZE // DAQ._WORD_SIZE):
+            self.encoded_buffer.ref_signal[i] = int(raw_data[self._ref_index[i][0]:self._ref_index[i][1]], base=16)
             for channel in range(3):
-                dc = int(raw_data[i + 16 + channel * 4:i + 20 + channel * 4], base=16)
+                ac = Driver.binary_to_2_complement(
+                    int(raw_data[self._ac_index[i][channel][0]:self._ac_index[i][channel][1]], base=16))
+                dc = int(raw_data[self._dc_index[i][channel][0]:self._dc_index[i][channel][1]], base=16)
                 self.encoded_buffer.dc_coupled[channel][i] = dc
-                ac = Driver.binary_to_2_complement(int(raw_data[i + 16 + channel * 4:i + 20 + channel * 4], base=16))
                 self.encoded_buffer.dc_coupled[channel][i] = ac
-        self._sample_numbers += len(raw_data) // DAQ._WORD_SIZE
+        self.current_sample += DAQ.PACKAGE_SIZE // DAQ._WORD_SIZE
 
     def encode(self, data: str) -> None:
         """
@@ -346,13 +352,14 @@ class Driver(serial_device.Driver):
     @override
     def _encode(self, data: str) -> None:
         if data[0] == "D" and len(data) == DAQ.PACKAGE_SIZE:
-            if not self._crc_check(data[1:], "DAQ"):
+            if not self._crc_check(data, "DAQ"):
                 return
             self.daq.encode(data[1:-Driver._CRC_START])
         elif data[0] == "B" and len(data) == BMS.PACKAGE_SIZE:
-            if not self._crc_check(data[1:-Driver._CRC_START], "BMS"):
-                return
-            self.bms.encode(data)
+            if self.bms.configuration.use_battery:
+                if not self._crc_check(data, "BMS"):
+                    return
+                self.bms.encode(data)
         elif data[0] == "S" and len(data) == 7:
             self._check_ack(data)
 

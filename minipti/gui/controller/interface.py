@@ -169,6 +169,15 @@ class Utilities(ABC):
 
 class Driver(ABC):
     @abstractmethod
+    def enable(self) -> None:
+        ...
+
+    @property
+    @abstractmethod
+    def view(self) -> QtWidgets.QWidget:
+        ...
+
+    @abstractmethod
     def save_configuration(self) -> None:
         ...
 
@@ -184,11 +193,11 @@ class Driver(ABC):
     def apply_configuration(self) -> None:
         ...
 
-    @abstractmethod
+    #@abstractmethod
     def find(self) -> None:
         ...
 
-    @abstractmethod
+    #@abstractmethod
     def connect(self) -> None:
         ...
 

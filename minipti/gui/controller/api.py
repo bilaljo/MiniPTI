@@ -41,7 +41,7 @@ class MainApplication(interface.MainApplication):
         self.motherboard = model.Motherboard()
         self.laser = model.Laser()
         self.tec = model.Tec()
-        threading.Thread(target=self._controllers.utilities.find_devices, name="Find Devices Thread",
+        threading.Thread(target=self._controllers.utilities.init_devices, name="Init Devices Thread",
                          daemon=True).start()
         # threading.excepthook = self.thread_exception
 
@@ -98,11 +98,6 @@ class Home(interface.Home):
         self.utilities = view.utilities.UtilitiesWindow(Utilities())
         self.calculation_model = model.LiveCalculation()
         self.motherboard = model.Motherboard()
-        self.laser = model.Laser()
-        self.pump_laser = model.PumpLaser()
-        self.probe_laser = model.ProbeLaser()
-        self.pump_laser_tec = model.Tec(model.Tec.PUMP_LASER)
-        self.probe_laser_tec = model.Tec(model.Tec.PROBE_LASER)
         self.motherboard.initialize()
 
     @override
@@ -142,11 +137,6 @@ class Settings(interface.Settings):
         self.last_file_path = os.getcwd()
         self.calculation_model = model.LiveCalculation()
         self.motherboard = model.Motherboard()
-        self.laser = model.Laser()
-        self.pump_laser = model.PumpLaser()
-        self.probe_laser = model.ProbeLaser()
-        self.pump_laser_tec = model.Tec(model.Tec.PUMP_LASER)
-        self.probe_laser_tec = model.Tec(model.Tec.PROBE_LASER)
         self.raw_data_changed.connect(self.calculation_model.set_raw_data_saving)
         self.view.measurement_configuration.destination_folder_label.setText(self.destination_folder.folder)
         self.motherboard.fire_configuration_change()
@@ -193,12 +183,6 @@ class Settings(interface.Settings):
         if file_path:
             self.settings_table_model.file_path = file_path
             self.settings_table_model.load()
-
-    def apply_configurations(self) -> None:
-        self.pump_laser.apply_configuration()
-        self.probe_laser.apply_configuration()
-        self.pump_laser_tec.apply_configuration()
-        self.probe_laser_tec.apply_configuration()
 
     @override
     def set_destination_folder(self) -> None:
@@ -413,15 +397,11 @@ def _string_to_number(parent: QtWidgets.QWidget, string_number: str, cast: typin
         raise ValueError
 
 
-class Laser:
+class Laser(interface.Driver):
     def __init__(self):
+        interface.Driver.__init__(self)
         self.laser = model.Laser()
         self.last_file_path = os.getcwd()
-
-    @property
-    @abc.abstractmethod
-    def view(self) -> QtWidgets.QWidget:
-        ...
 
     def load_configuration(self) -> None:
         config_path, self.last_file_path = _get_file_path(self.view, "Laser Driver", self.last_file_path,
@@ -466,7 +446,8 @@ class PumpLaser(Laser):
     def view(self) -> view.hardware.PumpLaser:
         return self._view
 
-    def enable_pump_laser(self) -> None:
+    @override
+    def enable(self) -> None:
         if not self.laser.connected:
             QtWidgets.QMessageBox.critical(self.view, "IO Error",
                                            "Cannot enable Pump Laser. Pump Laser is not connected.")
@@ -518,7 +499,8 @@ class ProbeLaser(Laser):
     def view(self) -> view.hardware.ProbeLaser:
         return self._view
 
-    def enable_laser(self) -> None:
+    @override
+    def enable(self) -> None:
         if not self.laser.connected:
             QtWidgets.QMessageBox.critical(self.view, "IO Error",
                                            "Cannot enable Tec Driver of Probe Laser. Tec Driver is not connected.")
@@ -554,12 +536,10 @@ class ProbeLaser(Laser):
         self.laser.fire_configuration_change()
 
 
-class Tec:
+class Tec(interface.Driver):
     def __init__(self, laser: int):
         self.tec = model.Tec(laser)
         self.laser = laser
-        self.heating = False
-        self.cooling = False
         self._view = view.hardware.Tec(self, laser)
         self.last_file_path = os.getcwd()
 
@@ -568,15 +548,18 @@ class Tec:
     def view(self) -> view.hardware.Tec:
         return self._view
 
+    @override
     def save_configuration_as(self) -> None:
         file_path = save_as(parent=self.view, file_type="JSON File", file_extension="json", name="TEC Configuration")
         if file_path:
             self.tec.config_path = file_path  # The actual file path
             self.tec.save_configuration()
 
+    @override
     def save_configuration(self) -> None:
         self.tec.save_configuration()
 
+    @override
     def load_configuration(self) -> None:
         config_path, self.last_file_path = _get_file_path(self.view, "TEC Driver", self.last_file_path,
                                                           "JSON File (*.json);; All Files (*)")
@@ -587,9 +570,11 @@ class Tec:
         self.tec.load_configuration()
         self.fire_configuration_change()
 
+    @override
     def apply_configuration(self) -> None:
         self.tec.apply_configuration()
 
+    @override
     def enable(self) -> None:
         if not self.tec.connected:
             QtWidgets.QMessageBox.critical(self.view, "IO Error",
@@ -637,6 +622,7 @@ class Tec:
         except ValueError:
             self.tec.max_power = 0
 
+    @override
     def fire_configuration_change(self) -> None:
         self.tec.fire_configuration_change()
 

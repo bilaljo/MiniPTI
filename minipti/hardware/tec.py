@@ -56,6 +56,12 @@ class Driver(serial_device.Driver):
         serial_device.Driver.__init__(self)
         self.tec = [Tec(1, self), Tec(2, self)]
 
+    @override
+    def open(self):
+        super().open()
+        self.tec[0].apply_configuration()
+        self.tec[1].apply_configuration()
+
     @property
     @override
     def device_id(self) -> bytes:

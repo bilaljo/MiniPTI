@@ -4,7 +4,6 @@ from typing import NamedTuple, Union
 
 from PyQt5 import QtWidgets, QtCore, QtGui
 from PyQt5.QtCore import Qt
-import qtawesome as qta
 
 from minipti.gui.view import helper
 from minipti.gui.view import plots
@@ -37,6 +36,15 @@ class Docks:
     amplitudes: pg.dockarea.Dock
 
 
+class Plots(NamedTuple):
+    probe_laser: plots.ProbeLaserCurrent
+    pump_laser: plots.PumpLaserCurrent
+    amplitudes: plots.Amplitudes
+    output_phases: plots.OutputPhases
+    sensitivity: plots.Sensitivity
+    tec: list[plots.TecTemperature]
+
+
 class MainWindow(QtWidgets.QMainWindow):
     HORIZONTAL_SIZE = 1200
     VERTICAL_SIZE = 1000
@@ -47,15 +55,23 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setWindowIcon(QtGui.QIcon("minipti/gui/images/logo.png"))
         self.controllers = controllers
         self.dock_area = pg.dockarea.DockArea()
-        self.docks = [pg.dockarea.Dock(name="Home", widget=Home(self.controllers.home)),
+        self.plots = Plots(plots.ProbeLaserCurrent(),
+                           plots.PumpLaserCurrent(),
+                           plots.Amplitudes(),
+                           plots.OutputPhases(),
+                           plots.Sensitivity(),
+                           [plots.TecTemperature(model.Tec.PUMP_LASER),
+                            plots.TecTemperature(model.Tec.PROBE_LASER)])
+        self.home = Home(self.controllers.home)
+        self.docks = [pg.dockarea.Dock(name="Home", widget=self.home),
                       pg.dockarea.Dock(name="Probe Laser", widget=self._init_probe_laser()),
                       pg.dockarea.Dock(name="Pump Laser", widget=self._init_pump_laser()),
-                      pg.dockarea.Dock(name="DC Signals", widget=plots.DC().window),
-                      pg.dockarea.Dock(name="Amplitudes", widget=plots.Amplitudes().window),
-                      pg.dockarea.Dock(name="Output Phases", widget=plots.OutputPhases().window),
-                      pg.dockarea.Dock(name="Interferometric Phase", widget=plots.InterferometricPhase().window),
-                      pg.dockarea.Dock(name="Sensitivity", widget=plots.Sensitivity().window),
-                      pg.dockarea.Dock(name="PTI Signal", widget=plots.PTISignal().window)]
+                      pg.dockarea.Dock(name="DC Signals", widget=self.home.dc.window),
+                      pg.dockarea.Dock(name="Amplitudes", widget=self.plots.amplitudes.window),
+                      pg.dockarea.Dock(name="Output Phases", widget=self.plots.amplitudes.window),
+                      pg.dockarea.Dock(name="Interferometric Phase", widget=self.home.interferometric_phase.window),
+                      pg.dockarea.Dock(name="Sensitivity", widget=self.plots.sensitivity.window),
+                      pg.dockarea.Dock(name="PTI Signal", widget=self.home.pti_signal.window)]
         for dock in self.docks:
             self.dock_area.addDock(dock)
         for i in range(len(self.docks) - 1, 0, -1):
@@ -84,14 +100,14 @@ class MainWindow(QtWidgets.QMainWindow):
         tec_ch = QtWidgets.QWidget()
         tec_ch.setLayout(QtWidgets.QHBoxLayout())
         tec_ch.layout().addWidget(hardware.Tec(self.controllers.tec[laser], laser))
-        tec_ch.layout().addWidget(plots.TecTemperature(laser).window)
+        tec_ch.layout().addWidget(self.plots.tec[laser].window)
         return tec_ch
 
     def _init_probe_laser(self) -> pg.dockarea.DockArea:
         probe_laser = QtWidgets.QWidget()
         probe_laser.setLayout(QtWidgets.QHBoxLayout())
         probe_laser.layout().addWidget(hardware.ProbeLaser(self.controllers.probe_laser))
-        probe_laser.layout().addWidget(plots.ProbeLaserCurrent().window)
+        probe_laser.layout().addWidget(self.plots.probe_laser.window)
         dock_area = pg.dockarea.DockArea()
         tec = self._init_tec(model.Tec.PROBE_LASER)
         laser_dock = pg.dockarea.Dock(name="Laser Driver", widget=probe_laser)
@@ -105,7 +121,7 @@ class MainWindow(QtWidgets.QMainWindow):
         pump_laser = QtWidgets.QWidget()
         pump_laser.setLayout(QtWidgets.QHBoxLayout())
         pump_laser.layout().addWidget(hardware.PumpLaser(self.controllers.pump_laser))
-        pump_laser.layout().addWidget(plots.PumpLaserCurrent().window)
+        pump_laser.layout().addWidget(self.plots.pump_laser.window)
         dock_area = pg.dockarea.DockArea()
         tec = self._init_tec(model.Tec.PUMP_LASER)
         laser_dock = pg.dockarea.Dock(name="Laser Driver", widget=pump_laser)
@@ -153,14 +169,15 @@ class Home(QtWidgets.QTabWidget):
         QtWidgets.QTabWidget.__init__(self)
         self.setLayout(QtWidgets.QGridLayout())
         self.controller = home_controller
-        self.dc_signals = plots.DC()
-        self.pti_signal = plots.PTISignal()
         self.buttons = HomeButtons()
         self._init_buttons()
         self._init_signals()
+        self.pti_signal = plots.PTISignal()
+        self.dc = plots.DC()
+        self.interferometric_phase = plots.InterferometricPhase()
         sublayout = QtWidgets.QWidget()
         sublayout.setLayout(QtWidgets.QHBoxLayout())
-        sublayout.layout().addWidget(self.dc_signals.window)
+        sublayout.layout().addWidget(self.dc.window)
         sublayout.layout().addWidget(self.pti_signal.window)
         self.layout().addWidget(sublayout, 0, 0)
 
