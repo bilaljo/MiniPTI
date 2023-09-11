@@ -18,8 +18,7 @@ class Plotting(pg.PlotWidget):
     def __init__(self):
         pg.PlotWidget.__init__(self)
         pg.setConfigOption('leftButtonPan', False)
-        pg.setConfigOption("useNumba", True)
-        pg.setConfigOptions(antialias=False)
+        pg.setConfigOptions(antialias=True)
         self.window = pg.GraphicsLayoutWidget()
         self.plot = self.window.addPlot()
         self.curves = self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE))

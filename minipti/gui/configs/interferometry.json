@@ -19,8 +19,8 @@
                     "tec_driver": true
                 },
                 "pump_laser": {
-                    "laser_driver": true,
-                    "tec_driver": true
+                    "laser_driver": false,
+                    "tec_driver": false
                 }
             },
             "plots": {

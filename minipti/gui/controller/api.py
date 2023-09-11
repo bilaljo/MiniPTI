@@ -134,8 +134,6 @@ class Home(interface.Home):
 
     @override
     def on_run(self) -> None:
-        if self.configuration.on_run.DAQ:
-            self.enable_motherboard()
         if self.configuration.on_run.pump_laser.laser_driver:
             self.pump_laser.enabled = not self.pump_laser.enabled
         if self.configuration.on_run.probe_lasler.laser_driver:
@@ -144,6 +142,8 @@ class Home(interface.Home):
             self.tec[model.Tec.PUMP_LASER].enabled = not self.tec[model.Tec.PUMP_LASER].enabled
         if self.configuration.on_run.probe_lasler.tec_driver:
             self.tec[model.Tec.PROBE_LASER].enabled = not self.tec[model.Tec.PROBE_LASER].enabled
+        if self.configuration.on_run.DAQ:
+            self.enable_motherboard()
 
     @override
     def show_settings(self) -> None:
