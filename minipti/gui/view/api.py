@@ -85,7 +85,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.dock_area.moveDock(self.docks[i - 1], "above", self.docks[i])
         self.setCentralWidget(self.dock_area)
         self.logging_window = QtWidgets.QLabel()
-        self.log = dockarea.Dock("Log", size=(500, 1))
+        self.log = dockarea.Dock("Log", size=(1, 1))
         self.scroll = QtWidgets.QScrollArea(widgetResizable=True)
         self.battery = dockarea.Dock("Battery", size=(1, 1))
         self.charge_level = QtWidgets.QLabel("NaN % left")
@@ -152,10 +152,9 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.controllers.configuration.logging.console:
             self.dock_area.addDock(self.log, "bottom")
             self.scroll.setWidget(self.logging_window)
-        if self.controllers.configuration.battery.use:
-            self.dock_area.addDock(self.battery, "bottom")
-            self.dock_area.moveDock(self.log, "left", self.battery)
-        #self.layout().addWidget(dock_area)
+        # if self.controllers.configuration.battery.use:
+            # self.dock_area.addDock(self.battery, "bottom")
+            # self.dock_area.moveDock(self.log, "left", self.battery)
 
     def closeEvent(self, close_event):
         close = QtWidgets.QMessageBox.question(self, "QUIT", "Are you sure you want to close?",
