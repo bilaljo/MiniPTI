@@ -1,6 +1,9 @@
 https://freesvg.org/qubodup-cog-cogwheel-gear-zahnrad
 https://publicdomainvectors.org/en/free-clipart/Vector-clip-art-of-gray-computer-spreadsheet-document-icon/21207.html
 https://freesvg.org/play-button
+https://publicdomainvectors.org/en/free-clipart/International-symbol-for-USB-vector-clip-art/20833.html
+https://publicdomainvectors.org/de/kostenlose-vektorgrafiken/Vektor-Bild-der-dreieckigen-Laser-Strahl-Warnschild/17874.html
+<a href="https://www.flaticon.com/free-icons/temperature-control" title="temperature control icons">Temperature control icons created by Andrean Prabowo - Flaticon</a>
 # MiniPTI
 
 <p style="text-align: center;">
