@@ -15,4 +15,8 @@ tzdata==2023.3
 pythonnet==3.0.2; platform_system == "Windows"
 overrides==7.4.0
 pyqtdarktheme==2.1.0
+matplotlib==3.7.2
+markdown==3.4.4
+qtwidgets==1.1
+darkdetect[macos-listener]
 numba==0.57.1
