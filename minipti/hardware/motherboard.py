@@ -209,9 +209,9 @@ class DAQ:
         self.load_configuration()
 
     def update_buffer_size(self) -> None:
-        if self.driver.running.is_set():
+        if self.running.is_set():
             logging.warning("Encoding is running. Need to pause is to update the buffer size")
-            self.driver.running.clear()
+            self.running.clear()
         self.encoded_buffer = DAQData(np.empty(self.configuration.number_of_samples),
                                       np.empty(shape=(DAQ._AC_CHANNELS, self.configuration.number_of_samples)),
                                       np.empty(shape=(DAQ._DC_CHANNELS, self.configuration.number_of_samples)))
@@ -227,8 +227,8 @@ class DAQ:
             self.reset()
             return
         self.driver.data.DAQ[PackageIndex.REF].put(self.encoded_buffer.ref_signal.copy(), block=False)
-        self.driver.data.DAQ[PackageIndex.DC].put(self.encoded_buffer.ac_coupled.copy(), block=False)
-        self.driver.data.DAQ[PackageIndex.AC].put(self.encoded_buffer.dc_coupled.copy(), block=False)
+        self.driver.data.DAQ[PackageIndex.DC].put(self.encoded_buffer.dc_coupled[:3].copy(), block=False)
+        self.driver.data.DAQ[PackageIndex.AC].put(self.encoded_buffer.ac_coupled.copy(), block=False)
 
     def _encode_binary(self, raw_data: str, i: int) -> None:
         """
@@ -342,7 +342,6 @@ class Driver(serial_device.Driver):
 
     def __init__(self):
         serial_device.Driver.__init__(self)
-        self.running = threading.Event()
         self.daq = DAQ(self)
         self.bms = BMS(self)
         self.valve = Valve(self)
@@ -404,7 +403,7 @@ class Driver(serial_device.Driver):
         elif self.bms.running.is_set() and data[0] == "B" and len(data) == BMS.PACKAGE_SIZE + 1:
             if not self._crc_check(data, "BMS"):
                 return
-            self.bms.encode(data)
+            self.bms.encode(data[1:-Driver.CRC_SIZE])
         elif data[0] == "S" and len(data) == 7:
             self._check_ack(data)
 

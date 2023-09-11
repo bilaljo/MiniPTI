@@ -585,12 +585,12 @@ class LiveCalculation(Calculation):
 
     def _run_pti_inversion(self):
         self._init_calculation()
-        while self.motherboard.driver.running.is_set():
+        while self.motherboard.driver.daq.running.is_set():
             self._decimation()
             self._pti_inversion()
 
     def _run_characterization(self) -> None:
-        while self.motherboard.driver.running.is_set():
+        while self.motherboard.driver.daq.running.is_set():
             self.interferometry_characterization.characterise(live=True)
             self.characterisation_buffer.append(self.interferometry_characterization, self.interferometer)
             daq_signals.characterization_live.emit(self.characterisation_buffer)
@@ -757,7 +757,7 @@ class Motherboard(Serial):
         return round((temperature - 273.15) / 100, 2)
 
     def _incoming_data(self) -> None:
-        while self.driver.connected:
+        while self.driver.connected.is_set():
             bms_data = self.driver.bms_data
             bms_data.battery_temperature = Motherboard.centi_kelvin_to_celsius(bms_data.battery_temperature)
             signals.battery_state.emit(Battery(bms_data.battery_percentage, bms_data.minutes_left))
@@ -788,11 +788,11 @@ class Motherboard(Serial):
             # Before we start a new run, we clear all old data
             self.driver.reset()
             daq_signals.clear.emit()
-            self.driver.running.set()
+            self.driver.daq.running.set()
             daq_signals.running.emit(True)
             self.running_event.set()
         else:
-            self.driver.running.clear()
+            self.driver.daq.running.clear()
             daq_signals.running.emit(False)
             self.running_event.clear()
 
@@ -983,7 +983,6 @@ class PumpLaser(Laser):
     def __init__(self):
         Laser.__init__(self)
         self.pump_laser = self.driver.high_power_laser
-        self.apply_configuration()
 
     @property
     def connected(self) -> bool:
@@ -1121,7 +1120,6 @@ class ProbeLaser(Laser):
     def __init__(self):
         Laser.__init__(self)
         self.probe_laser = self.driver.low_power_laser
-        self.apply_configuration()
 
     @property
     def connected(self) -> bool:

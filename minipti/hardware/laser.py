@@ -40,6 +40,8 @@ class Driver(serial_device.Driver):
         super().open()
         self.high_power_laser.initialize()
         self.low_power_laser.initialize()
+        self.high_power_laser.apply_configuration()
+        self.low_power_laser.apply_configuration()
         # Disable lasers, if they were enabled by default, for safety
         self.low_power_laser.enabled = False
         self.high_power_laser.enabled = False
@@ -218,9 +220,9 @@ class LowPowerLaser(Laser):
 
     @override
     def apply_configuration(self) -> None:
-        # self.set_mode()
+        self.set_mode()
         self.set_current()
-        # self.set_photo_diode_gain()
+        self.set_photo_diode_gain()
 
     def set_mode(self) -> None:
         if self.configuration.mode.constant_light:

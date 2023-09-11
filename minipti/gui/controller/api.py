@@ -2,6 +2,7 @@ import abc
 import logging
 import os
 import threading
+import time
 import typing
 from dataclasses import dataclass
 
@@ -76,11 +77,13 @@ class MainApplication(interface.MainApplication):
 
     @override
     def close(self) -> None:
-        self.motherboard.driver.running.clear()
+        self.motherboard.driver.daq.running.clear()
+        self.motherboard.driver.bms.running.clear()
         self.motherboard.driver.close()
         self.laser.driver.close()
         self.tec.close()
         self.view.close()
+        time.sleep(0.1)
         QCoreApplication.quit()
 
     @override

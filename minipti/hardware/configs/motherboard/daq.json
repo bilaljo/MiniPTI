@@ -1,6 +1,6 @@
 {
     "DAQ": {
-        "number_of_samples": 1600,
+        "number_of_samples": 8000,
         "ref_period": 100
     }
 }

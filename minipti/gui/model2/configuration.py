@@ -1,25 +1,27 @@
+import typing
 from dataclasses import dataclass
 
 
-@dataclass
+@dataclass(frozen=True)
 class Logging:
     console: bool = True
     file: bool = True
 
 
-@dataclass
+@dataclass(frozen=True)
 class TEC:
     probe_laser: bool = True
     pump_laser: bool = True
 
 
-@dataclass
+@dataclass(frozen=True)
 class Laser:
-    probe_laser: bool = True
-    pump_laser: bool = True
+    use: bool = True
+    tec_driver: bool = True
+    laser_driver: bool = True
 
 
-@dataclass
+@dataclass(frozen=True)
 class OnRun:
     DAQ: bool = True
     BMS: bool = True
@@ -27,14 +29,14 @@ class OnRun:
     tec: TEC = TEC()
 
 
-@dataclass
+@dataclass(frozen=True)
 class Plots:
     dc_signals: bool = True
     interferometric_phase: bool = False
     pti_signal: bool = True
 
 
-@dataclass
+@dataclass(frozen=True)
 class Home:
     use: bool = True
     use_utilities: bool = True
@@ -42,46 +44,39 @@ class Home:
     plots: Plots = Plots()
 
 
-@dataclass
+@dataclass(frozen=True)
 class SystemSettings:
     interferometric: bool = True
     response_phases: bool = True
 
 
-@dataclass
+@dataclass(frozen=True)
 class Settings:
     valve: bool = True
     measurement_settings: bool = True
     system_settings: SystemSettings = SystemSettings()
 
 
-@dataclass
+@dataclass(frozen=True)
 class Devices:
     daq: bool = True
     laser_driver: bool = True
     tec_driber: bool = True
 
 
-@dataclass
+@dataclass(frozen=True)
 class Utilities:
     calculate: bool = True
     plot: bool = True
     devices: Devices = Devices()
 
 
-@dataclass
-class Laser:
-    use: bool = True
-    tec_driver: bool = True
-    laser_driver: bool = True
-
-
-@dataclass
+@dataclass(frozen=True)
 class Plot:
     use: bool = True
 
 
-@dataclass
+@dataclass(frozen=True)
 class Plots:
     dc_signals: Plot = Plot()
     amplitudes: Plot = Plot()
@@ -91,12 +86,12 @@ class Plots:
     pti_signal: Plot = Plot()
 
 
-@dataclass
+@dataclass(frozen=True)
 class Battery:
     use: bool = True
 
 
-@dataclass
+@dataclass(frozen=True)
 class GUI:
     logging: Logging = Logging()
     battery: Battery = Battery()

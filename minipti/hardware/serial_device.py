@@ -178,10 +178,10 @@ class Driver(ABC):
 
     @final
     def run(self) -> None:
-        threading.Thread(target=self.write, name=f"{self.device_name} Write Thread", daemon=True).start()
+        threading.Thread(target=self._write, name=f"{self.device_name} Write Thread", daemon=True).start()
         if platform.system() != "Windows":
             threading.Thread(target=self._receive, name=f"{self.device_name} Receive Thread", daemon=True).start()
-        threading.Thread(target=self._process_data, name=f"{self.device_name} Processing Thread").start()
+        threading.Thread(target=self._process_data, name=f"{self.device_name} Processing Thread", daemon=True).start()
 
     @final
     def get_hardware_id(self) -> Union[bytes, None]:
