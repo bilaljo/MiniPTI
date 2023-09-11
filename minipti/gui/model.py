@@ -48,14 +48,9 @@ class ThemeSignal(QtCore.QObject):
 theme_signal = ThemeSignal()
 
 
-class ThemeObserver(QtCore.QThread):
-    def __init__(self):
-        QtCore.QThread.__init__(self)
-        self.init = False
-
-    def run(self) -> None:
-        theme_signal.changed.emit(darkdetect.theme())
-        darkdetect.listener(lambda x: theme_signal.changed.emit(x))
+def theme_observer() -> None:
+    theme_signal.changed.emit(darkdetect.theme())
+    darkdetect.listener(lambda x: theme_signal.changed.emit(x))
 
 
 def parse_configuration() -> configuration.GUI:

@@ -52,10 +52,8 @@ class MainApplication(interface.MainApplication):
         self.tec = model.Tec()
         threading.Thread(target=self._controllers.utilities.init_devices, name="Init Devices Thread",
                          daemon=True).start()
-        self.theme_observer = model.ThemeObserver()
         model.theme_signal.changed.connect(self.update_theme)
-        self.theme_observer.setPriority(QtCore.QThread.IdlePriority)
-        self.theme_observer.start()
+        threading.Thread(target=model.theme_observer, daemon=True).start()
         # threading.excepthook = self.thread_exception
 
     @QtCore.pyqtSlot(str)
