@@ -2,7 +2,6 @@ from abc import abstractmethod, ABC
 
 import pandas as pd
 import pyqtgraph as pg
-from pyqtgraph import dockarea
 from PyQt5 import QtCore
 from overrides import override
 
@@ -19,13 +18,41 @@ class Plotting(pg.PlotWidget):
     def __init__(self):
         pg.PlotWidget.__init__(self)
         pg.setConfigOption('leftButtonPan', False)
-        pg.setConfigOptions(antialias=True)
-        pg.setConfigOption('background', "k")
+        pg.setConfigOption("useNumba", True)
+        # pg.setConfigOptions(antialias=True)
         self.window = pg.GraphicsLayoutWidget()
         self.plot = self.window.addPlot()
         self.curves = self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE))
         self.plot.showGrid(x=True, y=True)
-        self.plot.addLegend()
+        self.legend = self.plot.addLegend()
+
+    def update_theme(self, theme: str) -> None:
+        if theme == "Dark":
+            self.window.setBackground("k")
+            try:
+                self.plot.getAxis('bottom').setPen('w')
+                self.plot.getAxis("left").setPen('w')
+                self.legend.setLabelTextColor("w")
+            except TypeError:
+                for channel in range(len(self.plot)):
+                    self.plot[channel].getAxis('bottom').setPen('w')
+                    self.plot[channel].getAxis('bottom').setTextPen('w')
+                    self.plot[channel].getAxis('left').setPen('w')
+                    self.plot[channel].getAxis('left').setTextPen('w')
+        else:
+            self.window.setBackground("w")
+            self.legend.setLabelTextColor("r")
+            try:
+                self.plot.getAxis('bottom').setPen('k')
+                self.plot.getAxis("left").setPen('k')
+                self.plot.getAxis('bottom').setTextPen('k')
+                self.plot.getAxis("left").setTextPen('k')
+            except TypeError:
+                for channel in range(len(self.plot)):
+                    self.plot[channel].getAxis('bottom').setPen('k')
+                    self.plot[channel].getAxis('bottom').setTextPen('k')
+                    self.plot[channel].getAxis('left').setPen('k')
+                    self.plot[channel].getAxis('left').setTextPen('k')
 
     @QtCore.pyqtSlot()
     def clear(self) -> None:
@@ -56,7 +83,6 @@ class DC(DAQPlots):
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="Intensity [V]")
         self.name = "DC Plots"
-        self.dock = pg.dockarea.DockArea()
         model.daq_signals.decimation.connect(self.update_data)
         model.daq_signals.decimation_live.connect(self.update_data_live)
 
@@ -213,9 +239,10 @@ class PTISignal(DAQPlots):
             pass
 
     #@override
-    def update_data_live(self, data: model.PTIBuffer) -> None:
+    def update_data_live(self, data: model.PTIBuffer, calculate_mean: bool) -> None:
         self.curves["PTI Signal"].setData(data.time, data.pti_signal)
-        self.curves["PTI Signal Mean"].setData(data.time, data.pti_signal_mean)
+        if calculate_mean:
+            self.curves["PTI Signal Mean"].setData(data.time, data.pti_signal_mean)
 
 
 class PumpLaserCurrent(Plotting):

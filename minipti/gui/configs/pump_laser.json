@@ -1,0 +1,81 @@
+{
+    "use": false,
+    "GUI": {
+        "logging": {
+            "console": true,
+            "file": true
+        },
+        "battery": {
+            "use": false
+        },
+        "home": {
+            "use": false,
+            "use_utilities": false,
+            "on_run": {
+                "DAQ": true,
+                "BMS": false,
+                "tec": {
+                    "pump_laser": false,
+                    "probe_laser": true
+                },
+                "laser": {
+                    "pump_laser": false,
+                    "probe_laser": true
+                }
+            },
+            "plots": {
+                "dc_signals": true,
+                "interferometric_phase": true,
+                "pti_signal": false
+            }
+        },
+        "settings": {
+            "valve": false,
+            "measurement_settings": false,
+            "system_settings": {
+                "interferometric": true,
+                "response_phases": false
+            }
+        },
+        "utilities": {
+            "use": false,
+            "plot": false,
+            "calculate": false,
+            "devices": {
+                "daq": false,
+                "laser_driver": true,
+                "tec_driver": true
+            }
+        },
+        "probe_laser": {
+            "use": false,
+            "laser_driver": false,
+            "tec_driver": false
+        },
+        "pump_laser": {
+            "use": true,
+            "laser_driver": true,
+            "tec_driver": true
+        },
+        "plots": {
+            "dc_signals": {
+                "use": false
+            },
+            "amplitudes": {
+                "use": false
+            },
+            "output_phases": {
+                "use": false
+            },
+            "interferometric_phase": {
+                "use": false
+            },
+            "sensitivity": {
+                "use": false
+            },
+            "pti_signal": {
+                "use": false
+            }
+        }
+    }
+}

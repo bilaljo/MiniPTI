@@ -8,8 +8,7 @@ from dataclasses import dataclass
 import dacite
 from overrides import override
 
-from . import serial_device
-from . import _json_parser
+from . import serial_device, _json_parser
 from . import protocolls
 
 

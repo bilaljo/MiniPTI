@@ -5,11 +5,12 @@ import threading
 import typing
 from dataclasses import dataclass
 
+import qdarktheme
 from PyQt5 import QtWidgets, QtCore
 from PyQt5.QtCore import Qt, QCoreApplication
 from overrides import override
 
-from minipti.gui import model
+from minipti.gui import model, model2
 from minipti.gui import view
 from minipti.gui.controller import interface
 
@@ -24,16 +25,24 @@ class Controllers(interface.Controllers):
     probe_laser: "ProbeLaser"
     tec: list["Tec"]
 
+    @property
+    def configuration(self) -> model2.configuration.GUI:
+        return self.main_application.configuration
+
 
 class MainApplication(interface.MainApplication):
     def __init__(self, argv=""):
         interface.MainApplication.__init__(self, argv)
+        self.configuration = model.parse_configuration()
+        settings_controller = Settings(self.configuration.settings)
+        utilities_controller = Utilities(self.configuration.utilities)
+        home_controller = Home(self.configuration.home, settings_controller, utilities_controller)
         self._controllers: Controllers = Controllers(main_application=self,
-                                                     home=Home(),
-                                                     settings=Settings(),
-                                                     utilities=Utilities(),
-                                                     pump_laser=PumpLaser(),
-                                                     probe_laser=ProbeLaser(),
+                                                     home=home_controller,
+                                                     settings=settings_controller,
+                                                     utilities=utilities_controller,
+                                                     pump_laser=PumpLaser(self.configuration.pump_laser),
+                                                     probe_laser=ProbeLaser(self.configuration.probe_laser),
                                                      tec=[Tec(laser=model.Tec.PUMP_LASER),
                                                           Tec(laser=model.Tec.PROBE_LASER)])
         self.logging_model = model.Logging()
@@ -43,7 +52,24 @@ class MainApplication(interface.MainApplication):
         self.tec = model.Tec()
         threading.Thread(target=self._controllers.utilities.init_devices, name="Init Devices Thread",
                          daemon=True).start()
+        self.theme_observer = model.ThemeObserver()
+        model.theme_signal.changed.connect(self.update_theme)
+        self.theme_observer.setPriority(QtCore.QThread.IdlePriority)
+        self.theme_observer.start()
         # threading.excepthook = self.thread_exception
+
+    @QtCore.pyqtSlot(str)
+    def update_theme(self, theme: str) -> None:
+        qdarktheme.setup_theme(theme.casefold())
+        for plot in self.view.plots:  # type: typing.Union[view.plots.Plotting, list]
+            try:
+                plot.update_theme(theme)
+            except AttributeError:  # list of plots
+                for sub_plot in plot:  # type: view.plots.Plotting
+                    sub_plot.update_theme(theme)
+        self.view.home.dc.update_theme(theme)
+        self.view.home.interferometric_phase.update_theme(theme)
+        self.view.home.pti_signal.update_theme(theme)
 
     @property
     @override
@@ -92,10 +118,13 @@ def _shutdown(controller) -> None:
 
 
 class Home(interface.Home):
-    def __init__(self):
+    def __init__(self, home_configuration: typing.Union[model.configuration.Home, None],
+                 settings_controller: "Settings",
+                 utilities_controller: "Utilities"):
+        self.configuration = home_configuration
         self.view = view.api.Home(self)
-        self.settings = view.settings.SettingsWindow(Settings())
-        self.utilities = view.utilities.UtilitiesWindow(Utilities())
+        self.settings = view.settings.SettingsWindow(settings_controller)
+        self.utilities = view.utilities.UtilitiesWindow(utilities_controller)
         self.calculation_model = model.LiveCalculation()
         self.motherboard = model.Motherboard()
 
@@ -128,20 +157,21 @@ class Home(interface.Home):
 
 
 class Settings(interface.Settings):
-    def __init__(self):
+    def __init__(self, configuration: typing.Union[model.configuration.Settings, None]):
         interface.Settings.__init__(self)
+        self.configuration = configuration
         self._settings_table = model.SettingsTable()
         self.view = view.settings.SettingsWindow(self)
         self._destination_folder = model.DestinationFolder()
         self.last_file_path = os.getcwd()
         self.calculation_model = model.LiveCalculation()
         self.motherboard = model.Motherboard()
-        self.raw_data_changed.connect(self.calculation_model.set_raw_data_saving)
-        self.view.measurement_configuration.destination_folder_label.setText(self.destination_folder.folder)
+        if self.configuration is not None and self.configuration.measurement_settings:
+            self.view.measurement_configuration.destination_folder_label.setText(self.destination_folder.folder)
         self.daq = model.DAQ()
         self.valve = model.Valve()
         self.daq.fire_configuration_change()
-        #self.valve.fire_configuration_change()
+        self.valve.fire_configuration_change()
 
     @property
     @override
@@ -153,14 +183,18 @@ class Settings(interface.Settings):
     def destination_folder(self) -> model.DestinationFolder:
         return self._destination_folder
 
-    @property
-    def raw_data_changed(self) -> QtCore.pyqtSignal:
-        return self.view.measurement_configuration.save_raw_data.stateChanged
+    @override
+    def update_common_mode_noise_reduction(self, state: bool):
+        self.calculation_model.set_common_mode_noise_reduction(state)
+
+    @override
+    def update_save_raw_data(self, state: bool):
+        self.calculation_model.set_raw_data_saving(state)
 
     @override
     def update_average_period(self, samples: str) -> None:
         samples_number = samples.split(" Samples")[0]  # Value has the structure "X Samples"
-        self.motherboard.number_of_samples = int(samples_number)
+        self.daq.number_of_samples = int(samples_number)
 
     def fire_mother_board_configuration(self) -> None:
         self.motherboard.fire_configuration_change()
@@ -274,7 +308,8 @@ class Settings(interface.Settings):
 
 
 class Utilities(interface.Utilities):
-    def __init__(self):
+    def __init__(self, configuration: typing.Union[model.configuration.Utilities, None]):
+        self.configuration = configuration
         self.view = view.utilities.UtilitiesWindow(self)
         self.calculation_model = model.OfflineCalculation()
         self.last_file_path = os.getcwd()
@@ -374,18 +409,21 @@ class Utilities(interface.Utilities):
 
     @override
     def find_devices(self) -> None:
-        try:
-            self.motherboard.find_port()
-        except OSError:
-            logging.error("Could not find Motherboard")
-        try:
-            self.laser.find_port()
-        except OSError:
-            logging.error("Could not find Laser Driver")
-        try:
-            self.tec.find_port()
-        except OSError:
-            logging.error("Could not find TEC Driver")
+        if self.configuration.devices.daq:
+            try:
+                self.motherboard.find_port()
+            except OSError:
+                logging.error("Could not find Motherboard")
+        if self.configuration.devices.laser_driver:
+            try:
+                self.laser.find_port()
+            except OSError:
+                logging.error("Could not find Laser Driver")
+        if self.configuration.devices.tec_driber:
+            try:
+                self.tec.find_port()
+            except OSError:
+                logging.error("Could not find TEC Driver")
 
     @override
     def connect_devices(self) -> None:
@@ -426,8 +464,9 @@ def _string_to_number(parent: QtWidgets.QWidget, string_number: str, cast: typin
 
 
 class Laser(interface.Driver):
-    def __init__(self):
+    def __init__(self, configuration: model.configuration.Laser):
         interface.Driver.__init__(self)
+        self.configuration = configuration
         self.laser = model.Laser()
         self.last_file_path = os.getcwd()
 
@@ -464,8 +503,8 @@ class Laser(interface.Driver):
 
 
 class PumpLaser(Laser):
-    def __init__(self):
-        Laser.__init__(self)
+    def __init__(self, configuration: typing.Union[model2.configuration.Laser, None]):
+        Laser.__init__(self, configuration)
         self._view = view.hardware.PumpLaser(self)
         self.laser = model.PumpLaser()
 
@@ -517,8 +556,8 @@ class PumpLaser(Laser):
 
 
 class ProbeLaser(Laser):
-    def __init__(self):
-        Laser.__init__(self)
+    def __init__(self, configuration: typing.Union[model2.configuration.Laser, None]):
+        Laser.__init__(self, configuration)
         self.laser = model.ProbeLaser()
         self._view = view.hardware.ProbeLaser(self)
 

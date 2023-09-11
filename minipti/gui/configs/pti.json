@@ -1,0 +1,81 @@
+{
+    "use": false,
+    "GUI": {
+        "logging": {
+            "console": true,
+            "file": true
+        },
+        "battery": {
+            "use": false
+        },
+        "home": {
+            "use": true,
+            "use_utilities": true,
+            "on_run": {
+                "DAQ": true,
+                "BMS": false,
+                "tec": {
+                    "pump_laser": true,
+                    "probe_laser": true
+                },
+                "laser": {
+                    "pump_laser": true,
+                    "probe_laser": true
+                }
+            },
+            "plots": {
+                "dc_signals": true,
+                "interferometric_phase": true,
+                "pti_signal": true
+            }
+        },
+        "settings": {
+            "valve": false,
+            "measurement_settings": true,
+            "system_settings": {
+                "interferometric": true,
+                "response_phases": true
+            }
+        },
+        "utilities": {
+            "use": true,
+            "plot": true,
+            "calculate": true,
+            "devices": {
+                "daq": true,
+                "laser_driver": true,
+                "tec_driver": true
+            }
+        },
+        "probe_laser": {
+            "use": false,
+            "laser_driver": false,
+            "tec_driver": false
+        },
+        "pump_laser": {
+            "use": false,
+            "laser_driver": false,
+            "tec_driver": false
+        },
+        "plots": {
+            "dc_signals": {
+                "use": false
+            },
+            "amplitudes": {
+                "use": false
+            },
+            "output_phases": {
+                "use": false
+            },
+            "interferometric_phase": {
+                "use": false
+            },
+            "sensitivity": {
+                "use": false
+            },
+            "pti_signal": {
+                "use": false
+            }
+        }
+    }
+}

@@ -1,3 +1,6 @@
+import json
+import pathlib
+import threading
 from abc import abstractmethod
 import copy
 import csv
@@ -7,7 +10,6 @@ import logging
 import os
 import platform
 import subprocess
-import threading
 import time
 import typing
 from typing import Union
@@ -15,13 +17,16 @@ from collections import deque
 from dataclasses import dataclass, asdict
 from datetime import datetime
 
+import dacite
 import numpy as np
 import pandas as pd
 from PyQt5 import QtCore
 from overrides import override
 from scipy import ndimage
+import darkdetect
 
 from minipti import algorithm, hardware
+from minipti.gui.model2 import configuration
 
 
 LaserData = hardware.laser.Data
@@ -31,6 +36,40 @@ TecData = hardware.tec.Data
 ROOM_TEMPERATURE = hardware.tec.ROOM_TEMPERATURE_CELSIUS
 
 CURRENT_BITS = hardware.laser.LowPowerLaser.CURRENT_BITS
+
+
+class ThemeSignal(QtCore.QObject):
+    changed = QtCore.pyqtSignal(str)
+
+    def __init__(self):
+        QtCore.QObject.__init__(self)
+
+
+theme_signal = ThemeSignal()
+
+
+class ThemeObserver(QtCore.QThread):
+    def __init__(self):
+        QtCore.QThread.__init__(self)
+        self.init = False
+
+    def run(self) -> None:
+        theme_signal.changed.emit(darkdetect.theme())
+        darkdetect.listener(lambda x: theme_signal.changed.emit(x))
+
+
+def parse_configuration() -> configuration.GUI:
+    for file in os.listdir(f"{os.path.dirname(__file__)}/configs"):
+        if not pathlib.Path(file).suffix == ".json":
+            continue
+        with open(f"{os.path.dirname(__file__)}/configs/{file}") as config:
+            try:
+                loaded_configuration = json.load(config)
+                if loaded_configuration["use"]:
+                    return dacite.from_dict(configuration.GUI, loaded_configuration["GUI"])
+            except (json.decoder.JSONDecodeError, dacite.WrongTypeError, dacite.exceptions.MissingValueError):
+                continue
+    return configuration.GUI()  # Default constructed object
 
 
 class DestinationFolder:
@@ -258,15 +297,17 @@ class PTIBuffer(Buffer):
     def is_empty(self) -> bool:
         return len(self._pti_signal) == 0
 
-    def append(self, pti: PTI, interferometer: algorithm.interferometry.Interferometer) -> None:
+    def append(self, pti: PTI, interferometer: algorithm.interferometry.Interferometer, average_period: int) -> None:
         for i in range(3):
             self._dc_values[i].append(pti.decimation.dc_signals[i])
             self.sensitivity[i].append(interferometer.sensitivity[i])
         self._interferometric_phase.append(interferometer.phase)
         self._pti_signal.append(pti.inversion.pti_signal)
         self._pti_signal_mean_queue.append(pti.inversion.pti_signal)
-        self._pti_signal_mean.append(np.mean(self._pti_signal_mean_queue))
-        self.time.append(next(self.time_counter))
+        time_scaler: float = algorithm.pti.Decimation.REF_PERIOD * algorithm.pti.Decimation.SAMPLE_PERIOD
+        if average_period / time_scaler == 1:
+            self._pti_signal_mean.append(np.mean(np.array(self._pti_signal_mean_queue)))
+        self.time.append(next(self.time_counter) / time_scaler)
 
     @property
     def dc_values(self) -> list[deque]:
@@ -404,7 +445,7 @@ class DAQSignals(QtCore.QObject):
     decimation = QtCore.pyqtSignal(pd.DataFrame)
     decimation_live = QtCore.pyqtSignal(Buffer)
     inversion = QtCore.pyqtSignal(pd.DataFrame)
-    inversion_live = QtCore.pyqtSignal(Buffer)
+    inversion_live = QtCore.pyqtSignal(Buffer, bool)
     characterization = QtCore.pyqtSignal(pd.DataFrame)
     characterization_live = QtCore.pyqtSignal(Buffer)
     samples_changed = QtCore.pyqtSignal(int)
@@ -476,17 +517,6 @@ class TecSignals(QtCore.QObject):
         QtCore.QObject.__init__(self)
 
 
-def shutdown_procedure() -> None:
-    Laser.driver.lose()
-    Tec.driver.close()
-    time.sleep(0.5)  # Give the calculations threads time to finish their write operation
-    Motherboard.shutdown()
-    if platform.system() == "Windows":
-        subprocess.run(r"shutdown /s /t 1", shell=True)
-    else:
-        subprocess.run("sleep 0.5s && poweroff", shell=True)
-
-
 class Calculation:
     def __init__(self):
         self.settings_path = ""
@@ -528,9 +558,13 @@ class LiveCalculation(Calculation):
         self.pti_signal_mean_queue = deque(maxlen=LiveCalculation.ONE_MINUTE)
         daq_signals.clear.connect(self.clear_buffer)
 
+    @staticmethod
+    def get_time_scaler() -> float:
+        return algorithm.pti.Decimation.REF_PERIOD * algorithm.pti.Decimation.SAMPLE_PERIOD
+
     def process_daq_data(self) -> None:
-        threading.Thread(target=self._run_pti_inversion, daemon=True).start()
-        threading.Thread(target=self._characterisation, daemon=True).start()
+        threading.Thread(target=self._run_pti_inversion, name="PTI Inversion", daemon=True).start()
+        threading.Thread(target=self._characterisation, name="Characterisation", daemon=True).start()
 
     @staticmethod
     def running_average(data, mean_size: int) -> list[float]:
@@ -548,11 +582,11 @@ class LiveCalculation(Calculation):
         self.pti_buffer = PTIBuffer()
         self.characterisation_buffer = CharacterisationBuffer()
 
-    def set_raw_data_saving(self) -> None:
-        if self.save_raw_data:
-            self.pti.decimation.save_raw_data = False
-        else:
-            self.pti.decimation.save_raw_data = True
+    def set_raw_data_saving(self, save_raw_data: bool) -> None:
+        self.pti.decimation.save_raw_data = save_raw_data
+
+    def set_common_mode_noise_reduction(self, common_mode_noise_reduction: bool) -> None:
+        self.pti.decimation.use_common_mode_noise_reduction = common_mode_noise_reduction
 
     def _run_pti_inversion(self):
         self._init_calculation()
@@ -582,8 +616,8 @@ class LiveCalculation(Calculation):
 
     def _pti_inversion(self) -> None:
         self.pti.inversion.invert(self.pti.decimation.lock_in, self.pti.decimation.dc_signals, live=True)
-        self.pti_buffer.append(self.pti, self.interferometer)
-        daq_signals.inversion_live.emit(self.pti_buffer)
+        self.pti_buffer.append(self.pti, self.interferometer, self.pti.decimation.average_period)
+        daq_signals.inversion_live.emit(self.pti_buffer, LiveCalculation.get_time_scaler() == 1)
 
     def _characterisation(self) -> None:
         self.interferometry_characterization.add_phase(self.interferometer.phase)
@@ -688,7 +722,7 @@ class Serial:
         """
 
     def process_measured_data(self) -> threading.Thread:
-        processing_thread = threading.Thread(target=self._incoming_data, daemon=True)
+        processing_thread = threading.Thread(target=self._incoming_data, name="Incoming Data", daemon=True)
         processing_thread.start()
         return processing_thread
 
@@ -702,6 +736,17 @@ class Motherboard(Serial):
         self.bms_data: tuple[float, float] = (0, 0)
         self.initialized: bool = False
         daq_signals.running.connect(self._daq_running_changed)
+
+    def shutdown_procedure(self, laser_driver: hardware.laser.Driver, tec_driver: list[hardware.tec.Driver]) -> None:
+        laser_driver.close()
+        tec_driver[0].close()
+        tec_driver[1].close()
+        self.driver.bms.do_shutdown()
+        time.sleep(0.5)  # Give the calculations threads time to finish their write operation
+        if platform.system() == "Windows":
+            subprocess.run(r"shutdown /s /t 1", shell=True)
+        else:
+            subprocess.run("sleep 0.5s && poweroff", shell=True)
 
     @property
     @override
@@ -758,7 +803,7 @@ class Motherboard(Serial):
 
     @property
     def shutdown_event(self) -> threading.Event:
-        return self.driver.shutdown
+        return self.driver.bms.do_shutdown()
 
     def shutdown(self) -> None:
         self.driver.bms.do_shutdown()
@@ -770,16 +815,6 @@ class Motherboard(Serial):
     @abstractmethod
     def save_configuration(self) -> None:
         ...
-
-    @property
-    def config_path(self) -> str:
-        return self.driver.valve.config_path
-
-    @config_path.setter
-    def config_path(self, config_path: str) -> None:
-        if not os.path.exists(config_path):
-            raise ValueError("File does not exist")
-        self.driver.config_path = config_path
 
     @abstractmethod
     def fire_configuration_change(self) -> None:
@@ -797,7 +832,6 @@ class DAQ(Motherboard):
 
     @number_of_samples.setter
     def number_of_samples(self, samples: int) -> None:
-        daq_signals.samples_changed.emit(samples)
         self.daq.configuration.number_of_samples = samples
 
     def save_configuration(self) -> None:
@@ -826,7 +860,6 @@ class Valve(Motherboard):
         if period < 0:
             raise ValueError("Invalid value for period")
         self.valve.configuration.period = period
-        valve_signals.period.emit(period)
 
     @property
     def duty_cycle(self) -> int:
@@ -837,7 +870,6 @@ class Valve(Motherboard):
         if not 0 < self.valve.configuration.duty_cycle < 100:
             raise ValueError("Invalid value for duty cycle")
         self.valve.configuration.duty_cycle = duty_cycle
-        valve_signals.duty_cycle.emit(duty_cycle)
 
     @property
     def automatic_switch(self) -> bool:
@@ -851,7 +883,6 @@ class Valve(Motherboard):
             self.valve.automatic_valve_change()
         else:
             self.valve.automatic_switch.clear()
-        valve_signals.automatic_switch.emit(automatic_switch)
 
     @property
     def bypass(self) -> bool:

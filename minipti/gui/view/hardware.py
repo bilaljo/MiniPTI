@@ -1,5 +1,4 @@
 from abc import ABC
-from overrides import override
 import functools
 import typing
 from dataclasses import dataclass

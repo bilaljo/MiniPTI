@@ -1,4 +1,5 @@
 import collections
+import logging
 from dataclasses import dataclass
 from typing import NamedTuple, Union
 
@@ -53,24 +54,40 @@ class MainWindow(QtWidgets.QMainWindow):
                            plots.PTISignal(),
                            [plots.TecTemperature(model.Tec.PUMP_LASER),
                             plots.TecTemperature(model.Tec.PROBE_LASER)])
-        self.docks = [pg.dockarea.Dock(name="Home", widget= Home(self.controllers.home)),
-                      pg.dockarea.Dock(name="Probe Laser", widget=self._init_probe_laser()),
-                      pg.dockarea.Dock(name="Pump Laser", widget=self._init_pump_laser()),
-                      pg.dockarea.Dock(name="DC Signals", widget=self.plots.dc.window),
-                      pg.dockarea.Dock(name="Amplitudes", widget=self.plots.amplitudes.window),
-                      pg.dockarea.Dock(name="Output Phases", widget=self.plots.amplitudes.window),
-                      pg.dockarea.Dock(name="Interferometric Phase", widget=self.plots.interferometric_phase.window),
-                      pg.dockarea.Dock(name="Sensitivity", widget=self.plots.sensitivity.window),
-                      pg.dockarea.Dock(name="PTI Signal", widget=self.plots.pti_signal.window)]
+        self.home = Home(self.controllers.home)
+        self.docks = []
+        if self.controllers.configuration.home.use:
+            self.docks.append(pg.dockarea.Dock(name="Home", widget=self.home))
+        if self.controllers.configuration.pump_laser.use:
+            self.docks.append(pg.dockarea.Dock(name="Pump Laser", widget=self._init_pump_laser()))
+        if self.controllers.configuration.probe_laser.use:
+            self.docks.append(pg.dockarea.Dock(name="Probe Laser", widget=self._init_probe_laser()))
+        if self.controllers.configuration.plots.dc_signals.use:
+            self.docks.append(pg.dockarea.Dock(name="DC Signals", widget=self.plots.dc.window))
+        if self.controllers.configuration.plots.amplitudes.use:
+            self.docks.append(pg.dockarea.Dock(name="Amplitudes", widget=self.plots.amplitudes.window))
+        if self.controllers.configuration.plots.output_phases.use:
+            self.docks.append(pg.dockarea.Dock(name="Output Phases", widget=self.plots.output_phases.window))
+        if self.controllers.configuration.plots.interferometric_phase.use:
+            self.docks.append(pg.dockarea.Dock(name="Interferometric Phase",
+                                               widget=self.plots.interferometric_phase.window))
+        if self.controllers.configuration.plots.sensitivity.use:
+            self.docks.append(pg.dockarea.Dock(name="Sensitivity", widget=self.plots.sensitivity.window))
+        if self.controllers.configuration.plots.pti_signal.use:
+            self.docks.append(pg.dockarea.Dock(name="PTI Signal", widget=self.plots.pti_signal.window))
         for dock in self.docks:
             self.dock_area.addDock(dock)
-        for i in range(len(self.docks) - 1, 0, -1):
-            self.dock_area.moveDock(self.docks[i - 1], "above", self.docks[i])
+        if len(self.docks) == 1:
+            self.setWindowTitle(self.docks[0].title())
+            self.docks[0].setTitle("")
+        else:
+            for i in range(len(self.docks) - 1, 0, -1):
+                self.dock_area.moveDock(self.docks[i - 1], "above", self.docks[i])
         self.setCentralWidget(self.dock_area)
         self.logging_window = QtWidgets.QLabel()
-        self.log = QtWidgets.QDockWidget("Log")
+        self.log = dockarea.Dock("Log", size=(500, 1))
         self.scroll = QtWidgets.QScrollArea(widgetResizable=True)
-        self.battery = QtWidgets.QDockWidget("Battery")
+        self.battery = dockarea.Dock("Battery", size=(1, 1))
         self.charge_level = QtWidgets.QLabel("NaN % left")
         self.minutes_left = QtWidgets.QLabel("NaN Minutes left")
         self._init_dock_widgets()
@@ -122,19 +139,23 @@ class MainWindow(QtWidgets.QMainWindow):
         return dock_area
 
     def _init_dock_widgets(self) -> None:
-        self.addDockWidget(Qt.BottomDockWidgetArea, self.log)
-        self.addDockWidget(Qt.BottomDockWidgetArea, self.battery)
         model.signals.battery_state.connect(self.update_battery_state)
         model.signals.logging_update.connect(self.logging_update)
         self.scroll.setWidgetResizable(True)
-        self.log.setWidget(self.scroll)
+        self.log.addWidget(self.scroll)
         sub_layout = QtWidgets.QWidget()
         sub_layout.setMaximumWidth(150)
         sub_layout.setLayout(QtWidgets.QVBoxLayout())
         sub_layout.layout().addWidget(self.charge_level)
-        sub_layout.layout().addWidget(self.minutes_left)
-        self.battery.setWidget(sub_layout)
-        self.scroll.setWidget(self.logging_window)
+        # sub_layout.layout().addWidget(self.minutes_left)
+        self.battery.addWidget(sub_layout)
+        if self.controllers.configuration.logging.console:
+            self.dock_area.addDock(self.log, "bottom")
+            self.scroll.setWidget(self.logging_window)
+        if self.controllers.configuration.battery.use:
+            self.dock_area.addDock(self.battery, "bottom")
+            self.dock_area.moveDock(self.log, "left", self.battery)
+        #self.layout().addWidget(dock_area)
 
     def closeEvent(self, close_event):
         close = QtWidgets.QMessageBox.question(self, "QUIT", "Are you sure you want to close?",
@@ -167,29 +188,56 @@ class Home(QtWidgets.QTabWidget):
         self.interferometric_phase = plots.InterferometricPhase()
         sublayout = QtWidgets.QWidget()
         sublayout.setLayout(QtWidgets.QHBoxLayout())
-        sublayout.layout().addWidget(self.dc.window)
-        sublayout.layout().addWidget(self.pti_signal.window)
+        if self.controller.configuration.plots.dc_signals:
+            sublayout.layout().addWidget(self.dc.window)
+        if self.controller.configuration.plots.interferometric_phase:
+            sublayout.layout().addWidget(self.interferometric_phase.window)
+        if self.controller.configuration.plots.pti_signal:
+            sublayout.layout().addWidget(self.pti_signal.window)
         self.layout().addWidget(sublayout, 0, 0)
 
     def _init_buttons(self) -> None:
         sub_layout = QtWidgets.QWidget()
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
-        self.buttons.run_measurement = helper.create_button(parent=sub_layout, title="Run Measurement", only_icon=True,
-                                                            slot=self.controller.enable_motherboard)
+
+        button_layout = QtWidgets.QWidget()
+        button_layout.setLayout(QtWidgets.QVBoxLayout())
+        self.buttons.run_measurement = helper.create_button(parent=button_layout, title="Run Measurement",
+                                                            only_icon=True, slot=self.controller.enable_motherboard)
         self.buttons.run_measurement.setIcon(QtGui.QIcon("minipti/gui/images/run.svg"))
         self.buttons.run_measurement.setIconSize(QtCore.QSize(40, 40))
+        label = QtWidgets.QLabel("Run")
+        label.setAlignment(Qt.AlignHCenter)
+        button_layout.layout().addWidget(label)
+        sub_layout.layout().addWidget(button_layout)
 
-        self.buttons.settings = helper.create_button(parent=sub_layout, title="Settings", only_icon=True,
+        button_layout = QtWidgets.QWidget()
+        button_layout.setLayout(QtWidgets.QVBoxLayout())
+        self.buttons.settings = helper.create_button(parent=button_layout, title="Settings", only_icon=True,
                                                      slot=self.controller.show_settings)
-        self.buttons.utilities = helper.create_button(parent=sub_layout, title="Utilities", only_icon=True,
-                                                      slot=self.controller.show_utilities)
-
         self.buttons.settings.setIcon(QtGui.QIcon("minipti/gui/images/settings.svg"))
         self.buttons.settings.setIconSize(QtCore.QSize(40, 40))
         self.buttons.settings.setToolTip("Settings")
-        self.buttons.utilities.setIcon(QtGui.QIcon("minipti/gui/images/calculation.svg"))
-        self.buttons.utilities.setIconSize(QtCore.QSize(40, 40))
-        self.buttons.utilities.setToolTip("Utilities")
+        label = QtWidgets.QLabel("Settings")
+        label.setAlignment(Qt.AlignHCenter)
+        button_layout.layout().addWidget(label)
+        sub_layout.layout().setAlignment(Qt.AlignHCenter)
+        sub_layout.layout().addWidget(button_layout)
+
+        if self.controller.configuration.use_utilities:
+            button_layout = QtWidgets.QWidget()
+            button_layout.setLayout(QtWidgets.QVBoxLayout())
+            self.buttons.utilities = helper.create_button(parent=button_layout, title="Utilities", only_icon=True,
+                                                          slot=self.controller.show_utilities)
+            self.buttons.utilities.setIcon(QtGui.QIcon("minipti/gui/images/calculation.svg"))
+            self.buttons.utilities.setIconSize(QtCore.QSize(40, 40))
+            self.buttons.utilities.setToolTip("Utilities")
+            button_layout.layout().addWidget(self.buttons.utilities)
+            label = QtWidgets.QLabel("Utilities")
+            label.setAlignment(Qt.AlignHCenter)
+            button_layout.layout().addWidget(label)
+            button_layout.layout().setAlignment(Qt.AlignHCenter)
+            sub_layout.layout().addWidget(button_layout)
         self.layout().addWidget(sub_layout, 1, 0)
         # self.create_button(master=sub_layout, title="Clean Air", slot=self.controller.update_bypass)
 

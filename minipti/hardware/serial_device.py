@@ -1,4 +1,3 @@
-import multiprocessing
 from abc import abstractmethod, ABC
 import functools
 import logging
@@ -42,6 +41,7 @@ class Driver(ABC):
     _SEARCH_ATTEMPTS = 3
 
     def __init__(self):
+        self._is_found = False
         self._port_name = ""
         self._package_buffer = ""
         self._ready_write = threading.Event()
@@ -178,10 +178,10 @@ class Driver(ABC):
 
     @final
     def run(self) -> None:
-        threading.Thread(target=self._write, daemon=True, name=f"{self.device_name} Write Thread").start()
+        threading.Thread(target=self.write, name=f"{self.device_name} Write Thread", daemon=True).start()
         if platform.system() != "Windows":
-            threading.Thread(target=self._receive, daemon=True, name=f"{self.device_name} Receive Thread").start()
-        threading.Thread(target=self._process_data, daemon=True, name=f"{self.device_name} Processing Thread").start()
+            threading.Thread(target=self._receive, name=f"{self.device_name} Receive Thread", daemon=True).start()
+        threading.Thread(target=self._process_data, name=f"{self.device_name} Processing Thread").start()
 
     @final
     def get_hardware_id(self) -> Union[bytes, None]:

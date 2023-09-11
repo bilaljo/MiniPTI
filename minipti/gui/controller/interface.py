@@ -1,10 +1,10 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Callable
+from typing import Callable, Union
 
 from PyQt5 import QtWidgets
 
-from minipti.gui import model
+from minipti.gui import model, model2
 
 
 @dataclass
@@ -17,10 +17,16 @@ class Controllers(ABC):
     probe_laser: "ProbeLaser"
     tec: list["Tec"]
 
+    @property
+    @abstractmethod
+    def configuration(self) -> model2.configuration.GUI:
+        ...
+
 
 class MainApplication(QtWidgets.QApplication):
     def __init__(self, argv=""):
         QtWidgets.QApplication.__init__(self, argv)
+        self.configuration: Union[None, model2.configuration.GUI] = None
 
     @property
     @abstractmethod
@@ -37,6 +43,9 @@ class MainApplication(QtWidgets.QApplication):
 
 
 class Home(ABC):
+    def __init__(self):
+        self.configuration: Union[None, model.configuration.Home] = None
+
     @abstractmethod
     def fire_motherboard_configuration_change(self) -> None:
         ...
@@ -55,9 +64,20 @@ class Home(ABC):
 
 
 class Settings(ABC):
+    def __init__(self):
+        self.configuration: Union[None, model2.configuration.Settings] = None
+
     @property
     @abstractmethod
     def destination_folder(self) -> model.DestinationFolder:
+        ...
+
+    @abstractmethod
+    def update_common_mode_noise_reduction(self, state: bool) -> None:
+        ...
+
+    @abstractmethod
+    def update_save_raw_data(self, state: bool) -> None:
         ...
 
     @property
