@@ -3,14 +3,10 @@ import platform
 if platform.system() == "Windows":
     import ctypes
 
-import qdarktheme
-import pyjion
-
 import minipti
 
 
 def main():
-    pyjion.enable()
     if platform.system() == "Windows":
         appid = u"FHNW.MiniPTI.1.9.5"
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(appid)
@@ -20,7 +16,6 @@ def main():
     logging.info("Started Program")
     app = minipti.gui.controller.api.MainApplication(argv=[])
     logging.info("Started Program")
-    app.setStyleSheet(qdarktheme.load_stylesheet())
     app.exec_()
     logging.info("Program closed")
 

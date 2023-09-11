@@ -1,13 +1,8 @@
 try:
-    import hardware
+    from . import hardware
+    from . import qt_threading
 except ModuleNotFoundError:
     pass  # Hardware not needed
-import algorithm
+from . import algorithm
 
-"""
-try:
-    from . import gui
-except (ModuleNotFoundError, ImportError):
-    pass  # In case the GUI is not needed
-"""
-import gui
+from . import gui

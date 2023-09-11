@@ -199,17 +199,18 @@ class Decimation:
     [1]: Waveguide based passively demodulated photo-thermal
          interferometer for aerosol measurements
     """
-    REF_VOLTAGE: float = 3.3  # V
-    REF_PERIOD: int = 500  # Samples
-    DC_RESOLUTION: int = (1 << 12) - 1  # 12 Bit ADC
-    AC_RESOLUTION: int = (1 << (16 - 1)) - 1  # 16 bit ADC with 2 complement
-    AMPLIFICATION: int = 100  # Theoretical value given by the hardware
+    REF_VOLTAGE: Final = 3.3  # V
+    REF_PERIOD: Final = 100  # Samples
+    DC_RESOLUTION: Final = (1 << 12) - 1  # 12 Bit ADC
+    AC_RESOLUTION: Final = (1 << (16 - 1)) - 1  # 16 bit ADC with 2 complement
+    AMPLIFICATION: Final = 100  # Theoretical value given by the hardware
+    SAMPLE_PERIOD: Final = 8e3
 
     UNTIL_MICRO_SECONDS = -3
 
     def __init__(self):
 
-        self._average_period: int = 100 #8000  # Recommended default value
+        self._average_period: int = 8000  # Recommended default value
         self.raw_data = RawData(None, None, None)
         self.dc_signals: Union[np.ndarray, None] = None
         self.lock_in: LockIn = LockIn(np.empty(shape=3), np.empty(shape=3))
@@ -217,7 +218,7 @@ class Decimation:
         self.destination_folder: str = "."
         self.file_path: str = ""
         self.init_header: bool = True
-        self.init_raw_data: bool = True
+        self.use_common_mode_noise_reduction = True
         self._update_lock_in_look_up_table()
 
     @property
@@ -272,7 +273,8 @@ class Decimation:
 
     def _calculate_decimation(self) -> None:
         self.calculate_dc()
-        self.common_mode_noise_reduction()
+        if self.use_common_mode_noise_reduction:
+            self.common_mode_noise_reduction()
         self.lock_in_amplifier()
         output_data = {}
         now = datetime.now()
