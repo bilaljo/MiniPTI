@@ -120,14 +120,30 @@ def _shutdown(controller) -> None:
 
 class Home(interface.Home):
     def __init__(self, home_configuration: typing.Union[model.configuration.Home, None],
-                 settings_controller: "Settings",
-                 utilities_controller: "Utilities"):
+                 settings_controller: "Settings", utilities_controller: "Utilities"):
         self.configuration = home_configuration
         self.view = view.api.Home(self)
         self.settings = view.settings.SettingsWindow(settings_controller)
+        settings_controller.fire_configuration_change()
         self.utilities = view.utilities.UtilitiesWindow(utilities_controller)
-        self.calculation_model = model.LiveCalculation()
+        self.calculation_model = settings_controller.calculation_model
         self.motherboard = model.Motherboard()
+        self.pump_laser = model.PumpLaser()
+        self.probe_laser = model.ProbeLaser()
+        self.tec = [model.Tec(model.Tec.PUMP_LASER), model.Tec(model.Tec.PROBE_LASER)]
+
+    @override
+    def on_run(self) -> None:
+        if self.configuration.on_run.DAQ:
+            self.enable_motherboard()
+        if self.configuration.on_run.pump_laser.laser_driver:
+            self.pump_laser.enabled = not self.pump_laser.enabled
+        if self.configuration.on_run.probe_lasler.laser_driver:
+            self.probe_laser.enabled = not self.probe_laser.enabled
+        if self.configuration.on_run.pump_laser.tec_driver:
+            self.tec[model.Tec.PUMP_LASER].enabled = not self.tec[model.Tec.PUMP_LASER].enabled
+        if self.configuration.on_run.probe_lasler.tec_driver:
+            self.tec[model.Tec.PROBE_LASER].enabled = not self.tec[model.Tec.PROBE_LASER].enabled
 
     @override
     def show_settings(self) -> None:
@@ -161,16 +177,19 @@ class Settings(interface.Settings):
     def __init__(self, configuration: typing.Union[model.configuration.Settings, None]):
         interface.Settings.__init__(self)
         self.configuration = configuration
+        self.daq = model.DAQ()
+        self.calculation_model = model.LiveCalculation()
+        self.valve = model.Valve()
+        self.motherboard = model.Motherboard()
         self._settings_table = model.SettingsTable()
         self.view = view.settings.SettingsWindow(self)
         self._destination_folder = model.DestinationFolder()
         self.last_file_path = os.getcwd()
-        self.calculation_model = model.LiveCalculation()
-        self.motherboard = model.Motherboard()
         if self.configuration is not None and self.configuration.measurement_settings:
             self.view.measurement_configuration.destination_folder_label.setText(self.destination_folder.folder)
-        self.daq = model.DAQ()
-        self.valve = model.Valve()
+
+    @override
+    def fire_configuration_change(self) -> None:
         self.daq.fire_configuration_change()
         self.valve.fire_configuration_change()
 
@@ -196,9 +215,7 @@ class Settings(interface.Settings):
     def update_average_period(self, samples: str) -> None:
         samples_number = samples.split(" Samples")[0]  # Value has the structure "X Samples"
         self.daq.number_of_samples = int(samples_number)
-
-    def fire_mother_board_configuration(self) -> None:
-        self.motherboard.fire_configuration_change()
+        self.calculation_model.pti.decimation.average_period = int(samples_number)
 
     @override
     def save_pti_settings(self) -> None:

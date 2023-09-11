@@ -47,6 +47,10 @@ class Home(ABC):
         self.configuration: Union[None, model.configuration.Home] = None
 
     @abstractmethod
+    def on_run(self) -> None:
+        ...
+
+    @abstractmethod
     def fire_motherboard_configuration_change(self) -> None:
         ...
 
@@ -66,6 +70,10 @@ class Home(ABC):
 class Settings(ABC):
     def __init__(self):
         self.configuration: Union[None, model2.configuration.Settings] = None
+
+    @abstractmethod
+    def fire_configuration_change(self) -> None:
+        ...
 
     @property
     @abstractmethod

@@ -1,4 +1,3 @@
-import typing
 from dataclasses import dataclass
 
 
@@ -16,17 +15,21 @@ class TEC:
 
 @dataclass(frozen=True)
 class Laser:
-    use: bool = True
     tec_driver: bool = True
     laser_driver: bool = True
+
+
+@dataclass(frozen=True)
+class LaserWindow(Laser):
+    use: bool = True
 
 
 @dataclass(frozen=True)
 class OnRun:
     DAQ: bool = True
     BMS: bool = True
-    laser: Laser = Laser()
-    tec: TEC = TEC()
+    pump_laser: Laser = Laser()
+    probe_lasler: Laser = Laser()
 
 
 @dataclass(frozen=True)
@@ -98,6 +101,6 @@ class GUI:
     home: Home = Home()
     settings: Settings = Settings()
     utilities: Utilities = Utilities()
-    probe_laser: Laser = Laser()
-    pump_laser: Laser = Laser()
+    probe_laser: LaserWindow = LaserWindow()
+    pump_laser: LaserWindow = LaserWindow()
     plots: Plots = Plots()

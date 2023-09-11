@@ -14,13 +14,13 @@
             "on_run": {
                 "DAQ": true,
                 "BMS": false,
-                "tec": {
-                    "pump_laser": true,
-                    "probe_laser": true
+                "probe_laser": {
+                    "laser_driver": true,
+                    "tec_driver": true
                 },
-                "laser": {
-                    "pump_laser": true,
-                    "probe_laser": true
+                "pump_laser": {
+                    "laser_driver": true,
+                    "tec_driver": true
                 }
             },
             "plots": {

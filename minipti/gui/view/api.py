@@ -202,7 +202,7 @@ class Home(QtWidgets.QTabWidget):
         button_layout = QtWidgets.QWidget()
         button_layout.setLayout(QtWidgets.QVBoxLayout())
         self.buttons.run_measurement = helper.create_button(parent=button_layout, title="Run Measurement",
-                                                            only_icon=True, slot=self.controller.enable_motherboard)
+                                                            only_icon=True, slot=self.controller.on_run)
         self.buttons.run_measurement.setIcon(QtGui.QIcon("minipti/gui/images/run.svg"))
         self.buttons.run_measurement.setIconSize(QtCore.QSize(40, 40))
         label = QtWidgets.QLabel("Run")
