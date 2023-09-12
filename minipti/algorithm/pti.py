@@ -239,8 +239,6 @@ class Decimation:
         Reads the binary data and save it into numpy arrays. The data is saved into npy archives in
         debug mode.
         """
-        if self.save_raw_data:
-            self.save()
         self.raw_data.dc = self.raw_data.dc * Decimation.REF_VOLTAGE / Decimation.DC_RESOLUTION
         self.raw_data.ac = self.raw_data.ac * Decimation.REF_VOLTAGE / (Decimation.AMPLIFICATION
                                                                         * Decimation.AC_RESOLUTION)
@@ -311,11 +309,14 @@ class Decimation:
                                                               index_label="Date")
             self.init_header = False
         if live:
+            if self.save_raw_data:
+                self.save()
             self.process_raw_data()
             self._calculate_decimation()
         else:
             get_raw_data: Generator[None, None, None] = self.get_raw_data()
             for _ in get_raw_data:
+                self.process_raw_data()
                 self._calculate_decimation()
             logging.info("Finished decimation")
             logging.info("Saved results in %s", str(self.destination_folder))
