@@ -195,6 +195,10 @@ class Utilities(ABC):
         ...
 
     @abstractmethod
+    def plot_interferometric_phase(self) -> None:
+        ...
+
+    @abstractmethod
     def calculate_characterisation(self) -> None:
         ...
 

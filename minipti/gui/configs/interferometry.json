@@ -10,7 +10,7 @@
         },
         "home": {
             "use": true,
-            "use_utilities": false,
+            "use_utilities": true,
             "on_run": {
                 "DAQ": true,
                 "BMS": false,

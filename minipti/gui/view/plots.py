@@ -1,12 +1,16 @@
 from abc import abstractmethod, ABC
 
+import matplotlib
+import numpy as np
 import pandas as pd
 import pyqtgraph as pg
 from PyQt5 import QtCore
 from overrides import override
+from matplotlib import pyplot as plt
 
 from .. import model
 
+matplotlib.use('Qt5Agg')
 
 class _MatplotlibColors:
     BLUE = "#045993"
@@ -69,8 +73,19 @@ class DAQPlots(Plotting):
         self.name = ""
 
     @abstractmethod
-    def update_data(self, data: pd.DataFrame) -> None:
+    def update_data_live(self, data: model.Buffer) -> None:
         ...
+
+
+def dc_offline(data: np.ndarray) -> None:
+    plt.figure()
+    for channel in range(3):
+        plt.plot(data[channel], label=f"CH{channel + 1}")
+    plt.grid()
+    plt.xlabel("Time [s]")
+    plt.ylabel(r"Intensity [V]")
+    plt.legend()
+    plt.show()
 
 
 class DC(DAQPlots):
@@ -82,21 +97,23 @@ class DC(DAQPlots):
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="Intensity [V]")
         self.name = "DC Plots"
-        model.daq_signals.decimation.connect(self.update_data)
         model.daq_signals.decimation_live.connect(self.update_data_live)
-
-    @override
-    def update_data(self, data: pd.DataFrame) -> None:
-        for channel in range(3):
-            try:
-                self.curves[channel].setData(data[f"DC CH{channel + 1}"].to_numpy())
-            except KeyError:
-                self.curves[channel].setData(data[f"PD{channel + 1}"].to_numpy())
 
     #@override
     def update_data_live(self, data: model.PTIBuffer) -> None:
         for channel in range(3):
             self.curves[channel].setData(data.time, data.dc_values[channel])
+
+
+def amplitudes_offline(data: np.ndarray) -> None:
+    plt.figure()
+    for channel in range(3):
+        plt.plot(data[channel], label=f"CH{channel + 1}")
+    plt.grid()
+    plt.xlabel("Time [s]")
+    plt.ylabel(r"Amplitude [V]")
+    plt.legend()
+    plt.show()
 
 
 class Amplitudes(DAQPlots):
@@ -114,18 +131,23 @@ class Amplitudes(DAQPlots):
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="Amplitude [V]")
         self.name = "Amplitudes"
-        model.daq_signals.characterization.connect(self.update_data)
         model.daq_signals.characterization_live.connect(self.update_data_live)
-
-    @override
-    def update_data(self, data: pd.DataFrame) -> None:
-        for channel in range(3):
-            self.curves[channel].setData(data.index, data[f"Amplitude CH{channel + 1}"].to_numpy())
 
     #@override
     def update_data_live(self, data: model.CharacterisationBuffer) -> None:
         for channel in range(3):
             self.curves[channel].setData(data.time, data.amplitudes[channel])
+
+
+def output_phases_offline(data: np.ndarray) -> None:
+    plt.figure()
+    for channel in range(1, 3):
+        plt.plot(data[channel], label=f"CH{channel + 1}")
+    plt.grid()
+    plt.xlabel("Time [s]")
+    plt.ylabel(r"Output Phase [rad]")
+    plt.legend()
+    plt.show()
 
 
 class OutputPhases(DAQPlots):
@@ -138,18 +160,22 @@ class OutputPhases(DAQPlots):
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="Output Phase [deg]")
         self.name = "Output Phases"
-        model.daq_signals.characterization.connect(self.update_data)
         model.daq_signals.characterization_live.connect(self.update_data_live)
-
-    @override
-    def update_data(self, data: pd.DataFrame) -> None:
-        for channel in range(2):
-            self.curves[channel].setData(data.index, data[f"Output Phase CH{channel + 2}"].to_numpy())
 
     #@override
     def update_data_live(self, data: model.CharacterisationBuffer) -> None:
         for channel in range(2):
             self.curves[channel].setData(data.time, data.output_phases[channel])
+
+
+def interferometric_phase_offline(data: np.ndarray) -> None:
+    plt.figure()
+    plt.plot(data)
+    plt.grid()
+    plt.xlabel("Time [s]")
+    plt.ylabel(r"Interferometric [rad]")
+    plt.legend()
+    plt.show()
 
 
 class InterferometricPhase(DAQPlots):
@@ -159,16 +185,22 @@ class InterferometricPhase(DAQPlots):
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="Interferometric Phase [rad]")
         self.name = "Interferometric Phase"
-        model.daq_signals.inversion.connect(self.update_data)
         model.daq_signals.inversion_live.connect(self.update_data_live)
-
-    @override
-    def update_data(self, data: pd.DataFrame) -> None:
-        self.curves.setData(data["Interferometric Phase"].to_numpy())
 
     #@override
     def update_data_live(self, data: model.PTIBuffer) -> None:
         self.curves.setData(data.time, data.interferometric_phase)
+
+
+def sensitivity_offline(data: np.ndarray) -> None:
+    plt.figure()
+    for channel in range(3):
+        plt.plot(data[f"Sensitivity CH{channel + 1}"], label=f"CH{channel + 1}")
+    plt.grid()
+    plt.xlabel("Time [s]")
+    plt.ylabel(r"Sensitivity [$\frac{1}{rad}]")
+    plt.legend()
+    plt.show()
 
 
 class Sensitivity(DAQPlots):
@@ -180,13 +212,7 @@ class Sensitivity(DAQPlots):
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="Sensitivity [V/rad]")
         self.name = "Sensitivity"
-        model.daq_signals.inversion.connect(self.update_data)
         model.daq_signals.inversion_live.connect(self.update_data_live)
-
-    @override
-    def update_data(self, data: pd.DataFrame) -> None:
-        for channel in range(3):
-            self.curves[channel].setData(data[f"Sensitivity CH{channel + 1}"].to_numpy())
 
     #@override
     def update_data_live(self, data: model.PTIBuffer) -> None:
@@ -204,18 +230,26 @@ class Symmetry(DAQPlots):
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="Symmetry [%]")
         self.name = "Symmetry"
-        model.daq_signals.characterization.connect(self.update_data)
         model.daq_signals.characterization_live.connect(self.update_data_live)
-
-    @override
-    def update_data(self, data: pd.DataFrame) -> None:
-        self.curves[0].setData(data.index, data["Symmetry"].to_numpy())
-        self.curves[1].setData(data.index, data["Relative Symmetry"].to_numpy())
 
     #@override
     def update_data_live(self, data: model.CharacterisationBuffer) -> None:
         self.curves[0].setData(data.time, data.symmetry)
         self.curves[1].setData(data.time, data.relative_symmetry)
+
+
+def pti_signal_offline(data: dict[str]) -> None:
+    plt.figure()
+    try:
+        plt.plot(data["PTI Signal"], label="1-s Data")
+        plt.plot(data["PTI Signal 60 s Mean"], label="60-s Mean")
+        plt.grid()
+        plt.xlabel("Time [s]")
+        plt.ylabel("PTI Signal [µrad]")
+        plt.legend()
+        plt.show()
+    except KeyError:
+        pass
 
 
 class PTISignal(DAQPlots):
@@ -226,16 +260,7 @@ class PTISignal(DAQPlots):
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="PTI Signal [µrad]")
         self.name = "PTI Signal"
-        model.daq_signals.inversion.connect(self.update_data)
         model.daq_signals.inversion_live.connect(self.update_data_live)
-
-    @override
-    def update_data(self, data: pd.DataFrame) -> None:
-        try:
-            self.curves["PTI Signal"].setData(data["PTI Signal"].to_numpy())
-            self.curves["PTI Signal Mean"].setData(data["PTI Signal 60 s Mean"].to_numpy())
-        except KeyError:
-            pass
 
     #@override
     def update_data_live(self, data: model.PTIBuffer, calculate_mean: bool) -> None:

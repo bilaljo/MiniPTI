@@ -10,7 +10,7 @@ def main():
     if platform.system() == "Windows":
         appid = u"FHNW.MiniPTI.1.9.5"
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(appid)
-    logging.basicConfig(level=logging.DEBUG, format="[%(threadName)s] %(levelname)s %(asctime)s: %(message)s",
+    logging.basicConfig(level=logging.INFO, format="[%(threadName)s] %(levelname)s %(asctime)s: %(message)s",
                         datefmt="%Y-%m-%d %H:%M:%S", filename="pti.log", filemode="a")
     logging.captureWarnings(True)
     logging.info("Started Program")

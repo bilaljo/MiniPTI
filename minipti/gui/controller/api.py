@@ -14,6 +14,7 @@ from overrides import override
 from minipti.gui import model, model2
 from minipti.gui import view
 from minipti.gui.controller import interface
+from minipti.gui.view import plots
 
 
 @dataclass
@@ -383,6 +384,10 @@ class Utilities(interface.Utilities):
         self._mother_board = model.Motherboard()
         self._laser = model.Laser()
         self._tec = model.Tec()
+        model.signals.dc_signals.connect(plots.dc_offline)
+        model.signals.inversion.connect(plots.pti_signal_offline)
+        model.signals.interferometric_phase.connect(plots.interferometric_phase_offline)
+        # model.theme_signal.changed.connect(view.utilities.update_matplotlib_theme)
 
     @property
     @override
@@ -438,6 +443,18 @@ class Utilities(interface.Utilities):
                                                                  " All Files (*)")
             if inversion_path:
                 model.process_inversion_data(inversion_path)
+        except KeyError:
+            QtWidgets.QMessageBox.critical(self.view, "Plotting Error", "Invalid data given. Could not plot.")
+
+    @override
+    def plot_interferometric_phase(self) -> None:
+        try:
+            interferometric_phase_path, self.last_file_path = _get_file_path(self.view, "Inversion",
+                                                                             self.last_file_path,
+                                                                             "CSV File (*.csv);; TXT File (*.txt);;"
+                                                                             " All Files (*)")
+            if interferometric_phase_path:
+                model.process_interferometric_phase_data(interferometric_phase_path)
         except KeyError:
             QtWidgets.QMessageBox.critical(self.view, "Plotting Error", "Invalid data given. Could not plot.")
 

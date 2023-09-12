@@ -235,7 +235,7 @@ class Buffer:
     """
     The buffer contains the queues for incoming data and the timer for them.
     """
-    QUEUE_SIZE = 1000
+    QUEUE_SIZE = 100
 
     def __init__(self):
         self.time_counter = itertools.count()
@@ -303,7 +303,7 @@ class PTIBuffer(Buffer):
         time_scaler: float = algorithm.pti.Decimation.REF_PERIOD * algorithm.pti.Decimation.SAMPLE_PERIOD
         if average_period / time_scaler == 1:
             self._pti_signal_mean.append(np.mean(np.array(self._pti_signal_mean_queue)))
-        self.time.append(next(self.time_counter) / time_scaler)
+        self.time.append(next(self.time_counter) * average_period / time_scaler)
 
     @property
     def dc_values(self) -> list[deque]:
@@ -438,11 +438,8 @@ class Battery:
 
 @dataclass(init=False, frozen=True)
 class DAQSignals(QtCore.QObject):
-    decimation = QtCore.pyqtSignal(pd.DataFrame)
     decimation_live = QtCore.pyqtSignal(Buffer)
-    inversion = QtCore.pyqtSignal(pd.DataFrame)
     inversion_live = QtCore.pyqtSignal(Buffer, bool)
-    characterization = QtCore.pyqtSignal(pd.DataFrame)
     characterization_live = QtCore.pyqtSignal(Buffer)
     samples_changed = QtCore.pyqtSignal(int)
     running = QtCore.pyqtSignal(bool)
@@ -473,6 +470,10 @@ class Signals(QtCore.QObject):
     battery_state = QtCore.pyqtSignal(Battery)
     tec_data = QtCore.pyqtSignal(Buffer)
     tec_data_display = QtCore.pyqtSignal(hardware.tec.Data)
+    dc_signals = QtCore.pyqtSignal(np.ndarray)
+    inversion = QtCore.pyqtSignal(dict)
+    characterization = QtCore.pyqtSignal(np.ndarray)
+    interferometric_phase = QtCore.pyqtSignal(np.ndarray)
 
     def __init__(self):
         QtCore.QObject.__init__(self)
@@ -1390,7 +1391,7 @@ class Tec(Serial):
                 pd.DataFrame(tec_data_frame).to_csv(f"{self._destination_folder}/tec.csv", header=False, mode="a")
 
 
-def _process_data(file_path: str, headers: list[str, ...]) -> pd.DataFrame:
+def _process_data(file_path: str, headers: list[str, ...]) -> Union[pd.DataFrame, typing.NoReturn]:
     if not file_path:
         raise FileNotFoundError("No file path given")
     delimiter = find_delimiter(file_path)
@@ -1404,10 +1405,9 @@ def _process_data(file_path: str, headers: list[str, ...]) -> pd.DataFrame:
     for header in headers:
         for header_data in data.columns:
             if header == header_data:
-                break
+                return data[headers].to_numpy().T
         else:
             raise KeyError(f"Header {header} not found in file")
-    return data
 
 
 def process_dc_data(dc_file_path: str) -> None:
@@ -1419,20 +1419,34 @@ def process_dc_data(dc_file_path: str) -> None:
         data = _process_data(dc_file_path, headers)
     except FileNotFoundError:
         return
-    daq_signals.decimation.emit(data)
+    signals.dc_signals.emit(data)
 
 
 def process_inversion_data(inversion_file_path: str) -> None:
+    send_data = {}
     try:
         headers = ["Interferometric Phase", "Sensitivity CH1", "Sensitivity CH2", "Sensitivity CH3", "PTI Signal"]
         data = _process_data(inversion_file_path, headers)
-        data["PTI Signal 60 s Mean"] = LiveCalculation.running_average(data["PTI Signal"], mean_size=60)
+        send_data["PTI Signal"] = data[4]
+        send_data["PTI Signal 60 s Mean"] = LiveCalculation.running_average(data[4], mean_size=60)
     except KeyError:
         headers = ["Sensitivity CH1", "Sensitivity CH2", "Sensitivity CH3", "Interferometric Phase"]
         data = _process_data(inversion_file_path, headers)
     except FileNotFoundError:
         return
-    daq_signals.inversion.emit(data)
+    signals.inversion.emit(send_data)
+
+
+def process_interferometric_phase_data(interferomtric_phase_file_path: str) -> None:
+    try:
+        headers = ["Interferometric Phase", "Sensitivity CH1", "Sensitivity CH2", "Sensitivity CH3", "PTI Signal"]
+        data = _process_data(interferomtric_phase_file_path, headers)["Interferometric Phase"].to_numpy()
+    except KeyError:
+        headers = ["Sensitivity CH1", "Sensitivity CH2", "Sensitivity CH3", "Interferometric Phase"]
+        data = _process_data(interferomtric_phase_file_path, headers)["Interferometric Phase"].to_numpy()
+    except FileNotFoundError:
+        return
+    signals.interferometric_phase.emit(data)
 
 
 def process_characterization_data(characterization_file_path: str) -> None:
@@ -1444,7 +1458,7 @@ def process_characterization_data(characterization_file_path: str) -> None:
         data = _process_data(characterization_file_path, headers)
     except FileNotFoundError:
         return
-    daq_signals.characterization.emit(data)
+    signals.characterization.emit(data)
 
 
 signals = Signals()

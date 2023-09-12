@@ -1,6 +1,7 @@
 from abc import abstractmethod
 
 from PyQt5 import QtWidgets, QtGui
+from matplotlib import pyplot as plt
 from overrides import override
 
 from minipti.gui.view import helper
@@ -12,24 +13,20 @@ class UtilitiesWindow(QtWidgets.QMainWindow):
         QtWidgets.QMainWindow.__init__(self)
         self.parent = QtWidgets.QWidget()
         self.parent.setLayout(QtWidgets.QGridLayout())
-        self.decimation = Decimation(utilities_controller)
-        self.inversion = PTIInversion(utilities_controller)
-        self.characterisation = Characterisation(utilities_controller)
+        self.calculation = Calculation(utilities_controller)
+        self.plotting = Plotting(utilities_controller)
         self.setWindowTitle("Utilities")
-        self.parent.layout().addWidget(self.decimation, 0, 0)
-        self.parent.layout().addWidget(self.inversion, 1, 0)
-        self.parent.layout().addWidget(self.characterisation, 2, 0)
+        self.parent.layout().addWidget(self.calculation, 0, 0)
+        self.parent.layout().addWidget(self.plotting, 1, 0)
         self.setCentralWidget(self.parent)
-        self.setFixedSize(200, 400)
+        self.setFixedSize(300, 400)
         self.setWindowIcon(QtGui.QIcon("minipti/gui/images/calculation.svg"))
 
 
-class Algorithm(QtWidgets.QGroupBox):
+class UtilitiesBase(QtWidgets.QGroupBox):
     def __init__(self, utilities_controller: controller.interface.Utilities):
         QtWidgets.QGroupBox.__init__(self)
         self.utilities_controller = utilities_controller
-        self.calculate = QtWidgets.QPushButton()
-        self.plot = QtWidgets.QPushButton()
         self.setLayout(QtWidgets.QVBoxLayout())
         self._init_button()
 
@@ -38,41 +35,37 @@ class Algorithm(QtWidgets.QGroupBox):
         ...
 
 
-class Decimation(Algorithm):
+def update_matplotlib_theme(theme: str):
+    if theme == "Dark":
+        plt.style.use('dark_background')
+    else:
+        plt.style.use('light_background')
+
+
+class Calculation(UtilitiesBase):
     def __init__(self, utilities_controller: controller.interface.Utilities):
-        Algorithm.__init__(self, utilities_controller)
-        self.setTitle("Decimation")
+        UtilitiesBase.__init__(self, utilities_controller)
+        self.setTitle("Calculation")
 
     @override
     def _init_button(self) -> None:
-        self.calculate = helper.create_button(parent=self, title="Calculate",
-                                              slot=self.utilities_controller.calculate_decimation)
-        self.plot = helper.create_button(parent=self, title="Plot DC Signals",
-                                         slot=self.utilities_controller.plot_dc)
+        self.decimation = helper.create_button(parent=self, title="Decimation",
+                                               slot=self.utilities_controller.calculate_decimation)
+        self.pti_inversion = helper.create_button(parent=self, title="PTI Inversion",
+                                                  slot=self.utilities_controller.calculate_pti_inversion)
+        self.characterisation = helper.create_button(parent=self, title="Interferometer Characterisation",
+                                                     slot=self.utilities_controller.calculate_characterisation)
 
 
-class PTIInversion(Algorithm):
+class Plotting(UtilitiesBase):
     def __init__(self, utilities_controller: controller.interface.Utilities):
-        Algorithm.__init__(self, utilities_controller)
-        self.setTitle("PTI Inversion")
+        UtilitiesBase.__init__(self, utilities_controller)
+        self.setTitle("Plotting")
 
-    @override
     def _init_button(self) -> None:
-        self.calculate = helper.create_button(parent=self, title="Calculate",
-                                              slot=self.utilities_controller.calculate_pti_inversion)
-        self.plot = helper.create_button(parent=self, title="Plot",
-                                         slot=self.utilities_controller.plot_inversion)
-
-
-class Characterisation(Algorithm):
-    def __init__(self, utilities_controller: controller.interface.Utilities):
-        Algorithm.__init__(self, utilities_controller)
-        self.setTitle("Interferometer Characterisation")
-
-    @override
-    def _init_button(self) -> None:
-        self.calculate = helper.create_button(parent=self, title="Calculates",
-                                              slot=self.utilities_controller.calculate_characterisation)
-        self.plot = helper.create_button(parent=self, title="Plot",
-                                         slot=self.utilities_controller.plot_characterisation)
-
+        self.dc_signals = helper.create_button(parent=self, title="DC Signals",
+                                               slot=self.utilities_controller.plot_dc)
+        self.interferometric_phase = helper.create_button(parent=self, title="Interferometric Phase",
+                                                          slot=self.utilities_controller.plot_interferometric_phase)
+        self.pti_signal = helper.create_button(parent=self, title="PTI Signal",
+                                               slot=self.utilities_controller.plot_inversion)
