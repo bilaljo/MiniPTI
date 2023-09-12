@@ -911,6 +911,8 @@ class Laser(Serial):
     def __init__(self):
         Serial.__init__(self)
         self._config_path = "hardware/configs/laser.json"
+        self.notification = Notify(default_notification_title="Laser",
+                                   default_notification_icon="minipti/gui/images/hardware/laser.svg")
 
     @property
     @override
@@ -984,6 +986,7 @@ class PumpLaser(Laser):
     def __init__(self):
         Laser.__init__(self)
         self.pump_laser = self.driver.high_power_laser
+        self.notification.message = "Pump Laser is on"
 
     @property
     def connected(self) -> bool:
@@ -1032,6 +1035,7 @@ class PumpLaser(Laser):
     def enabled(self, enable: bool):
         if enable:
             laser_signals.clear_pumplaser.emit()
+            self.notification.send(block=False)
         self.pump_laser.enabled = enable
         laser_signals.pump_laser_enabled.emit(enable)
 
@@ -1121,6 +1125,7 @@ class ProbeLaser(Laser):
     def __init__(self):
         Laser.__init__(self)
         self.probe_laser = self.driver.low_power_laser
+        self.notification.message = "Probe Laser is on"
 
     @property
     def connected(self) -> bool:
@@ -1166,6 +1171,7 @@ class ProbeLaser(Laser):
     def enabled(self, enable: bool) -> None:
         if enable:
             laser_signals.clear_probelaser.emit()
+            self.notification.send(block=False)
         self.probe_laser.enabled = enable
         laser_signals.probe_laser_enabled.emit(enable)
 
