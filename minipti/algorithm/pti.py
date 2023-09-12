@@ -297,6 +297,7 @@ class Decimation:
             for sample_package in h5f.values():
                 self.raw_data.dc = np.array(sample_package["DC"], dtype=np.uint16).T
                 self.raw_data.ac = np.array(sample_package["AC"], dtype=np.int16).T
+                self.average_period = self.raw_data.ac.shape[1]
                 yield None
 
     def decimate(self, live=False) -> None:

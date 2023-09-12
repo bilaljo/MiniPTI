@@ -411,7 +411,7 @@ class Utilities(interface.Utilities):
     @override
     def calculate_decimation(self) -> None:
         decimation_file_path, self.last_file_path = _get_file_path(self.view, "Decimation", self.last_file_path,
-                                                                   "Binary File (*.bin);; All Files (*)")
+                                                                   "HDF5 File (*.hdf5);; All Files (*)")
         if not decimation_file_path:
             return
         threading.Thread(target=self.calculation_model.calculate_decimation,

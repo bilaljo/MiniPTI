@@ -1,5 +1,5 @@
 {
-    "use": false,
+    "use": true,
     "GUI": {
         "logging": {
             "console": false,
@@ -10,7 +10,6 @@
         },
         "home": {
             "use": true,
-            "use_utilities": true,
             "on_run": {
                 "DAQ": true,
                 "BMS": false,
@@ -39,16 +38,21 @@
         },
         "settings": {
             "valve": false,
-            "measurement_settings": false,
+            "measurement_settings": true,
             "system_settings": {
                 "interferometric": true,
                 "response_phases": false
             }
         },
         "utilities": {
-            "use": false,
-            "plot": false,
-            "calculate": false
+            "use": true,
+            "plot": true,
+            "calculate": {
+                "use": true,
+                "decimation": false,
+                "inversion": true,
+                "characterisation": false
+            }
         },
         "probe_laser": {
             "use": false,
@@ -65,10 +69,10 @@
                 "use": false
             },
             "amplitudes": {
-                "use": false
+                "use": true
             },
             "output_phases": {
-                "use": false
+                "use": true
             },
             "interferometric_phase": {
                 "use": false

@@ -17,15 +17,23 @@ from scipy import optimize, linalg
 
 
 class _Locks(typing.NamedTuple):
-    output_phases = threading.Lock()
-    amplitudes = threading.Lock()
-    offsets = threading.Lock()
+    output_phases: threading.Lock() = threading.Lock()
+    amplitudes: threading.Lock() = threading.Lock()
+    offsets: threading.Lock() = threading.Lock()
+    characterisitc_parameter: threading.Lock() = threading.Lock()
 
 
 @dataclass
 class Symmetry:
     absolute: Union[float, np.ndarray] = 100
     relative: Union[float, np.ndarray] = 100
+
+
+@dataclass
+class CharateristicParameter:
+    amplitudes: np.ndarray[float]
+    offsets: np.ndarray[float]
+    output_phases: np.ndarray[float]
 
 
 class Interferometer:
@@ -40,14 +48,14 @@ class Interferometer:
     OPTIMAL_SYMMETRY: Final[float] = 86.58  # %
 
     def __init__(self, settings_path=f"{os.path.dirname(__file__)}/configs/settings.csv",
-                 decimation_filepath="data/Decimation.csv", output_phases=np.empty(shape=3),
-                 amplitudes=np.empty(shape=3), offsets=np.empty(shape=3)):
+                 decimation_filepath="data/Decimation.csv"):
         self.settings_path = settings_path
         self.decimation_filepath = decimation_filepath
         self.phase: float | np.ndarray = 0
-        self._output_phases = output_phases
-        self._amplitudes = amplitudes
-        self._offsets = offsets
+        self._characteristic_parameter = CharateristicParameter(amplitudes=np.zeros(3), offsets=np.zeros(3),
+                                                                output_phases=np.array([0,
+                                                                                        2 * np.pi / 3,
+                                                                                        4 * np.pi / 3]))
         self.symmetry = Symmetry()
         self._locks = _Locks()
         self.sensitivity: np.ndarray = np.empty(shape=3)
@@ -88,37 +96,42 @@ class Interferometer:
         return amplitude_str + "\n" + offset_str + "\n" + output_phase_str
 
     @property
+    def characteristic_parameter(self) -> CharateristicParameter:
+        with self._locks.characterisitc_parameter:
+            return self._characteristic_parameter
+
+    @property
     def amplitudes(self) -> np.ndarray:
         with self._locks.amplitudes:
-            amplitudes = self._amplitudes
+            amplitudes = self._characteristic_parameter.amplitudes
         return amplitudes
 
     @amplitudes.setter
     def amplitudes(self, amplitudes: np.ndarray):
         with self._locks.amplitudes:
-            self._amplitudes = amplitudes
+            self._characteristic_parameter.amplitudes = amplitudes
 
     @property
     def offsets(self) -> np.ndarray:
         with self._locks.offsets:
-            offsets = self._offsets
+            offsets = self._characteristic_parameter.offsets
         return offsets
 
     @offsets.setter
     def offsets(self, offsets: np.ndarray):
         with self._locks.offsets:
-            self._offsets = offsets
+            self._characteristic_parameter.offsets = offsets
 
     @property
     def output_phases(self) -> np.ndarray:
         with self._locks.output_phases:
-            output_phase = self._output_phases
+            output_phase = self._characteristic_parameter.output_phases
         return output_phase
 
     @output_phases.setter
     def output_phases(self, output_phases: np.ndarray):
         with self._locks.output_phases:
-            self._output_phases = output_phases
+            self._characteristic_parameter.output_phases = output_phases
 
     def calculate_amplitudes(self, intensity: np.ndarray):
         """
@@ -253,8 +266,8 @@ class Characterization:
                 units[f"Output Phase CH{channel}"] = "deg"
                 units[f"Amplitude CH{channel}"] = "V"
                 units[f"Offset CH{channel}"] = "V"
-            units["Symmetry"] = "%"
-            units["Relative Symmetry"] = "%"
+            # units["Symmetry"] = "%"
+            # units["Relative Symmetry"] = "%"
             pd.DataFrame(units, index=["s"]).to_csv(f"{self.destination_folder}/Characterisation.csv",
                                                     index_label="Time Stamp")
             self.init_headers = False

@@ -1,5 +1,5 @@
 {
-    "use": false,
+    "use": true,
     "GUI": {
         "logging": {
             "console": true,

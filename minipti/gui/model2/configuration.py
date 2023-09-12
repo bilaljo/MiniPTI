@@ -73,8 +73,16 @@ class Settings:
 
 
 @dataclass(frozen=True)
+class Calculation:
+    use: bool = True
+    decimation: bool = True
+    inversion: bool = True
+    characterisation: bool = True
+
+
+@dataclass(frozen=True)
 class Utilities:
-    calculate: bool = True
+    calculate: Calculation = Calculation()
     plot: bool = True
 
 
