@@ -828,7 +828,7 @@ class DAQ(Motherboard):
 
     @number_of_samples.setter
     def number_of_samples(self, samples: int) -> None:
-        self.daq.configuration.number_of_samples = samples
+        self.daq.number_of_samples = samples
 
     def save_configuration(self) -> None:
         self.daq.save_configuration()
@@ -911,8 +911,12 @@ class Laser(Serial):
     def __init__(self):
         Serial.__init__(self)
         self._config_path = "hardware/configs/laser.json"
-        self.notification = Notify(default_notification_title="Laser",
-                                   default_notification_icon="minipti/gui/images/hardware/laser.svg")
+        self.on_notification = Notify(default_notification_title="Laser",
+                                      default_notification_icon="minipti/gui/images/hardware/laser.svg",
+                                      default_notification_application_name="Laser Driver")
+        self.off_notification = Notify(default_notification_title="Laser",
+                                       default_notification_icon="minipti/gui/images/hardware/laser/off.svg",
+                                       default_notification_application_name="Laser Driver")
 
     @property
     @override
@@ -986,7 +990,8 @@ class PumpLaser(Laser):
     def __init__(self):
         Laser.__init__(self)
         self.pump_laser = self.driver.high_power_laser
-        self.notification.message = "Pump Laser is on"
+        self.on_notification.message = "Pump Laser is on"
+        self.off_notification.message = "Pump Laser is off"
 
     @property
     def connected(self) -> bool:
@@ -1035,7 +1040,9 @@ class PumpLaser(Laser):
     def enabled(self, enable: bool):
         if enable:
             laser_signals.clear_pumplaser.emit()
-            self.notification.send(block=False)
+            self.on_notification.send(block=False)
+        else:
+            self.off_notification.send(block=False)
         self.pump_laser.enabled = enable
         laser_signals.pump_laser_enabled.emit(enable)
 
@@ -1125,7 +1132,8 @@ class ProbeLaser(Laser):
     def __init__(self):
         Laser.__init__(self)
         self.probe_laser = self.driver.low_power_laser
-        self.notification.message = "Probe Laser is on"
+        self.on_notification.message = "Probe Laser is on"
+        self.off_notification.message = "Probe Laser is off"
 
     @property
     def connected(self) -> bool:
@@ -1171,7 +1179,9 @@ class ProbeLaser(Laser):
     def enabled(self, enable: bool) -> None:
         if enable:
             laser_signals.clear_probelaser.emit()
-            self.notification.send(block=False)
+            self.on_notification.send(block=False)
+        else:
+            self.off_notification.send(block=False)
         self.probe_laser.enabled = enable
         laser_signals.probe_laser_enabled.emit(enable)
 

@@ -208,13 +208,23 @@ class DAQ:
         self.running = threading.Event()
         self.load_configuration()
 
+    @property
+    def number_of_samples(self) -> int:
+        return self.configuration.number_of_samples
+
+    @number_of_samples.setter
+    def number_of_samples(self, number_of_samples: int) -> None:
+        self.configuration.number_of_samples = number_of_samples
+        self.update_buffer_size()
+
     def update_buffer_size(self) -> None:
         if self.running.is_set():
-            logging.warning("Encoding is running. Need to pause is to update the buffer size")
+            logging.warning("Encoding is running. Need to pause is to update the buffer size and reset samples")
             self.running.clear()
         self.encoded_buffer = DAQData(np.empty(self.configuration.number_of_samples),
                                       np.empty(shape=(DAQ._AC_CHANNELS, self.configuration.number_of_samples)),
                                       np.empty(shape=(DAQ._DC_CHANNELS, self.configuration.number_of_samples)))
+        self.reset()
 
     def build_sample_package(self) -> Union[tuple[np.ndarray, np.ndarray, np.ndarray], None]:
         """
@@ -253,7 +263,7 @@ class DAQ:
         raw_data = data[DAQ._SEQUENCE_SIZE:]
         for i in range(DAQ.RAW_DATA_SIZE // DAQ._WORD_SIZE):
             self._encode_binary(raw_data, i)
-            if self.current_sample == self.configuration.number_of_samples:
+            if self.current_sample == self.configuration.number_of_samples :
                 self.current_sample -= self.configuration.number_of_samples
                 self.build_sample_package()
 
@@ -272,10 +282,6 @@ class DAQ:
         self.process_data(data)
         if self.synchronize:
             self._synchronize_with_ref()
-
-    def high_begin(self) -> int:
-        high_begin = np.argmax(self.encoded_buffer.ref_signal[:self.configuration.ref_period])
-        return self.configuration.ref_period - high_begin
 
     def _synchronize_with_ref(self) -> None:
         logging.warning("Trying to synchronise")
