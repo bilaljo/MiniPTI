@@ -1,5 +1,4 @@
 import collections
-import logging
 from dataclasses import dataclass
 from typing import NamedTuple, Union
 
@@ -10,6 +9,7 @@ from minipti.gui.view import helper
 from minipti.gui.view import plots
 from minipti.gui import controller
 from minipti.gui import model
+from minipti.gui.view import taskbar
 from minipti.gui.view import hardware
 import pyqtgraph as pg
 from pyqtgraph import dockarea
@@ -44,6 +44,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setWindowIcon(QtGui.QIcon("minipti/gui/images/logo.png"))
         self.controllers = controllers
         self.dock_area = pg.dockarea.DockArea()
+        self.addToolBar(QtCore.Qt.LeftToolBarArea, taskbar.ToolBar(self, self.controllers.toolbar))
         self.plots = Plots(plots.DC(),
                            plots.InterferometricPhase(),
                            plots.ProbeLaserCurrent(),
@@ -237,7 +238,21 @@ class Home(QtWidgets.QTabWidget):
             button_layout.layout().addWidget(label)
             button_layout.layout().setAlignment(Qt.AlignHCenter)
             sub_layout.layout().addWidget(button_layout)
+            button_layout = QtWidgets.QWidget()
+            button_layout.setLayout(QtWidgets.QVBoxLayout())
+            self.buttons.utilities = helper.create_button(parent=button_layout, title="Connect", only_icon=True,
+                                                          slot=self.controller.show_utilities)
+            self.buttons.utilities.setIcon(QtGui.QIcon("minipti/gui/images/hardware/usb.svg"))
+            self.buttons.utilities.setIconSize(QtCore.QSize(40, 40))
+            self.buttons.utilities.setToolTip("Connect")
+            button_layout.layout().addWidget(self.buttons.utilities)
+            label = QtWidgets.QLabel("Connect")
+            label.setAlignment(Qt.AlignHCenter)
+            button_layout.layout().addWidget(label)
+            button_layout.layout().setAlignment(Qt.AlignHCenter)
+            sub_layout.layout().addWidget(button_layout)
         self.layout().addWidget(sub_layout, 1, 0)
+
         # self.create_button(master=sub_layout, title="Clean Air", slot=self.controller.update_bypass)
 
     @QtCore.pyqtSlot(bool)

@@ -40,10 +40,18 @@ class Plots:
 
 
 @dataclass(frozen=True)
+class Devices:
+    daq: bool = True
+    laser_driver: bool = True
+    tec_driber: bool = True
+
+
+@dataclass(frozen=True)
 class Home:
     use: bool = True
     use_utilities: bool = True
     on_run: OnRun = OnRun()
+    devices: Devices = Devices()
     plots: Plots = Plots()
 
 
@@ -60,18 +68,11 @@ class Settings:
     system_settings: SystemSettings = SystemSettings()
 
 
-@dataclass(frozen=True)
-class Devices:
-    daq: bool = True
-    laser_driver: bool = True
-    tec_driber: bool = True
-
 
 @dataclass(frozen=True)
 class Utilities:
     calculate: bool = True
     plot: bool = True
-    devices: Devices = Devices()
 
 
 @dataclass(frozen=True)

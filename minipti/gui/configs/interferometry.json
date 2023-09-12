@@ -1,5 +1,5 @@
 {
-    "use": true,
+    "use": false,
     "GUI": {
         "logging": {
             "console": false,
@@ -40,13 +40,16 @@
         "utilities": {
             "use": false,
             "plot": false,
-            "calculate": false,
+            "calculate": false
+        },
+        "toolbar": {
             "devices": {
                 "daq": true,
                 "laser_driver": true,
                 "tec_driver": true
             }
-        },
+        }
+    },
         "probe_laser": {
             "use": false,
             "laser_driver": false,

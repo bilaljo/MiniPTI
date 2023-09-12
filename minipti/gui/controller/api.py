@@ -22,6 +22,7 @@ class Controllers(interface.Controllers):
     home: "Home"
     settings: "Settings"
     utilities: "Utilities"
+    toolbar: "Toolbar"
     pump_laser: "PumpLaser"
     probe_laser: "ProbeLaser"
     tec: list["Tec"]
@@ -42,6 +43,7 @@ class MainApplication(interface.MainApplication):
                                                      home=home_controller,
                                                      settings=settings_controller,
                                                      utilities=utilities_controller,
+                                                     toolbar=Toolbar(self.configuration.toolbar),
                                                      pump_laser=PumpLaser(self.configuration.pump_laser),
                                                      probe_laser=ProbeLaser(self.configuration.probe_laser),
                                                      tec=[Tec(laser=model.Tec.PUMP_LASER),
@@ -51,8 +53,6 @@ class MainApplication(interface.MainApplication):
         self.motherboard = model.Motherboard()
         self.laser = model.Laser()
         self.tec = model.Tec()
-        threading.Thread(target=self._controllers.utilities.init_devices, name="Init Devices Thread",
-                         daemon=True).start()
         model.theme_signal.changed.connect(self.update_theme)
         threading.Thread(target=model.theme_observer, daemon=True).start()
         # threading.excepthook = self.thread_exception
@@ -131,6 +131,56 @@ class Home(interface.Home):
         self.pump_laser = model.PumpLaser()
         self.probe_laser = model.ProbeLaser()
         self.tec = [model.Tec(model.Tec.PUMP_LASER), model.Tec(model.Tec.PROBE_LASER)]
+        threading.Thread(target=self.init_devices, name="Init Devices Thread",
+                         daemon=True).start()
+
+    @override
+    def init_devices(self) -> None:
+        self.find_devices()
+        self.connect_devices()
+
+    @override
+    def find_devices(self) -> None:
+        if self.configuration.devices.daq:
+            try:
+                self.motherboard.find_port()
+            except OSError:
+                logging.error("Could not find Motherboard")
+        if self.configuration.devices.laser_driver:
+            try:
+                self.pump_laser.find_port()
+            except OSError:
+                logging.error("Could not find Laser Driver")
+        if self.configuration.devices.tec_driber:
+            try:
+                self.tec.find_port()
+            except OSError:
+                logging.error("Could not find TEC Driver")
+
+    @override
+    def connect_devices(self) -> None:
+        if self.motherboard.is_found:
+            try:
+                self.motherboard.open()
+                self.motherboard.run()
+                self.motherboard.process_measured_data()
+                # self.await_shutdown()
+            except OSError:
+                logging.error("Could not connect with Motherboard")
+        if self.pump_laser.is_found:
+            try:
+                self.pump_laser.open()
+                self.pump_laser.run()
+                self.pump_laser.process_measured_data()
+            except OSError:
+                logging.error("Could not connect with Laser Driver")
+        if self.tec[0].is_found:
+            try:
+                self.tec[0].open()
+                self.tec[0].run()
+                self.tec[0].process_measured_data()
+            except OSError:
+                logging.error("Could not connect with TEC Driver")
 
     @override
     def on_run(self) -> None:
@@ -419,54 +469,6 @@ class Utilities(interface.Utilities):
                 model.process_characterization_data(characterization_path)
         except KeyError:
             QtWidgets.QMessageBox.critical(self.view, "Plotting Error", "Invalid data given. Could not plot.")
-
-    @override
-    def init_devices(self) -> None:
-        self.find_devices()
-        self.connect_devices()
-
-    @override
-    def find_devices(self) -> None:
-        if self.configuration.devices.daq:
-            try:
-                self.motherboard.find_port()
-            except OSError:
-                logging.error("Could not find Motherboard")
-        if self.configuration.devices.laser_driver:
-            try:
-                self.laser.find_port()
-            except OSError:
-                logging.error("Could not find Laser Driver")
-        if self.configuration.devices.tec_driber:
-            try:
-                self.tec.find_port()
-            except OSError:
-                logging.error("Could not find TEC Driver")
-
-    @override
-    def connect_devices(self) -> None:
-        if self.motherboard.is_found:
-            try:
-                self.motherboard.open()
-                self.motherboard.run()
-                self.motherboard.process_measured_data()
-                # self.await_shutdown()
-            except OSError:
-                logging.error("Could not connect with Motherboard")
-        if self.laser.is_found:
-            try:
-                self.laser.open()
-                self.laser.run()
-                self.laser.process_measured_data()
-            except OSError:
-                logging.error("Could not connect with Laser Driver")
-        if self.tec.is_found:
-            try:
-                self.tec.open()
-                self.tec.run()
-                self.tec.process_measured_data()
-            except OSError:
-                logging.error("Could not connect with TEC Driver")
 
 
 T = typing.TypeVar("T")

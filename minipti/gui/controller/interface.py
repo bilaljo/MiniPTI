@@ -13,6 +13,7 @@ class Controllers(ABC):
     home: "Home"
     settings: "Settings"
     utilities: "Utilities"
+    toolbar: "Toolbar"
     pump_laser: "PumpLaser"
     probe_laser: "ProbeLaser"
     tec: list["Tec"]
@@ -45,6 +46,18 @@ class MainApplication(QtWidgets.QApplication):
 class Home(ABC):
     def __init__(self):
         self.configuration: Union[None, model.configuration.Home] = None
+
+    @abstractmethod
+    def init_devices(self) -> None:
+        ...
+
+    @abstractmethod
+    def connect_devices(self) -> None:
+        ...
+
+    @abstractmethod
+    def find_devices(self) -> None:
+        ...
 
     @abstractmethod
     def on_run(self) -> None:
@@ -164,18 +177,6 @@ class Utilities(ABC):
     @property
     @abstractmethod
     def tec(self) -> model.Tec:
-        ...
-
-    @abstractmethod
-    def init_devices(self) -> None:
-        ...
-
-    @abstractmethod
-    def find_devices(self) -> None:
-        ...
-
-    @abstractmethod
-    def connect_devices(self) -> None:
         ...
 
     @abstractmethod

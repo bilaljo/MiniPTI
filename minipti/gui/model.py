@@ -24,6 +24,7 @@ from PyQt5 import QtCore
 from overrides import override
 from scipy import ndimage
 import darkdetect
+from notifypy import Notify
 
 from minipti import algorithm, hardware
 from minipti.gui.model2 import configuration

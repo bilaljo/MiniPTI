@@ -1,5 +1,6 @@
 from . import helper
 from . import hardware
+from . import taskbar
 from . import api
 from . import settings
 from . import utilities
