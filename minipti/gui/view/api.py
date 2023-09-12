@@ -9,7 +9,6 @@ from minipti.gui.view import helper
 from minipti.gui.view import plots
 from minipti.gui import controller
 from minipti.gui import model
-from minipti.gui.view import taskbar
 from minipti.gui.view import hardware
 import pyqtgraph as pg
 from pyqtgraph import dockarea
@@ -44,7 +43,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setWindowIcon(QtGui.QIcon("minipti/gui/images/logo.png"))
         self.controllers = controllers
         self.dock_area = pg.dockarea.DockArea()
-        self.addToolBar(QtCore.Qt.LeftToolBarArea, taskbar.ToolBar(self, self.controllers.toolbar))
         self.plots = Plots(plots.DC(),
                            plots.InterferometricPhase(),
                            plots.ProbeLaserCurrent(),
@@ -170,9 +168,10 @@ class MainWindow(QtWidgets.QMainWindow):
 
 @dataclass
 class HomeButtons:
-    run_measurement: Union[QtWidgets.QPushButton, None] = None
-    settings: Union[QtWidgets.QPushButton, None] = None
-    utilities: Union[QtWidgets.QPushButton, None] = None
+    run_measurement: Union[QtWidgets.QToolButton, None] = None
+    settings: Union[QtWidgets.QToolButton, None] = None
+    utilities: Union[QtWidgets.QToolButton, None] = None
+    connect: Union[QtWidgets.QToolButton, None] = None
 
 
 class Home(QtWidgets.QTabWidget):
@@ -240,12 +239,15 @@ class Home(QtWidgets.QTabWidget):
             sub_layout.layout().addWidget(button_layout)
             button_layout = QtWidgets.QWidget()
             button_layout.setLayout(QtWidgets.QVBoxLayout())
-            self.buttons.utilities = helper.create_button(parent=button_layout, title="Connect", only_icon=True,
-                                                          slot=self.controller.show_utilities)
-            self.buttons.utilities.setIcon(QtGui.QIcon("minipti/gui/images/hardware/usb.svg"))
-            self.buttons.utilities.setIconSize(QtCore.QSize(40, 40))
-            self.buttons.utilities.setToolTip("Connect")
-            button_layout.layout().addWidget(self.buttons.utilities)
+        if self.controller.configuration.connect.use:
+            button_layout = QtWidgets.QWidget()
+            button_layout.setLayout(QtWidgets.QVBoxLayout())
+            self.buttons.connect = helper.create_button(parent=button_layout, title="Connect", only_icon=True,
+                                                        slot=self.controller.init_devices)
+            self.buttons.connect.setIcon(QtGui.QIcon("minipti/gui/images/hardware/usb.svg"))
+            self.buttons.connect.setIconSize(QtCore.QSize(40, 40))
+            self.buttons.connect.setToolTip("Connect")
+            button_layout.layout().addWidget(self.buttons.connect)
             label = QtWidgets.QLabel("Connect")
             label.setAlignment(Qt.AlignHCenter)
             button_layout.layout().addWidget(label)

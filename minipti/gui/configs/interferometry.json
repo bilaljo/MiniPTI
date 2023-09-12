@@ -27,6 +27,14 @@
                 "dc_signals": true,
                 "interferometric_phase": true,
                 "pti_signal": false
+            },
+            "connect": {
+                "use": true,
+                "devices": {
+                    "motherboard": true,
+                    "laser_driver": true,
+                    "tec_driver": true
+                }
             }
         },
         "settings": {
@@ -42,14 +50,6 @@
             "plot": false,
             "calculate": false
         },
-        "toolbar": {
-            "devices": {
-                "daq": true,
-                "laser_driver": true,
-                "tec_driver": true
-            }
-        }
-    },
         "probe_laser": {
             "use": false,
             "laser_driver": false,

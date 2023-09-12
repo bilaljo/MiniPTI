@@ -40,10 +40,14 @@ class Plots:
 
 
 @dataclass(frozen=True)
-class Devices:
-    daq: bool = True
-    laser_driver: bool = True
-    tec_driber: bool = True
+class Devices(Laser):
+    motherboard: bool = True
+
+
+@dataclass(frozen=True)
+class Connect:
+    use: bool = True
+    devices: Devices = Devices()
 
 
 @dataclass(frozen=True)
@@ -51,7 +55,7 @@ class Home:
     use: bool = True
     use_utilities: bool = True
     on_run: OnRun = OnRun()
-    devices: Devices = Devices()
+    connect: Connect = Connect()
     plots: Plots = Plots()
 
 
@@ -66,7 +70,6 @@ class Settings:
     valve: bool = True
     measurement_settings: bool = True
     system_settings: SystemSettings = SystemSettings()
-
 
 
 @dataclass(frozen=True)

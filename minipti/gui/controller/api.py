@@ -22,7 +22,6 @@ class Controllers(interface.Controllers):
     home: "Home"
     settings: "Settings"
     utilities: "Utilities"
-    toolbar: "Toolbar"
     pump_laser: "PumpLaser"
     probe_laser: "ProbeLaser"
     tec: list["Tec"]
@@ -43,7 +42,6 @@ class MainApplication(interface.MainApplication):
                                                      home=home_controller,
                                                      settings=settings_controller,
                                                      utilities=utilities_controller,
-                                                     toolbar=Toolbar(self.configuration.toolbar),
                                                      pump_laser=PumpLaser(self.configuration.pump_laser),
                                                      probe_laser=ProbeLaser(self.configuration.probe_laser),
                                                      tec=[Tec(laser=model.Tec.PUMP_LASER),
@@ -131,29 +129,30 @@ class Home(interface.Home):
         self.pump_laser = model.PumpLaser()
         self.probe_laser = model.ProbeLaser()
         self.tec = [model.Tec(model.Tec.PUMP_LASER), model.Tec(model.Tec.PROBE_LASER)]
-        threading.Thread(target=self.init_devices, name="Init Devices Thread",
-                         daemon=True).start()
+        self.init_devices()
 
     @override
     def init_devices(self) -> None:
-        self.find_devices()
-        self.connect_devices()
+        def find_and_connect():
+            self.find_devices()
+            self.connect_devices()
+        threading.Thread(target=find_and_connect, name="Find and Connect Devices Thread", daemon=True).start()
 
     @override
     def find_devices(self) -> None:
-        if self.configuration.devices.daq:
+        if self.configuration.connect.devices.motherboard:
             try:
                 self.motherboard.find_port()
             except OSError:
                 logging.error("Could not find Motherboard")
-        if self.configuration.devices.laser_driver:
+        if self.configuration.connect.devices.laser_driver:
             try:
                 self.pump_laser.find_port()
             except OSError:
                 logging.error("Could not find Laser Driver")
-        if self.configuration.devices.tec_driber:
+        if self.configuration.connect.devices.tec_driver:
             try:
-                self.tec.find_port()
+                self.tec[0].find_port()
             except OSError:
                 logging.error("Could not find TEC Driver")
 

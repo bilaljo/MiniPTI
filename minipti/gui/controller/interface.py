@@ -13,7 +13,6 @@ class Controllers(ABC):
     home: "Home"
     settings: "Settings"
     utilities: "Utilities"
-    toolbar: "Toolbar"
     pump_laser: "PumpLaser"
     probe_laser: "ProbeLaser"
     tec: list["Tec"]
