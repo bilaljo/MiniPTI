@@ -17,10 +17,10 @@ from scipy import optimize, linalg
 
 
 class _Locks(typing.NamedTuple):
-    output_phases: threading.Lock() = threading.Lock()
-    amplitudes: threading.Lock() = threading.Lock()
-    offsets: threading.Lock() = threading.Lock()
-    characterisitc_parameter: threading.Lock() = threading.Lock()
+    output_phases: threading.Lock = threading.Lock()
+    amplitudes: threading.Lock = threading.Lock()
+    offsets: threading.Lock = threading.Lock()
+    characterisitc_parameter: threading.Lock = threading.Lock()
 
 
 @dataclass

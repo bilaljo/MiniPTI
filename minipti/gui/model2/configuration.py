@@ -29,7 +29,7 @@ class OnRun:
     DAQ: bool = True
     BMS: bool = True
     pump_laser: Laser = Laser()
-    probe_lasler: Laser = Laser()
+    probe_laser: Laser = Laser()
 
 
 @dataclass(frozen=True)

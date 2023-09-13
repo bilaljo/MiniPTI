@@ -1442,10 +1442,10 @@ def process_inversion_data(inversion_file_path: str) -> None:
 def process_interferometric_phase_data(interferomtric_phase_file_path: str) -> None:
     try:
         headers = ["Interferometric Phase", "Sensitivity CH1", "Sensitivity CH2", "Sensitivity CH3", "PTI Signal"]
-        data = _process_data(interferomtric_phase_file_path, headers)["Interferometric Phase"].to_numpy()
+        data = _process_data(interferomtric_phase_file_path, headers)[0].T
     except KeyError:
         headers = ["Sensitivity CH1", "Sensitivity CH2", "Sensitivity CH3", "Interferometric Phase"]
-        data = _process_data(interferomtric_phase_file_path, headers)["Interferometric Phase"].to_numpy()
+        data = _process_data(interferomtric_phase_file_path, headers)
     except FileNotFoundError:
         return
     signals.interferometric_phase.emit(data)

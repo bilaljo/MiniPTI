@@ -1,8 +1,7 @@
-from abc import abstractmethod, ABC
+from abc import abstractmethod
 
 import matplotlib
 import numpy as np
-import pandas as pd
 import pyqtgraph as pg
 from PyQt5 import QtCore
 from overrides import override
@@ -11,6 +10,7 @@ from matplotlib import pyplot as plt
 from .. import model
 
 matplotlib.use('Qt5Agg')
+
 
 class _MatplotlibColors:
     BLUE = "#045993"
@@ -174,7 +174,6 @@ def interferometric_phase_offline(data: np.ndarray) -> None:
     plt.grid()
     plt.xlabel("Time [s]")
     plt.ylabel(r"Interferometric [rad]")
-    plt.legend()
     plt.show()
 
 

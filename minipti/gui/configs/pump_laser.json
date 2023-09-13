@@ -1,5 +1,5 @@
 {
-    "use": false,
+    "use": true,
     "GUI": {
         "logging": {
             "console": true,
@@ -10,13 +10,12 @@
         },
         "home": {
             "use": false,
-            "use_utilities": false,
             "on_run": {
-                "DAQ": true,
+                "DAQ": false,
                 "BMS": false,
                 "probe_laser": {
-                    "laser_driver": false,
-                    "tec_driver": false
+                    "laser_driver": true,
+                    "tec_driver": true
                 },
                 "pump_laser": {
                     "laser_driver": false,
@@ -24,27 +23,35 @@
                 }
             },
             "plots": {
-                "dc_signals": true,
-                "interferometric_phase": true,
+                "dc_signals": false,
+                "interferometric_phase": false,
                 "pti_signal": false
+            },
+            "connect": {
+                "use": false,
+                "devices": {
+                    "motherboard": false,
+                    "laser_driver": true,
+                    "tec_driver": true
+                }
             }
         },
         "settings": {
             "valve": false,
             "measurement_settings": false,
             "system_settings": {
-                "interferometric": true,
+                "interferometric": false,
                 "response_phases": false
             }
         },
         "utilities": {
             "use": false,
             "plot": false,
-            "calculate": false,
-            "devices": {
-                "daq": false,
-                "laser_driver": true,
-                "tec_driver": true
+            "calculate": {
+                "use": false,
+                "decimation": false,
+                "inversion": false,
+                "characterisation": false
             }
         },
         "probe_laser": {
