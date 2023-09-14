@@ -10,7 +10,7 @@ from minipti.algorithm import interferometry
 
 
 if __name__ == "__main__":
-    interferometer = interferometry.Interferometer(settings_path="examples/sample_configs/algorithm_settings.csv",
+    interferometer = interferometry.Interferometer(settings_path="examples/sample_configs/settings.csv",
                                                    decimation_filepath="examples/sample_data/Decimation_Comercial.csv")
     interferometer.load_settings()
 
