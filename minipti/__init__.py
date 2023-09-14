@@ -4,4 +4,7 @@ except ModuleNotFoundError:
     pass  # Hardware not needed
 from . import algorithm
 
-from . import gui
+try:
+    from . import gui
+except ModuleNotFoundError:
+    pass  # No GUI needed
