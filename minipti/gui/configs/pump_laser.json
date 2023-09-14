@@ -14,12 +14,12 @@
                 "DAQ": false,
                 "BMS": false,
                 "probe_laser": {
-                    "laser_driver": true,
-                    "tec_driver": true
-                },
-                "pump_laser": {
                     "laser_driver": false,
                     "tec_driver": false
+                },
+                "pump_laser": {
+                    "laser_driver": true,
+                    "tec_driver": true
                 }
             },
             "plots": {

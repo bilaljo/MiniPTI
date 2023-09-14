@@ -166,7 +166,7 @@ class SettingsTable(Table):
         self.table_data.loc["Output Phases [deg]"] = np.rad2deg(charateristic_parameter.output_phases)
         self.table_data.loc["Amplitude [V]"] = charateristic_parameter.amplitudes
         self.table_data.loc["Offset [V]"] = charateristic_parameter.offsets
-        self.dataChanged.emit()
+        signals.settings_pti.emit()
 
     def update_settings_paths(self, interferometer: algorithm.interferometry.Interferometer,
                               inversion: algorithm.pti.Inversion) -> None:

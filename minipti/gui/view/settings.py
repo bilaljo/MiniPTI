@@ -211,6 +211,7 @@ class PTIConfiguration(QtWidgets.QGroupBox):
         self.setTitle("System Configuration")
         if not self.controller.configuration.system_settings.response_phases:
             self.algorithm_settings.hideRow(3)
+        model.signals.settings_pti.connect(self.update_table)
 
     def _init_buttons(self) -> None:
         sub_layout = QtWidgets.QWidget()
@@ -222,3 +223,7 @@ class PTIConfiguration(QtWidgets.QGroupBox):
         self.buttons.load_settings = helper.create_button(parent=sub_layout, title="Load Settings",
                                                           slot=self.controller.load_pti_settings)
         self.layout().addWidget(sub_layout)
+
+    @QtCore.pyqtSlot()
+    def update_table(self) -> None:
+        self.algorithm_settings.update()
