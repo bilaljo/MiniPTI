@@ -186,11 +186,11 @@ class Home(interface.Home):
     def on_run(self) -> None:
         if self.configuration.on_run.pump_laser.laser_driver:
             self.pump_laser.enabled = not self.pump_laser.enabled
-        if self.configuration.on_run.probe_lasler.laser_driver:
+        if self.configuration.on_run.probe_laser.laser_driver:
             self.probe_laser.enabled = not self.probe_laser.enabled
         if self.configuration.on_run.pump_laser.tec_driver:
             self.tec[model.Tec.PUMP_LASER].enabled = not self.tec[model.Tec.PUMP_LASER].enabled
-        if self.configuration.on_run.probe_lasler.tec_driver:
+        if self.configuration.on_run.probe_laser.tec_driver:
             self.tec[model.Tec.PROBE_LASER].enabled = not self.tec[model.Tec.PROBE_LASER].enabled
         if self.configuration.on_run.DAQ:
             self.enable_motherboard()
