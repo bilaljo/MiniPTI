@@ -45,7 +45,7 @@ class Driver(ABC):
         self._port_name = ""
         self._package_buffer = ""
         self._ready_write = threading.Event()
-        self._received_data = queue.Queue(maxsize=Driver._QUEUE_SIZE)
+        self.received_data = queue.Queue(maxsize=Driver._QUEUE_SIZE)
         self._ready_write.set()
         self.last_written_message = ""
         self.data = queue.Queue(maxsize=Driver._QUEUE_SIZE)
@@ -119,14 +119,14 @@ class Driver(ABC):
         device.write(Command.HARDWARE_ID + Driver._TERMINATION_SYMBOL.encode())
         time.sleep(0.1)
         available_bytes = device.in_waiting
-        self._received_data.put(device.read(available_bytes))
+        self.received_data.put(device.read(available_bytes))
         return self.get_hardware_id() == self.device_id
 
     @final
     def _clear(self) -> None:
         self._write_buffer = queue.Queue()
         self.last_written_message = ""
-        self._received_data = queue.Queue()
+        self.received_data = queue.Queue()
         self._ready_write.set()
 
     if platform.system() == "Windows":
@@ -186,7 +186,7 @@ class Driver(ABC):
     @final
     def get_hardware_id(self) -> Union[bytes, None]:
         try:
-            received_data: bytes = self._received_data.get(timeout=Driver._MAX_RESPONSE_TIME)
+            received_data: bytes = self.received_data.get(timeout=Driver._MAX_RESPONSE_TIME)
             hardware_id = Patterns.HARDWARE_ID.search(received_data)
         except queue.Empty:
             return
@@ -280,7 +280,7 @@ class Driver(ABC):
         @final
         def _receive(self, _sender, _arg: System.IO.Ports.SerialDataReceivedEventArgs) -> None:
             if self._serial_port.BytesToRead:
-                self._received_data.put(self._serial_port.ReadExisting())
+                self.received_data.put(self._serial_port.ReadExisting())
 
     else:
         """
@@ -300,12 +300,12 @@ class Driver(ABC):
                     self._is_found = False
                     self.connected.clear()
                 else:
-                    self._received_data.put(received.decode())
+                    self.received_data.put(received.decode())
 
     @final
     def get_data(self) -> str:
         try:
-            received_data: str = self._received_data.get(block=True, timeout=Driver._MAX_WAIT_TIME)
+            received_data: str = self.received_data.get(block=True, timeout=Driver._MAX_WAIT_TIME)
             return received_data
         except queue.Empty:
             self.connected.clear()
@@ -315,7 +315,7 @@ class Driver(ABC):
             raise OSError
 
     @final
-    def _encode_data(self) -> None:
+    def encode_data(self) -> None:
         """
         Encodes incoming data of the serial device. Each package has a package identifier, to decide the decoding
         algorithm of it.

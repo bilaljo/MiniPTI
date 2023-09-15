@@ -313,7 +313,7 @@ class Characterization:
         self.interferometer.output_phases = np.array([0, 2 * np.pi / 3, 4 * np.pi / 3])
         self.use_parameters = False
 
-    def process_characterisation(self, dc_signals: np.ndarray) -> Generator[int, None, None]:
+    def process(self, dc_signals: np.ndarray) -> Generator[int, None, None]:
         last_index: int = 0
         data_length: int = dc_signals.size // Interferometer.CHANNELS
         if self.use_configuration:
@@ -401,7 +401,7 @@ class Characterization:
                 continue
         else:
             raise KeyError("Invalid key for DC values given")
-        process_characterisation = self.process_characterisation(dc_signals)
+        process_characterisation = self.process(dc_signals)
         try:
             for i in process_characterisation:
                 time_stamps.append(i)

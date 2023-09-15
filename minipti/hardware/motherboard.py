@@ -434,5 +434,5 @@ class Driver(serial_device.Driver):
             if self.new_run:
                 self.reset()
                 self.new_run = False
-            self._encode_data()
+            self.encode_data()
         self.new_run = True

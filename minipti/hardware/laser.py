@@ -60,7 +60,7 @@ class Driver(serial_device.Driver):
 
     def _process_data(self) -> None:
         while self.connected.is_set():
-            self._encode_data()
+            self.encode_data()
 
     @override
     def _encode(self, data: str) -> None:

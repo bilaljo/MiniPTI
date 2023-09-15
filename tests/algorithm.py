@@ -53,9 +53,7 @@ class TestInterferometer(unittest.TestCase):
         Tests for given fixed interferometric phase if the reconstruction is approximately
         equal to the measured intensities.
         """
-        self.characterisation._signals = self.dc_data
-        self.characterisation.characterise()
-        self.interferometry.calculate_phase(self.dc_data.T)
+        self.characterisation.process(self.dc_data)
         settings = pd.read_csv(f"{self.base_dir}/settings.csv", index_col="Setting")
         self.assertTrue((np.abs(settings.loc["Output Phases [deg]"] - self.interferometry.output_phases)
                          < np.deg2rad(TestInterferometer.MAX_ERROR_PARAMETERS)).any())

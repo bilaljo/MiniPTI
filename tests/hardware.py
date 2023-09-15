@@ -22,9 +22,9 @@ class DAQTest(unittest.TestCase):
         self.driver.synchronize = False
 
     def _package_test(self, sample_index: int) -> None:
-        self.assertEqual(self.driver.encoded_buffer_ref_size, 128 * sample_index)
-        self.assertEqual(self.driver.encoded_buffer_dc_size, 128 * sample_index)
-        self.assertEqual(self.driver.encoded_buffer_ac_size, 128 * sample_index)
+        self.assertEqual(self.driver.daq.current_sample, 128 * sample_index)
+        self.assertEqual(self.driver.daq.current_sample, 128 * sample_index)
+        self.assertEqual(self.driver.daq.current_sample, 128 * sample_index)
 
 
 class MotherBoardDAQ(DAQTest):
@@ -39,8 +39,8 @@ class MotherBoardDAQ(DAQTest):
         """
         A valid package got directly used, the buffer keeps empty.
         """
-        self.driver._received_data.put(self.received_data_daq[0] + "\n")
-        self.driver._encode_data()
+        self.driver.received_data.put(self.received_data_daq[0] + "\n")
+        self.driver.encode_data()
         self.assertEqual(self.driver.buffer_size, 0)
         self._package_test(1)
 
@@ -48,16 +48,16 @@ class MotherBoardDAQ(DAQTest):
         """
         A package with valid header but missing termination symbol.
         """
-        self.driver._received_data.put(self.received_data_daq[1])
-        self.driver._encode_data()
+        self.driver.received_data.put(self.received_data_daq[1])
+        self.driver.encode_data()
         self.assertEqual(self.driver.buffer_size, len(self.received_data_daq[1]))
 
     def test_daq_3_incomplete_package_2(self) -> None:
         """
         The continuation of the above package. The buffer get increased.
         """
-        self.driver._received_data.put(self.received_data_daq[2])
-        self.driver._encode_data()
+        self.driver.received_data.put(self.received_data_daq[2])
+        self.driver.encode_data()
         self.assertEqual(self.driver.buffer_size,
                          len(self.received_data_daq[1]) + len(self.received_data_daq[2]))
 
@@ -66,8 +66,8 @@ class MotherBoardDAQ(DAQTest):
         The packages can now be completed to a full package because every missing data is preset
         now. This causes the buffer to be empty and increasing the total package size.
         """
-        self.driver._received_data.put(self.received_data_daq[3] + "\n")
-        self.driver._encode_data()
+        self.driver.received_data.put(self.received_data_daq[3] + "\n")
+        self.driver.encode_data()
         self.assertEqual(self.driver.buffer_size, 0)
         self._package_test(2)
 
@@ -76,9 +76,9 @@ class MotherBoardDAQ(DAQTest):
         Slightly changed CRC value causes to reject because it will not match with the calculated
         based on the packages.
         """
-        self.driver._received_data.put(self.received_data_daq[4] + "\n")
-        self.driver._encode_data()
-        self.assertEqual(self.driver.saved_sample_numbers, 0)
+        self.driver.received_data.put(self.received_data_daq[4] + "\n")
+        self.driver.encode_data()
+        self.assertEqual(self.driver.daq.current_sample, 0)
         # Because of rejection of the package, the packages are completely cleared
         self._package_test(0)
 
@@ -87,9 +87,9 @@ class MotherBoardDAQ(DAQTest):
         If the package contains completely valid package and yet not finished
         the not finished package will be put into the buffer.
         """
-        self.driver._received_data.put(self.received_data_daq[5][:4109] + "\n"
-                                       + self.received_data_daq[5][4109:])
-        self.driver._encode_data()
+        self.driver.received_data.put(self.received_data_daq[5][:4109] + "\n"
+                                      + self.received_data_daq[5][4109:])
+        self.driver.encode_data()
         self.assertEqual(self.driver.buffer_size, len(self.received_data_daq[5][4109:]))
         self._package_test(1)
 
@@ -99,13 +99,13 @@ class MotherBoardDAQ(DAQTest):
         not confirm with the current package number. This causes that the
         buffer will be cleared and the total number of packages does not change.
         """
-        self.driver._received_data.put(self.received_data_daq[6][:4109] + "\n"
-                                       + self.received_data_daq[6][4109:])
-        self.driver._encode_data()
+        self.driver.received_data.put(self.received_data_daq[6][:4109] + "\n"
+                                      + self.received_data_daq[6][4109:])
+        self.driver.encode_data()
         self.assertEqual(self.driver.buffer_size, len(self.received_data_daq[6][4109:]))
         self._package_test(1)
-        self.driver._received_data.put(self.received_data_daq[7] + "\n")
-        self.driver._encode_data()
+        self.driver.received_data.put(self.received_data_daq[7] + "\n")
+        self.driver.encode_data()
         self.assertEqual(self.driver.buffer_size, 0)
         self._package_test(1)
 
@@ -115,11 +115,11 @@ class MotherBoardDAQ(DAQTest):
         followed. In this case it cannot be determined the correct package, and
         it has to be rejected.
         """
-        self.driver._received_data.put(self.received_data_daq[7])
-        self.driver._encode_data()
+        self.driver.received_data.put(self.received_data_daq[7])
+        self.driver.encode_data()
         self.assertEqual(self.driver.buffer_size, len(self.received_data_daq[7]))
-        self.driver._received_data.put(self.received_data_daq[8] + "\n")
-        self.driver._encode_data()
+        self.driver.received_data.put(self.received_data_daq[8] + "\n")
+        self.driver.encode_data()
         self.assertEqual(self.driver.buffer_size, 0)
         self._package_test(1)
 
@@ -150,8 +150,8 @@ class MotherBoardBMS(unittest.TestCase):
         """
         A valid BMS package can be directly encoded and used.
         """
-        self.driver._received_data.put(self.received_data_bms[0] + "\n")
-        self.driver._encode_data()
+        self.driver.received_data.put(self.received_data_bms[0] + "\n")
+        self.driver.encode_data()
         self.assertEqual(self.driver.buffer_size, 0)
         self._bms_check_1()
 
@@ -159,16 +159,16 @@ class MotherBoardBMS(unittest.TestCase):
         """
         A BMS package that is not completed yet (no termination symbol encountered).
         """
-        self.driver._received_data.put(self.received_data_bms[1])
-        self.driver._encode_data()
+        self.driver.received_data.put(self.received_data_bms[1])
+        self.driver.encode_data()
         self.assertEqual(self.driver.buffer_size, len(self.received_data_bms[1]))
 
     def test_bms_3_completed_package(self) -> None:
         """
         The continuation of above package that is completed now.
         """
-        self.driver._received_data.put(self.received_data_bms[2] + "\n")
-        self.driver._encode_data()
+        self.driver.received_data.put(self.received_data_bms[2] + "\n")
+        self.driver.encode_data()
         self._bms_check_1()
 
     def test_bms_4_invalid_crc(self) -> None:
@@ -176,8 +176,8 @@ class MotherBoardBMS(unittest.TestCase):
         Tests a package with a slightly changed (wrong) CRC value. This will cause to remove
         the package but keep the buffer.
         """
-        self.driver._received_data.put(self.received_data_bms[3] + "\n" + self.received_data_bms[1])
-        self.driver._encode_data()
+        self.driver.received_data.put(self.received_data_bms[3] + "\n" + self.received_data_bms[1])
+        self.driver.encode_data()
         self.assertEqual(self.driver.buffer_size, len(self.received_data_bms[1]))
         self.assertTrue(self.driver.bms_package_empty)
         self.driver.clear_buffer()
@@ -186,8 +186,8 @@ class MotherBoardBMS(unittest.TestCase):
         """
         Tests a package that consists with a full package plus a not yet completed one.
         """
-        self.driver._received_data.put(self.received_data_bms[4][:39] + "\n" + self.received_data_bms[4][39:])
-        self.driver._encode_data()
+        self.driver.received_data.put(self.received_data_bms[4][:39] + "\n" + self.received_data_bms[4][39:])
+        self.driver.encode_data()
         self.assertEqual(self.driver.buffer_size, len(self.received_data_bms[4][39:]))
         self._bms_check_1()
         self.driver.clear_buffer()
@@ -207,12 +207,15 @@ class MotherBoardDAQBMS(DAQTest):
         """
         A test case where complete BMS and DAQ packages are in one run transmitted.
         """
-        self.driver._received_data.put(self.received_data_package[0] + "\n"
-                                       + self.received_data_package[1] + "\n"
-                                       + self.received_data_package[2] + "\n")
-        self.driver._encode_data()
-        self.assertEqual(self.driver.buffer_size, 0)
-        self._package_test(2)
+        self.driver.daq.running.set()
+        self.driver.received_data.put(self.received_data_package[0] + "\n"
+                                      + self.received_data_package[1] + "\n"
+                                      + self.received_data_package[2] + "\n", block=False)
+        self.driver.encode_data()
+        # Packages are removed because of async to ref
+        self.assertEqual(self.driver.daq.current_sample, 214)
+        self.assertEqual(self.driver.daq.current_sample, 214)
+        self.assertEqual(self.driver.daq.current_sample, 214)
 
 
 if __name__ == '__main__':
