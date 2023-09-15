@@ -11,16 +11,24 @@ import minipti
 logging.disable()
 
 
-class DAQTest(unittest.TestCase):
-    """
-    Base class for DAQ related unit tests. It provided a method to check the packages that the
-    DAQ generates.
-    """
+class DriverTests(unittest.TestCase):
     driver = minipti.hardware.motherboard.Driver()
 
     def setUp(self) -> None:
         self.driver.synchronize = False
+        DriverTests.driver.bms.running.set()
+        DriverTests.driver.daq.running.set()
 
+    def tearDown(self) -> None:
+        DriverTests.driver.bms.running.clear()
+        DriverTests.driver.daq.running.clear()
+
+
+class DAQTest(DriverTests):
+    """
+    Base class for DAQ related unit tests. It provided a method to check the packages that the
+    DAQ generates.
+    """
     def _package_test(self, sample_index: int) -> None:
         self.assertEqual(self.driver.daq.current_sample, 128 * sample_index)
         self.assertEqual(self.driver.daq.current_sample, 128 * sample_index)
@@ -124,7 +132,7 @@ class MotherBoardDAQ(DAQTest):
         self._package_test(1)
 
 
-class MotherBoardBMS(unittest.TestCase):
+class MotherBoardBMS(DAQTest):
     """
     Unit tests for several kind of packages for the BMS.
     """
@@ -135,7 +143,7 @@ class MotherBoardBMS(unittest.TestCase):
         received_data_bms = bms_file.read().split("\n")
 
     def _bms_check_1(self) -> None:
-        bms_data = self.driver.bms
+        bms_data = self.driver.bms.encoded_data
         self.assertTrue(bms_data.external_dc_power)
         self.assertTrue(bms_data.charging)
         self.assertEqual(bms_data.minutes_left, float("inf"))

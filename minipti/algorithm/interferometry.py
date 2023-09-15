@@ -227,7 +227,8 @@ class Characterization:
     def __repr__(self) -> str:
         class_name = self.__class__.__name__
         representation = f"{class_name}(use_settings={self.use_configuration}," \
-                         f"destination_folder={self.destination_folder}, phases={np.array(self.phases)}," \
+                         f"destination_folder={self.destination_folder}," \
+                         f" phases={np.array(self.interferometry_data.phases)}," \
                          f" init_headers={self.init_headers}, tracking_phase={np.array(self.tracking_phase)}" \
                          f" time_stamp={self.time_stamp}, interferometer={self.interferometer})"
         return representation
@@ -241,11 +242,11 @@ class Characterization:
         return self._occurred_phases
 
     def calculate_symmetry(self) -> None:
-        sensitivity = np.empty(shape=(3, len(self.phases)))
+        sensitivity = np.empty(shape=(3, len(self.interferometry_data.phases)))
         for i in range(3):
             amplitude = self.interferometer.amplitudes[i]
             output_phase = self.interferometer.output_phases[i]
-            sensitivity[i] = amplitude * np.abs(np.sin(np.array(self.phases) - output_phase))
+            sensitivity[i] = amplitude * np.abs(np.sin(np.array(self.interferometry_data.phases) - output_phase))
         total_sensitivity = np.sum(sensitivity, axis=0)
         absolute_symmetry = np.min(total_sensitivity) / np.max(total_sensitivity) * 100
         relative_symmetry = absolute_symmetry / Interferometer.OPTIMAL_SYMMETRY * 100

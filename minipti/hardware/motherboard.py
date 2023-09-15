@@ -112,6 +112,7 @@ class BMS:
         self.config_path = f"{os.path.dirname(__file__)}/configs/motherboard/bms.json"
         self.driver = driver
         self.running = threading.Event()
+        self.encoded_data: Union[BMSData, None] = None
         self.load_configuration()
 
     def encode(self, data: str) -> None:
@@ -129,7 +130,7 @@ class BMS:
         if not int(data[BMSIndex.VALID_IDENTIFIER:BMSIndex.VALID_IDENTIFIER + 2], base=16):
             logging.error("Invalid package from BMS")
             return
-        bms = BMSData(
+        self.encoded_data = BMSData(
             external_dc_power=bool(int(data[BMSIndex.EXTERNAL_DC_POWER:BMSIndex.EXTERNAL_DC_POWER + 2], base=16)),
             charging=bool(int(data[BMSIndex.CHARGING:BMSIndex.CHARGING + 2], base=16)),
             minutes_left=int(data[BMSIndex.MINUTES_LEFT:BMSIndex.MINUTES_LEFT + 4], base=16),
@@ -139,9 +140,9 @@ class BMS:
             battery_voltage=int(data[BMSIndex.VOLTAGE: BMSIndex.VOLTAGE + 4], base=16),
             full_charged_capacity=int(data[BMSIndex.FULL_CHARGED_CAPACITY:BMSIndex.FULL_CHARGED_CAPACITY + 4], base=16),
             remaining_capacity=int(data[BMSIndex.REMAINING_CAPACITY:BMSIndex.REMAINING_CAPACITY + 4], base=16))
-        if bms.charging:
-            bms.minutes_left = float("inf")
-        self.driver.data.BMS.put(bms)
+        if self.encoded_data.charging:
+            self.encoded_data.minutes_left = float("inf")
+        self.driver.data.BMS.put(self.encoded_data)
 
     def do_shutdown(self) -> None:
         self.driver.write(self._do_shutdown)

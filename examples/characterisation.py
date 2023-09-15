@@ -12,18 +12,16 @@ from minipti.algorithm import interferometry
 
 def default_settings_save_to_csv() -> None:
     interferometer = interferometry.Interferometer(settings_path="examples/sample_configs/settings.csv")
-    interferometer.decimation_filepath = "examples/sample_data/Decimation_Comercial.csv"
     interferometer.load_settings()
     characterization = interferometry.Characterization(interferometer=interferometer)
-    characterization.characterise()
+    characterization.characterise(file_path="examples/sample_data/Decimation_Comercial.csv")
     print(characterization)
 
 
 def without_default_settings_save_to_csv() -> None:
     interferometer = interferometry.Interferometer(settings_path="examples/sample_configs/settings.csv")
-    interferometer.decimation_filepath = "examples/sample_data/Decimation_Comercial.csv"
     characterization = interferometry.Characterization(interferometer=interferometer, use_configuration=False)
-    characterization.characterise()
+    characterization.characterise(file_path="examples/sample_data/Decimation_Comercial.csv")
     print(characterization)
 
 
