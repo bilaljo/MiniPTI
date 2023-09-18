@@ -175,7 +175,7 @@ class Inversion:
             logging.warning("Could not write data. Missing values are: %s at %s.",
                             str(output_data)[1:-1], date + " " + time)
 
-    def invert(self, lock_in: LockIn = None, dc_signals: np.ndarray = None, live=False, file_path="") -> None:
+    def run(self, lock_in: LockIn = None, dc_signals: np.ndarray = None, live=False, file_path="") -> None:
         if live:
             try:
                 self._calculate_online(lock_in, dc_signals)
@@ -293,12 +293,12 @@ class Decimation:
     def get_raw_data(self) -> Generator[None, None, None]:
         with h5py.File(self.file_path, "r") as h5f:
             for sample_package in h5f.values():
-                self.raw_data.dc = np.array(sample_package["DC"], dtype=np.uint16).T
-                self.raw_data.ac = np.array(sample_package["AC"], dtype=np.int16).T
+                self.raw_data.dc = np.array(sample_package["DC"], dtype=np.uint16)
+                self.raw_data.ac = np.array(sample_package["AC"], dtype=np.int16)
                 self.average_period = self.raw_data.ac.shape[1]
                 yield None
 
-    def decimate(self, live=False) -> None:
+    def run(self, live=False) -> None:
         if self.init_header:
             output_data = {"Time": "H:M:S"}
             for channel in range(3):

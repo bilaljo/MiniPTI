@@ -610,11 +610,11 @@ class LiveCalculation(Calculation):
         self.pti.decimation.raw_data.ref = self.motherboard.driver.ref_signal
         self.pti.decimation.raw_data.dc = self.motherboard.driver.dc_coupled
         self.pti.decimation.raw_data.ac = self.motherboard.driver.ac_coupled
-        self.pti.decimation.decimate(live=True)
+        self.pti.decimation.run(live=True)
         daq_signals.decimation_live.emit(self.pti_buffer)
 
     def _pti_inversion(self) -> None:
-        self.pti.inversion.invert(self.pti.decimation.lock_in, self.pti.decimation.dc_signals, live=True)
+        self.pti.inversion.run(self.pti.decimation.lock_in, self.pti.decimation.dc_signals, live=True)
         self.pti_buffer.append(self.pti, self.interferometer, self.pti.decimation.average_period)
         daq_signals.inversion_live.emit(self.pti_buffer, LiveCalculation.get_time_scaler() == 1)
 
@@ -640,11 +640,12 @@ class OfflineCalculation(Calculation):
 
     def calculate_decimation(self, decimation_path: str) -> None:
         self.pti.decimation.file_path = decimation_path
-        self.pti.decimation.decimate()
+        logging.info("Starting Decimation of Raw Data")
+        threading.Thread(target=self.pti.decimation.run, name="Decimation Thread").start()
 
     def calculate_inversion(self, inversion_path: str) -> None:
         self.interferometer.load_settings()
-        self.pti.inversion.invert(file_path=inversion_path)
+        self.pti.inversion.run(file_path=inversion_path)
 
 
 class ProbeLaserMode(enum.IntEnum):
