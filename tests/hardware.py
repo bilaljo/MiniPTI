@@ -4,7 +4,10 @@ Unit tests for the hardware API of the MiniPTI.
 
 import logging
 import os
+import sys
 import unittest
+
+sys.path.extend(".")
 
 import minipti
 
