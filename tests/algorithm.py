@@ -81,5 +81,29 @@ class TestInterferometer(unittest.TestCase):
             os.remove(f"{data_path}/Characterisation.csv")
 
 
+class TestCharacterisation(unittest.TestCase):
+    """
+    Tests with sample data if the characteristic values of the interferometer fit the measured
+    intensities well (according to a tolerance) enough.
+    """
+    MAX_ERROR_PARAMETERS = 1e-3
+
+    def setUp(self):
+        unittest.TestCase.__init__(self)
+        self.base_dir = f"{os.path.dirname(__file__)}/sample_data/algorithm"
+        self.interferometer = minipti.algorithm.interferometry.Interferometer()
+        self.characterization = minipti.algorithm.interferometry.Characterization(interferometer=self.interferometer,
+                                                                                  use_parameters=False,
+                                                                                  use_configuration=False)
+        phases = np.linspace(0, 2 * np.pi, 1000)
+        self.intensities = np.array([np.cos(phases - i * 2 * np.pi / 3) for i in range(3)]).T
+
+    def test_parameters(self) -> None:
+        for _ in self.characterization.process(self.intensities):
+            pass
+        self.assertTrue((np.abs(self.interferometer.output_phases - np.array([0, 2 * np.pi / 3, 4 * np.pi / 3]))
+                         < TestInterferometer.MAX_ERROR_PHASE).any())
+
+
 if __name__ == "__main__":
     unittest.main()

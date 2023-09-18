@@ -26,4 +26,4 @@ jobs:
       - name: Run Hardware Tests
         run: python tests/hardware.py
       - name: Run Algorithm Tests
-        run: python tests/calculation.py
+        run: python tests/algorithm.py
