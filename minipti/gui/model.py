@@ -518,8 +518,9 @@ class TecSignals(QtCore.QObject):
 class Calculation:
     def __init__(self):
         self.settings_path = ""
-        self.pti = PTI(algorithm.pti.Decimation(), algorithm.pti.Inversion())
+        decimation = algorithm.pti.Decimation()
         self.interferometer = algorithm.interferometry.Interferometer()
+        self.pti = PTI(algorithm.pti.Decimation(), algorithm.pti.Inversion(decimation=decimation))
         self.pti.inversion.interferometer = self.interferometer
         self.interferometry_characterization = algorithm.interferometry.Characterization(self.interferometer)
         self._destination_folder = os.getcwd()
@@ -607,14 +608,14 @@ class LiveCalculation(Calculation):
         self.interferometer.load_settings()
 
     def _decimation(self) -> None:
-        self.pti.decimation.raw_data.ref = self.motherboard.driver.ref_signal
-        self.pti.decimation.raw_data.dc = self.motherboard.driver.dc_coupled
-        self.pti.decimation.raw_data.ac = self.motherboard.driver.ac_coupled
+        self.pti.decimation.raw_data.ref = self.motherboard.driver.ref_signal.copy()
+        self.pti.decimation.raw_data.dc = self.motherboard.driver.dc_coupled.copy()
+        self.pti.decimation.raw_data.ac = self.motherboard.driver.ac_coupled.copy()
         self.pti.decimation.run(live=True)
         daq_signals.decimation_live.emit(self.pti_buffer)
 
     def _pti_inversion(self) -> None:
-        self.pti.inversion.run(self.pti.decimation.lock_in, self.pti.decimation.dc_signals, live=True)
+        self.pti.inversion.run(live=True)
         self.pti_buffer.append(self.pti, self.interferometer, self.pti.decimation.average_period)
         daq_signals.inversion_live.emit(self.pti_buffer, LiveCalculation.get_time_scaler() == 1)
 

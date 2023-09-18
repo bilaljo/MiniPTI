@@ -59,6 +59,9 @@ class Interferometer:
         self.symmetry = Symmetry()
         self._locks = _Locks()
         self.sensitivity: np.ndarray = np.empty(shape=3)
+        self.destination_folder: str = os.getcwd()
+        self.init_header: bool = True
+        self.intensities: Union[None, np.ndarray] = None
 
     def load_settings(self) -> None:
         """
@@ -175,17 +178,15 @@ class Interferometer:
                                      tr_solver="exact",  jac=self._error_function_df).x
         return res % (2 * np.pi)
 
-    def calculate_phase(self, intensities: np.ndarray):
+    def calculate_phase(self):
         """
         Calculated the interferometric phase with the defined characteristic parameters.
         """
-        if intensities.size // Interferometer.CHANNELS == 1:  # Only one Sample of 3 Values
-            self.phase = self._calculate_phase(intensities)[0]
+        if self.intensities.size // Interferometer.CHANNELS == 1:  # Only one Sample of 3 Values
+            self.phase = self._calculate_phase(self.intensities)[0]
         else:
-            if intensities.shape[1] == 3:
-                self.phase = np.fromiter(map(self._calculate_phase, intensities), dtype=float)
-            else:
-                self.phase = np.fromiter(map(self._calculate_phase, intensities.T), dtype=float)
+            axis = 1 if self.intensities.shape[1] == 3 else 0
+            self.phase = np.apply_along_axis(self._calculate_phase, axis, self.intensities).flatten()
 
     def calculate_sensitivity(self) -> None:
         try:
@@ -196,6 +197,61 @@ class Interferometer:
             amplitude = self.amplitudes[channel]
             output_phase = self.output_phases[channel]
             self.sensitivity[channel] = amplitude * np.abs(np.sin(self.phase - output_phase))
+
+    def _prepare_data(self) -> tuple[dict[str, str], dict[str, Union[np.ndarray, float]]]:
+        units: dict[str, str] = {"Interferometric Phase": "rad",
+                                 "Sensitivity CH1": "V/rad",
+                                 "Sensitivity CH2": "V/rad",
+                                 "Sensitivity CH3": "V/rad"}
+        output_data = {"Interferometric Phase": self.phase}
+        for i in range(3):
+            output_data[f"Sensitivity CH{i + 1}"] = self.sensitivity[i]
+        return units, output_data
+
+    def _calculate_online(self) -> None:
+        output_data = {"Time": "H:M:S"}
+        if self.init_header:
+            output_data["Interferometric Phase"] = "rad"
+            for channel in range(1, 4):
+                output_data[f"Sensitivity CH{channel}"] = "V/rad"
+            output_data["PTI Signal"] = "µrad"
+            pd.DataFrame(output_data, index=["Y:M:D"]).to_csv(f"{self.destination_folder}/PTI_Inversion.csv",
+                                                              index_label="Date")
+        self.calculate_phase()
+        self.calculate_sensitivity()
+
+    def _save_data(self) -> None:
+        units, output_data = self._prepare_data()
+        pd.DataFrame(units, index=["s"]).to_csv(f"{self.destination_folder}/Interferometer.csv",
+                                                index_label="Time")
+        pd.DataFrame(output_data).to_csv(f"{self.destination_folder}/Interferometer.csv", index_label="Time",
+                                         mode="a",  header=False)
+        logging.info("Interferometer Data calculated.")
+        logging.info("Saved results in %s", str(self.destination_folder))
+
+    def _get_dc_signals(self, file_path: str) -> None:
+        data = pd.read_csv(file_path, sep=None, engine="python", skiprows=[1])
+        for header in Interferometer.DC_HEADERS:
+            try:
+                self.intensities = data[header].to_numpy()
+                break
+            except KeyError:
+                continue
+        else:
+            raise KeyError("Invalid key for DC values given")
+
+    def _calculate_offline(self, file_path: str) -> None:
+        if file_path:
+            self._get_dc_signals(file_path)
+        self.calculate_phase()
+        self.calculate_sensitivity()
+        self._save_data()
+
+    def run(self, live=False, file_path="") -> None:
+        if live:
+            self._calculate_online()
+        else:
+            self._calculate_offline(file_path)
 
 
 @dataclass
@@ -322,7 +378,8 @@ class Characterization:
         else:
             self._estimate_settings(dc_signals)
         for i in range(data_length):
-            self.interferometer.calculate_phase(dc_signals[i])
+            self.interferometer.intensities = dc_signals[i]
+            self.interferometer.calculate_phase()
             self.add_phase(self.interferometer.phase)
             if self.enough_values:
                 self.interferometry_data.dc_signals = dc_signals[last_index:i + 1]
@@ -375,7 +432,8 @@ class Characterization:
     def _iterate_characterization(self) -> None:
         logging.info("Start iteration ...")
         for _ in itertools.repeat(None, Characterization.MAX_ITERATIONS):
-            self.interferometer.calculate_phase(np.array(self.interferometry_data.dc_signals))
+            self.interferometer.intensities = np.array(self.interferometry_data.dc_signals)
+            self.interferometer.calculate_phase()
             self.phases = self.interferometer.phase
             self._characterise_interferometer()
             logging.info("Current estimation:\n%s", str(self.interferometer))

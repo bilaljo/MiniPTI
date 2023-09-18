@@ -4,9 +4,12 @@ Unit tests for Characterisation algorithm of an interferometer.
 
 import os
 import unittest
+import sys
 
 import numpy as np
 import pandas as pd
+
+sys.path.extend(".")
 
 import minipti
 
@@ -23,11 +26,11 @@ class TestInterferometer(unittest.TestCase):
         unittest.TestCase.__init__(self)
         self.base_dir = f"{os.path.dirname(__file__)}/sample_data/algorithm"
         settings = f"{self.base_dir}/settings.csv"
-        self.interferometry = minipti.algorithm.interferometry.Interferometer(settings_path=settings)
-        self.interferometry.load_settings()
-        self.characterisation = minipti.algorithm.interferometry.Characterization(interferometer=self.interferometry)
-        self.interferometry.decimation_filepath = f"{self.base_dir}/Decimation_Comercial.csv"
-        data = pd.read_csv(self.interferometry.decimation_filepath)
+        self.interferometer = minipti.algorithm.interferometry.Interferometer(settings_path=settings)
+        self.interferometer.load_settings()
+        self.characterisation = minipti.algorithm.interferometry.Characterization(interferometer=self.interferometer)
+        self.interferometer.decimation_filepath = f"{self.base_dir}/Decimation_Comercial.csv"
+        data = pd.read_csv(self.interferometer.decimation_filepath)
         self.dc_data = data[[f"DC CH{i}" for i in range(1, 4)]].to_numpy().T
         self.characterisation.destination_folder = os.path.dirname(__file__)
 
@@ -55,11 +58,11 @@ class TestInterferometer(unittest.TestCase):
         """
         self.characterisation.process(self.dc_data)
         settings = pd.read_csv(f"{self.base_dir}/settings.csv", index_col="Setting")
-        self.assertTrue((np.abs(settings.loc["Output Phases [deg]"] - self.interferometry.output_phases)
+        self.assertTrue((np.abs(settings.loc["Output Phases [deg]"] - self.interferometer.output_phases)
                          < np.deg2rad(TestInterferometer.MAX_ERROR_PARAMETERS)).any())
-        self.assertTrue((np.abs(settings.loc["Amplitude [V]"] - self.interferometry.amplitudes)
+        self.assertTrue((np.abs(settings.loc["Amplitude [V]"] - self.interferometer.amplitudes)
                          < TestInterferometer.MAX_ERROR_PARAMETERS).any())
-        self.assertTrue((np.abs(settings.loc["Offset [V]"] - self.interferometry.offsets)
+        self.assertTrue((np.abs(settings.loc["Offset [V]"] - self.interferometer.offsets)
                          < TestInterferometer.MAX_ERROR_PARAMETERS).any())
 
     def test_interferometer_phase(self):
@@ -67,8 +70,9 @@ class TestInterferometer(unittest.TestCase):
         Tests whereby given fixed characteristic parameters the interferometric phase can be
         correctly calculated, i.e. the signal reconstructed.
         """
-        self.interferometry.calculate_phase(self.dc_data.T)
-        reconstructed_signal = self._reconstruct_signal(self.interferometry.phase)
+        self.interferometer.intensities = self.dc_data.T
+        self.interferometer.calculate_phase()
+        reconstructed_signal = self._reconstruct_signal(self.interferometer.phase)
         self.assertTrue((np.abs(reconstructed_signal - self.dc_data) < TestInterferometer.MAX_ERROR_PHASE).any())
 
     def tearDown(self) -> None:

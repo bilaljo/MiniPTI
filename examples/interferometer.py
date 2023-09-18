@@ -16,7 +16,7 @@ if __name__ == "__main__":
 
     data = pd.read_csv("examples/sample_data/Decimation_Comercial.csv")
 
-    dc_signals = data[[f"DC CH{i}" for i in range(1, 4)]].to_numpy()
+    interferometer.intensities = data[[f"DC CH{i}" for i in range(1, 4)]].to_numpy()
 
-    interferometer.calculate_phase(dc_signals)
-    print(interferometer.phase)
+    interferometer.run()
+    print(interferometer)
