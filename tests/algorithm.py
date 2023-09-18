@@ -101,8 +101,16 @@ class TestCharacterisation(unittest.TestCase):
     def test_parameters(self) -> None:
         for _ in self.characterization.process(self.intensities):
             pass
-        self.assertTrue((np.abs(self.interferometer.output_phases - np.array([0, 2 * np.pi / 3, 4 * np.pi / 3]))
-                         < TestInterferometer.MAX_ERROR_PHASE).any())
+        ideal_phases = np.array([0, 2 * np.pi / 3, 4 * np.pi / 3])
+        ideal_amplitudes = np.array([1, 1, 1])
+        ideal_offsets = np.array([0, 0, 0])
+
+        error_phase = np.abs(self.interferometer.output_phases - ideal_phases)
+        error_amplitude = np.abs(self.interferometer.amplitudes - ideal_amplitudes)
+        error_offset = np.abs(self.interferometer.offsets - ideal_offsets)
+        self.assertTrue((error_phase < TestInterferometer.MAX_ERROR_PHASE).any())
+        self.assertTrue((error_amplitude < TestInterferometer.MAX_ERROR_PHASE).any())
+        self.assertTrue((error_offset < TestInterferometer.MAX_ERROR_PHASE).any())
 
 
 if __name__ == "__main__":
