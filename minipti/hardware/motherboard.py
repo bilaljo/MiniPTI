@@ -70,17 +70,17 @@ class Valve:
 
 
 class BMSIndex(enum.IntEnum):
-    SHUTDOWN = 1
-    VALID_IDENTIFIER = 3
-    EXTERNAL_DC_POWER = 5
-    CHARGING = 7
-    MINUTES_LEFT = 9
-    BATTERY_PERCENTAGE = 13
-    BATTERY_TEMPERATURE = 15
-    CURRENT = 19
-    VOLTAGE = 23
-    FULL_CHARGED_CAPACITY = 27
-    REMAINING_CAPACITY = 31
+    SHUTDOWN = 0
+    VALID_IDENTIFIER = 2
+    EXTERNAL_DC_POWER = 4
+    CHARGING = 6
+    MINUTES_LEFT = 8
+    BATTERY_PERCENTAGE = 12
+    BATTERY_TEMPERATURE = 14
+    CURRENT = 18
+    VOLTAGE = 22
+    FULL_CHARGED_CAPACITY = 26
+    REMAINING_CAPACITY = 30
 
 
 @dataclass
@@ -102,7 +102,7 @@ class BMSConfiguration:
 
 
 class BMS:
-    PACKAGE_SIZE: Final = 39
+    PACKAGE_SIZE: Final = 38
     SHUTDOWN = 0xFF
 
     def __init__(self, driver: "Driver"):
@@ -264,7 +264,7 @@ class DAQ:
         raw_data = data[DAQ._SEQUENCE_SIZE:]
         for i in range(DAQ.RAW_DATA_SIZE // DAQ._WORD_SIZE):
             self._encode_binary(raw_data, i)
-            if self.current_sample == self.configuration.number_of_samples :
+            if self.current_sample == self.configuration.number_of_samples:
                 self.current_sample -= self.configuration.number_of_samples
                 self.build_sample_package()
 
@@ -293,7 +293,9 @@ class DAQ:
             self.current_sample -= 1
             delete_index += 1
         if self.current_sample < self.configuration.ref_period // 2:
-            return
+            if self.current_sample <= 0:
+                self.current_sample = 0
+                return
         self.synchronize = False
 
     def reset(self) -> None:

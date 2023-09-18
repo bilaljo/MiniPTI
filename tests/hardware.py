@@ -18,6 +18,7 @@ class DriverTests(unittest.TestCase):
         self.driver.synchronize = False
         DriverTests.driver.bms.running.set()
         DriverTests.driver.daq.running.set()
+        DriverTests.driver.connected.set()
 
     def tearDown(self) -> None:
         DriverTests.driver.bms.running.clear()
@@ -48,6 +49,7 @@ class MotherBoardDAQ(DAQTest):
         A valid package got directly used, the buffer keeps empty.
         """
         self.driver.received_data.put(self.received_data_daq[0] + "\n")
+        self.driver.daq.synchronize = False
         self.driver.encode_data()
         self.assertEqual(self.driver.buffer_size, 0)
         self._package_test(1)
@@ -97,6 +99,7 @@ class MotherBoardDAQ(DAQTest):
         """
         self.driver.received_data.put(self.received_data_daq[5][:4109] + "\n"
                                       + self.received_data_daq[5][4109:])
+        self.driver.daq.synchronize = False
         self.driver.encode_data()
         self.assertEqual(self.driver.buffer_size, len(self.received_data_daq[5][4109:]))
         self._package_test(1)
@@ -136,14 +139,12 @@ class MotherBoardBMS(DAQTest):
     """
     Unit tests for several kind of packages for the BMS.
     """
-    driver = minipti.hardware.motherboard.Driver()
-
     with open(f"{os.path.dirname(__file__)}/sample_data/hardware/bms.data", "r",
               encoding="ASCII") as bms_file:
         received_data_bms = bms_file.read().split("\n")
 
     def _bms_check_1(self) -> None:
-        bms_data = self.driver.bms.encoded_data
+        bms_data = self.driver.bms_data
         self.assertTrue(bms_data.external_dc_power)
         self.assertTrue(bms_data.charging)
         self.assertEqual(bms_data.minutes_left, float("inf"))
@@ -175,6 +176,7 @@ class MotherBoardBMS(DAQTest):
         """
         The continuation of above package that is completed now.
         """
+        self.driver.bms.running.set()
         self.driver.received_data.put(self.received_data_bms[2] + "\n")
         self.driver.encode_data()
         self._bms_check_1()
