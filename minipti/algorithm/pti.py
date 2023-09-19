@@ -265,6 +265,7 @@ class Inversion:
             pd.DataFrame(output_data, index=["Y:M:D"]).to_csv(f"{self.destination_folder}/PTI_Inversion.csv",
                                                               index_label="Date")
             self.init_header = False
+        self.interferometer.run(live=True)
         self.calculate_pti_signal()
         self._save_live_data()
 
