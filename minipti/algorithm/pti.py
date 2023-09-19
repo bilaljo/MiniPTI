@@ -258,14 +258,10 @@ class Inversion:
     def _calculate_online(self) -> None:
         output_data = {"Time": "H:M:S"}
         if self.init_header:
-            output_data["Interferometric Phase"] = "rad"
-            for channel in range(1, 4):
-                output_data[f"Sensitivity CH{channel}"] = "V/rad"
             output_data["PTI Signal"] = "µrad"
             pd.DataFrame(output_data, index=["Y:M:D"]).to_csv(f"{self.destination_folder}/PTI_Inversion.csv",
                                                               index_label="Date")
             self.init_header = False
-        self.interferometer.run(live=True)
         self.calculate_pti_signal()
         self._save_live_data()
 
@@ -273,12 +269,7 @@ class Inversion:
         now = datetime.now()
         date = str(now.strftime("%Y-%m-%d"))
         time = str(now.strftime("%H:%M:%S"))
-        output_data = {"Time": time,
-                       "Interferometric Phase": self.interferometer.phase,
-                       "Sensitivity CH1": self.interferometer.sensitivity[0],
-                       "Sensitivity CH2": self.interferometer.sensitivity[1],
-                       "Sensitivity CH3": self.interferometer.sensitivity[2],
-                       "PTI Signal": self.pti_signal}
+        output_data = {"Time": time, "PTI Signal": self.pti_signal}
         try:
             pd.DataFrame(output_data, index=[date]).to_csv(f"{self.destination_folder}/PTI_Inversion.csv",
                                                            mode="a", index_label="Date", header=False)

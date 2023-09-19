@@ -152,8 +152,8 @@ class SettingsTable(Table):
     def _indices(self) -> list[str]:
         return ["Amplitude [V]", "Offset [V]", "Output Phases [deg]", "Response Phases [rad]"]
 
-    @QtCore.pyqtSlot(algorithm.interferometry.CharateristicParameter)
-    def update_settings(self, charateristic_parameter: algorithm.interferometry.CharateristicParameter) -> None:
+    @QtCore.pyqtSlot(algorithm.interferometry.CharacteristicParameter)
+    def update_settings(self, charateristic_parameter: algorithm.interferometry.CharacteristicParameter) -> None:
         self.update_settings_parameters(charateristic_parameter)
 
     def save(self) -> None:
@@ -162,7 +162,7 @@ class SettingsTable(Table):
     def load(self) -> None:
         self.table_data = pd.read_csv(self.file_path, index_col="Setting")
 
-    def update_settings_parameters(self, charateristic_parameter: algorithm.interferometry.CharateristicParameter):
+    def update_settings_parameters(self, charateristic_parameter: algorithm.interferometry.CharacteristicParameter):
         self.table_data.loc["Output Phases [deg]"] = np.rad2deg(charateristic_parameter.output_phases)
         self.table_data.loc["Amplitude [V]"] = charateristic_parameter.amplitudes
         self.table_data.loc["Offset [V]"] = charateristic_parameter.offsets
@@ -282,9 +282,6 @@ class PTIBuffer(Buffer):
 
     def __init__(self):
         Buffer.__init__(self)
-        self._dc_values = [deque(maxlen=Buffer.QUEUE_SIZE) for _ in range(PTIBuffer.CHANNELS)]
-        self._interferometric_phase = deque(maxlen=Buffer.QUEUE_SIZE)
-        self._sensitivity = [deque(maxlen=Buffer.QUEUE_SIZE) for _ in range(PTIBuffer.CHANNELS)]
         self._pti_signal = deque(maxlen=Buffer.QUEUE_SIZE)
         self._pti_signal_mean = deque(maxlen=Buffer.QUEUE_SIZE)
         self._pti_signal_mean_queue = deque(maxlen=PTIBuffer.MEAN_SIZE)
@@ -294,17 +291,36 @@ class PTIBuffer(Buffer):
     def is_empty(self) -> bool:
         return len(self._pti_signal) == 0
 
-    def append(self, pti: PTI, interferometer: algorithm.interferometry.Interferometer, average_period: int) -> None:
-        for i in range(3):
-            self._dc_values[i].append(pti.decimation.dc_signals[i])
-            self.sensitivity[i].append(interferometer.sensitivity[i])
-        self._interferometric_phase.append(interferometer.phase)
+    def append(self, pti: PTI, average_period: int) -> None:
         self._pti_signal.append(pti.inversion.pti_signal)
         self._pti_signal_mean_queue.append(pti.inversion.pti_signal)
         time_scaler: float = algorithm.pti.Decimation.REF_PERIOD * algorithm.pti.Decimation.SAMPLE_PERIOD
         if average_period / time_scaler == 1:
             self._pti_signal_mean.append(np.mean(np.array(self._pti_signal_mean_queue)))
         self.time.append(next(self.time_counter) * average_period / time_scaler)
+
+    @property
+    def pti_signal(self) -> deque:
+        return self._pti_signal
+
+    @property
+    def pti_signal_mean(self) -> deque:
+        return self._pti_signal_mean
+
+
+class InterferometerBuffer(Buffer):
+    CHANNELS = 3
+
+    def __init__(self):
+        Buffer.__init__(self)
+        self._dc_values = [deque(maxlen=Buffer.QUEUE_SIZE) for _ in range(PTIBuffer.CHANNELS)]
+        self._interferometric_phase = deque(maxlen=Buffer.QUEUE_SIZE)
+        self._sensitivity = [deque(maxlen=Buffer.QUEUE_SIZE) for _ in range(PTIBuffer.CHANNELS)]
+
+    @property
+    @override
+    def is_empty(self) -> bool:
+        return len(self._interferometric_phase) == 0
 
     @property
     def dc_values(self) -> list[deque]:
@@ -318,13 +334,12 @@ class PTIBuffer(Buffer):
     def sensitivity(self) -> list[deque]:
         return self._sensitivity
 
-    @property
-    def pti_signal(self) -> deque:
-        return self._pti_signal
-
-    @property
-    def pti_signal_mean(self) -> deque:
-        return self._pti_signal_mean
+    def append(self, interferometer: algorithm.interferometry.Interferometer) -> None:
+        for i in range(InterferometerBuffer.CHANNELS):
+            self._dc_values[i].append(interferometer.intensities[i])
+            self._sensitivity[i].append(interferometer.sensitivity[i])
+        self._interferometric_phase.append(interferometer.phase)
+        self.time.append(next(self.time_counter))
 
 
 class CharacterisationBuffer(Buffer):
@@ -439,9 +454,10 @@ class Battery:
 
 @dataclass(init=False, frozen=True)
 class DAQSignals(QtCore.QObject):
-    decimation_live = QtCore.pyqtSignal(Buffer)
-    inversion_live = QtCore.pyqtSignal(Buffer, bool)
-    characterization_live = QtCore.pyqtSignal(Buffer)
+    decimation = QtCore.pyqtSignal(Buffer)
+    inversion = QtCore.pyqtSignal(Buffer, bool)
+    interferometry = QtCore.pyqtSignal(Buffer)
+    characterization = QtCore.pyqtSignal(Buffer)
     samples_changed = QtCore.pyqtSignal(int)
     running = QtCore.pyqtSignal(bool)
     clear = QtCore.pyqtSignal()
@@ -465,7 +481,7 @@ class ValveSignals(QtCore.QObject):
 class Signals(QtCore.QObject):
     settings_pti = QtCore.pyqtSignal()
     logging_update = QtCore.pyqtSignal(deque)
-    settings = QtCore.pyqtSignal(algorithm.interferometry.CharateristicParameter)
+    settings = QtCore.pyqtSignal(algorithm.interferometry.CharacteristicParameter)
     destination_folder_changed = QtCore.pyqtSignal(str)
     settings_path_changed = QtCore.pyqtSignal(str)
     battery_state = QtCore.pyqtSignal(Battery)
@@ -520,7 +536,7 @@ class Calculation:
         self.settings_path = ""
         decimation = algorithm.pti.Decimation()
         self.interferometer = algorithm.interferometry.Interferometer()
-        self.pti = PTI(algorithm.pti.Decimation(), algorithm.pti.Inversion(decimation=decimation))
+        self.pti = PTI(decimation, algorithm.pti.Inversion(decimation=decimation))
         self.pti.inversion.interferometer = self.interferometer
         self.interferometry_characterization = algorithm.interferometry.Characterization(self.interferometer)
         self._destination_folder = os.getcwd()
@@ -551,6 +567,7 @@ class LiveCalculation(Calculation):
         self.current_time = 0
         self.save_raw_data = False
         self.dc_signals = []
+        self.interferometer_buffer = InterferometerBuffer()
         self.pti_buffer = PTIBuffer()
         self.characterisation_buffer = CharacterisationBuffer()
         self.motherboard = Motherboard()
@@ -562,7 +579,7 @@ class LiveCalculation(Calculation):
         return algorithm.pti.Decimation.REF_PERIOD * algorithm.pti.Decimation.SAMPLE_PERIOD
 
     def process_daq_data(self) -> None:
-        threading.Thread(target=self._run_pti_inversion, name="PTI Inversion", daemon=True).start()
+        threading.Thread(target=self._run_calculation, name="PTI Inversion", daemon=True).start()
         threading.Thread(target=self._run_characterization, name="Characterisation", daemon=True).start()
 
     @staticmethod
@@ -587,10 +604,11 @@ class LiveCalculation(Calculation):
     def set_common_mode_noise_reduction(self, common_mode_noise_reduction: bool) -> None:
         self.pti.decimation.use_common_mode_noise_reduction = common_mode_noise_reduction
 
-    def _run_pti_inversion(self):
+    def _run_calculation(self):
         self._init_calculation()
         while self.motherboard.driver.daq.running.is_set():
             self._decimation()
+            self._interferometer_calculation()
             self._pti_inversion()
             self._characterisation()
 
@@ -598,12 +616,13 @@ class LiveCalculation(Calculation):
         while self.motherboard.driver.daq.running.is_set():
             self.interferometry_characterization.characterise(live=True)
             self.characterisation_buffer.append(self.interferometry_characterization, self.interferometer)
-            daq_signals.characterization_live.emit(self.characterisation_buffer)
+            daq_signals.characterization.emit(self.characterisation_buffer)
             signals.settings.emit(self.interferometer.characteristic_parameter)
 
     def _init_calculation(self) -> None:
         self.pti.inversion.init_header = True
         self.pti.decimation.init_header = True
+        self.interferometer.init_header = True
         self.interferometry_characterization.init_online = True
         self.interferometer.load_settings()
 
@@ -612,12 +631,17 @@ class LiveCalculation(Calculation):
         self.pti.decimation.raw_data.dc = self.motherboard.driver.dc_coupled.copy()
         self.pti.decimation.raw_data.ac = self.motherboard.driver.ac_coupled.copy()
         self.pti.decimation.run(live=True)
-        daq_signals.decimation_live.emit(self.pti_buffer)
+
+    def _interferometer_calculation(self) -> None:
+        self.interferometer.intensities = self.pti.decimation.dc_signals
+        self.interferometer.run(live=True)
+        self.interferometer_buffer.append(self.interferometer)
+        daq_signals.interferometry.emit(self.interferometer_buffer)
 
     def _pti_inversion(self) -> None:
         self.pti.inversion.run(live=True)
-        self.pti_buffer.append(self.pti, self.interferometer, self.pti.decimation.average_period)
-        daq_signals.inversion_live.emit(self.pti_buffer, LiveCalculation.get_time_scaler() == 1)
+        self.pti_buffer.append(self.pti, self.pti.decimation.average_period)
+        daq_signals.inversion.emit(self.pti_buffer, LiveCalculation.get_time_scaler() == 1)
 
     def _characterisation(self) -> None:
         self.interferometry_characterization.add_phase(self.interferometer.phase)

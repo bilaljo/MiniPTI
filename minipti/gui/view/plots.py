@@ -97,10 +97,10 @@ class DC(DAQPlots):
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="Intensity [V]")
         self.name = "DC Plots"
-        model.daq_signals.decimation_live.connect(self.update_data_live)
+        model.daq_signals.interferometry.connect(self.update_data_live)
 
     #@override
-    def update_data_live(self, data: model.PTIBuffer) -> None:
+    def update_data_live(self, data: model.InterferometerBuffer) -> None:
         for channel in range(3):
             self.curves[channel].setData(data.time, data.dc_values[channel])
 
@@ -131,7 +131,7 @@ class Amplitudes(DAQPlots):
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="Amplitude [V]")
         self.name = "Amplitudes"
-        model.daq_signals.characterization_live.connect(self.update_data_live)
+        model.daq_signals.characterization.connect(self.update_data_live)
 
     #@override
     def update_data_live(self, data: model.CharacterisationBuffer) -> None:
@@ -160,7 +160,7 @@ class OutputPhases(DAQPlots):
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="Output Phase [deg]")
         self.name = "Output Phases"
-        model.daq_signals.characterization_live.connect(self.update_data_live)
+        model.daq_signals.characterization.connect(self.update_data_live)
 
     #@override
     def update_data_live(self, data: model.CharacterisationBuffer) -> None:
@@ -184,10 +184,10 @@ class InterferometricPhase(DAQPlots):
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="Interferometric Phase [rad]")
         self.name = "Interferometric Phase"
-        model.daq_signals.inversion_live.connect(self.update_data_live)
+        model.daq_signals.interferometry.connect(self.update_data_live)
 
     #@override
-    def update_data_live(self, data: model.PTIBuffer) -> None:
+    def update_data_live(self, data: model.InterferometerBuffer) -> None:
         self.curves.setData(data.time, data.interferometric_phase)
 
 
@@ -211,7 +211,7 @@ class Sensitivity(DAQPlots):
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="Sensitivity [V/rad]")
         self.name = "Sensitivity"
-        model.daq_signals.inversion_live.connect(self.update_data_live)
+        model.daq_signals.interferometry.connect(self.update_data_live)
 
     #@override
     def update_data_live(self, data: model.PTIBuffer) -> None:
@@ -229,7 +229,7 @@ class Symmetry(DAQPlots):
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="Symmetry [%]")
         self.name = "Symmetry"
-        model.daq_signals.characterization_live.connect(self.update_data_live)
+        model.daq_signals.characterization.connect(self.update_data_live)
 
     #@override
     def update_data_live(self, data: model.CharacterisationBuffer) -> None:
@@ -259,7 +259,7 @@ class PTISignal(DAQPlots):
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="PTI Signal [µrad]")
         self.name = "PTI Signal"
-        model.daq_signals.inversion_live.connect(self.update_data_live)
+        model.daq_signals.inversion.connect(self.update_data_live)
 
     #@override
     def update_data_live(self, data: model.PTIBuffer, calculate_mean: bool) -> None:

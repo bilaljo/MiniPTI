@@ -28,8 +28,8 @@ class LaserWindow(Laser):
 class OnRun:
     DAQ: bool = True
     BMS: bool = True
-    pump_laser: Laser = Laser()
-    probe_laser: Laser = Laser()
+    pump_laser: Laser = Laser(False, False)
+    probe_laser: Laser = Laser(False, False)
 
 
 @dataclass(frozen=True)

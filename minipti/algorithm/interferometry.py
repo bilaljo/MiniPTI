@@ -8,6 +8,7 @@ import os
 import threading
 import typing
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Final, Union
 from collections import defaultdict
 
@@ -20,7 +21,7 @@ class _Locks(typing.NamedTuple):
     output_phases: threading.Lock = threading.Lock()
     amplitudes: threading.Lock = threading.Lock()
     offsets: threading.Lock = threading.Lock()
-    characterisitc_parameter: threading.Lock = threading.Lock()
+    characteristic_parameter: threading.Lock = threading.Lock()
 
 
 @dataclass
@@ -30,7 +31,7 @@ class Symmetry:
 
 
 @dataclass
-class CharateristicParameter:
+class CharacteristicParameter:
     amplitudes: np.ndarray[float]
     offsets: np.ndarray[float]
     output_phases: np.ndarray[float]
@@ -52,8 +53,8 @@ class Interferometer:
         self.settings_path = settings_path
         self.decimation_filepath = decimation_filepath
         self.phase: float | np.ndarray = 0
-        self._characteristic_parameter = CharateristicParameter(amplitudes=np.zeros(3), offsets=np.zeros(3),
-                                                                output_phases=np.array([0,
+        self._characteristic_parameter = CharacteristicParameter(amplitudes=np.zeros(3), offsets=np.zeros(3),
+                                                                 output_phases=np.array([0,
                                                                                         2 * np.pi / 3,
                                                                                         4 * np.pi / 3]))
         self.symmetry = Symmetry()
@@ -99,8 +100,8 @@ class Interferometer:
         return amplitude_str + "\n" + offset_str + "\n" + output_phase_str
 
     @property
-    def characteristic_parameter(self) -> CharateristicParameter:
-        with self._locks.characterisitc_parameter:
+    def characteristic_parameter(self) -> CharacteristicParameter:
+        with self._locks.characteristic_parameter:
             return self._characteristic_parameter
 
     @property
@@ -214,11 +215,11 @@ class Interferometer:
             output_data["Interferometric Phase"] = "rad"
             for channel in range(1, 4):
                 output_data[f"Sensitivity CH{channel}"] = "V/rad"
-            output_data["PTI Signal"] = "µrad"
-            pd.DataFrame(output_data, index=["Y:M:D"]).to_csv(f"{self.destination_folder}/PTI_Inversion.csv",
+            pd.DataFrame(output_data, index=["Y:M:D"]).to_csv(f"{self.destination_folder}/Interferometer.csv",
                                                               index_label="Date")
         self.calculate_phase()
         self.calculate_sensitivity()
+        self._save_live_data()
 
     def _save_data(self) -> None:
         units, output_data = self._prepare_data()
@@ -228,6 +229,20 @@ class Interferometer:
                                          mode="a",  header=False)
         logging.info("Interferometer Data calculated.")
         logging.info("Saved results in %s", str(self.destination_folder))
+
+    def _save_live_data(self) -> None:
+        now = datetime.now()
+        date = str(now.strftime("%Y-%m-%d"))
+        time = str(now.strftime("%H:%M:%S"))
+        output_data = {"Time": time, "Interferometric Phase": self.phase}
+        for channel in range(3):
+            output_data[f"Sensitivity CH{channel + 1}"] = self.sensitivity[channel]
+        try:
+            pd.DataFrame(output_data, index=[date]).to_csv(f"{self.destination_folder}/Interferometer.csv",
+                                                           mode="a", index_label="Date", header=False)
+        except PermissionError:
+            logging.warning("Could not write data. Missing values are: %s at %s.",
+                            str(output_data)[1:-1], date + " " + time)
 
     def _get_dc_signals(self, file_path: str) -> None:
         data = pd.read_csv(file_path, sep=None, engine="python", skiprows=[1])
