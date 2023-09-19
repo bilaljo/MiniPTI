@@ -31,7 +31,7 @@ class Symmetry:
 
 
 @dataclass
-class CharacteristicParameter:
+class CharateristicParameter:
     amplitudes: np.ndarray[float]
     offsets: np.ndarray[float]
     output_phases: np.ndarray[float]
@@ -41,28 +41,28 @@ class Interferometer:
     """
     Provides the API for calculating the interferometric phase based on its characteristic values.
     """
-    CHANNELS: Final[int] = 3
-
     DC_HEADERS: Final[list] = [[f"PD{i}" for i in range(1, 4)],
                                [f"DC CH{i}" for i in range(1, 4)]]
 
     OPTIMAL_SYMMETRY: Final[float] = 86.58  # %
 
-    def __init__(self, settings_path=f"{os.path.dirname(__file__)}/configs/settings.csv",
+    def __init__(self, settings_path=f"{os.path.dirname(__file__)}/configs/settings.csv", interferometer_dimension=3,
                  decimation_filepath="data/Decimation.csv"):
         self.settings_path = settings_path
         self.decimation_filepath = decimation_filepath
-        self.phase: float | np.ndarray = 0
-        self._characteristic_parameter = CharacteristicParameter(amplitudes=np.zeros(3), offsets=np.zeros(3),
-                                                                 output_phases=np.array([0,
+        self.phase: Union[float, np.ndarray] = 0
+        self._characteristic_parameter = CharateristicParameter(amplitudes=np.zeros(interferometer_dimension),
+                                                                offsets=np.zeros(interferometer_dimension),
+                                                                output_phases=np.array([0,
                                                                                         2 * np.pi / 3,
                                                                                         4 * np.pi / 3]))
         self.symmetry = Symmetry()
         self._locks = _Locks()
-        self.sensitivity: np.ndarray = np.empty(shape=3)
+        self.sensitivity: np.ndarray = np.empty(shape=interferometer_dimension)
         self.destination_folder: str = os.getcwd()
         self.init_header: bool = True
         self.intensities: Union[None, np.ndarray] = None
+        self.interferometer_dimension = interferometer_dimension
 
     def load_settings(self) -> None:
         """
@@ -90,7 +90,7 @@ class Interferometer:
         output_phase_str = "Output Phases [deg]:\n"
         amplitude_str = "Amplitudes [V]:\n"
         offset_str = "Offsets [V]:\n"
-        for i in range(2):
+        for i in range(self.interferometer_dimension - 1):
             output_phase_str += f"CH {i + 1}: {np.round(np.rad2deg(self.output_phases[i]), 2)}, "
             amplitude_str += f"CH {i + 1}: {np.round(self.amplitudes[i], 2)}, "
             offset_str += f"CH {i + 1}: {np.round(self.offsets[i], 2)}, "
@@ -100,7 +100,7 @@ class Interferometer:
         return amplitude_str + "\n" + offset_str + "\n" + output_phase_str
 
     @property
-    def characteristic_parameter(self) -> CharacteristicParameter:
+    def characteristic_parameter(self) -> CharateristicParameter:
         with self._locks.characteristic_parameter:
             return self._characteristic_parameter
 
@@ -142,7 +142,7 @@ class Interferometer:
         The amplitude of perfect sine wave can be calculated according to A = (I_max - I_min) / 2.
         This function is only used as approximation.
         """
-        if intensity.shape[0] == 3:
+        if intensity.shape[0] == self.interferometer_dimension:
             self.amplitudes = (np.max(intensity, axis=1) - np.min(intensity, axis=1)) / 2
         else:
             self.amplitudes = (np.max(intensity, axis=0) - np.min(intensity, axis=0)) / 2
@@ -152,12 +152,12 @@ class Interferometer:
         The offset of perfect sine wave can be calculated according to B = (I_max + I_min) / 2.
         This function is only used as approximation.
         """
-        if intensity.shape[0] == 3:
+        if intensity.shape[0] == self.interferometer_dimension:
             self.offsets = (np.max(intensity, axis=1) + np.min(intensity, axis=1)) / 2
         else:
             self.offsets = (np.max(intensity, axis=0) + np.min(intensity, axis=0)) / 2
 
-    def _error_function(self, intensity: np.ndarray):
+    def _error_function(self, intensity: np.ndarray) -> typing.Callable:
         intensity_scaled = (intensity - self.offsets) / self.amplitudes
 
         def error(phase: np.ndarray):
@@ -168,33 +168,33 @@ class Interferometer:
 
         return error
 
-    def _error_function_df(self, phase: np.ndarray):
+    def _error_function_df(self, phase: np.ndarray) -> np.ndarray:
         try:
-            return -np.sin(phase - self.output_phases).reshape((3, 1))
+            return -np.sin(phase - self.output_phases).reshape((self.interferometer_dimension, 1))
         except AttributeError:
-            return -np.sin(np.array(phase) - np.array(self.output_phases)).reshape((3, 1))
+            return -np.sin(np.array(phase) - np.array(self.output_phases)).reshape((self.interferometer_dimension, 1))
 
-    def _calculate_phase(self, intensity: np.ndarray):
-        res = optimize.least_squares(fun=self._error_function(intensity), method="lm", x0=np.array(0),
+    def _calculate_phase(self, intensity: np.ndarray) -> np.ndarray:
+        res = optimize.least_squares(fun=self._error_function(intensity), method="lm", x0=1,
                                      tr_solver="exact",  jac=self._error_function_df).x
         return res % (2 * np.pi)
 
-    def calculate_phase(self):
+    def calculate_phase(self) -> None:
         """
         Calculated the interferometric phase with the defined characteristic parameters.
         """
-        if self.intensities.size // Interferometer.CHANNELS == 1:  # Only one Sample of 3 Values
+        if self.intensities.size // self.interferometer_dimension == 1:  # Only one Sample of 3 Values
             self.phase = self._calculate_phase(self.intensities)[0]
         else:
-            axis = 1 if self.intensities.shape[1] == 3 else 0
+            axis = 1 if self.intensities.shape[1] == self.interferometer_dimension else 0
             self.phase = np.apply_along_axis(self._calculate_phase, axis, self.intensities).flatten()
 
     def calculate_sensitivity(self) -> None:
         try:
-            self.sensitivity = np.empty(shape=(3, len(self.phase)))
+            self.sensitivity = np.empty(shape=(self.interferometer_dimension, len(self.phase)))
         except TypeError:
             self.sensitivity = [0, 0, 0]
-        for channel in range(3):
+        for channel in range(self.interferometer_dimension):
             amplitude = self.amplitudes[channel]
             output_phase = self.output_phases[channel]
             self.sensitivity[channel] = amplitude * np.abs(np.sin(self.phase - output_phase))
@@ -205,7 +205,7 @@ class Interferometer:
                                  "Sensitivity CH2": "V/rad",
                                  "Sensitivity CH3": "V/rad"}
         output_data = {"Interferometric Phase": self.phase}
-        for i in range(3):
+        for i in range(self.interferometer_dimension):
             output_data[f"Sensitivity CH{i + 1}"] = self.sensitivity[i]
         return units, output_data
 
@@ -387,7 +387,7 @@ class Characterization:
 
     def process(self, dc_signals: np.ndarray) -> Generator[int, None, None]:
         last_index: int = 0
-        data_length: int = dc_signals.size // Interferometer.CHANNELS
+        data_length: int = dc_signals.size // self.interferometer.interferometer_dimension
         if self.use_configuration:
             self._load_settings()
         else:
@@ -430,14 +430,16 @@ class Characterization:
         sine_values = np.sin(self.interferometry_data.phases)
         results, _, _, _ = linalg.lstsq(np.array([cosine_values, np.ones(len(cosine_values))]).T,
                                         self.interferometry_data.dc_signals.T[0], check_finite=False)
+
         amplitudes.append(results[0])
         offsets.append(results[1])
         output_phases.append(0)
 
         parameters = np.array([cosine_values, sine_values, np.ones(len(sine_values))]).T
 
-        for i in range(1, Interferometer.CHANNELS):
-            results, _, _, _ = linalg.lstsq(parameters, self.interferometry_data.dc_signals.T[i], check_finite=False)
+        for i in range(1, self.interferometer.interferometer_dimension):
+            results, _, _, _ = linalg.lstsq(parameters, self.interferometry_data.dc_signals.T[i],
+                                            check_finite=False)
             add_values(results)
 
         self.interferometer.output_phases = output_phases
@@ -445,11 +447,10 @@ class Characterization:
         self.interferometer.offsets = offsets
 
     def _iterate_characterization(self) -> None:
-        logging.info("Start iteration ...")
+        self.interferometer.intensities = np.array(self.interferometry_data.dc_signals)
         for _ in itertools.repeat(None, Characterization.MAX_ITERATIONS):
-            self.interferometer.intensities = np.array(self.interferometry_data.dc_signals)
             self.interferometer.calculate_phase()
-            self.phases = self.interferometer.phase
+            self.interferometry_data.phases = self.interferometer.phase
             self._characterise_interferometer()
             logging.info("Current estimation:\n%s", str(self.interferometer))
         logging.info("Final values:\n%s", str(self.interferometer))
