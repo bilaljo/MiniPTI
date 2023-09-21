@@ -2,7 +2,6 @@ import dataclasses
 import enum
 import logging
 import os
-import platform
 import queue
 import threading
 import time
