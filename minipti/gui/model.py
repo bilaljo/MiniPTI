@@ -152,8 +152,8 @@ class SettingsTable(Table):
     def _indices(self) -> list[str]:
         return ["Amplitude [V]", "Offset [V]", "Output Phases [deg]", "Response Phases [rad]"]
 
-    @QtCore.pyqtSlot(algorithm.interferometry.CharacteristicParameter)
-    def update_settings(self, charateristic_parameter: algorithm.interferometry.CharacteristicParameter) -> None:
+    @QtCore.pyqtSlot(algorithm.interferometry.CharateristicParameter)
+    def update_settings(self, charateristic_parameter: algorithm.interferometry.CharateristicParameter) -> None:
         self.update_settings_parameters(charateristic_parameter)
 
     def save(self) -> None:
@@ -162,7 +162,7 @@ class SettingsTable(Table):
     def load(self) -> None:
         self.table_data = pd.read_csv(self.file_path, index_col="Setting")
 
-    def update_settings_parameters(self, charateristic_parameter: algorithm.interferometry.CharacteristicParameter):
+    def update_settings_parameters(self, charateristic_parameter: algorithm.interferometry.CharateristicParameter):
         self.table_data.loc["Output Phases [deg]"] = np.rad2deg(charateristic_parameter.output_phases)
         self.table_data.loc["Amplitude [V]"] = charateristic_parameter.amplitudes
         self.table_data.loc["Offset [V]"] = charateristic_parameter.offsets
@@ -481,7 +481,7 @@ class ValveSignals(QtCore.QObject):
 class Signals(QtCore.QObject):
     settings_pti = QtCore.pyqtSignal()
     logging_update = QtCore.pyqtSignal(deque)
-    settings = QtCore.pyqtSignal(algorithm.interferometry.CharacteristicParameter)
+    settings = QtCore.pyqtSignal(algorithm.interferometry.CharateristicParameter)
     destination_folder_changed = QtCore.pyqtSignal(str)
     settings_path_changed = QtCore.pyqtSignal(str)
     battery_state = QtCore.pyqtSignal(Battery)

@@ -19,8 +19,8 @@ class TestInterferometer(unittest.TestCase):
     Tests with sample data if the characteristic values of the interferometer fit the measured
     intensities well (according to a tolerance) enough.
     """
-    MAX_ERROR_PHASE = 0.1 * 2 * np.pi
-    MAX_ERROR_PARAMETERS = 0.1
+    MAX_ERROR_PHASE = 1e-6 * 2 * np.pi
+    MAX_ERROR_PARAMETERS = 1e-6
 
     def setUp(self):
         unittest.TestCase.__init__(self)
@@ -94,15 +94,15 @@ class TestCharacterisation(unittest.TestCase):
                                                                                   use_parameters=False,
                                                                                   use_configuration=False)
         self.phases = np.linspace(0, 2 * np.pi, 500)
-        self.intensities = np.array([np.cos(self.phases - i * 2 * np.pi / 3) for i in range(3)]).T
+        self.intensities = np.array([np.cos(self.phases - i * 2 * np.pi / 3) + 1 for i in range(3)]).T
 
     def test_parameters_non_ideal(self) -> None:
         output_phases = np.array([0, 0.4, 0.7]) * 2 * np.pi
-        self.intensities = np.array([np.cos(self.phases - output_phases[i]) for i in range(3)]).T
+        self.intensities = np.array([np.cos(self.phases - output_phases[i]) + 1 for i in range(3)]).T
         for _ in self.characterization.process(self.intensities):
             pass
         ideal_amplitudes = np.array([1, 1, 1])
-        ideal_offsets = np.array([0, 0, 0])
+        ideal_offsets = np.array([1, 1, 1])
         error_phase = np.abs(self.interferometer.output_phases - output_phases)
         error_amplitude = np.abs(self.interferometer.amplitudes - ideal_amplitudes)
         error_offset = np.abs(self.interferometer.offsets - ideal_offsets)

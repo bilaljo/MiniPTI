@@ -104,6 +104,11 @@ class Interferometer:
         with self._locks.characteristic_parameter:
             return self._characteristic_parameter
 
+    @characteristic_parameter.setter
+    def characteristic_parameter(self, new_parameter: CharateristicParameter) -> None:
+        with self._locks.characteristic_parameter:
+            self._characteristic_parameter = new_parameter
+
     @property
     def amplitudes(self) -> np.ndarray:
         with self._locks.amplitudes:
@@ -137,21 +142,25 @@ class Interferometer:
         with self._locks.output_phases:
             self._characteristic_parameter.output_phases = output_phases
 
-    def calculate_amplitudes(self, intensity: np.ndarray):
+    def calculate_amplitudes(self, intensity: Union[np.ndarray, None] = None):
         """
         The amplitude of perfect sine wave can be calculated according to A = (I_max - I_min) / 2.
         This function is only used as approximation.
         """
+        if intensity is None:
+            intensity = self.intensities
         if intensity.shape[0] == self.interferometer_dimension:
             self.amplitudes = (np.max(intensity, axis=1) - np.min(intensity, axis=1)) / 2
         else:
             self.amplitudes = (np.max(intensity, axis=0) - np.min(intensity, axis=0)) / 2
 
-    def calculate_offsets(self, intensity: np.ndarray):
+    def calculate_offsets(self, intensity: Union[np.ndarray, None] = None):
         """
         The offset of perfect sine wave can be calculated according to B = (I_max + I_min) / 2.
         This function is only used as approximation.
         """
+        if intensity is None:
+            intensity = self.intensities
         if intensity.shape[0] == self.interferometer_dimension:
             self.offsets = (np.max(intensity, axis=1) + np.min(intensity, axis=1)) / 2
         else:
@@ -280,7 +289,7 @@ class Characterization:
     Provided an API for the characterization_live of an interferometer as described in [1].
     [1]:
     """
-    MAX_ITERATIONS: Final[int] = 30
+    MAX_ITERATIONS: Final[int] = 50
     STEP_SIZE: Final[int] = 100
 
     def __init__(self, interferometer=Interferometer(), use_configuration=True, use_parameters=True):
@@ -411,7 +420,7 @@ class Characterization:
         if last_index == 0:
             raise ValueError("Not enough values for characterisation")
 
-    def _characterise_interferometer(self) -> None:
+    def _characterise_interferometer(self, update_amplitude_offsets=True) -> None:
         """
         Calculates with the least squares method the output phases and min and max intensities for
         every channel. If no min/max values and output phases are given (either none or nan) the
@@ -443,11 +452,32 @@ class Characterization:
             add_values(results)
 
         self.interferometer.output_phases = output_phases
-        self.interferometer.amplitudes = amplitudes
-        self.interferometer.offsets = offsets
+        if update_amplitude_offsets:
+            self.interferometer.amplitudes = amplitudes
+            self.interferometer.offsets = offsets
+
+    def estimate_error(self) -> float:
+        error = 0
+        for channel in range(3):
+            error += np.sum((self.interferometer.amplitudes[channel] *
+                             np.cos(self.interferometer.phase - self.interferometer.output_phases[channel])
+                             + self.interferometer.offsets[channel] - self.interferometer.intensities.T[channel]) ** 2)
+        return error
 
     def _iterate_characterization(self) -> None:
         self.interferometer.intensities = np.array(self.interferometry_data.dc_signals)
+        self.interferometer.calculate_amplitudes()
+        self.interferometer.calculate_offsets()
+        solutions = {}
+        phase_space = [2 * np.pi * k / 10 for k in range(10)]
+        alpha_value = itertools.product(phase_space, phase_space)
+        for alpha in alpha_value:
+            self.interferometer.output_phases[1:] = np.array(alpha)
+            self.interferometer.calculate_phase()
+            self.interferometry_data.phases = self.interferometer.phase
+            self._characterise_interferometer(update_amplitude_offsets=False)
+            solutions[self.estimate_error()] = self.interferometer.output_phases
+        self.interferometer.output_phases = solutions[min(solutions)]
         for _ in itertools.repeat(None, Characterization.MAX_ITERATIONS):
             self.interferometer.calculate_phase()
             self.interferometry_data.phases = self.interferometer.phase
