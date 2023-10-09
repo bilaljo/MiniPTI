@@ -246,14 +246,14 @@ class Interferometer:
         output_data = {"Time": None, "Interferometric Phase": None}
         for channel in range(3):
             output_data[f"Sensitivity CH{channel + 1}"] = None
-        self.output_data_frame = pd.DataFrame(output_data)
+        self.output_data_frame = pd.DataFrame(output_data, index=[None])
 
     def _save_live_data(self) -> None:
         now = datetime.now()
         date = str(now.strftime("%Y-%m-%d"))
         time = str(now.strftime("%H:%M:%S"))
         self.output_data_frame["Time"] = time
-        self.output_data_frame.index = date
+        self.output_data_frame.index = [date]
         self.output_data_frame["Interferometric Phase"] = self.phase
         for channel in range(3):
             self.output_data_frame[f"Sensitivity CH{channel + 1}"] = self.sensitivity[channel]

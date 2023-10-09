@@ -285,14 +285,14 @@ class DAQ:
 
     def synchronize_with_ref(self) -> None:
         logging.warning("Trying to synchronise")
-        high_begin = np.argmax(self.encoded_buffer.ref_signal[:self.configuration.ref_period])
-        low_begin = np.argmin(self.encoded_buffer.ref_signal[:self.configuration.ref_period])
-        self.current_sample -= low_begin
-        self.current_sample -= (self.configuration.ref_period // 2 - high_begin)
-        #delete_index = 0
-        #while np.sum(self.encoded_buffer.ref_signal[delete_index:self.configuration.ref_period // 2 + delete_index]):
-        #    self.current_sample -= 1
-        #    delete_index += 1
+        #high_begin = np.argmax(self.encoded_buffer.ref_signal[:self.configuration.ref_period])
+        #low_begin = np.argmin(self.encoded_buffer.ref_signal[:self.configuration.ref_period])
+        #self.current_sample -= low_begin
+        #self.current_sample -= (self.configuration.ref_period // 2 - high_begin)
+        delete_index = 0
+        while np.sum(self.encoded_buffer.ref_signal[delete_index:self.configuration.ref_period // 2 + delete_index]):
+            self.current_sample -= 1
+            delete_index += 1
         if self.current_sample < self.configuration.ref_period // 2:
             if self.current_sample <= 0:
                 self.current_sample = 0
