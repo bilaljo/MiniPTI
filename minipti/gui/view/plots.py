@@ -214,7 +214,7 @@ class Sensitivity(DAQPlots):
         model.daq_signals.interferometry.connect(self.update_data_live)
 
     #@override
-    def update_data_live(self, data: model.PTIBuffer) -> None:
+    def update_data_live(self, data: model.InterferometerBuffer) -> None:
         for channel in range(3):
             self.curves[channel].setData(data.time, data.sensitivity[channel])
 

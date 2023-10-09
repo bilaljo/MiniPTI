@@ -60,7 +60,7 @@ class Interferometer:
         self._locks = _Locks()
         self.sensitivity: np.ndarray = np.empty(shape=interferometer_dimension)
         self.destination_folder: str = os.getcwd()
-        self.init_live: bool = True
+        self.init_online: bool = True
         self.intensities: Union[None, np.ndarray] = None
         self.interferometer_dimension = interferometer_dimension
         self.output_data_frame = pd.DataFrame()
@@ -221,14 +221,14 @@ class Interferometer:
 
     def _calculate_online(self) -> None:
         output_data = {"Time": "H:M:S"}
-        if self.init_live:
+        if self.init_online:
             output_data["Interferometric Phase"] = "rad"
             for channel in range(1, 4):
                 output_data[f"Sensitivity CH{channel}"] = "V/rad"
             pd.DataFrame(output_data, index=["Y:M:D"]).to_csv(f"{self.destination_folder}/Interferometer.csv",
                                                               index_label="Date")
             self._init_live_data_frame()
-            self.init_live = False
+            self.init_online = False
         self.calculate_phase()
         self.calculate_sensitivity()
         self._save_live_data()
