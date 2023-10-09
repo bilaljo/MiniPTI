@@ -622,7 +622,7 @@ class LiveCalculation(Calculation):
     def _init_calculation(self) -> None:
         self.pti.inversion.init_header = True
         self.pti.decimation.init_header = True
-        self.interferometer.init_header = True
+        self.interferometer.init_live = True
         self.interferometry_characterization.init_online = True
         self.interferometer.load_settings()
 
