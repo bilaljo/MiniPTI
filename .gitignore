@@ -1,11 +1,8 @@
 .idea
-.vscode
 **/__pycache__
-<<<<<<< HEAD
-=======
-*.log
->>>>>>> main
 venv
+.venv
 *.csv
 *.hdf5
 *.log
+.vscode
