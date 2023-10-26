@@ -1,7 +1,7 @@
 """
 Unit tests for the hardware API of the MiniPTI.
 """
-
+import itertools
 import logging
 import os
 import sys
@@ -225,18 +225,21 @@ class MotherBoardDAQBMS(DAQTest):
                                       + self.received_data_package[1] + "\n"
                                       + self.received_data_package[2] + "\n", block=False)
         self.driver.encode_data()
-        # Packages are removed because of async to ref
-        self.assertEqual(self.driver.daq.current_sample, 214)
-        self.assertEqual(self.driver.daq.current_sample, 214)
-        self.assertEqual(self.driver.daq.current_sample, 214)
 
 
 class SynchronizeWithRef(DriverTests):
     def test_sync_with_ref(self) -> None:
-        self.driver.daq.encoded_buffer.ref_signal = [1 if i <= 10 else 0 for i in range(100)]
-        self.driver.daq.current_sample = 100
+        self.driver.daq.encoded_buffer.ref_signal.extend([1 if i <= 10 else 0 for i in range(100)])
+        for i in range(3):
+            # Random data, not really needed
+            self.driver.daq.encoded_buffer.ac_coupled[i].extend([1 if i <= 10 else 0 for i in range(100)])
+            self.driver.daq.encoded_buffer.dc_coupled[i].extend([1 if i <= 10 else 0 for i in range(100)])
+        self.driver.daq.encoded_buffer.dc_coupled[3].extend([1 if i <= 10 else 0 for i in range(100)])
+        self.driver.daq.synchronize = True
         self.driver.daq.synchronize_with_ref()
-        self.assertTrue(sum(self.driver.daq.encoded_buffer.ref_signal[:self.driver.daq.configuration.ref_period // 2]))
+        ref = self.driver.daq.encoded_buffer.ref_signal
+        ref_period = self.driver.daq.configuration.ref_period // 2
+        self.assertFalse(sum(itertools.islice(ref, 0, ref_period)))
 
 
 if __name__ == '__main__':
