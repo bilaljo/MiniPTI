@@ -1,23 +1,22 @@
 dacite==1.8.1
 fastcrc==0.2.1
-h5py==3.9.0
-numpy==1.26.0
-pandas==2.1.0
+h5py==3.10.0
+numpy==1.26.1
+pandas==2.1.1
 PyQt5>=5.15.2
 pyqtgraph==0.13.3
 pyserial==3.5
 python-dateutil==2.8.2
 pytz==2023.3.post1
-scipy==1.11.2
+scipy==1.11.3
 six==1.16.0
-types-pytz==2023.3.1.0
 tzdata==2023.3
-pythonnet==3.0.2; platform_system == "Windows"
+pythonnet==3.0.3; platform_system == "Windows"
 overrides==7.4.0
 pyqtdarktheme==2.1.0
 matplotlib==3.8.0
-markdown==3.4.4
+markdown==3.5
 qtwidgets==1.1
 darkdetect[macos-listener]==0.8.0
-QtPy==2.4.0
-notify-py
+qtpy==2.4.1
+notify-py==0.3.42
