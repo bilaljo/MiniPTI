@@ -1,6 +1,5 @@
 import json
 import pathlib
-import sys
 import threading
 from abc import abstractmethod
 import copy
