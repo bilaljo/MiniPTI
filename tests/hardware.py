@@ -231,5 +231,13 @@ class MotherBoardDAQBMS(DAQTest):
         self.assertEqual(self.driver.daq.current_sample, 214)
 
 
+class SynchronizeWithRef(DriverTests):
+    def test_sync_with_ref(self) -> None:
+        self.driver.daq.encoded_buffer.ref_signal = [1 if i <= 10 else 0 for i in range(100)]
+        self.driver.daq.current_sample = 100
+        self.driver.daq.synchronize_with_ref()
+        self.assertTrue(sum(self.driver.daq.encoded_buffer.ref_signal[:self.driver.daq.configuration.ref_period // 2]))
+
+
 if __name__ == '__main__':
     unittest.main()

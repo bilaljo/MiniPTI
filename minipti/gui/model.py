@@ -540,7 +540,7 @@ class Calculation:
         self.interferometer = algorithm.interferometry.Interferometer()
         self.pti = PTI(decimation, algorithm.pti.Inversion(decimation=decimation))
         self.pti.inversion.interferometer = self.interferometer
-        self.interferometry_characterization = algorithm.interferometry.Characterization(self.interferometer)
+        self.interferometer_characterization = algorithm.interferometry.Characterization(self.interferometer)
         self._destination_folder = os.getcwd()
         signals.destination_folder_changed.connect(self._update_destination_folder)
         daq_signals.samples_changed.connect(self._update_decimation_average_period)
@@ -550,7 +550,7 @@ class Calculation:
         self.interferometer.settings_path = settings_path
 
     def _update_destination_folder(self, folder: str) -> None:
-        self.interferometry_characterization.destination_folder = folder
+        self.interferometer_characterization.destination_folder = folder
         self.pti.inversion.destination_folder = folder
         self.pti.decimation.destination_folder = folder
         self._destination_folder = folder
@@ -611,21 +611,21 @@ class LiveCalculation(Calculation):
         while self.motherboard.driver.daq.running.is_set():
             self._decimation()
             self._interferometer_calculation()
-            self._pti_inversion()
             self._characterisation()
+            self._pti_inversion()
 
     def _run_characterization(self) -> None:
         while self.motherboard.driver.daq.running.is_set():
-            self.interferometry_characterization.characterise(live=True)
-            self.characterisation_buffer.append(self.interferometry_characterization, self.interferometer)
+            self.interferometer_characterization.characterise(live=True)
+            self.characterisation_buffer.append(self.interferometer_characterization, self.interferometer)
             daq_signals.characterization.emit(self.characterisation_buffer)
             signals.settings.emit(self.interferometer.characteristic_parameter)
 
     def _init_calculation(self) -> None:
         self.pti.inversion.init_header = True
         self.pti.decimation.init_header = True
-        self.interferometer.init_header = True
-        self.interferometry_characterization.init_online = True
+        self.interferometer.init_online = True
+        self.interferometer_characterization.init_online = True
         self.interferometer.load_settings()
 
     def _decimation(self) -> None:
@@ -646,13 +646,13 @@ class LiveCalculation(Calculation):
         daq_signals.inversion.emit(self.pti_buffer, LiveCalculation.get_time_scaler() == 1)
 
     def _characterisation(self) -> None:
-        self.interferometry_characterization.add_phase(self.interferometer.phase)
+        self.interferometer_characterization.add_phase(self.interferometer.phase)
         self.dc_signals.append(copy.deepcopy(self.pti.decimation.dc_signals))
-        if self.interferometry_characterization.enough_values:
-            self.interferometry_characterization.interferometry_data.dc_signals = np.array(self.dc_signals)
-            phase: list[float] = self.interferometry_characterization.tracking_phase
-            self.interferometry_characterization.interferometry_data.phases = np.array(phase)
-            self.interferometry_characterization.event.set()
+        if self.interferometer_characterization.enough_values:
+            self.interferometer_characterization.interferometry_data.dc_signals = np.array(self.dc_signals)
+            phase: list[float] = self.interferometer_characterization.tracking_phase
+            self.interferometer_characterization.interferometry_data.phases = np.array(phase)
+            self.interferometer_characterization.event.set()
             self.dc_signals = []
 
 
@@ -661,8 +661,8 @@ class OfflineCalculation(Calculation):
         Calculation.__init__(self)
 
     def calculate_characterisation(self, dc_file_path: str, use_settings=False) -> None:
-        self.interferometry_characterization.use_configuration = use_settings
-        self.interferometry_characterization.characterise(file_path=dc_file_path)
+        self.interferometer_characterization.use_configuration = use_settings
+        self.interferometer_characterization.characterise(file_path=dc_file_path)
         signals.settings.emit(self.interferometer.characteristic_parameter)
 
     def calculate_decimation(self, decimation_path: str) -> None:

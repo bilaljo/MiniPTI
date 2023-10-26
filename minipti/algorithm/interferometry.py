@@ -60,9 +60,10 @@ class Interferometer:
         self._locks = _Locks()
         self.sensitivity: np.ndarray = np.empty(shape=interferometer_dimension)
         self.destination_folder: str = os.getcwd()
-        self.init_header: bool = True
+        self.init_online: bool = True
         self.intensities: Union[None, np.ndarray] = None
         self.interferometer_dimension = interferometer_dimension
+        self.output_data_frame = pd.DataFrame()
 
     def load_settings(self) -> None:
         """
@@ -184,8 +185,8 @@ class Interferometer:
             return -np.sin(np.array(phase) - np.array(self.output_phases)).reshape((self.interferometer_dimension, 1))
 
     def _calculate_phase(self, intensity: np.ndarray) -> np.ndarray:
-        res = optimize.least_squares(fun=self._error_function(intensity), method="lm", x0=1,
-                                     tr_solver="exact",  jac=self._error_function_df).x
+        res = optimize.least_squares(fun=self._error_function(intensity), method="lm", x0=0,
+                                     tr_solver="exact", jac=self._error_function_df).x
         return res % (2 * np.pi)
 
     def calculate_phase(self) -> None:
@@ -220,12 +221,14 @@ class Interferometer:
 
     def _calculate_online(self) -> None:
         output_data = {"Time": "H:M:S"}
-        if self.init_header:
+        if self.init_online:
             output_data["Interferometric Phase"] = "rad"
             for channel in range(1, 4):
                 output_data[f"Sensitivity CH{channel}"] = "V/rad"
             pd.DataFrame(output_data, index=["Y:M:D"]).to_csv(f"{self.destination_folder}/Interferometer.csv",
                                                               index_label="Date")
+            self._init_live_data_frame()
+            self.init_online = False
         self.calculate_phase()
         self.calculate_sensitivity()
         self._save_live_data()
@@ -239,19 +242,27 @@ class Interferometer:
         logging.info("Interferometer Data calculated.")
         logging.info("Saved results in %s", str(self.destination_folder))
 
+    def _init_live_data_frame(self) -> None:
+        output_data = {"Time": None, "Interferometric Phase": None}
+        for channel in range(3):
+            output_data[f"Sensitivity CH{channel + 1}"] = None
+        self.output_data_frame = pd.DataFrame(output_data, index=[None])
+
     def _save_live_data(self) -> None:
         now = datetime.now()
         date = str(now.strftime("%Y-%m-%d"))
         time = str(now.strftime("%H:%M:%S"))
-        output_data = {"Time": time, "Interferometric Phase": self.phase}
+        self.output_data_frame["Time"] = time
+        self.output_data_frame.index = [date]
+        self.output_data_frame["Interferometric Phase"] = self.phase
         for channel in range(3):
-            output_data[f"Sensitivity CH{channel + 1}"] = self.sensitivity[channel]
+            self.output_data_frame[f"Sensitivity CH{channel + 1}"] = self.sensitivity[channel]
         try:
-            pd.DataFrame(output_data, index=[date]).to_csv(f"{self.destination_folder}/Interferometer.csv",
-                                                           mode="a", index_label="Date", header=False)
+            self.output_data_frame.to_csv(f"{self.destination_folder}/Interferometer.csv", mode="a",
+                                          index_label="Date", header=False)
         except PermissionError:
             logging.warning("Could not write data. Missing values are: %s at %s.",
-                            str(output_data)[1:-1], date + " " + time)
+                            str(self.output_data_frame)[1:-1], date + " " + time)
 
     def _get_dc_signals(self, file_path: str) -> None:
         data = pd.read_csv(file_path, sep=None, engine="python", skiprows=[1])
