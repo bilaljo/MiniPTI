@@ -1,5 +1,6 @@
 import json
 import pathlib
+import sys
 import threading
 from abc import abstractmethod
 import copy
@@ -26,6 +27,7 @@ from scipy import ndimage
 import darkdetect
 from notifypy import Notify
 
+import minipti
 from minipti import algorithm, hardware
 from minipti.gui.model2 import configuration
 
@@ -939,12 +941,12 @@ class Laser(Serial):
 
     def __init__(self):
         Serial.__init__(self)
-        self._config_path = "hardware/configs/laser.json"
+        self._config_path = f"{minipti.module_path}/hardware/configs/laser.json"
         self.on_notification = Notify(default_notification_title="Laser",
-                                      default_notification_icon="minipti/gui/images/hardware/laser.svg",
+                                      default_notification_icon=f"{minipti.module_path}/gui/images/hardware/laser.svg",
                                       default_notification_application_name="Laser Driver")
         self.off_notification = Notify(default_notification_title="Laser",
-                                       default_notification_icon="minipti/gui/images/hardware/laser/off.svg",
+                                       default_notification_icon=f"{minipti.module_path}/gui/images/hardware/laser/off.svg",
                                        default_notification_application_name="Laser Driver")
 
     @property
