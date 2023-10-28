@@ -178,12 +178,21 @@ class Utilities(ABC):
     def tec(self) -> model.Tec:
         ...
 
+    @property
+    @abstractmethod
+    def configuration(self) -> model.configuration.Utilities:
+        ...
+
     @abstractmethod
     def calculate_decimation(self) -> None:
         ...
 
     @abstractmethod
     def plot_dc(self) -> None:
+        ...
+
+    @abstractmethod
+    def calculate_interferometry(self) -> None:
         ...
 
     @abstractmethod

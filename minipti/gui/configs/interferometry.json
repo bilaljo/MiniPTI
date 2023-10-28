@@ -1,5 +1,5 @@
 {
-    "use": true,
+    "use": false,
     "GUI": {
         "logging": {
             "console": false,
@@ -10,17 +10,16 @@
         },
         "home": {
             "use": true,
-            "use_utilities": true,
             "on_run": {
                 "DAQ": true,
-                "BMS": true,
-                "laser": {
-                    "probe_laser": true,
-                    "pump_laser": true
+                "BMS": false,
+                "probe_laser": {
+                    "laser_driver": true,
+                    "tec_driver": true
                 },
-                "tec": {
-                    "probe_laser": true,
-                    "pump_laser": true
+                "pump_laser": {
+                    "laser_driver": false,
+                    "tec_driver": false
                 }
             },
             "plots": {
@@ -39,40 +38,46 @@
         },
         "settings": {
             "valve": false,
-            "measurement_settings": true,
+            "measurement_settings": false,
             "system_settings": {
                 "interferometric": true,
                 "response_phases": false
             }
         },
         "utilities": {
-            "calculate": true,
-            "plot": true,
-            "devices": {
-                "daq": true,
-                "laser_driver": false,
-                "tec_driver": false
+            "use": true,
+            "plot": {
+                "dc": true,
+                "interferometry": true,
+                "inversion": false
+            },
+            "calculate": {
+                "use": true,
+                "decimation": false,
+                "interferometry": true,
+                "inversion": false,
+                "characterisation": false
             }
         },
         "probe_laser": {
             "use": false,
-            "tec_driver": true,
-            "laser_driver": true
+            "laser_driver": false,
+            "tec_driver": false
         },
         "pump_laser": {
             "use": false,
-            "tec_driver": true,
-            "laser_driver": true
+            "laser_driver": false,
+            "tec_driver": false
         },
         "plots": {
             "dc_signals": {
                 "use": false
             },
             "amplitudes": {
-                "use": true
+                "use": false
             },
             "output_phases": {
-                "use": true
+                "use": false
             },
             "interferometric_phase": {
                 "use": false

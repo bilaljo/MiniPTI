@@ -669,6 +669,10 @@ class OfflineCalculation(Calculation):
         logging.info("Starting Decimation of Raw Data")
         threading.Thread(target=self.pti.decimation.run, name="Decimation Thread").start()
 
+    def calculate_interferometry(self, interferometry_path: str) -> None:
+        self.interferometer.load_settings()
+        self.interferometer.run(file_path=interferometry_path)
+
     def calculate_inversion(self, inversion_path: str) -> None:
         self.interferometer.load_settings()
         self.pti.inversion.run(file_path=inversion_path)
@@ -1431,21 +1435,16 @@ def _process_data(file_path: str, headers: list[str, ...]) -> Union[pd.DataFrame
             data = pd.read_csv(file_path, delimiter=delimiter, skiprows=[1], index_col="Time Stamp")
         except ValueError:  # Data isn't saved with any index
             data = pd.read_csv(file_path, delimiter=delimiter, skiprows=[1])
-    for header in headers:
-        for header_data in data.columns:
-            if header == header_data:
-                return data[headers].to_numpy().T
-        else:
-            raise KeyError(f"Header {header} not found in file")
+    return data[headers].to_numpy()
 
 
 def process_dc_data(dc_file_path: str) -> None:
     headers = [f"DC CH{i}" for i in range(1, 4)]
     try:
-        data = _process_data(dc_file_path, headers)
+        data = _process_data(dc_file_path, headers).T
     except KeyError:
         headers = [f"PD{i}" for i in range(1, 4)]
-        data = _process_data(dc_file_path, headers)
+        data = _process_data(dc_file_path, headers).T
     except FileNotFoundError:
         return
     signals.dc_signals.emit(data)
@@ -1454,13 +1453,10 @@ def process_dc_data(dc_file_path: str) -> None:
 def process_inversion_data(inversion_file_path: str) -> None:
     send_data = {}
     try:
-        headers = ["Interferometric Phase", "Sensitivity CH1", "Sensitivity CH2", "Sensitivity CH3", "PTI Signal"]
+        headers = ["PTI Signal"]
         data = _process_data(inversion_file_path, headers)
-        send_data["PTI Signal"] = data[4]
-        send_data["PTI Signal 60 s Mean"] = LiveCalculation.running_average(data[4], mean_size=60)
-    except KeyError:
-        headers = ["Sensitivity CH1", "Sensitivity CH2", "Sensitivity CH3", "Interferometric Phase"]
-        data = _process_data(inversion_file_path, headers)
+        send_data["PTI Signal"] = data
+        send_data["PTI Signal 60 s Mean"] = LiveCalculation.running_average(data, mean_size=60)
     except FileNotFoundError:
         return
     signals.inversion.emit(send_data)
@@ -1468,10 +1464,7 @@ def process_inversion_data(inversion_file_path: str) -> None:
 
 def process_interferometric_phase_data(interferomtric_phase_file_path: str) -> None:
     try:
-        headers = ["Interferometric Phase", "Sensitivity CH1", "Sensitivity CH2", "Sensitivity CH3", "PTI Signal"]
-        data = _process_data(interferomtric_phase_file_path, headers)[0].T
-    except KeyError:
-        headers = ["Sensitivity CH1", "Sensitivity CH2", "Sensitivity CH3", "Interferometric Phase"]
+        headers = ["Interferometric Phase"]
         data = _process_data(interferomtric_phase_file_path, headers)
     except FileNotFoundError:
         return

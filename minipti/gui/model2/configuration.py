@@ -76,14 +76,22 @@ class Settings:
 class Calculation:
     use: bool = True
     decimation: bool = True
+    interferometry: bool = True
     inversion: bool = True
     characterisation: bool = True
 
 
 @dataclass(frozen=True)
+class OfflinePlots:
+    dc: bool = True
+    interferometry: bool = True
+    inversion: bool = True
+
+
+@dataclass(frozen=True)
 class Utilities:
     calculate: Calculation = Calculation()
-    plot: bool = True
+    plot: OfflinePlots = OfflinePlots()
 
 
 @dataclass(frozen=True)

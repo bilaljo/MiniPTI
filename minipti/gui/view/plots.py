@@ -3,7 +3,9 @@ from abc import abstractmethod
 import matplotlib
 import numpy as np
 import pyqtgraph as pg
-from PyQt5 import QtCore
+from PyQt5 import QtCore, QtWidgets
+from matplotlib.backends.backend_qt import NavigationToolbar2QT
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from overrides import override
 from matplotlib import pyplot as plt
 
@@ -77,15 +79,38 @@ class DAQPlots(Plotting):
         ...
 
 
-def dc_offline(data: np.ndarray) -> None:
-    plt.figure()
-    for channel in range(3):
-        plt.plot(data[channel], label=f"CH{channel + 1}")
-    plt.grid()
-    plt.xlabel("Time [s]")
-    plt.ylabel(r"Intensity [V]")
-    plt.legend()
-    plt.show()
+class OfflinePlot(QtWidgets.QMainWindow):
+    def __init__(self):
+        QtWidgets.QMainWindow.__init__(self)
+        self.parent = QtWidgets.QWidget()
+        self.parent.setLayout(QtWidgets.QVBoxLayout())
+        self.figure = plt.Figure()
+        self.canvas = FigureCanvasQTAgg(self.figure)
+        self.toolbar = NavigationToolbar2QT(self.canvas, self)
+        self.parent.layout().addWidget(self.canvas)
+        self.parent.layout().addWidget(self.toolbar)
+        self.setCentralWidget(self.parent)
+
+    @abstractmethod
+    def plot(self, data: np.ndarray) -> None:
+        ...
+
+
+class DCOffline(OfflinePlot):
+    def __init__(self):
+        OfflinePlot.__init__(self)
+        self.setWindowTitle("DC Signals")
+
+    @override
+    def plot(self, data: np.ndarray) -> None:
+        ax = self.figure.add_subplot()
+        for channel in range(3):
+            ax.plot(data[channel], label=f"CH{channel + 1}")
+        ax.grid()
+        ax.set_xlabel("Time [s]")
+        ax.set_ylabel("Intensity [V]")
+        self.canvas.draw()
+        self.show()
 
 
 class DC(DAQPlots):
@@ -168,13 +193,19 @@ class OutputPhases(DAQPlots):
             self.curves[channel].setData(data.time, data.output_phases[channel])
 
 
-def interferometric_phase_offline(data: np.ndarray) -> None:
-    plt.figure()
-    plt.plot(data)
-    plt.grid()
-    plt.xlabel("Time [s]")
-    plt.ylabel(r"Interferometric [rad]")
-    plt.show()
+class InterferometricPhaseOffline(OfflinePlot):
+    def __init__(self):
+        OfflinePlot.__init__(self)
+        self.setWindowTitle("Interferometric Phase")
+
+    def plot(self, data: np.ndarray) -> None:
+        ax = self.figure.add_subplot()
+        ax.plot(data)
+        ax.grid()
+        ax.set_xlabel("Time [s]")
+        ax.set_ylabel(r"Interferometric [rad]")
+        self.canvas.draw()
+        self.show()
 
 
 class InterferometricPhase(DAQPlots):
