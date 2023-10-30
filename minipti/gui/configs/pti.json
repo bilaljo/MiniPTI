@@ -1,6 +1,7 @@
 {
-    "use": false,
+    "use": true,
     "GUI": {
+        "window_title": "MiniPTI",
         "logging": {
             "console": true,
             "file": true
@@ -10,10 +11,9 @@
         },
         "home": {
             "use": true,
-            "use_utilities": true,
             "on_run": {
                 "DAQ": true,
-                "BMS": false,
+                "BMS": true,
                 "probe_laser": {
                     "laser_driver": true,
                     "tec_driver": true
@@ -27,10 +27,18 @@
                 "dc_signals": true,
                 "interferometric_phase": true,
                 "pti_signal": true
+            },
+            "connect": {
+                "use": true,
+                "devices": {
+                    "motherboard": true,
+                    "laser_driver": true,
+                    "tec_driver": true
+                }
             }
         },
         "settings": {
-            "valve": false,
+            "valve": true,
             "measurement_settings": true,
             "system_settings": {
                 "interferometric": true,
@@ -39,12 +47,17 @@
         },
         "utilities": {
             "use": true,
-            "plot": true,
-            "calculate": true,
-            "devices": {
-                "daq": true,
-                "laser_driver": true,
-                "tec_driver": true
+            "plot": {
+                "dc": true,
+                "interferometry": true,
+                "inversion": true
+            },
+            "calculate": {
+                "use": true,
+                "decimation": true,
+                "interferometry": true,
+                "inversion": true,
+                "characterisation": true
             }
         },
         "probe_laser": {

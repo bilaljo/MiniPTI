@@ -1,6 +1,7 @@
 {
     "use": false,
     "GUI": {
+        "window_title": "Pump Laser",
         "logging": {
             "console": true,
             "file": true
@@ -18,8 +19,8 @@
                     "tec_driver": false
                 },
                 "pump_laser": {
-                    "laser_driver": true,
-                    "tec_driver": true
+                    "laser_driver": false,
+                    "tec_driver": false
                 }
             },
             "plots": {
@@ -28,7 +29,7 @@
                 "pti_signal": false
             },
             "connect": {
-                "use": false,
+                "use": true,
                 "devices": {
                     "motherboard": false,
                     "laser_driver": true,
@@ -46,10 +47,15 @@
         },
         "utilities": {
             "use": false,
-            "plot": false,
+            "plot": {
+                "dc": false,
+                "interferometry": false,
+                "inversion": false
+            },
             "calculate": {
                 "use": false,
                 "decimation": false,
+                "interferometry": false,
                 "inversion": false,
                 "characterisation": false
             }
