@@ -8,7 +8,7 @@ from dataclasses import dataclass
 
 import qdarktheme
 from PyQt5 import QtWidgets, QtCore
-from PyQt5.QtCore import Qt, QCoreApplication
+from PyQt5.QtCore import QCoreApplication
 from overrides import override
 
 from minipti.gui import model, model2
@@ -86,13 +86,6 @@ class MainApplication(interface.MainApplication):
         time.sleep(0.1)
         QCoreApplication.quit()
 
-    @override
-    def await_shutdown(self):
-        def shutdown_low_energy() -> None:
-            self.motherboard.shutdown_event.wait()
-            _shutdown(self)
-        threading.Thread(target=shutdown_low_energy, daemon=True).start()
-
     def thread_exception(self, args) -> None:
         if args.exc_type == KeyError:
             QtWidgets.QMessageBox.critical(self.view, "File Error", "Invalid file given or missing headers.")
@@ -108,14 +101,6 @@ def _get_file_path(parent, dialog_name: str, last_file_path: str, files: str) ->
     if file_path[0]:
         last_file_path = file_path[0]
     return file_path[0], last_file_path
-
-
-def _shutdown(controller) -> None:
-    QtWidgets.QApplication.setOverrideCursor(Qt.WaitCursor)
-    logging.warning("Shutdown started")
-    model.shutdown_procedure()
-    controller.view.close()
-    controller.main_app.quit()
 
 
 class Home(interface.Home):
@@ -165,7 +150,6 @@ class Home(interface.Home):
                 self.motherboard.open()
                 self.motherboard.run()
                 self.motherboard.process_measured_data()
-                # self.await_shutdown()
             except OSError:
                 logging.error("Could not connect with Motherboard")
         if self.pump_laser.is_found:

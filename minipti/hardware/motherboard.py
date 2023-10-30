@@ -112,7 +112,7 @@ class BMS:
         self.config_path = f"{minipti.module_path}/hardware/configs/motherboard/bms.json"
         self.driver = driver
         self.running = threading.Event()
-        self.encoded_data: Union[BMSData, None] = None
+        self.encoded_data: Union[tuple[bool, BMSData], None] = None
         self.load_configuration()
 
     def encode(self, data: str) -> None:
@@ -142,7 +142,7 @@ class BMS:
             remaining_capacity=int(data[BMSIndex.REMAINING_CAPACITY:BMSIndex.REMAINING_CAPACITY + 4], base=16))
         if self.encoded_data.charging:
             self.encoded_data.minutes_left = float("inf")
-        self.driver.data.BMS.put(self.encoded_data)
+        self.driver.data.BMS.put((shutdown, self.encoded_data))
 
     def do_shutdown(self) -> None:
         self.driver.write(self._do_shutdown)
