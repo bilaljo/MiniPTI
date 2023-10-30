@@ -295,10 +295,10 @@ class PTIBuffer(Buffer):
     def append(self, pti: PTI, average_period: int) -> None:
         self._pti_signal.append(pti.inversion.pti_signal)
         self._pti_signal_mean_queue.append(pti.inversion.pti_signal)
-        time_scaler: float = algorithm.pti.Decimation.REF_PERIOD * algorithm.pti.Decimation.SAMPLE_PERIOD
-        if average_period / time_scaler == 1:
+        time_scaler: float = average_period / algorithm.pti.Decimation.SAMPLE_PERIOD
+        if time_scaler == 1:
             self._pti_signal_mean.append(np.mean(np.array(self._pti_signal_mean_queue)))
-        self.time.append(next(self.time_counter) * average_period / time_scaler)
+        self.time.append(next(self.time_counter) / time_scaler)
 
     @property
     def pti_signal(self) -> deque:
@@ -456,7 +456,7 @@ class Battery:
 @dataclass(init=False, frozen=True)
 class DAQSignals(QtCore.QObject):
     decimation = QtCore.pyqtSignal(Buffer)
-    inversion = QtCore.pyqtSignal(Buffer, bool)
+    inversion = QtCore.pyqtSignal(Buffer)
     interferometry = QtCore.pyqtSignal(Buffer)
     characterization = QtCore.pyqtSignal(Buffer)
     samples_changed = QtCore.pyqtSignal(int)
@@ -573,11 +573,12 @@ class LiveCalculation(Calculation):
         self.characterisation_buffer = CharacterisationBuffer()
         self.motherboard = Motherboard()
         self.pti_signal_mean_queue = deque(maxlen=LiveCalculation.ONE_MINUTE)
-        daq_signals.clear.connect(self.clear_buffer)
+        daq_signals.clear.connect(self._clear_buffers)
 
-    @staticmethod
-    def get_time_scaler() -> float:
-        return algorithm.pti.Decimation.REF_PERIOD * algorithm.pti.Decimation.SAMPLE_PERIOD
+    def _clear_buffers(self) -> None:
+        self.interferometer_buffer = InterferometerBuffer()
+        self.pti_buffer = PTIBuffer()
+        self.characterisation_buffer = CharacterisationBuffer()
 
     def process_daq_data(self) -> None:
         threading.Thread(target=self._run_calculation, name="PTI Inversion", daemon=True).start()
@@ -594,10 +595,6 @@ class LiveCalculation(Calculation):
             i += 1
         result.extend(ndimage.uniform_filter1d(data[mean_size:], size=mean_size))
         return result
-
-    def clear_buffer(self) -> None:
-        self.pti_buffer = PTIBuffer()
-        self.characterisation_buffer = CharacterisationBuffer()
 
     def set_raw_data_saving(self, save_raw_data: bool) -> None:
         self.pti.decimation.save_raw_data = save_raw_data
@@ -642,7 +639,7 @@ class LiveCalculation(Calculation):
     def _pti_inversion(self) -> None:
         self.pti.inversion.run(live=True)
         self.pti_buffer.append(self.pti, self.pti.decimation.average_period)
-        daq_signals.inversion.emit(self.pti_buffer, LiveCalculation.get_time_scaler() == 1)
+        daq_signals.inversion.emit(self.pti_buffer)
 
     def _characterisation(self) -> None:
         self.interferometer_characterization.add_phase(self.interferometer.phase)
