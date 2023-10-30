@@ -13,7 +13,7 @@
             "use": true,
             "on_run": {
                 "DAQ": true,
-                "BMS": true,
+                "BMS": false,
                 "probe_laser": {
                     "laser_driver": true,
                     "tec_driver": true
