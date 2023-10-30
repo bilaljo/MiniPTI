@@ -63,8 +63,7 @@ values of current are average on the driver.
 
 **Tec Driver**
 <p style="text-align: center;">
-<img alt="pump_tec_driver" src="https://raw.githubusercontent.com/bilaljo/MiniPTI/develop/images/gui/pump_laser/laser_driver.png
-" class="centre">
+<img alt="pump_tec_driver" src="https://raw.githubusercontent.com/bilaljo/MiniPTI/develop/images/gui/pump_laser/laser_driver.png" class="centre">
 </p>
 
 
