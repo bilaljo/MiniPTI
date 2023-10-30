@@ -228,9 +228,17 @@ class DAQ:
             logging.warning("Not synchron with reference signal")
             self.reset()
             return
-        self.driver.data.DAQ[PackageIndex.REF].put(np.array(self.encoded_buffer.ref_signal), block=False)
-        self.driver.data.DAQ[PackageIndex.DC].put(np.array(self.encoded_buffer.dc_coupled[:3]), block=False)
-        self.driver.data.DAQ[PackageIndex.AC].put(np.array(self.encoded_buffer.ac_coupled), block=False)
+        ref = []
+        dc_package = [[], [], []]
+        ac_package = [[], [], []]
+        for _ in itertools.repeat(None, self.number_of_samples):
+            ref.append(self.samples_buffer.ref_signal.pop(0))
+            for channel in range(3):
+                dc_package[channel].append(self.samples_buffer.dc_coupled[channel].pop(0))
+                ac_package[channel].append(self.samples_buffer.ac_coupled[channel].pop(0))
+        self.driver.data.DAQ[PackageIndex.REF].put(np.array(ref), block=False)
+        self.driver.data.DAQ[PackageIndex.DC].put(np.array(dc_package), block=False)
+        self.driver.data.DAQ[PackageIndex.AC].put(np.array(ac_package), block=False)
 
     def _encode_binary(self, raw_data: str) -> None:
         """
@@ -275,7 +283,7 @@ class DAQ:
             self.samples_buffer.dc_coupled[i].extend(self.encoded_buffer.dc_coupled[i])
             self.samples_buffer.ac_coupled[i].extend(self.encoded_buffer.ac_coupled[i])
         self.samples_buffer.dc_coupled[3].extend(self.encoded_buffer.dc_coupled[3])
-        if len(self.samples_buffer.ref_signal) == self.number_of_samples:
+        if len(self.samples_buffer.ref_signal) >= self.number_of_samples:
             self.build_sample_package()
 
     def synchronize_with_ref(self) -> None:

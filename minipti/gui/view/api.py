@@ -5,6 +5,7 @@ from typing import NamedTuple, Union
 from PyQt5 import QtWidgets, QtCore, QtGui
 from PyQt5.QtCore import Qt
 
+import minipti
 from minipti.gui.view import helper
 from minipti.gui.view import plots
 from minipti.gui import controller
@@ -39,8 +40,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def __init__(self, controllers: controller.interface.Controllers):
         QtWidgets.QMainWindow.__init__(self)
-        self.setWindowTitle("MiniPTI")
-        self.setWindowIcon(QtGui.QIcon("minipti/gui/images/logo.png"))
+        self.setWindowIcon(QtGui.QIcon(f"{minipti.module_path}/gui/images/logo.png"))
         self.controllers = controllers
         self.dock_area = pg.dockarea.DockArea()
         self.plots = Plots(plots.DC(),
@@ -84,14 +84,15 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.dock_area.moveDock(self.docks[i - 1], "above", self.docks[i])
         self.setCentralWidget(self.dock_area)
         self.logging_window = QtWidgets.QLabel()
-        self.log = dockarea.Dock("Log", size=(1, 1))
+        self.log = dockarea.Dock("Log", size=(600, 1))
         self.scroll = QtWidgets.QScrollArea(widgetResizable=True)
         self.battery = dockarea.Dock("Battery", size=(1, 1))
-        self.charge_level = QtWidgets.QLabel("NaN % left")
-        self.minutes_left = QtWidgets.QLabel("NaN Minutes left")
+        self.charge_level = QtWidgets.QProgressBar()
+        self.charge_level.resize(1, 1)
         self._init_dock_widgets()
         self.resize(MainWindow.HORIZONTAL_SIZE, MainWindow.VERTICAL_SIZE)
-        self.setWindowIcon(QtGui.QIcon("minipti/gui/images/logo.png"))
+        self.setWindowIcon(QtGui.QIcon(f"{minipti.module_path}/gui/images/logo.png"))
+        self.setWindowTitle(self.controllers.configuration.window_title)
         self.show()
 
     def logging_update(self, log_queue: collections.deque) -> None:
@@ -143,17 +144,17 @@ class MainWindow(QtWidgets.QMainWindow):
         self.scroll.setWidgetResizable(True)
         self.log.addWidget(self.scroll)
         sub_layout = QtWidgets.QWidget()
-        sub_layout.setMaximumWidth(150)
         sub_layout.setLayout(QtWidgets.QVBoxLayout())
         sub_layout.layout().addWidget(self.charge_level)
+        sub_layout.resize(1, 1)
         # sub_layout.layout().addWidget(self.minutes_left)
         self.battery.addWidget(sub_layout)
         if self.controllers.configuration.logging.console:
             self.dock_area.addDock(self.log, "bottom")
             self.scroll.setWidget(self.logging_window)
-        # if self.controllers.configuration.battery.use:
-            # self.dock_area.addDock(self.battery, "bottom")
-            # self.dock_area.moveDock(self.log, "left", self.battery)
+        if self.controllers.configuration.battery.use:
+            self.dock_area.addDock(self.battery, "bottom")
+            self.dock_area.moveDock(self.battery, "right", self.log)
 
     def closeEvent(self, close_event):
         close = QtWidgets.QMessageBox.question(self, "QUIT", "Are you sure you want to close?",
@@ -203,7 +204,7 @@ class Home(QtWidgets.QTabWidget):
         button_layout.setLayout(QtWidgets.QVBoxLayout())
         self.buttons.run_measurement = helper.create_button(parent=button_layout, title="Run Measurement",
                                                             only_icon=True, slot=self.controller.on_run)
-        self.buttons.run_measurement.setIcon(QtGui.QIcon("minipti/gui/images/run.svg"))
+        self.buttons.run_measurement.setIcon(QtGui.QIcon(f"{minipti.module_path}/gui/images/run.svg"))
         self.buttons.run_measurement.setIconSize(QtCore.QSize(40, 40))
         label = QtWidgets.QLabel("Run")
         label.setAlignment(Qt.AlignHCenter)
@@ -214,7 +215,7 @@ class Home(QtWidgets.QTabWidget):
         button_layout.setLayout(QtWidgets.QVBoxLayout())
         self.buttons.settings = helper.create_button(parent=button_layout, title="Settings", only_icon=True,
                                                      slot=self.controller.show_settings)
-        self.buttons.settings.setIcon(QtGui.QIcon("minipti/gui/images/settings.svg"))
+        self.buttons.settings.setIcon(QtGui.QIcon(f"{minipti.module_path}/gui/images/settings.svg"))
         self.buttons.settings.setIconSize(QtCore.QSize(40, 40))
         self.buttons.settings.setToolTip("Settings")
         label = QtWidgets.QLabel("Settings")
@@ -228,7 +229,7 @@ class Home(QtWidgets.QTabWidget):
             button_layout.setLayout(QtWidgets.QVBoxLayout())
             self.buttons.utilities = helper.create_button(parent=button_layout, title="Utilities", only_icon=True,
                                                           slot=self.controller.show_utilities)
-            self.buttons.utilities.setIcon(QtGui.QIcon("minipti/gui/images/calculation.svg"))
+            self.buttons.utilities.setIcon(QtGui.QIcon(f"{minipti.module_path}/gui/images/calculation.svg"))
             self.buttons.utilities.setIconSize(QtCore.QSize(40, 40))
             self.buttons.utilities.setToolTip("Utilities")
             button_layout.layout().addWidget(self.buttons.utilities)

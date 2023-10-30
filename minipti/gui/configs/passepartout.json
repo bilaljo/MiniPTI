@@ -1,32 +1,32 @@
 {
-    "use": false,
+    "use": true,
     "GUI": {
-        "window_title": "MiniPTI",
+        "window_title": "MiniPTI Passepartout",
         "logging": {
             "console": true,
             "file": true
         },
         "battery": {
-            "use": false
+            "use": true
         },
         "home": {
             "use": true,
             "on_run": {
                 "DAQ": true,
-                "BMS": false,
+                "BMS": true,
                 "probe_laser": {
                     "laser_driver": true,
                     "tec_driver": true
                 },
                 "pump_laser": {
-                    "laser_driver": false,
-                    "tec_driver": false
+                    "laser_driver": true,
+                    "tec_driver": true
                 }
             },
             "plots": {
                 "dc_signals": true,
                 "interferometric_phase": true,
-                "pti_signal": false
+                "pti_signal": true
             },
             "connect": {
                 "use": true,
@@ -38,11 +38,11 @@
             }
         },
         "settings": {
-            "valve": false,
-            "measurement_settings": false,
+            "valve": true,
+            "measurement_settings": true,
             "system_settings": {
                 "interferometric": true,
-                "response_phases": false
+                "response_phases": true
             }
         },
         "utilities": {
@@ -50,14 +50,14 @@
             "plot": {
                 "dc": true,
                 "interferometry": true,
-                "inversion": false
+                "inversion": true
             },
             "calculate": {
                 "use": true,
-                "decimation": false,
+                "decimation": true,
                 "interferometry": true,
-                "inversion": false,
-                "characterisation": false
+                "inversion": true,
+                "characterisation": true
             }
         },
         "probe_laser": {
