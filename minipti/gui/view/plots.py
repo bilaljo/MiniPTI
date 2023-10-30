@@ -293,10 +293,9 @@ class PTISignal(DAQPlots):
         model.daq_signals.inversion.connect(self.update_data_live)
 
     #@override
-    def update_data_live(self, data: model.PTIBuffer, calculate_mean: bool) -> None:
+    def update_data_live(self, data: model.PTIBuffer) -> None:
         self.curves["PTI Signal"].setData(data.time, data.pti_signal)
-        if calculate_mean:
-            self.curves["PTI Signal Mean"].setData(data.time, data.pti_signal_mean)
+        self.curves["PTI Signal Mean"].setData(data.time, data.pti_signal_mean)
 
 
 class PumpLaserCurrent(Plotting):
@@ -306,7 +305,6 @@ class PumpLaserCurrent(Plotting):
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="Current [mA]")
         model.laser_signals.data.connect(self.update_data_live)
-        model.laser_signals.clear_pumplaser.connect(self.clear)
 
     #@override
     def update_data_live(self, data: model.LaserBuffer) -> None:
@@ -320,7 +318,6 @@ class ProbeLaserCurrent(Plotting):
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="Current [mA]")
         model.laser_signals.data.connect(self.update_data_live)
-        model.laser_signals.clear_probelaser.connect(self.clear)
 
     #@override
     def update_data_live(self, data: model.LaserBuffer) -> None:
@@ -338,7 +335,6 @@ class TecTemperature(Plotting):
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="Temperature [°C]")
         self.laser = channel
-        model.tec_signals[channel].clear_plots.connect(self.clear)
         model.signals.tec_data.connect(self.update_data_live)
 
     #@override

@@ -240,9 +240,6 @@ class PTI(typing.NamedTuple):
 
 
 
-
-
-
 class LaserBuffer(Buffer):
     def __init__(self):
         Buffer.__init__(self)
@@ -372,11 +369,12 @@ class LiveCalculation(Calculation):
         self.characterisation_buffer = CharacterisationBuffer()
         self.motherboard = Motherboard()
         self.pti_signal_mean_queue = deque(maxlen=LiveCalculation.ONE_MINUTE)
-        daq_signals.clear.connect(self.clear_buffer)
+        daq_signals.clear.connect(self._clear_buffers)
 
-    @staticmethod
-    def get_time_scaler() -> float:
-        return algorithm.pti.Decimation.REF_PERIOD * algorithm.pti.Decimation.SAMPLE_PERIOD
+    def _clear_buffers(self) -> None:
+        self.interferometer_buffer = InterferometerBuffer()
+        self.pti_buffer = PTIBuffer()
+        self.characterisation_buffer = CharacterisationBuffer()
 
     def process_daq_data(self) -> None:
         threading.Thread(target=self._run_calculation, name="PTI Inversion", daemon=True).start()
@@ -393,10 +391,6 @@ class LiveCalculation(Calculation):
             i += 1
         result.extend(ndimage.uniform_filter1d(data[mean_size:], size=mean_size))
         return result
-
-    def clear_buffer(self) -> None:
-        self.pti_buffer = PTIBuffer()
-        self.characterisation_buffer = CharacterisationBuffer()
 
     def set_raw_data_saving(self, save_raw_data: bool) -> None:
         self.pti.decimation.save_raw_data = save_raw_data
@@ -441,7 +435,7 @@ class LiveCalculation(Calculation):
     def _pti_inversion(self) -> None:
         self.pti.inversion.run(live=True)
         self.pti_buffer.append(self.pti, self.pti.decimation.average_period)
-        daq_signals.inversion.emit(self.pti_buffer, LiveCalculation.get_time_scaler() == 1)
+        daq_signals.inversion.emit(self.pti_buffer)
 
     def _characterisation(self) -> None:
         self.interferometer_characterization.add_phase(self.interferometer.phase)

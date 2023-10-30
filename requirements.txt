@@ -2,7 +2,7 @@ dacite==1.8.1
 fastcrc==0.2.1
 h5py==3.10.0
 numpy==1.26.1
-pandas==2.1.1
+pandas==2.1.2
 PyQt5>=5.15.2
 pyqtgraph==0.13.3
 pyserial==3.5
