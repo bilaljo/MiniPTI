@@ -1,5 +1,5 @@
 {
-    "use": false,
+    "use": true,
     "GUI": {
         "window_title": "MiniPTI",
         "logging": {
@@ -57,7 +57,7 @@
                 "decimation": false,
                 "interferometry": true,
                 "inversion": false,
-                "characterisation": false
+                "characterisation": true
             }
         },
         "probe_laser": {

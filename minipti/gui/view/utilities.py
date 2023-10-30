@@ -4,6 +4,7 @@ from PyQt5 import QtWidgets, QtGui
 from matplotlib import pyplot as plt
 from overrides import override
 
+import minipti
 from minipti.gui.view import helper
 from minipti.gui import controller
 
@@ -20,7 +21,7 @@ class UtilitiesWindow(QtWidgets.QMainWindow):
         self.parent.layout().addWidget(self.plotting, 1, 0)
         self.setCentralWidget(self.parent)
         self.setFixedSize(300, 400)
-        self.setWindowIcon(QtGui.QIcon("minipti/gui/images/calculation.svg"))
+        self.setWindowIcon(QtGui.QIcon(f"{minipti.module_path}/gui/images/calculation.svg"))
 
 
 class UtilitiesBase(QtWidgets.QGroupBox):

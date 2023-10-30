@@ -185,6 +185,7 @@ class Home(interface.Home):
 
     @override
     def on_run(self) -> None:
+        self.running = not self.running
         if self.configuration.on_run.pump_laser.laser_driver:
             self.pump_laser.enabled = self.running
         if self.configuration.on_run.probe_laser.laser_driver:
@@ -195,7 +196,6 @@ class Home(interface.Home):
             self.tec[model.Tec.PROBE_LASER].enabled = self.running
         if self.configuration.on_run.DAQ:
             self.enable_motherboard()
-        self.running = not self.running
 
     @override
     def show_settings(self) -> None:
@@ -217,11 +217,12 @@ class Home(interface.Home):
             logging.error("Cannot enable Motherboard")
             logging.warning("Motherboard is not connected")
         else:
-            if not self.running:
+            if self.running:
                 self.motherboard.running = True
                 self.calculation_model.process_daq_data()
             else:
                 self.motherboard.running = False
+
             logging.debug("%s Motherboard", "Enabled" if self.motherboard.running else "Disabled")
 
 

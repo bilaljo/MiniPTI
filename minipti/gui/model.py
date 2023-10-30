@@ -949,7 +949,8 @@ class Laser(Serial):
                                       default_notification_icon=f"{minipti.module_path}/gui/images/hardware/laser.svg",
                                       default_notification_application_name="Laser Driver")
         self.off_notification = Notify(default_notification_title="Laser",
-                                       default_notification_icon=f"{minipti.module_path}/gui/images/hardware/laser/off.svg",
+                                       default_notification_icon=f"{minipti.module_path}"
+                                                                 f"/gui/images/hardware/laser/off.svg",
                                        default_notification_application_name="Laser Driver")
 
     @property

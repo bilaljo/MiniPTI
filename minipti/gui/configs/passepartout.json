@@ -1,5 +1,5 @@
 {
-    "use": true,
+    "use": false,
     "GUI": {
         "window_title": "MiniPTI Passepartout",
         "logging": {

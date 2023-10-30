@@ -2,13 +2,13 @@
 # MiniPTI-GUI - a highly configurable GUI for Interferometry, PTI and Lasers
 
 <p style="text-align: center;">
-<img alt="flowchart" src="https://www.fhnw.ch/de/medien/logos/media/fhnw_e_10mm.jpg" class="centre">
+<img alt="logo" src="https://www.fhnw.ch/de/medien/logos/media/fhnw_e_10mm.jpg" class="centre">
 </p>
 
 In this repository a GUI is provided to control the MiniPTI as also presented in [Waveguide based passively demodulated photothermal interferometer for light absorption measurements of trace substances](https://doi.org/10.1364/AO.476868). In addition to the GUI, Python implementations of the presented algorithms and the driver software for the MiniPTI hardware are also provided as libraries.
 
 # 1. installation
-To install only the library + GUI you can use the pip package manager. Just type in the console
+To install the library + GUI you can use the pip package manager. Just type in the console
 ```
 pip install minipti
 ```
@@ -22,6 +22,10 @@ are shown some example configurations.
 In the interferometry GUI, only DC signals and interferometric phase are shown
 in the home tab. While pressing "run" the probe laser (if existing) and motherboard are
 running.
+
+<p style="text-align: center;">
+<img alt="interferometry" src="https://www.fhnw.ch/de/medien/logos/media/fhnw_e_10mm.jpg" class="centre">
+</p>
 
 ### 2.2 PTI GUI
 In the PTI GUI (used for the Passepartout project), DC signals, interferometric phase and PTI Signal
