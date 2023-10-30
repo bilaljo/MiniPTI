@@ -8,6 +8,7 @@ from dataclasses import dataclass
 import dacite
 from overrides import override
 
+import minipti
 from . import serial_device, _json_parser
 from . import protocolls
 
@@ -127,7 +128,7 @@ class Tec:
     def __init__(self, channel: int, driver: Driver):
         self.commands = Commands(channel - 1)
         self.commands.set_ntc_dac.value = Tec._NTC_DAC_CALIBRATION_VALUE
-        self.config_path = f"{os.path.dirname(__file__)}/configs/tec/channel_{channel}.json"
+        self.config_path = f"{minipti.module_path}/hardware/configs/tec/channel_{channel}.json"
         self.driver = driver
         self._enabled = False
         self.configuration = Configuration(pid=_PID(0, 0, 0),

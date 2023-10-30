@@ -12,6 +12,7 @@ import h5py
 import numpy as np
 import pandas as pd
 
+import minipti
 import minipti.algorithm.interferometry as interferometry
 
 
@@ -173,8 +174,8 @@ class Inversion:
                               ([f"AC CH{i}" for i in range(1, 4)],
                               [f"AC Phase CH{i}" for i in range(1, 4)])]
 
-    def __init__(self, response_phases=None, sign=1, interferometer=None, decimation=Decimation(),
-                 settings_path=f"{os.path.dirname(__file__)}/configs/settings.csv"):
+    def __init__(self, response_phases=None, sign=-1, interferometer=None, decimation=Decimation(),
+                 settings_path=f"{minipti.module_path}/algorithm/configs/settings.csv"):
         self.response_phases: np.ndarray = response_phases
         self.pti_signal: Union[float, np.ndarray] = 0
         self.settings_path: str = settings_path

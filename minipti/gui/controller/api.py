@@ -54,6 +54,7 @@ class MainApplication(interface.MainApplication):
         self.tec = model.Tec()
         model.theme_signal.changed.connect(self.update_theme)
         threading.Thread(target=model.theme_observer, daemon=True).start()
+        self.controllers.home.init_devices()
         # threading.excepthook = self.thread_exception
 
     @QtCore.pyqtSlot(str)
@@ -130,7 +131,7 @@ class Home(interface.Home):
         self.pump_laser = model.PumpLaser()
         self.probe_laser = model.ProbeLaser()
         self.tec = [model.Tec(model.Tec.PUMP_LASER), model.Tec(model.Tec.PROBE_LASER)]
-        self.init_devices()
+        self.running = False
 
     @override
     def init_devices(self) -> None:
@@ -184,14 +185,15 @@ class Home(interface.Home):
 
     @override
     def on_run(self) -> None:
+        self.running = not self.running
         if self.configuration.on_run.pump_laser.laser_driver:
-            self.pump_laser.enabled = not self.pump_laser.enabled
+            self.pump_laser.enabled = self.running
         if self.configuration.on_run.probe_laser.laser_driver:
-            self.probe_laser.enabled = not self.probe_laser.enabled
+            self.probe_laser.enabled = self.running
         if self.configuration.on_run.pump_laser.tec_driver:
-            self.tec[model.Tec.PUMP_LASER].enabled = not self.tec[model.Tec.PUMP_LASER].enabled
+            self.tec[model.Tec.PUMP_LASER].enabled = self.running
         if self.configuration.on_run.probe_laser.tec_driver:
-            self.tec[model.Tec.PROBE_LASER].enabled = not self.tec[model.Tec.PROBE_LASER].enabled
+            self.tec[model.Tec.PROBE_LASER].enabled = self.running
         if self.configuration.on_run.DAQ:
             self.enable_motherboard()
 
@@ -211,15 +213,16 @@ class Home(interface.Home):
     def enable_motherboard(self) -> None:
         if not self.motherboard.connected:
             QtWidgets.QMessageBox.critical(self.view, "IO Error",
-                                           "Cannot enable Motherboard. Probe Laser is not connected.")
+                                           "Cannot enable Motherboard. Motherboard is not connected.")
             logging.error("Cannot enable Motherboard")
             logging.warning("Motherboard is not connected")
         else:
-            if not self.motherboard.running:
+            if self.running:
                 self.motherboard.running = True
                 self.calculation_model.process_daq_data()
             else:
                 self.motherboard.running = False
+
             logging.debug("%s Motherboard", "Enabled" if self.motherboard.running else "Disabled")
 
 
@@ -377,17 +380,24 @@ class Settings(interface.Settings):
 
 class Utilities(interface.Utilities):
     def __init__(self, configuration: typing.Union[model.configuration.Utilities, None]):
-        self.configuration = configuration
+        self._configuration = configuration
         self.view = view.utilities.UtilitiesWindow(self)
         self.calculation_model = model.OfflineCalculation()
         self.last_file_path = os.getcwd()
         self._mother_board = model.Motherboard()
         self._laser = model.Laser()
         self._tec = model.Tec()
-        model.signals.dc_signals.connect(plots.dc_offline)
+        self.interferometric_phase_offline = plots.InterferometricPhaseOffline()
+        self.dc_offline = plots.DCOffline()
+        model.signals.dc_signals.connect(self.dc_offline.plot)
         model.signals.inversion.connect(plots.pti_signal_offline)
-        model.signals.interferometric_phase.connect(plots.interferometric_phase_offline)
+        model.signals.interferometric_phase.connect(self.interferometric_phase_offline.plot)
         # model.theme_signal.changed.connect(view.utilities.update_matplotlib_theme)
+
+    @property
+    @override
+    def configuration(self) -> model.configuration.Utilities:
+        return self._configuration
 
     @property
     @override
@@ -426,6 +436,15 @@ class Utilities(interface.Utilities):
                 model.process_dc_data(decimation_path)
         except KeyError:
             QtWidgets.QMessageBox.critical(self.view, "Plotting Error", "Invalid data given. Could not plot.")
+
+    @override
+    def calculate_interferometry(self) -> None:
+        interferometry_path, self.last_file_path = _get_file_path(self.view, "Interferometry",
+                                                                  self.last_file_path,
+                                                                  "CSV File (*.csv);; TXT File (*.txt);; All Files (*)")
+        if not interferometry_path:
+            return
+        threading.Thread(target=self.calculation_model.calculate_interferometry, args=[interferometry_path]).start()
 
     @override
     def calculate_pti_inversion(self) -> None:

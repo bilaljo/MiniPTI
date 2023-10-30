@@ -1,63 +1,63 @@
 {
     "use": false,
     "GUI": {
-        "window_title": "Pump Laser",
+        "window_title": "MiniPTI Passepartout",
         "logging": {
             "console": true,
             "file": true
         },
         "battery": {
-            "use": false
+            "use": true
         },
         "home": {
-            "use": false,
+            "use": true,
             "on_run": {
-                "DAQ": false,
-                "BMS": false,
+                "DAQ": true,
+                "BMS": true,
                 "probe_laser": {
-                    "laser_driver": false,
-                    "tec_driver": false
+                    "laser_driver": true,
+                    "tec_driver": true
                 },
                 "pump_laser": {
-                    "laser_driver": false,
-                    "tec_driver": false
+                    "laser_driver": true,
+                    "tec_driver": true
                 }
             },
             "plots": {
-                "dc_signals": false,
-                "interferometric_phase": false,
-                "pti_signal": false
+                "dc_signals": true,
+                "interferometric_phase": true,
+                "pti_signal": true
             },
             "connect": {
                 "use": true,
                 "devices": {
-                    "motherboard": false,
+                    "motherboard": true,
                     "laser_driver": true,
                     "tec_driver": true
                 }
             }
         },
         "settings": {
-            "valve": false,
-            "measurement_settings": false,
+            "valve": true,
+            "measurement_settings": true,
             "system_settings": {
-                "interferometric": false,
-                "response_phases": false
+                "interferometric": true,
+                "response_phases": true
             }
         },
         "utilities": {
-            "use": false,
+            "use": true,
             "plot": {
-                "dc": false,
-                "interferometry": false,
-                "inversion": false
+                "dc": true,
+                "interferometry": true,
+                "inversion": true
             },
             "calculate": {
-                "use": false,
-                "decimation": false,
-                "interferometry": false,
-                "inversion": false,
-                "characterisation": false
+                "use": true,
+                "decimation": true,
+                "interferometry": true,
+                "inversion": true,
+                "characterisation": true
             }
         },
         "probe_laser": {
@@ -66,9 +66,9 @@
             "tec_driver": false
         },
         "pump_laser": {
-            "use": true,
-            "laser_driver": true,
-            "tec_driver": true
+            "use": false,
+            "laser_driver": false,
+            "tec_driver": false
         },
         "plots": {
             "dc_signals": {

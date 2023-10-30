@@ -1,8 +1,9 @@
 {
     "use": false,
     "GUI": {
+        "window_title": "MiniPTI",
         "logging": {
-            "console": false,
+            "console": true,
             "file": true
         },
         "battery": {
@@ -38,7 +39,7 @@
         },
         "settings": {
             "valve": false,
-            "measurement_settings": true,
+            "measurement_settings": false,
             "system_settings": {
                 "interferometric": true,
                 "response_phases": false
@@ -46,12 +47,17 @@
         },
         "utilities": {
             "use": true,
-            "plot": true,
+            "plot": {
+                "dc": true,
+                "interferometry": true,
+                "inversion": false
+            },
             "calculate": {
                 "use": true,
                 "decimation": false,
-                "inversion": true,
-                "characterisation": false
+                "interferometry": true,
+                "inversion": false,
+                "characterisation": true
             }
         },
         "probe_laser": {
@@ -69,10 +75,10 @@
                 "use": false
             },
             "amplitudes": {
-                "use": true
+                "use": false
             },
             "output_phases": {
-                "use": true
+                "use": false
             },
             "interferometric_phase": {
                 "use": false

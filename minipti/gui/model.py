@@ -26,6 +26,7 @@ from scipy import ndimage
 import darkdetect
 from notifypy import Notify
 
+import minipti
 from minipti import algorithm, hardware
 from minipti.gui.model2 import configuration
 
@@ -294,10 +295,10 @@ class PTIBuffer(Buffer):
     def append(self, pti: PTI, average_period: int) -> None:
         self._pti_signal.append(pti.inversion.pti_signal)
         self._pti_signal_mean_queue.append(pti.inversion.pti_signal)
-        time_scaler: float = algorithm.pti.Decimation.REF_PERIOD * algorithm.pti.Decimation.SAMPLE_PERIOD
-        if average_period / time_scaler == 1:
+        time_scaler: float = average_period / algorithm.pti.Decimation.SAMPLE_PERIOD
+        if time_scaler == 1:
             self._pti_signal_mean.append(np.mean(np.array(self._pti_signal_mean_queue)))
-        self.time.append(next(self.time_counter) * average_period / time_scaler)
+        self.time.append(next(self.time_counter) / time_scaler)
 
     @property
     def pti_signal(self) -> deque:
@@ -455,7 +456,7 @@ class Battery:
 @dataclass(init=False, frozen=True)
 class DAQSignals(QtCore.QObject):
     decimation = QtCore.pyqtSignal(Buffer)
-    inversion = QtCore.pyqtSignal(Buffer, bool)
+    inversion = QtCore.pyqtSignal(Buffer)
     interferometry = QtCore.pyqtSignal(Buffer)
     characterization = QtCore.pyqtSignal(Buffer)
     samples_changed = QtCore.pyqtSignal(int)
@@ -572,11 +573,12 @@ class LiveCalculation(Calculation):
         self.characterisation_buffer = CharacterisationBuffer()
         self.motherboard = Motherboard()
         self.pti_signal_mean_queue = deque(maxlen=LiveCalculation.ONE_MINUTE)
-        daq_signals.clear.connect(self.clear_buffer)
+        daq_signals.clear.connect(self._clear_buffers)
 
-    @staticmethod
-    def get_time_scaler() -> float:
-        return algorithm.pti.Decimation.REF_PERIOD * algorithm.pti.Decimation.SAMPLE_PERIOD
+    def _clear_buffers(self) -> None:
+        self.interferometer_buffer = InterferometerBuffer()
+        self.pti_buffer = PTIBuffer()
+        self.characterisation_buffer = CharacterisationBuffer()
 
     def process_daq_data(self) -> None:
         threading.Thread(target=self._run_calculation, name="PTI Inversion", daemon=True).start()
@@ -593,10 +595,6 @@ class LiveCalculation(Calculation):
             i += 1
         result.extend(ndimage.uniform_filter1d(data[mean_size:], size=mean_size))
         return result
-
-    def clear_buffer(self) -> None:
-        self.pti_buffer = PTIBuffer()
-        self.characterisation_buffer = CharacterisationBuffer()
 
     def set_raw_data_saving(self, save_raw_data: bool) -> None:
         self.pti.decimation.save_raw_data = save_raw_data
@@ -641,7 +639,7 @@ class LiveCalculation(Calculation):
     def _pti_inversion(self) -> None:
         self.pti.inversion.run(live=True)
         self.pti_buffer.append(self.pti, self.pti.decimation.average_period)
-        daq_signals.inversion.emit(self.pti_buffer, LiveCalculation.get_time_scaler() == 1)
+        daq_signals.inversion.emit(self.pti_buffer)
 
     def _characterisation(self) -> None:
         self.interferometer_characterization.add_phase(self.interferometer.phase)
@@ -667,6 +665,10 @@ class OfflineCalculation(Calculation):
         self.pti.decimation.file_path = decimation_path
         logging.info("Starting Decimation of Raw Data")
         threading.Thread(target=self.pti.decimation.run, name="Decimation Thread").start()
+
+    def calculate_interferometry(self, interferometry_path: str) -> None:
+        self.interferometer.load_settings()
+        self.interferometer.run(file_path=interferometry_path)
 
     def calculate_inversion(self, inversion_path: str) -> None:
         self.interferometer.load_settings()
@@ -939,12 +941,13 @@ class Laser(Serial):
 
     def __init__(self):
         Serial.__init__(self)
-        self._config_path = "hardware/configs/laser.json"
+        self._config_path = f"{minipti.module_path}/hardware/configs/laser.json"
         self.on_notification = Notify(default_notification_title="Laser",
-                                      default_notification_icon="minipti/gui/images/hardware/laser.svg",
+                                      default_notification_icon=f"{minipti.module_path}/gui/images/hardware/laser.svg",
                                       default_notification_application_name="Laser Driver")
         self.off_notification = Notify(default_notification_title="Laser",
-                                       default_notification_icon="minipti/gui/images/hardware/laser/off.svg",
+                                       default_notification_icon=f"{minipti.module_path}"
+                                                                 f"/gui/images/hardware/laser/off.svg",
                                        default_notification_application_name="Laser Driver")
 
     @property
@@ -1432,21 +1435,16 @@ def _process_data(file_path: str, headers: list[str, ...]) -> Union[pd.DataFrame
             data = pd.read_csv(file_path, delimiter=delimiter, skiprows=[1], index_col="Time Stamp")
         except ValueError:  # Data isn't saved with any index
             data = pd.read_csv(file_path, delimiter=delimiter, skiprows=[1])
-    for header in headers:
-        for header_data in data.columns:
-            if header == header_data:
-                return data[headers].to_numpy().T
-        else:
-            raise KeyError(f"Header {header} not found in file")
+    return data[headers].to_numpy()
 
 
 def process_dc_data(dc_file_path: str) -> None:
     headers = [f"DC CH{i}" for i in range(1, 4)]
     try:
-        data = _process_data(dc_file_path, headers)
+        data = _process_data(dc_file_path, headers).T
     except KeyError:
         headers = [f"PD{i}" for i in range(1, 4)]
-        data = _process_data(dc_file_path, headers)
+        data = _process_data(dc_file_path, headers).T
     except FileNotFoundError:
         return
     signals.dc_signals.emit(data)
@@ -1455,13 +1453,10 @@ def process_dc_data(dc_file_path: str) -> None:
 def process_inversion_data(inversion_file_path: str) -> None:
     send_data = {}
     try:
-        headers = ["Interferometric Phase", "Sensitivity CH1", "Sensitivity CH2", "Sensitivity CH3", "PTI Signal"]
+        headers = ["PTI Signal"]
         data = _process_data(inversion_file_path, headers)
-        send_data["PTI Signal"] = data[4]
-        send_data["PTI Signal 60 s Mean"] = LiveCalculation.running_average(data[4], mean_size=60)
-    except KeyError:
-        headers = ["Sensitivity CH1", "Sensitivity CH2", "Sensitivity CH3", "Interferometric Phase"]
-        data = _process_data(inversion_file_path, headers)
+        send_data["PTI Signal"] = data
+        send_data["PTI Signal 60 s Mean"] = LiveCalculation.running_average(data, mean_size=60)
     except FileNotFoundError:
         return
     signals.inversion.emit(send_data)
@@ -1469,10 +1464,7 @@ def process_inversion_data(inversion_file_path: str) -> None:
 
 def process_interferometric_phase_data(interferomtric_phase_file_path: str) -> None:
     try:
-        headers = ["Interferometric Phase", "Sensitivity CH1", "Sensitivity CH2", "Sensitivity CH3", "PTI Signal"]
-        data = _process_data(interferomtric_phase_file_path, headers)[0].T
-    except KeyError:
-        headers = ["Sensitivity CH1", "Sensitivity CH2", "Sensitivity CH3", "Interferometric Phase"]
+        headers = ["Interferometric Phase"]
         data = _process_data(interferomtric_phase_file_path, headers)
     except FileNotFoundError:
         return
