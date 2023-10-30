@@ -131,6 +131,7 @@ class Home(interface.Home):
         self.pump_laser = model.PumpLaser()
         self.probe_laser = model.ProbeLaser()
         self.tec = [model.Tec(model.Tec.PUMP_LASER), model.Tec(model.Tec.PROBE_LASER)]
+        self.running = False
 
     @override
     def init_devices(self) -> None:
@@ -185,15 +186,16 @@ class Home(interface.Home):
     @override
     def on_run(self) -> None:
         if self.configuration.on_run.pump_laser.laser_driver:
-            self.pump_laser.enabled = not self.pump_laser.enabled
+            self.pump_laser.enabled = self.running
         if self.configuration.on_run.probe_laser.laser_driver:
-            self.probe_laser.enabled = not self.probe_laser.enabled
+            self.probe_laser.enabled = self.running
         if self.configuration.on_run.pump_laser.tec_driver:
-            self.tec[model.Tec.PUMP_LASER].enabled = not self.tec[model.Tec.PUMP_LASER].enabled
+            self.tec[model.Tec.PUMP_LASER].enabled = self.running
         if self.configuration.on_run.probe_laser.tec_driver:
-            self.tec[model.Tec.PROBE_LASER].enabled = not self.tec[model.Tec.PROBE_LASER].enabled
+            self.tec[model.Tec.PROBE_LASER].enabled = self.running
         if self.configuration.on_run.DAQ:
             self.enable_motherboard()
+        self.running = not self.running
 
     @override
     def show_settings(self) -> None:
@@ -211,11 +213,11 @@ class Home(interface.Home):
     def enable_motherboard(self) -> None:
         if not self.motherboard.connected:
             QtWidgets.QMessageBox.critical(self.view, "IO Error",
-                                           "Cannot enable Motherboard. Probe Laser is not connected.")
+                                           "Cannot enable Motherboard. Motherboard is not connected.")
             logging.error("Cannot enable Motherboard")
             logging.warning("Motherboard is not connected")
         else:
-            if not self.motherboard.running:
+            if not self.running:
                 self.motherboard.running = True
                 self.calculation_model.process_daq_data()
             else:
