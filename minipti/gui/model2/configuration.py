@@ -116,6 +116,7 @@ class Battery:
 
 @dataclass(frozen=True)
 class GUI:
+    window_title: str = "MiniPTI"
     logging: Logging = Logging()
     battery: Battery = Battery()
     home: Home = Home()
