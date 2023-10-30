@@ -43,6 +43,10 @@ In the PTI GUI (used for the Passepartout project), DC signals, interferometric 
 are displayed only on the home tab. While pressing "run" the probe laser (if existing), pump laser and motherboard are
 running.
 
+<p style="text-align: center;">
+<img alt="pti" src="https://raw.githubusercontent.com/bilaljo/MiniPTI/develop/images/gui/pti/no2_example.png" class="centre">
+</p>
+
 ### 2.3 Probe Laser GUI
 It is possible to use the GUI to controll a custom build probe laser driver together with a custom build tec driver of the FHNW. An example
 GUI is shown (configured such, that only Probe Laser relevant features are their) below.
