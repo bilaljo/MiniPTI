@@ -2,7 +2,6 @@ import dataclasses
 import enum
 import itertools
 import logging
-import os
 import queue
 import threading
 import time
@@ -36,7 +35,7 @@ class Valve:
         self.configuration: Union[ValveConfiguration, None] = None
         self.driver: Union[None, "Driver"] = driver
         self.bypass = False
-        self.config_path = f"{os.path.dirname(__file__)}/configs/motherboard/valve.json"
+        self.config_path = f"{minipti.module_path}/hardware/configs/motherboard/valve.json"
         self.load_configuration()
 
     def automatic_valve_change(self) -> None:
@@ -110,7 +109,7 @@ class BMS:
         self._do_shutdown = protocolls.ASCIIHex("SHD0001")
         self.driver: Union[None, "Driver"] = None
         self.configuration: Union[None, BMSConfiguration] = None
-        self.config_path = f"{os.path.dirname(__file__)}/configs/motherboard/bms.json"
+        self.config_path = f"{minipti.module_path}/hardware/configs/motherboard/bms.json"
         self.driver = driver
         self.running = threading.Event()
         self.encoded_data: Union[BMSData, None] = None
@@ -126,7 +125,7 @@ class BMS:
         2 - 4:
         - The next two bytes are the countdown of a shutdown. Attention: if this value is below 255 (0xFF),
         the motherboard will shut down itself soon.
-        - The next
+        - The next 
         """
         if not int(data[BMSIndex.VALID_IDENTIFIER:BMSIndex.VALID_IDENTIFIER + 2], base=16):
             logging.error("Invalid package from BMS")
@@ -198,6 +197,10 @@ class DAQ:
         self.driver = driver
         self.running = threading.Event()
         self.load_configuration()
+
+    @property
+    def encoded_buffer_size(self) -> int:
+        return len(self.encoded_buffer.ref_signal)
 
     @property
     def number_of_samples(self) -> int:
