@@ -61,7 +61,6 @@ GUI is shown (configured such, that only Probe Laser relevant features are their
 It is also possible to use the GUI with the pump laser only if proberly configured. Note that the Pump Laser is moduldated with 80 Hz, but the transmitted
 values of current are average on the driver.
 
-**Tec Driver**
 <p style="text-align: center;">
 <img alt="pump_tec_driver" src="https://raw.githubusercontent.com/bilaljo/MiniPTI/develop/images/gui/pump_laser/laser_driver.png" class="centre">
 </p>
