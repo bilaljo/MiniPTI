@@ -245,7 +245,7 @@ class Home(QtWidgets.QTabWidget):
             button_layout.setLayout(QtWidgets.QVBoxLayout())
             self.buttons.connect = helper.create_button(parent=button_layout, title="Connect", only_icon=True,
                                                         slot=self.controller.init_devices)
-            self.buttons.connect.setIcon(QtGui.QIcon("minipti/gui/images/hardware/usb.svg"))
+            self.buttons.connect.setIcon(QtGui.QIcon(f"{minipti.module_path}/gui/images/hardware/usb.svg"))
             self.buttons.connect.setIconSize(QtCore.QSize(40, 40))
             self.buttons.connect.setToolTip("Connect")
             button_layout.layout().addWidget(self.buttons.connect)
