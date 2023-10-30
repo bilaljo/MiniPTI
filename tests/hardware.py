@@ -34,9 +34,9 @@ class DAQTest(DriverTests):
     DAQ generates.
     """
     def _package_test(self, sample_index: int) -> None:
-        self.assertEqual(self.driver.daq.current_sample, 128 * sample_index)
-        self.assertEqual(self.driver.daq.current_sample, 128 * sample_index)
-        self.assertEqual(self.driver.daq.current_sample, 128 * sample_index)
+        self.assertEqual(self.driver.daq.current_sample, 128 * self.driver.daq.encoded_buffer_size)
+        self.assertEqual(self.driver.daq.current_sample, 128 * self.driver.daq.encoded_buffer_size)
+        self.assertEqual(self.driver.daq.current_sample, 128 * self.driver.daq.encoded_buffer_size)
 
 
 class MotherBoardDAQ(DAQTest):
