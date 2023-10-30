@@ -1,12 +1,15 @@
 
-# MiniPTI-GUI - a highly configurable GUI for Interferometry, PTI and Lasers
-
+# MiniPTI-GUI
 <p style="text-align: center;">
 <img alt="logo" src="https://www.fhnw.ch/de/medien/logos/media/fhnw_e_10mm.jpg" class="centre">
 </p>
 
+
 In this repository a GUI is provided to control the MiniPTI as also presented in [Waveguide based passively demodulated photothermal interferometer for light absorption measurements of trace substances](https://doi.org/10.1364/AO.476868). In addition to the GUI, Python implementations of the presented algorithms and the driver software for the MiniPTI hardware are also provided as libraries.
 
+The library and GUI are tested for Ubuntu 22.04 LTS, Windows 10, Windows 11 and Raspberry Pi OS.
+
+If hardware access is needed (i.e. serial ports) it works only on Windows and Unix.
 # 1. installation
 To install the library + GUI you can use the pip package manager. Just type in the console
 ```
@@ -23,19 +26,38 @@ In the interferometry GUI, only DC signals and interferometric phase are shown
 in the home tab. While pressing "run" the probe laser (if existing) and motherboard are
 running.
 
+The GUI supports dark mode
+
 <p style="text-align: center;">
-<img alt="interferometry" src="https://www.fhnw.ch/de/medien/logos/media/fhnw_e_10mm.jpg" class="centre">
+<img alt="interferometry" src="https://raw.githubusercontent.com/bilaljo/MiniPTI/develop/images/gui/interferometry/dark.png" class="centre">
 </p>
+
+and detect as well a theme detection of the OS to light theme.
+<p style="text-align: center;">
+<img alt="interferometry_light" src="https://raw.githubusercontent.com/bilaljo/MiniPTI/develop/images/gui/interferometry/light.png" class="centre">
+</p>
+
 
 ### 2.2 PTI GUI
 In the PTI GUI (used for the Passepartout project), DC signals, interferometric phase and PTI Signal
 are displayed only on the home tab. While pressing "run" the probe laser (if existing), pump laser and motherboard are
 running.
 
-### 2.3 Pump Laser GUI
+### 2.3 Probe Laser GUI
+It is possible to use the GUI to controll a custom build probe laser driver together with a custom build tec driver of the FHNW. An example
+GUI is shown (configured such, that only Probe Laser relevant features are their) below.
 
-### 2.4 Probe Laser GUI
+**Laser Driver**
+<p style="text-align: center;">
+<img alt="probe_laser_driver" src="https://raw.githubusercontent.com/bilaljo/MiniPTI/develop/images/gui/probe_laser/laser_driver.png" class="centre">
+</p>
 
+**Tec Driver**
+<p style="text-align: center;">
+<img alt="probe_tec_driver" src="https://raw.githubusercontent.com/bilaljo/MiniPTI/develop/images/gui/probe_laser/tec_driver.png" class="centre">
+</p>
+
+### 2.4 Pump Laser GUI
 
 # 3. Libraries
 
