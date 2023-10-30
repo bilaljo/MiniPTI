@@ -192,15 +192,15 @@ class DAQ:
         self.encoded_buffer = DAQData(deque(maxlen=DAQ.ENCODED_DATA_SIZE),
                                       [deque(maxlen=DAQ.ENCODED_DATA_SIZE) for _ in range(3)],
                                       [deque(maxlen=DAQ.ENCODED_DATA_SIZE) for _ in range(4)])
-        self.samples_buffer = DAQData([], [[], [], []], [[], [], []])
+        self.samples_buffer = DAQData([], [[], [], []], [[], [], [], []])
         self.config_path = f"{minipti.module_path}/hardware/configs/motherboard/daq.json"
         self.driver = driver
         self.running = threading.Event()
         self.load_configuration()
 
     @property
-    def encoded_buffer_size(self) -> int:
-        return len(self.encoded_buffer.ref_signal)
+    def samples_buffer_size(self) -> int:
+        return len(self.samples_buffer.ref_signal)
 
     @property
     def number_of_samples(self) -> int:
@@ -301,6 +301,10 @@ class DAQ:
     def reset(self) -> None:
         self._sample_numbers = deque(maxlen=2)
         self.synchronize = True
+        self.encoded_buffer = DAQData(deque(maxlen=DAQ.ENCODED_DATA_SIZE),
+                                      [deque(maxlen=DAQ.ENCODED_DATA_SIZE) for _ in range(3)],
+                                      [deque(maxlen=DAQ.ENCODED_DATA_SIZE) for _ in range(4)])
+        self.samples_buffer = DAQData([], [[], [], []], [[], [], [], []])
 
     def _check_package_difference(self) -> bool:
         package_difference = int(self._sample_numbers[1], base=16) - int(self._sample_numbers[0],  base=16)

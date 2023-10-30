@@ -18,7 +18,7 @@ class DriverTests(unittest.TestCase):
     driver = minipti.hardware.motherboard.Driver()
 
     def setUp(self) -> None:
-        self.driver.synchronize = False
+        self.driver.daq.synchronize = False
         DriverTests.driver.bms.running.set()
         DriverTests.driver.daq.running.set()
         DriverTests.driver.connected.set()
@@ -34,9 +34,7 @@ class DAQTest(DriverTests):
     DAQ generates.
     """
     def _package_test(self, sample_index: int) -> None:
-        self.assertEqual(self.driver.daq.current_sample, 128 * self.driver.daq.encoded_buffer_size)
-        self.assertEqual(self.driver.daq.current_sample, 128 * self.driver.daq.encoded_buffer_size)
-        self.assertEqual(self.driver.daq.current_sample, 128 * self.driver.daq.encoded_buffer_size)
+        self.assertEqual(self.driver.daq.samples_buffer_size, 128 * sample_index)
 
 
 class MotherBoardDAQ(DAQTest):
@@ -52,7 +50,6 @@ class MotherBoardDAQ(DAQTest):
         A valid package got directly used, the buffer keeps empty.
         """
         self.driver.received_data.put(self.received_data_daq[0] + "\n")
-        self.driver.daq.synchronize = False
         self.driver.encode_data()
         self.assertEqual(self.driver.buffer_size, 0)
         self._package_test(1)
@@ -91,7 +88,6 @@ class MotherBoardDAQ(DAQTest):
         """
         self.driver.received_data.put(self.received_data_daq[4] + "\n")
         self.driver.encode_data()
-        self.assertEqual(self.driver.daq.current_sample, 0)
         # Because of rejection of the package, the packages are completely cleared
         self._package_test(0)
 
