@@ -58,9 +58,9 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.controllers.configuration.home.use:
             self.docks.append(pg.dockarea.Dock(name="Home", widget=self.home))
         if self.controllers.configuration.pump_laser.use:
-            self.docks.append(pg.dockarea.Dock(name="Pump _Laser", widget=self._init_pump_laser()))
+            self.docks.append(pg.dockarea.Dock(name="Pump Laser", widget=self._init_pump_laser()))
         if self.controllers.configuration.probe_laser.use:
-            self.docks.append(pg.dockarea.Dock(name="Probe _Laser", widget=self._init_probe_laser()))
+            self.docks.append(pg.dockarea.Dock(name="Probe Laser", widget=self._init_probe_laser()))
         if self.controllers.configuration.plots.dc_signals.use:
             self.docks.append(pg.dockarea.Dock(name="DC Signals", widget=self.plots.dc.window))
         if self.controllers.configuration.plots.amplitudes.use:
@@ -117,7 +117,7 @@ class MainWindow(QtWidgets.QMainWindow):
         probe_laser.layout().addWidget(self.plots.probe_laser.window)
         dock_area = pg.dockarea.DockArea()
         tec = self._init_tec(model.serial_devices.Tec.PROBE_LASER)
-        laser_dock = pg.dockarea.Dock(name="_Laser Driver", widget=probe_laser)
+        laser_dock = pg.dockarea.Dock(name="Laser Driver", widget=probe_laser)
         tec_dock = pg.dockarea.Dock(name="TEC Driver", widget=tec)
         dock_area.addDock(laser_dock)
         dock_area.addDock(tec_dock)
@@ -131,7 +131,7 @@ class MainWindow(QtWidgets.QMainWindow):
         pump_laser.layout().addWidget(self.plots.pump_laser.window)
         dock_area = pg.dockarea.DockArea()
         tec = self._init_tec(model.serial_devices.Tec.PUMP_LASER)
-        laser_dock = pg.dockarea.Dock(name="_Laser Driver", widget=pump_laser)
+        laser_dock = pg.dockarea.Dock(name="Laser Driver", widget=pump_laser)
         tec_dock = pg.dockarea.Dock(name="TEC Driver", widget=tec)
         dock_area.addDock(laser_dock)
         dock_area.addDock(tec_dock)

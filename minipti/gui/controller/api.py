@@ -282,7 +282,7 @@ class Settings(interface.Settings):
 
     def save_daq_settings_as(self) -> None:
         file_path = save_as(parent=self.view, file_type="JSON", file_extension="json",
-                            name="_DAQ Configuration")
+                            name="DAQ Configuration")
         if file_path:
             self.daq.config_path = file_path
             self.daq.save_configuration()

@@ -306,13 +306,13 @@ class Laser(Serial):
     def __init__(self):
         Serial.__init__(self)
         self._config_path = f"{minipti.module_path}/hardware/configs/laser.json"
-        self.on_notification = Notify(default_notification_title="_Laser",
+        self.on_notification = Notify(default_notification_title="Laser",
                                       default_notification_icon=f"{minipti.module_path}/gui/images/hardware/laser.svg",
-                                      default_notification_application_name="_Laser Driver")
-        self.off_notification = Notify(default_notification_title="_Laser",
+                                      default_notification_application_name="Laser Driver")
+        self.off_notification = Notify(default_notification_title="Laser",
                                        default_notification_icon=f"{minipti.module_path}"
                                                                  f"/gui/images/hardware/laser/off.svg",
-                                       default_notification_application_name="_Laser Driver")
+                                       default_notification_application_name="Laser Driver")
 
     @property
     @override
@@ -360,21 +360,21 @@ class Laser(Serial):
             if Motherboard.running_event.is_set():
                 if self._init_headers:
                     units = {"Time": "H:M:S",
-                             "Pump _Laser Enabled": "bool",
-                             "Pump _Laser Voltage": "V",
-                             "Probe _Laser Enabled": "bool",
-                             "Pump _Laser Current": "mA",
-                             "Probe _Laser Current": "mA"}
+                             "Pump Laser Enabled": "bool",
+                             "Pump Laser Voltage": "V",
+                             "Probe Laser Enabled": "bool",
+                             "Pump Laser Current": "mA",
+                             "Probe Laser Current": "mA"}
                     pd.DataFrame(units, index=["Y:M:D"]).to_csv(self._destination_folder + "/laser.csv",
                                                                 index_label="Date")
                     self._init_headers = False
                 now = datetime.now()
                 output_data = {"Time": str(now.strftime("%H:%M:%S")),
-                               "Pump _Laser Enabled": received_data.high_power_laser_enabled,
-                               "Pump _Laser Voltage": received_data.high_power_laser_voltage,
-                               "Probe _Laser Enabled": received_data.low_power_laser_enabled,
-                               "Pump _Laser Current": received_data.high_power_laser_current,
-                               "Probe _Laser Current": received_data.low_power_laser_current}
+                               "Pump Laser Enabled": received_data.high_power_laser_enabled,
+                               "Pump Laser Voltage": received_data.high_power_laser_voltage,
+                               "Probe Laser Enabled": received_data.low_power_laser_enabled,
+                               "Pump Laser Current": received_data.high_power_laser_current,
+                               "Probe Laser Current": received_data.low_power_laser_current}
                 laser_data_frame = pd.DataFrame(output_data, index=[str(now.strftime("%Y-%m-%d"))])
                 pd.DataFrame(laser_data_frame).to_csv(f"{self._destination_folder}/laser.csv", mode="a", header=False)
 
@@ -392,8 +392,8 @@ class PumpLaser(Laser):
     def __init__(self):
         Laser.__init__(self)
         self.pump_laser = self.driver.high_power_laser
-        self.on_notification.message = "Pump _Laser is on"
-        self.off_notification.message = "Pump _Laser is off"
+        self.on_notification.message = "Pump Laser is on"
+        self.off_notification.message = "Pump Laser is off"
 
     @property
     def connected(self) -> bool:
@@ -541,8 +541,8 @@ class ProbeLaser(Laser):
     def __init__(self):
         Laser.__init__(self)
         self.probe_laser = self.driver.low_power_laser
-        self.on_notification.message = "Probe _Laser is on"
-        self.off_notification.message = "Probe _Laser is off"
+        self.on_notification.message = "Probe Laser is on"
+        self.off_notification.message = "Probe Laser is off"
 
     @property
     def connected(self) -> bool:
@@ -778,23 +778,23 @@ class Tec(Serial):
             if Motherboard.running_event.is_set():
                 if self._init_headers:
                     units = {"Time": "H:M:S",
-                             "TEC Pump _Laser Enabled": "bool",
-                             "TEC Probe _Laser Enabled": "bool",
-                             "Measured Temperature Pump _Laser": "°C",
-                             "Set Point Temperature Pump _Laser": "°C",
-                             "Measured Temperature Probe _Laser": "°C",
-                             "Set Point Temperature Probe _Laser": "°C"}
+                             "TEC Pump Laser Enabled": "bool",
+                             "TEC Probe Laser Enabled": "bool",
+                             "Measured Temperature Pump Laser": "°C",
+                             "Set Point Temperature Pump Laser": "°C",
+                             "Measured Temperature Probe Laser": "°C",
+                             "Set Point Temperature Probe Laser": "°C"}
                     pd.DataFrame(units, index=["Y:M:D"]).to_csv(f"{self._destination_folder}/tec.csv",
                                                                 index_label="Date")
                     self._init_headers = False
                 now = datetime.now()
                 tec_data = {"Time": str(now.strftime("%H:%M:%S")),
-                            "TEC Pump _Laser Enabled": self.driver.tec[Tec.PUMP_LASER].enabled,
-                            "TEC Probe _Laser Enabled": self.driver.tec[Tec.PROBE_LASER].enabled,
-                            "Measured Temperature Pump _Laser": received_data.actual_temperature[Tec.PUMP_LASER],
-                            "Set Point Temperature Pump _Laser": received_data.set_point[Tec.PUMP_LASER],
-                            "Measured Temperature Probe _Laser": received_data.actual_temperature[Tec.PROBE_LASER],
-                            "Set Point Temperature Probe _Laser": received_data.set_point[Tec.PROBE_LASER]}
+                            "TEC Pump Laser Enabled": self.driver.tec[Tec.PUMP_LASER].enabled,
+                            "TEC Probe Laser Enabled": self.driver.tec[Tec.PROBE_LASER].enabled,
+                            "Measured Temperature Pump Laser": received_data.actual_temperature[Tec.PUMP_LASER],
+                            "Set Point Temperature Pump Laser": received_data.set_point[Tec.PUMP_LASER],
+                            "Measured Temperature Probe Laser": received_data.actual_temperature[Tec.PROBE_LASER],
+                            "Set Point Temperature Probe Laser": received_data.set_point[Tec.PROBE_LASER]}
                 tec_data_frame = pd.DataFrame(tec_data, index=[str(now.strftime("%Y-%m-%d"))])
                 pd.DataFrame(tec_data_frame).to_csv(f"{self._destination_folder}/tec.csv",
                                                     header=False, mode="a")
