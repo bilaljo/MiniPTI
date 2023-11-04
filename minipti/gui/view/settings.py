@@ -36,7 +36,7 @@ class SampleSettings(QtWidgets.QWidget):
         self.controller = settings_controller
         self.average_period = QtWidgets.QComboBox()
         self._init_average_period_box()
-        model.daq_signals.samples_changed.connect(self.update_average_period)
+        model.signals.DAQ.samples_changed.connect(self.update_average_period)
 
     def _init_average_period_box(self) -> None:
         for i in range(1, 80):
@@ -102,7 +102,7 @@ class MeasurementSettings(QtWidgets.QGroupBox):
         sublayout.layout().addWidget(self.sample_settings)
         self.layout().addWidget(sublayout)
         self.controller = settings_controller
-        model.signals.destination_folder_changed.connect(self.update_destination_folder)
+        model.signals.GENERAL_PURPORSE.destination_folder_changed.connect(self.update_destination_folder)
         self._init_destination_folder()
         sub_layout = QtWidgets.QWidget()
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
@@ -128,7 +128,7 @@ class ValveConfiguration(QtWidgets.QGroupBox):
         self.controller = settings_controller
         self.setLayout(QtWidgets.QGridLayout())
         self.automatic_valve_switch = qtwidgets.AnimatedToggle()
-        self.automatic_valve_switch_label = QtWidgets.QLabel("Automatic Valve Switch")
+        self.automatic_valve_switch_label = QtWidgets.QLabel("Automatic _Valve Switch")
         self.automatic_valve_switch.setFixedSize(65, 50)
         self.automatic_valve_switch.stateChanged.connect(self.controller.update_automatic_valve_switch)
         self.duty_cycle_valve = QtWidgets.QLabel("%")
@@ -149,14 +149,14 @@ class ValveConfiguration(QtWidgets.QGroupBox):
         self.load = helper.create_button(parent=sub_layout, title="Load Settings",
                                          slot=self.controller.load_valve_settings)
         self.layout().addWidget(sub_layout)
-        self.setTitle("Valve Configuration")
+        self.setTitle("_Valve Configuration")
 
     def _init_valves(self) -> None:
         self.layout().addWidget(self.automatic_valve_switch, 0, 0)
-        self.layout().addWidget(QtWidgets.QLabel("Valve Period"), 1, 0)
+        self.layout().addWidget(QtWidgets.QLabel("_Valve Period"), 1, 0)
         self.layout().addWidget(self.period_field, 1, 1)
         self.layout().addWidget(QtWidgets.QLabel("s"), 1, 2)
-        self.layout().addWidget(QtWidgets.QLabel("Valve Duty Cycle"), 2, 0)
+        self.layout().addWidget(QtWidgets.QLabel("_Valve Duty Cycle"), 2, 0)
         self.layout().addWidget(self.duty_cycle_field, 2, 1)
         self.layout().addWidget(QtWidgets.QLabel("%"), 2, 2)
 
@@ -164,9 +164,9 @@ class ValveConfiguration(QtWidgets.QGroupBox):
         self.automatic_valve_switch.stateChanged.connect(self._automatic_switch_changed)
         self.period_field.editingFinished.connect(self._period_changed)
         self.duty_cycle_field.editingFinished.connect(self._duty_cycle_changed)
-        model.valve_signals.period.connect(self.update_period)
-        model.valve_signals.automatic_switch.connect(self.update_automatic_switch)
-        model.valve_signals.duty_cycle.connect(self.update_duty_cycle)
+        model.signals.VALVE.period.connect(self.update_period)
+        model.signals.VALVE.automatic_switch.connect(self.update_automatic_switch)
+        model.signals.VALVE.duty_cycle.connect(self.update_duty_cycle)
 
     @QtCore.pyqtSlot(int)
     def update_period(self, period: int) -> None:
@@ -211,7 +211,7 @@ class PTIConfiguration(QtWidgets.QGroupBox):
         self.setTitle("System Configuration")
         if not self.controller.configuration.system_settings.response_phases:
             self.algorithm_settings.hideRow(3)
-        model.signals.settings_pti.connect(self.update_table)
+        model.signals.CALCULATION.settings_pti.connect(self.update_table)
 
     def _init_buttons(self) -> None:
         sub_layout = QtWidgets.QWidget()

@@ -1,12 +1,17 @@
 import itertools
+import typing
+from abc import abstractmethod
 from collections import deque
 
+import numpy as np
 from overrides import override
 
-from minipti import algorithm
+from minipti import algorithm, hardware
+from minipti.gui.model import serial_devices
+from minipti.gui.model import processing
 
 
-class Buffer:
+class BaseClass:
     """
     The buffer contains the queues for incoming data and the timer for them.
     """
@@ -14,7 +19,7 @@ class Buffer:
 
     def __init__(self):
         self.time_counter = itertools.count()
-        self.time = deque(maxlen=Buffer.QUEUE_SIZE)
+        self.time = deque(maxlen=BaseClass.QUEUE_SIZE)
 
     def __getitem__(self, key):
         return getattr(self, key.casefold().replace(" ", "_"))
@@ -42,25 +47,25 @@ class Buffer:
                 if member == self.time_counter:
                     self.time_counter = itertools.count()  # Reset counter
                 else:
-                    setattr(self, member, deque(maxlen=Buffer.QUEUE_SIZE))
+                    setattr(self, member, deque(maxlen=BaseClass.QUEUE_SIZE))
 
 
-class PTI(Buffer):
+class PTI(BaseClass):
     MEAN_SIZE = 60
     CHANNELS = 3
 
     def __init__(self):
-        Buffer.__init__(self)
-        self._pti_signal = deque(maxlen=Buffer.QUEUE_SIZE)
-        self._pti_signal_mean = deque(maxlen=Buffer.QUEUE_SIZE)
-        self._pti_signal_mean_queue = deque(maxlen=PTIBuffer.MEAN_SIZE)
+        BaseClass.__init__(self)
+        self._pti_signal = deque(maxlen=BaseClass.QUEUE_SIZE)
+        self._pti_signal_mean = deque(maxlen=BaseClass.QUEUE_SIZE)
+        self._pti_signal_mean_queue = deque(maxlen=PTI.MEAN_SIZE)
 
     @property
     @override
     def is_empty(self) -> bool:
         return len(self._pti_signal) == 0
 
-    def append(self, pti: PTI, average_period: int) -> None:
+    def append(self, pti: processing.PTI, average_period: int) -> None:
         self._pti_signal.append(pti.inversion.pti_signal)
         self._pti_signal_mean_queue.append(pti.inversion.pti_signal)
         time_scaler: float = algorithm.pti.Decimation.REF_PERIOD * algorithm.pti.Decimation.SAMPLE_PERIOD
@@ -77,14 +82,14 @@ class PTI(Buffer):
         return self._pti_signal_mean
 
 
-class Interferometer(Buffer):
+class Interferometer(BaseClass):
     CHANNELS = 3
 
     def __init__(self):
-        Buffer.__init__(self)
-        self._dc_values = [deque(maxlen=Buffer.QUEUE_SIZE) for _ in range(PTI.CHANNELS)]
-        self._interferometric_phase = deque(maxlen=Buffer.QUEUE_SIZE)
-        self._sensitivity = [deque(maxlen=Buffer.QUEUE_SIZE) for _ in range(PTI.CHANNELS)]
+        BaseClass.__init__(self)
+        self._dc_values = [deque(maxlen=BaseClass.QUEUE_SIZE) for _ in range(PTI.CHANNELS)]
+        self._interferometric_phase = deque(maxlen=BaseClass.QUEUE_SIZE)
+        self._sensitivity = [deque(maxlen=BaseClass.QUEUE_SIZE) for _ in range(PTI.CHANNELS)]
 
     @property
     @override
@@ -104,23 +109,23 @@ class Interferometer(Buffer):
         return self._sensitivity
 
     def append(self, interferometer: algorithm.interferometry.Interferometer) -> None:
-        for i in range(InterferometerBuffer.CHANNELS):
+        for i in range(Interferometer.CHANNELS):
             self._dc_values[i].append(interferometer.intensities[i])
             self._sensitivity[i].append(interferometer.sensitivity[i])
         self._interferometric_phase.append(interferometer.phase)
         self.time.append(next(self.time_counter))
 
 
-class Characterisation(Buffer):
+class Characterisation(BaseClass):
     CHANNELS = 3
 
     def __init__(self):
-        Buffer.__init__(self)
+        BaseClass.__init__(self)
         # The first channel has always the phase 0 by definition hence it is not needed.
-        self._output_phases = [deque(maxlen=Buffer.QUEUE_SIZE) for _ in range(self.CHANNELS - 1)]
-        self._amplitudes = [deque(maxlen=Buffer.QUEUE_SIZE) for _ in range(Characterisation.CHANNELS)]
-        self._symmetry = deque(maxlen=Buffer.QUEUE_SIZE)
-        self._relative_symmetry = deque(maxlen=Buffer.QUEUE_SIZE)
+        self._output_phases = [deque(maxlen=BaseClass.QUEUE_SIZE) for _ in range(self.CHANNELS - 1)]
+        self._amplitudes = [deque(maxlen=BaseClass.QUEUE_SIZE) for _ in range(Characterisation.CHANNELS)]
+        self._symmetry = deque(maxlen=BaseClass.QUEUE_SIZE)
+        self._relative_symmetry = deque(maxlen=BaseClass.QUEUE_SIZE)
 
     @property
     def is_empty(self) -> bool:
@@ -151,3 +156,63 @@ class Characterisation(Buffer):
     @property
     def relative_symmetry(self) -> deque:
         return self._relative_symmetry
+
+
+class Laser(BaseClass):
+    def __init__(self):
+        BaseClass.__init__(self)
+        self._pump_laser_voltage = deque(maxlen=BaseClass.QUEUE_SIZE)
+        self._pump_laser_current = deque(maxlen=BaseClass.QUEUE_SIZE)
+        self._probe_laser_current = deque(maxlen=BaseClass.QUEUE_SIZE)
+
+    @property
+    def is_empty(self) -> bool:
+        return len(self._pump_laser_voltage) == 0
+
+    def append(self, laser_data: hardware.laser.Data) -> None:
+        self.time.append(next(self.time_counter) / 10)
+        self._pump_laser_voltage.append(laser_data.high_power_laser_voltage)
+        self.pump_laser_current.append(laser_data.high_power_laser_current)
+        self.probe_laser_current.append(laser_data.low_power_laser_current)
+
+    @property
+    def pump_laser_voltage(self) -> deque:
+        return self._pump_laser_voltage
+
+    @property
+    def pump_laser_current(self) -> deque:
+        return self._pump_laser_current
+
+    @property
+    def probe_laser_current(self) -> deque:
+        return self._probe_laser_current
+
+
+class Tec(BaseClass):
+    def __init__(self):
+        BaseClass.__init__(self)
+        self._set_point: list[deque] = [deque(maxlen=BaseClass.QUEUE_SIZE), deque(maxlen=BaseClass.QUEUE_SIZE)]
+        self._actual_value: list[deque] = [deque(maxlen=BaseClass.QUEUE_SIZE), deque(maxlen=BaseClass.QUEUE_SIZE)]
+
+    @property
+    def is_empty(self) -> bool:
+        return len(self._set_point[0]) == 0
+
+    def append(self, tec_data: hardware.tec.Data) -> None:
+        self._set_point[serial_devices.Tec.PUMP_LASER].append(
+            tec_data.set_point[serial_devices.Tec.PUMP_LASER])
+        self._set_point[serial_devices.Tec.PROBE_LASER].append(
+            tec_data.set_point[serial_devices.Tec.PROBE_LASER])
+        self._actual_value[serial_devices.Tec.PUMP_LASER].append(
+            tec_data.actual_temperature[serial_devices.Tec.PUMP_LASER])
+        self._actual_value[serial_devices.Tec.PROBE_LASER].append(
+            tec_data.actual_temperature[serial_devices.Tec.PROBE_LASER])
+        self.time.append(next(self.time_counter))
+
+    @property
+    def set_point(self) -> list[deque]:
+        return self._set_point
+
+    @property
+    def actual_value(self) -> list[deque]:
+        return self._actual_value

@@ -20,7 +20,7 @@ class Data(serial_device.Data):
     high_power_laser_current: float
     high_power_laser_voltage: float
     low_power_laser_current: float
-    low_power_laser_enabled: bool
+    low_powerLaser_enabled: bool
 
 
 class Driver(serial_device.Driver):
@@ -75,7 +75,7 @@ class Driver(serial_device.Driver):
             self.data.put(Data(high_power_laser_current=float(data_frame[0]),
                                high_power_laser_voltage=float(data_frame[1]),
                                low_power_laser_current=float(data_frame[2]),
-                               low_power_laser_enabled=self.low_power_laser.enabled,
+                               low_powerLaser_enabled=self.low_power_laser.enabled,
                                high_power_laser_enabled=self.high_power_laser.enabled))
 
 

@@ -11,7 +11,7 @@ from PyQt5 import QtWidgets, QtCore
 from PyQt5.QtCore import QCoreApplication
 from overrides import override
 
-from minipti.gui import model, model2
+from minipti.gui import model
 from minipti.gui import view
 from minipti.gui.controller import interface
 from minipti.gui.view import plots
@@ -28,14 +28,14 @@ class Controllers(interface.Controllers):
     tec: list["Tec"]
 
     @property
-    def configuration(self) -> model2.configuration.GUI:
+    def configuration(self) -> model.configuration.GUI:
         return self.main_application.configuration
 
 
 class MainApplication(interface.MainApplication):
     def __init__(self, argv=""):
         interface.MainApplication.__init__(self, argv)
-        self.configuration = model.parse_configuration()
+        self.configuration = model.general_purpose.parse_configuration()
         settings_controller = Settings(self.configuration.settings)
         utilities_controller = Utilities(self.configuration.utilities)
         home_controller = Home(self.configuration.home, settings_controller, utilities_controller)
@@ -45,15 +45,15 @@ class MainApplication(interface.MainApplication):
                                                      utilities=utilities_controller,
                                                      pump_laser=PumpLaser(self.configuration.pump_laser),
                                                      probe_laser=ProbeLaser(self.configuration.probe_laser),
-                                                     tec=[Tec(laser=model.Tec.PUMP_LASER),
-                                                          Tec(laser=model.Tec.PROBE_LASER)])
-        self.logging_model = model.Logging()
+                                                     tec=[Tec(laser=model.serial_devices.Tec.PUMP_LASER),
+                                                          Tec(laser=model.serial_devices.Tec.PROBE_LASER)])
+        self.logging_model = model.general_purpose.Logging()
         self.view = view.api.MainWindow(self.controllers)
-        self.motherboard = model.Motherboard()
-        self.laser = model.Laser()
-        self.tec = model.Tec()
-        model.theme_signal.changed.connect(self.update_theme)
-        threading.Thread(target=model.theme_observer, daemon=True).start()
+        self.motherboard = model.serial_devices.Motherboard()
+        self.laser = model.serial_devices.Laser()
+        self.tec = model.serial_devices.Tec()
+        model.signals.GENERAL_PURPORSE.theme_changed.connect(self.update_theme)
+        threading.Thread(target=model.general_purpose.theme_observer, daemon=True).start()
         self.controllers.home.init_devices()
         # threading.excepthook = self.thread_exception
 
@@ -112,10 +112,11 @@ class Home(interface.Home):
         settings_controller.fire_configuration_change()
         self.utilities = view.utilities.UtilitiesWindow(utilities_controller)
         self.calculation_model = settings_controller.calculation_model
-        self.motherboard = model.Motherboard()
-        self.pump_laser = model.PumpLaser()
-        self.probe_laser = model.ProbeLaser()
-        self.tec = [model.Tec(model.Tec.PUMP_LASER), model.Tec(model.Tec.PROBE_LASER)]
+        self.motherboard = model.serial_devices.Motherboard()
+        self.pump_laser = model.serial_devices.PumpLaser()
+        self.probe_laser = model.serial_devices.ProbeLaser()
+        self.tec = [model.serial_devices.Tec(model.serial_devices.Tec.PUMP_LASER),
+                    model.serial_devices.Tec(model.serial_devices.Tec.PROBE_LASER)]
         self.running = False
 
     @override
@@ -175,9 +176,9 @@ class Home(interface.Home):
         if self.configuration.on_run.probe_laser.laser_driver:
             self.probe_laser.enabled = self.running
         if self.configuration.on_run.pump_laser.tec_driver:
-            self.tec[model.Tec.PUMP_LASER].enabled = self.running
+            self.tec[model.serial_devices.Tec.PUMP_LASER].enabled = self.running
         if self.configuration.on_run.probe_laser.tec_driver:
-            self.tec[model.Tec.PROBE_LASER].enabled = self.running
+            self.tec[model.serial_devices.Tec.PROBE_LASER].enabled = self.running
         if self.configuration.on_run.DAQ:
             self.enable_motherboard()
 
@@ -214,13 +215,13 @@ class Settings(interface.Settings):
     def __init__(self, configuration: typing.Union[model.configuration.Settings, None]):
         interface.Settings.__init__(self)
         self.configuration = configuration
-        self.daq = model.DAQ()
-        self.calculation_model = model.LiveCalculation()
-        self.valve = model.Valve()
-        self.motherboard = model.Motherboard()
-        self._settings_table = model.SettingsTable()
+        self.daq = model.serial_devices.DAQ()
+        self.calculation_model = model.processing.LiveCalculation()
+        self.valve = model.serial_devices.Valve()
+        self.motherboard = model.serial_devices.Motherboard()
+        self._settings_table = model.processing.SettingsTable()
         self.view = view.settings.SettingsWindow(self)
-        self._destination_folder = model.DestinationFolder()
+        self._destination_folder = model.processing.DestinationFolder()
         self.last_file_path = os.getcwd()
         if self.configuration is not None and self.configuration.measurement_settings:
             self.view.measurement_configuration.destination_folder_label.setText(self.destination_folder.folder)
@@ -232,12 +233,12 @@ class Settings(interface.Settings):
 
     @property
     @override
-    def settings_table_model(self) -> model.SettingsTable:
+    def settings_table_model(self) -> model.processing.SettingsTable:
         return self._settings_table
 
     @property
     @override
-    def destination_folder(self) -> model.DestinationFolder:
+    def destination_folder(self) -> model.processing.DestinationFolder:
         return self._destination_folder
 
     @override
@@ -281,7 +282,7 @@ class Settings(interface.Settings):
 
     def save_daq_settings_as(self) -> None:
         file_path = save_as(parent=self.view, file_type="JSON", file_extension="json",
-                            name="DAQ Configuration")
+                            name="_DAQ Configuration")
         if file_path:
             self.daq.config_path = file_path
             self.daq.save_configuration()
@@ -302,14 +303,14 @@ class Settings(interface.Settings):
 
     def save_valve_settings_as(self) -> None:
         file_path = save_as(parent=self.view, file_type="JSON", file_extension="json",
-                            name="Valve Configuration")
+                            name="_Valve Configuration")
         if file_path:
             self.valve.config_path = file_path
             self.valve.save_configuration()
 
     @override
     def load_valve_settings(self) -> None:
-        config_path, self.last_file_path = _get_file_path(self.view, "Valve", self.last_file_path,
+        config_path, self.last_file_path = _get_file_path(self.view, "_Valve", self.last_file_path,
                                                           "JSON File (*.json);; All Files (*)")
         if config_path:
             self.valve.config_path = config_path
@@ -337,7 +338,7 @@ class Settings(interface.Settings):
             info_text = "Value must be a positive integer"
             logging.error(str(error))
             logging.warning(info_text)
-            QtWidgets.QMessageBox.critical(self.view, "Valve Error", f"{str(error)}. {info_text}")
+            QtWidgets.QMessageBox.critical(self.view, "_Valve Error", f"{str(error)}. {info_text}")
 
     @override
     def update_valve_duty_cycle(self, duty_cycle: str) -> None:
@@ -351,7 +352,7 @@ class Settings(interface.Settings):
             info_text = "Value must be an integer between 0 and 100"
             logging.error(str(error))
             logging.warning(info_text)
-            QtWidgets.QMessageBox.critical(self.view, "Valve Error", f"{str(error)}. {info_text}")
+            QtWidgets.QMessageBox.critical(self.view, "_Valve Error", f"{str(error)}. {info_text}")
 
     @override
     def update_automatic_valve_switch(self, automatic_valve_switch: bool) -> None:
@@ -366,16 +367,16 @@ class Utilities(interface.Utilities):
     def __init__(self, configuration: typing.Union[model.configuration.Utilities, None]):
         self._configuration = configuration
         self.view = view.utilities.UtilitiesWindow(self)
-        self.calculation_model = model.OfflineCalculation()
+        self.calculation_model = model.processing.OfflineCalculation()
         self.last_file_path = os.getcwd()
-        self._mother_board = model.Motherboard()
-        self._laser = model.Laser()
-        self._tec = model.Tec()
+        self._mother_board = model.serial_devices.Motherboard()
+        self._laser = model.serial_devices.Laser()
+        self._tec = model.serial_devices.Tec()
         self.interferometric_phase_offline = plots.InterferometricPhaseOffline()
         self.dc_offline = plots.DCOffline()
-        model.signals.dc_signals.connect(self.dc_offline.plot)
-        model.signals.inversion.connect(plots.pti_signal_offline)
-        model.signals.interferometric_phase.connect(self.interferometric_phase_offline.plot)
+        model.signals.CALCULATION.dc_signals.connect(self.dc_offline.plot)
+        model.signals.CALCULATION.inversion.connect(plots.pti_signal_offline)
+        model.signals.CALCULATION.interferometric_phase.connect(self.interferometric_phase_offline.plot)
         # model.theme_signal.changed.connect(view.utilities.update_matplotlib_theme)
 
     @property
@@ -385,17 +386,17 @@ class Utilities(interface.Utilities):
 
     @property
     @override
-    def motherboard(self) -> model.Motherboard:
+    def motherboard(self) -> model.serial_devices.Motherboard:
         return self._mother_board
 
     @property
     @override
-    def laser(self) -> model.Laser:
+    def laser(self) -> model.serial_devices.Laser:
         return self._laser
 
     @property
     @override
-    def tec(self) -> model.Tec:
+    def tec(self) -> model.serial_devices.Tec:
         return self._tec
 
     @override
@@ -417,7 +418,7 @@ class Utilities(interface.Utilities):
             decimation_path, self.last_file_path = _get_file_path(self.view, "Decimation", self.last_file_path,
                                                                   "CSV File (*.csv);; TXT File (*.txt);; All Files (*)")
             if decimation_path:
-                model.process_dc_data(decimation_path)
+                model.processing.process_dc_data(decimation_path)
         except KeyError:
             QtWidgets.QMessageBox.critical(self.view, "Plotting Error", "Invalid data given. Could not plot.")
 
@@ -445,7 +446,7 @@ class Utilities(interface.Utilities):
                                                                  "CSV File (*.csv);; TXT File (*.txt);;"
                                                                  " All Files (*)")
             if inversion_path:
-                model.process_inversion_data(inversion_path)
+                model.processing.process_inversion_data(inversion_path)
         except KeyError:
             QtWidgets.QMessageBox.critical(self.view, "Plotting Error", "Invalid data given. Could not plot.")
 
@@ -457,7 +458,7 @@ class Utilities(interface.Utilities):
                                                                              "CSV File (*.csv);; TXT File (*.txt);;"
                                                                              " All Files (*)")
             if interferometric_phase_path:
-                model.process_interferometric_phase_data(interferometric_phase_path)
+                model.processing.process_interferometric_phase_data(interferometric_phase_path)
         except KeyError:
             QtWidgets.QMessageBox.critical(self.view, "Plotting Error", "Invalid data given. Could not plot.")
 
@@ -485,7 +486,7 @@ class Utilities(interface.Utilities):
                                                                         "CSV File (*.csv);; TXT File (*.txt);;"
                                                                         " All Files (*)")
             if characterization_path:
-                model.process_characterization_data(characterization_path)
+                model.processing.process_characterization_data(characterization_path)
         except KeyError:
             QtWidgets.QMessageBox.critical(self.view, "Plotting Error", "Invalid data given. Could not plot.")
 
@@ -506,7 +507,7 @@ class Laser(interface.Driver):
     def __init__(self, configuration: model.configuration.Laser):
         interface.Driver.__init__(self)
         self.configuration = configuration
-        self.laser = model.Laser()
+        self.laser = model.serial_devices.Laser()
         self.last_file_path = os.getcwd()
 
     def load_configuration(self) -> None:
@@ -542,10 +543,10 @@ class Laser(interface.Driver):
 
 
 class PumpLaser(Laser):
-    def __init__(self, configuration: typing.Union[model2.configuration.Laser, None]):
+    def __init__(self, configuration: typing.Union[model.configuration.Laser, None]):
         Laser.__init__(self, configuration)
         self._view = view.hardware.PumpLaser(self)
-        self.laser = model.PumpLaser()
+        self.laser = model.serial_devices.PumpLaser()
 
     @property
     @override
@@ -564,7 +565,7 @@ class PumpLaser(Laser):
                 self.laser.enabled = True
             else:
                 self.laser.enabled = False
-            logging.debug(f"{'Enabled' if self.laser.enabled else 'Disabled'} Pump Laser")
+            logging.debug(f"{'Enabled' if self.laser.enabled else 'Disabled'} Pump aser")
 
     def update_driver_voltage(self, bits: int) -> None:
         if bits != self.laser.driver_bits:
@@ -595,9 +596,9 @@ class PumpLaser(Laser):
 
 
 class ProbeLaser(Laser):
-    def __init__(self, configuration: typing.Union[model2.configuration.Laser, None]):
+    def __init__(self, configuration: typing.Union[model.configuration.Laser, None]):
         Laser.__init__(self, configuration)
-        self.laser = model.ProbeLaser()
+        self.laser = model.serial_devices.ProbeLaser()
         self._view = view.hardware.ProbeLaser(self)
 
     @property
@@ -634,7 +635,7 @@ class ProbeLaser(Laser):
         self.laser.probe_laser_mode = index
 
     def update_current_probe_laser(self, bits: int) -> None:
-        effective_bits: int = model.CURRENT_BITS - bits
+        effective_bits: int = model.serial_devices.ProbeLaser.CURRENT_BITS - bits
         if effective_bits != self.laser.current_bits_probe_laser:
             self.laser.current_bits_probe_laser = effective_bits
 
@@ -644,7 +645,7 @@ class ProbeLaser(Laser):
 
 class Tec(interface.Driver):
     def __init__(self, laser: int):
-        self.tec = model.Tec(laser)
+        self.tec = model.serial_devices.Tec(laser)
         self.laser = laser
         self._view = view.hardware.Tec(self, laser)
         self.last_file_path = os.getcwd()
@@ -693,7 +694,7 @@ class Tec(interface.Driver):
             else:
                 self.tec.enabled = False
             logging.debug(f"{'Enabled' if self.tec.enabled else 'Disabled'} Tec Driver of %s",
-                          "Pump Laser" if self.laser == model.Tec.PUMP_LASER else "Probe Laser")
+                          "Pump Laser" if self.laser == model.serial_devices.Tec.PUMP_LASER else "Probe Laser")
 
     def update_d_gain(self, d_gain: str) -> None:
         try:
@@ -717,7 +718,7 @@ class Tec(interface.Driver):
         try:
             self.tec.setpoint_temperature = _string_to_number(self.view, setpoint_temperature, cast=float)
         except ValueError:
-            self.tec.setpoint_temperature = model.ROOM_TEMPERATURE
+            self.tec.setpoint_temperature = model.serial_devices.Tec.ROOM_TEMPERATURE
 
     def update_loop_time(self, loop_time: str) -> None:
         self.tec.loop_time = _string_to_number(self.view, loop_time, cast=int)

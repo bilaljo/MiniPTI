@@ -38,7 +38,7 @@ class Status:
              (0x0400, "PT1000 chip error")]
 
 
-class _TecDataIndex(enum.IntEnum):
+class TecDataIndex(enum.IntEnum):
     PELTIER_STATUS = 0
     PT1000_STATUS = 6
     SET_POINT = 7
@@ -93,15 +93,15 @@ class Driver(serial_device.Driver):
             self._ready_write.set()
         elif data[0] == "T":
             data_frame = data.split("\t")[Driver._START_DATA_FRAME:]
-            status_byte_frame = int(data_frame[_TecDataIndex.PT1000_STATUS])
+            status_byte_frame = int(data_frame[TecDataIndex.PT1000_STATUS])
             for error in Status.ERROR:
                 if error[Status.VALUE] & status_byte_frame:
                     logging.error("Got \"%s\" from TEC Driver", error[Status.TEXT])
             actual_temperature: list[float] = [0, 0]
             setpoint_temperature: list[float] = [0, 0]
             for i in range(Driver.CHANNELS):
-                actual_temperature[i] = Tec.kelvin_to_celsisus(float(data_frame[_TecDataIndex.TEMPERATURE + i]))
-                setpoint_temperature[i] = Tec.kelvin_to_celsisus(float(data_frame[_TecDataIndex.SET_POINT + i]))
+                actual_temperature[i] = Tec.kelvin_to_celsisus(float(data_frame[TecDataIndex.TEMPERATURE + i]))
+                setpoint_temperature[i] = Tec.kelvin_to_celsisus(float(data_frame[TecDataIndex.SET_POINT + i]))
             self.data.put(Data(setpoint_temperature, actual_temperature))
 
 

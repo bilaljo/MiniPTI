@@ -120,14 +120,14 @@ class PumpLaser(QtWidgets.QWidget):
         self.frames.measured_values.layout().addWidget(sublayout)
 
     def _init_signals(self) -> None:
-        model.laser_signals.laser_voltage.connect(self._update_voltage_slider)
-        model.laser_signals.current_dac.connect(self._update_current_dac)
-        model.laser_signals.matrix_dac.connect(self._update_dac_matrix)
-        model.laser_signals.data_display.connect(self._update_current_voltage)
-        model.laser_signals.pump_laser_enabled.connect(self.enable)
+        model.signals.LASER.laser_voltage.connect(self._update_voltage_slider)
+        model.signals.LASER.current_dac.connect(self._update_current_dac)
+        model.signals.LASER.matrix_dac.connect(self._update_dac_matrix)
+        model.signals.LASER.data_display.connect(self._update_current_voltage)
+        model.signals.LASER.pump_laser_enabled.connect(self.enable)
 
-    @QtCore.pyqtSlot(model.LaserData)
-    def _update_current_voltage(self, value: model.LaserData) -> None:
+    @QtCore.pyqtSlot(model.serial_devices.LaserData)
+    def _update_current_voltage(self, value: model.serial_devices.LaserData) -> None:
         self.current_display.setText(str(value.high_power_laser_current) + " mA")
         self.voltage_display.setText(str(value.high_power_laser_voltage) + " V")
 
@@ -231,15 +231,15 @@ class ProbeLaser(QtWidgets.QWidget):
         self.photo_gain.currentIndexChanged.connect(self.controller.update_photo_gain)
         self.laser_mode.currentIndexChanged.connect(self.controller.update_probe_laser_mode)
         self.max_current_display.editingFinished.connect(self._max_current_changed)
-        model.laser_signals.current_probe_laser.connect(self._update_current_slider)
-        model.laser_signals.photo_gain.connect(self._update_photo_gain)
-        model.laser_signals.probe_laser_mode.connect(self._update_mode)
-        model.laser_signals.data_display.connect(self._update_current)
-        model.laser_signals.max_current_probe_laser.connect(self._update_max_current)
-        model.laser_signals.probe_laser_enabled.connect(self.enable)
+        model.signals.LASER.current_probe_laser.connect(self._update_current_slider)
+        model.signals.LASER.photo_gain.connect(self._update_photo_gain)
+        model.signals.LASER.probe_laser_mode.connect(self._update_mode)
+        model.signals.LASER.data_display.connect(self._update_current)
+        model.signals.LASER.max_current_probe_laser.connect(self._update_max_current)
+        model.signals.LASER.probe_laser_enabled.connect(self.enable)
 
-    @QtCore.pyqtSlot(model.LaserData)
-    def _update_current(self, value: model.LaserData) -> None:
+    @QtCore.pyqtSlot(model.serial_devices.LaserData)
+    def _update_current(self, value: model.serial_devices.LaserData) -> None:
         self.current_display.setText(str(value.low_power_laser_current) + " mA")
 
     @QtCore.pyqtSlot(bool)
@@ -343,17 +343,17 @@ class Tec(QtWidgets.QWidget):
         self.controller.fire_configuration_change()
 
     def _init_signals(self) -> None:
-        model.signals.tec_data_display.connect(self.update_temperature)
-        model.tec_signals[self.laser].p_gain.connect(Tec._update_text_field(self.text_fields.p_gain))
-        model.tec_signals[self.laser].i_gain.connect(Tec._update_text_field(self.text_fields.i_gain))
-        model.tec_signals[self.laser].d_gain.connect(Tec._update_text_field(self.text_fields.d_gain))
-        model.tec_signals[self.laser].setpoint_temperature.connect(
+        model.signals.GENERAL_PURPORSE.tec_data_display.connect(self.update_temperature)
+        model.signals.TEC[self.laser].p_gain.connect(Tec._update_text_field(self.text_fields.p_gain))
+        model.signals.TEC[self.laser].i_gain.connect(Tec._update_text_field(self.text_fields.i_gain))
+        model.signals.TEC[self.laser].d_gain.connect(Tec._update_text_field(self.text_fields.d_gain))
+        model.signals.TEC[self.laser].setpoint_temperature.connect(
             Tec._update_text_field(self.text_fields.setpoint_temperature))
-        model.tec_signals[self.laser].loop_time.connect(Tec._update_text_field(self.text_fields.loop_time,
+        model.signals.TEC[self.laser].loop_time.connect(Tec._update_text_field(self.text_fields.loop_time,
                                                                                floating=False))
-        model.tec_signals[self.laser].max_power.connect(Tec._update_text_field(self.text_fields.max_power,
+        model.signals.TEC[self.laser].max_power.connect(Tec._update_text_field(self.text_fields.max_power,
                                                                                floating=True))
-        model.tec_signals[self.laser].enabled.connect(self.update_enable)
+        model.signals.TEC[self.laser].enabled.connect(self.update_enable)
 
     def _init_frames(self) -> None:
         self.frames.temperature = helper.create_frame(parent=self, title="Temperature", x_position=0, y_position=0)
@@ -384,8 +384,8 @@ class Tec(QtWidgets.QWidget):
                 text_field.setText(str(value))
         return update
 
-    @QtCore.pyqtSlot(model.TecData)
-    def update_temperature(self, value: model.TecData) -> None:
+    @QtCore.pyqtSlot(model.serial_devices.TecData)
+    def update_temperature(self, value: model.serial_devices.TecData) -> None:
         self.temperature_display.setText(f"{round(value.actual_temperature[self.laser], 3)} °C")
 
     def _init_text_fields(self) -> None:

@@ -9,7 +9,7 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from overrides import override
 from matplotlib import pyplot as plt
 
-from .. import model
+from minipti.gui import model
 
 matplotlib.use('Qt5Agg')
 
@@ -64,18 +64,18 @@ class Plotting(pg.PlotWidget):
         self.window.clear()
 
     @abstractmethod
-    def update_data_live(self, data: model.Buffer) -> None:
+    def update_data_live(self, data: model.buffer.BaseClass) -> None:
         ...
 
 
 class DAQPlots(Plotting):
     def __init__(self):
         Plotting.__init__(self)
-        model.daq_signals.clear.connect(self.clear)
+        model.signals.DAQ.clear.connect(self.clear)
         self.name = ""
 
     @abstractmethod
-    def update_data_live(self, data: model.Buffer) -> None:
+    def update_data_live(self, data: model.buffer.BaseClass) -> None:
         ...
 
 
@@ -122,10 +122,10 @@ class DC(DAQPlots):
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="Intensity [V]")
         self.name = "DC Plots"
-        model.daq_signals.interferometry.connect(self.update_data_live)
+        model.signals.DAQ.interferometry.connect(self.update_data_live)
 
     #@override
-    def update_data_live(self, data: model.InterferometerBuffer) -> None:
+    def update_data_live(self, data: model.buffer.Interferometer) -> None:
         for channel in range(3):
             self.curves[channel].setData(data.time, data.dc_values[channel])
 
@@ -156,10 +156,10 @@ class Amplitudes(DAQPlots):
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="Amplitude [V]")
         self.name = "Amplitudes"
-        model.daq_signals.characterization.connect(self.update_data_live)
+        model.signals.DAQ.characterization.connect(self.update_data_live)
 
     #@override
-    def update_data_live(self, data: model.CharacterisationBuffer) -> None:
+    def update_data_live(self, data: model.buffer.Characterisation) -> None:
         for channel in range(3):
             self.curves[channel].setData(data.time, data.amplitudes[channel])
 
@@ -185,10 +185,10 @@ class OutputPhases(DAQPlots):
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="Output Phase [deg]")
         self.name = "Output Phases"
-        model.daq_signals.characterization.connect(self.update_data_live)
+        model.signals.DAQ.characterization.connect(self.update_data_live)
 
     #@override
-    def update_data_live(self, data: model.CharacterisationBuffer) -> None:
+    def update_data_live(self, data: model.buffer.Characterisation) -> None:
         for channel in range(2):
             self.curves[channel].setData(data.time, data.output_phases[channel])
 
@@ -215,10 +215,10 @@ class InterferometricPhase(DAQPlots):
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="Interferometric Phase [rad]")
         self.name = "Interferometric Phase"
-        model.daq_signals.interferometry.connect(self.update_data_live)
+        model.signals.DAQ.interferometry.connect(self.update_data_live)
 
     #@override
-    def update_data_live(self, data: model.InterferometerBuffer) -> None:
+    def update_data_live(self, data: model.buffer.Interferometer) -> None:
         self.curves.setData(data.time, data.interferometric_phase)
 
 
@@ -242,10 +242,10 @@ class Sensitivity(DAQPlots):
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="Sensitivity [V/rad]")
         self.name = "Sensitivity"
-        model.daq_signals.interferometry.connect(self.update_data_live)
+        model.signals.DAQ.interferometry.connect(self.update_data_live)
 
     #@override
-    def update_data_live(self, data: model.InterferometerBuffer) -> None:
+    def update_data_live(self, data: model.buffer.Interferometer) -> None:
         for channel in range(3):
             self.curves[channel].setData(data.time, data.sensitivity[channel])
 
@@ -260,10 +260,10 @@ class Symmetry(DAQPlots):
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="Symmetry [%]")
         self.name = "Symmetry"
-        model.daq_signals.characterization.connect(self.update_data_live)
+        model.signals.DAQ.characterization.connect(self.update_data_live)
 
     #@override
-    def update_data_live(self, data: model.CharacterisationBuffer) -> None:
+    def update_data_live(self, data: model.buffer.Characterisation) -> None:
         self.curves[0].setData(data.time, data.symmetry)
         self.curves[1].setData(data.time, data.relative_symmetry)
 
@@ -290,10 +290,10 @@ class PTISignal(DAQPlots):
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="PTI Signal [µrad]")
         self.name = "PTI Signal"
-        model.daq_signals.inversion.connect(self.update_data_live)
+        model.signals.DAQ.inversion.connect(self.update_data_live)
 
     #@override
-    def update_data_live(self, data: model.PTIBuffer) -> None:
+    def update_data_live(self, data: model.buffer.PTI) -> None:
         self.curves["PTI Signal"].setData(data.time, data.pti_signal)
         self.curves["PTI Signal Mean"].setData(data.time, data.pti_signal_mean)
 
@@ -304,10 +304,10 @@ class PumpLaserCurrent(Plotting):
         self.curves = self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE))
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="Current [mA]")
-        model.laser_signals.data.connect(self.update_data_live)
+        model.signals.LASER.data.connect(self.update_data_live)
 
     #@override
-    def update_data_live(self, data: model.LaserBuffer) -> None:
+    def update_data_live(self, data: model.buffer.Laser) -> None:
         self.curves.setData(data.time, data.pump_laser_current)
 
 
@@ -317,10 +317,10 @@ class ProbeLaserCurrent(Plotting):
         self.curves = self.plot.plot(pen=pg.mkPen(_MatplotlibColors.BLUE))
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="Current [mA]")
-        model.laser_signals.data.connect(self.update_data_live)
+        model.signals.LASER.data.connect(self.update_data_live)
 
     #@override
-    def update_data_live(self, data: model.LaserBuffer) -> None:
+    def update_data_live(self, data: model.buffer.Laser) -> None:
         self.curves.setData(data.time, data.probe_laser_current)
 
 
@@ -335,9 +335,9 @@ class TecTemperature(Plotting):
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="Temperature [°C]")
         self.laser = channel
-        model.signals.tec_data.connect(self.update_data_live)
+        model.signals.GENERAL_PURPORSE.tec_data.connect(self.update_data_live)
 
     #@override
-    def update_data_live(self, data: model.TecBuffer) -> None:
+    def update_data_live(self, data: model.buffer.Tec) -> None:
         self.curves[TecTemperature.SET_POINT].setData(data.time, data.set_point[self.laser])
         self.curves[TecTemperature.MEASURED].setData(data.time, data.actual_value[self.laser])

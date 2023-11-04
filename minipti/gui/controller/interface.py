@@ -4,7 +4,7 @@ from typing import Callable, Union
 
 from PyQt5 import QtWidgets
 
-from minipti.gui import model, model2
+from minipti.gui import model
 
 
 @dataclass
@@ -19,14 +19,14 @@ class Controllers(ABC):
 
     @property
     @abstractmethod
-    def configuration(self) -> model2.configuration.GUI:
+    def configuration(self) -> model.configuration.GUI:
         ...
 
 
 class MainApplication(QtWidgets.QApplication):
     def __init__(self, argv=""):
         QtWidgets.QApplication.__init__(self, argv)
-        self.configuration: Union[None, model2.configuration.GUI] = None
+        self.configuration: Union[None, model.configuration.GUI] = None
 
     @property
     @abstractmethod
@@ -81,7 +81,7 @@ class Home(ABC):
 
 class Settings(ABC):
     def __init__(self):
-        self.configuration: Union[None, model2.configuration.Settings] = None
+        self.configuration: Union[None, model.configuration.Settings] = None
 
     @abstractmethod
     def fire_configuration_change(self) -> None:
@@ -89,7 +89,7 @@ class Settings(ABC):
 
     @property
     @abstractmethod
-    def destination_folder(self) -> model.DestinationFolder:
+    def destination_folder(self) -> model.processing.DestinationFolder:
         ...
 
     @abstractmethod
@@ -102,7 +102,7 @@ class Settings(ABC):
 
     @property
     @abstractmethod
-    def settings_table_model(self) -> model.SettingsTable:
+    def settings_table_model(self) -> model.processing.SettingsTable:
         ...
 
     @abstractmethod
@@ -165,17 +165,17 @@ class Settings(ABC):
 class Utilities(ABC):
     @property
     @abstractmethod
-    def motherboard(self) -> model.Motherboard:
+    def motherboard(self) -> model.serial_devices.Motherboard:
         ...
 
     @property
     @abstractmethod
-    def laser(self) -> model.Laser:
+    def laser(self) -> model.serial_devices.Laser:
         ...
 
     @property
     @abstractmethod
-    def tec(self) -> model.Tec:
+    def tec(self) -> model.serial_devices.Tec:
         ...
 
     @property
@@ -252,10 +252,6 @@ class Driver(ABC):
 
     #@abstractmethod
     def connect(self) -> None:
-        ...
-
-    @abstractmethod
-    def enable(self) -> None:
         ...
 
     @abstractmethod

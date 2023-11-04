@@ -46,7 +46,7 @@ def update_matplotlib_theme(theme: str):
 class Calculation(UtilitiesBase):
     def __init__(self, utilities_controller: controller.interface.Utilities):
         UtilitiesBase.__init__(self, utilities_controller)
-        self.setTitle("Calculation")
+        self.setTitle("_Calculation")
 
     @override
     def _init_button(self) -> None:

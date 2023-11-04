@@ -38,21 +38,21 @@ class Valve:
         self.config_path = f"{minipti.module_path}/hardware/configs/motherboard/valve.json"
         self.load_configuration()
 
-    def automatic_valve_change(self) -> None:
+    def automaticValve_change(self) -> None:
         """
         Periodically bypass a valve. The duty cycle defines how much time for each part (bypassed
         or not) is spent.
         """
         def switch() -> None:
             while self.driver.connected.is_set() and self.automatic_switch.is_set():
-                self.set_valve()
+                self.setValve()
                 if self.bypass:
                     time.sleep(self.configuration.period * self.configuration.duty_cycle / 100)
                 else:
                     time.sleep(self.configuration.period * (1 - self.configuration.duty_cycle / 100))
         threading.Thread(target=switch, daemon=True).start()
 
-    def set_valve(self) -> None:
+    def setValve(self) -> None:
         self._set_bypass.value = self.bypass
         self.bypass = not self.bypass
         self.driver.write(self._set_bypass)

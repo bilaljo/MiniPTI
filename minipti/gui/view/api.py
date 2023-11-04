@@ -4,15 +4,15 @@ from typing import NamedTuple, Union
 
 from PyQt5 import QtWidgets, QtCore, QtGui
 from PyQt5.QtCore import Qt
+import pyqtgraph as pg
+from pyqtgraph import dockarea
 
 import minipti
 from minipti.gui.view import helper
 from minipti.gui.view import plots
+from minipti.gui.view import hardware
 from minipti.gui import controller
 from minipti.gui import model
-from minipti.gui.view import hardware
-import pyqtgraph as pg
-from pyqtgraph import dockarea
 
 
 @dataclass
@@ -51,16 +51,16 @@ class MainWindow(QtWidgets.QMainWindow):
                            plots.OutputPhases(),
                            plots.Sensitivity(),
                            plots.PTISignal(),
-                           [plots.TecTemperature(model.Tec.PUMP_LASER),
-                            plots.TecTemperature(model.Tec.PROBE_LASER)])
+                           [plots.TecTemperature(model.serial_devices.Tec.PUMP_LASER),
+                            plots.TecTemperature(model.serial_devices.Tec.PROBE_LASER)])
         self.home = Home(self.controllers.home)
         self.docks = []
         if self.controllers.configuration.home.use:
             self.docks.append(pg.dockarea.Dock(name="Home", widget=self.home))
         if self.controllers.configuration.pump_laser.use:
-            self.docks.append(pg.dockarea.Dock(name="Pump Laser", widget=self._init_pump_laser()))
+            self.docks.append(pg.dockarea.Dock(name="Pump _Laser", widget=self._init_pump_laser()))
         if self.controllers.configuration.probe_laser.use:
-            self.docks.append(pg.dockarea.Dock(name="Probe Laser", widget=self._init_probe_laser()))
+            self.docks.append(pg.dockarea.Dock(name="Probe _Laser", widget=self._init_probe_laser()))
         if self.controllers.configuration.plots.dc_signals.use:
             self.docks.append(pg.dockarea.Dock(name="DC Signals", widget=self.plots.dc.window))
         if self.controllers.configuration.plots.amplitudes.use:
@@ -98,8 +98,8 @@ class MainWindow(QtWidgets.QMainWindow):
     def logging_update(self, log_queue: collections.deque) -> None:
         self.logging_window.setText("".join(log_queue))
 
-    @QtCore.pyqtSlot(model.Battery)
-    def update_battery_state(self, battery: model.Battery) -> None:
+    @QtCore.pyqtSlot(model.serial_devices.Battery)
+    def update_battery_state(self, battery: model.serial_devices.Battery) -> None:
         self.minutes_left.setText(f"Minutes left: {battery.minutes_left}")
         self.charge_level.setText(f"{battery.percentage} % left")
 
@@ -116,8 +116,8 @@ class MainWindow(QtWidgets.QMainWindow):
         probe_laser.layout().addWidget(hardware.ProbeLaser(self.controllers.probe_laser))
         probe_laser.layout().addWidget(self.plots.probe_laser.window)
         dock_area = pg.dockarea.DockArea()
-        tec = self._init_tec(model.Tec.PROBE_LASER)
-        laser_dock = pg.dockarea.Dock(name="Laser Driver", widget=probe_laser)
+        tec = self._init_tec(model.serial_devices.Tec.PROBE_LASER)
+        laser_dock = pg.dockarea.Dock(name="_Laser Driver", widget=probe_laser)
         tec_dock = pg.dockarea.Dock(name="TEC Driver", widget=tec)
         dock_area.addDock(laser_dock)
         dock_area.addDock(tec_dock)
@@ -130,8 +130,8 @@ class MainWindow(QtWidgets.QMainWindow):
         pump_laser.layout().addWidget(hardware.PumpLaser(self.controllers.pump_laser))
         pump_laser.layout().addWidget(self.plots.pump_laser.window)
         dock_area = pg.dockarea.DockArea()
-        tec = self._init_tec(model.Tec.PUMP_LASER)
-        laser_dock = pg.dockarea.Dock(name="Laser Driver", widget=pump_laser)
+        tec = self._init_tec(model.serial_devices.Tec.PUMP_LASER)
+        laser_dock = pg.dockarea.Dock(name="_Laser Driver", widget=pump_laser)
         tec_dock = pg.dockarea.Dock(name="TEC Driver", widget=tec)
         dock_area.addDock(laser_dock)
         dock_area.addDock(tec_dock)
@@ -139,8 +139,8 @@ class MainWindow(QtWidgets.QMainWindow):
         return dock_area
 
     def _init_dock_widgets(self) -> None:
-        model.signals.battery_state.connect(self.update_battery_state)
-        model.signals.logging_update.connect(self.logging_update)
+        model.signals.GENERAL_PURPORSE.battery_state.connect(self.update_battery_state)
+        model.signals.GENERAL_PURPORSE.logging_update.connect(self.logging_update)
         self.scroll.setWidgetResizable(True)
         self.log.addWidget(self.scroll)
         sub_layout = QtWidgets.QWidget()
@@ -267,4 +267,4 @@ class Home(QtWidgets.QTabWidget):
     #    helper.toggle_button(state, self.buttons["Clean Air"])
 
     def _init_signals(self) -> None:
-        model.daq_signals.running.connect(self.update_run_measurement)
+        model.signals.DAQ.running.connect(self.update_run_measurement)
