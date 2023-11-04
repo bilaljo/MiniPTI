@@ -111,7 +111,7 @@ class Plots:
 
 @dataclass(frozen=True)
 class Battery:
-    use: bool = True
+    use: bool = False
 
 
 @dataclass(frozen=True)
