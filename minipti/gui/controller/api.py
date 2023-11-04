@@ -303,14 +303,14 @@ class Settings(interface.Settings):
 
     def save_valve_settings_as(self) -> None:
         file_path = save_as(parent=self.view, file_type="JSON", file_extension="json",
-                            name="_Valve Configuration")
+                            name="Valve Configuration")
         if file_path:
             self.valve.config_path = file_path
             self.valve.save_configuration()
 
     @override
     def load_valve_settings(self) -> None:
-        config_path, self.last_file_path = _get_file_path(self.view, "_Valve", self.last_file_path,
+        config_path, self.last_file_path = _get_file_path(self.view, "Valve", self.last_file_path,
                                                           "JSON File (*.json);; All Files (*)")
         if config_path:
             self.valve.config_path = config_path
@@ -338,7 +338,7 @@ class Settings(interface.Settings):
             info_text = "Value must be a positive integer"
             logging.error(str(error))
             logging.warning(info_text)
-            QtWidgets.QMessageBox.critical(self.view, "_Valve Error", f"{str(error)}. {info_text}")
+            QtWidgets.QMessageBox.critical(self.view, "Valve Error", f"{str(error)}. {info_text}")
 
     @override
     def update_valve_duty_cycle(self, duty_cycle: str) -> None:
@@ -352,7 +352,7 @@ class Settings(interface.Settings):
             info_text = "Value must be an integer between 0 and 100"
             logging.error(str(error))
             logging.warning(info_text)
-            QtWidgets.QMessageBox.critical(self.view, "_Valve Error", f"{str(error)}. {info_text}")
+            QtWidgets.QMessageBox.critical(self.view, "Valve Error", f"{str(error)}. {info_text}")
 
     @override
     def update_automatic_valve_switch(self, automatic_valve_switch: bool) -> None:

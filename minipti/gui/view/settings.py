@@ -128,7 +128,7 @@ class ValveConfiguration(QtWidgets.QGroupBox):
         self.controller = settings_controller
         self.setLayout(QtWidgets.QGridLayout())
         self.automatic_valve_switch = qtwidgets.AnimatedToggle()
-        self.automatic_valve_switch_label = QtWidgets.QLabel("Automatic _Valve Switch")
+        self.automatic_valve_switch_label = QtWidgets.QLabel("Automatic Valve Switch")
         self.automatic_valve_switch.setFixedSize(65, 50)
         self.automatic_valve_switch.stateChanged.connect(self.controller.update_automatic_valve_switch)
         self.duty_cycle_valve = QtWidgets.QLabel("%")
@@ -149,14 +149,14 @@ class ValveConfiguration(QtWidgets.QGroupBox):
         self.load = helper.create_button(parent=sub_layout, title="Load Settings",
                                          slot=self.controller.load_valve_settings)
         self.layout().addWidget(sub_layout)
-        self.setTitle("_Valve Configuration")
+        self.setTitle("Valve Configuration")
 
     def _init_valves(self) -> None:
         self.layout().addWidget(self.automatic_valve_switch, 0, 0)
-        self.layout().addWidget(QtWidgets.QLabel("_Valve Period"), 1, 0)
+        self.layout().addWidget(QtWidgets.QLabel("Valve Period"), 1, 0)
         self.layout().addWidget(self.period_field, 1, 1)
         self.layout().addWidget(QtWidgets.QLabel("s"), 1, 2)
-        self.layout().addWidget(QtWidgets.QLabel("_Valve Duty Cycle"), 2, 0)
+        self.layout().addWidget(QtWidgets.QLabel("Valve Duty Cycle"), 2, 0)
         self.layout().addWidget(self.duty_cycle_field, 2, 1)
         self.layout().addWidget(QtWidgets.QLabel("%"), 2, 2)
 
