@@ -20,7 +20,7 @@ jobs:
       - name: Create Virtual Environment
         run: python -m venv venv && source venv/bin/activate
       - name: Install Packages
-        run: python -m pip install --upgrade pip
+        run: pip install --upgrade pip
              pip install fastcrc numpy pandas scipy dacite pyserial h5py nptyping[complete] \
              beartype commented-configparser overrides
       - name: Run Hardware Tests
