@@ -11,6 +11,7 @@ import minipti
 from minipti.gui.view import helper
 from minipti.gui.view import plots
 from minipti.gui.view import hardware
+from minipti.gui.view import home
 from minipti.gui import controller
 from minipti.gui import model
 
@@ -53,7 +54,7 @@ class MainWindow(QtWidgets.QMainWindow):
                            plots.PTISignal(),
                            [plots.TecTemperature(model.serial_devices.Tec.PUMP_LASER),
                             plots.TecTemperature(model.serial_devices.Tec.PROBE_LASER)])
-        self.home = Home(self.controllers.home)
+        self.home = home.MainWindow(self.controllers.home)
         self.docks = []
         if self.controllers.configuration.home.use:
             self.docks.append(pg.dockarea.Dock(name="Home", widget=self.home))

@@ -1,37 +1,82 @@
+from dataclasses import dataclass
+from typing import Union, Callable
+
+from PyQt5 import QtWidgets, QtCore, QtGui
+
+import minipti
+from minipti.gui import controller, model
+from minipti.gui.view import plots, helper
+
+
 @dataclass
 class HomeButtons:
-    run_measurement: Union[QtWidgets.QPushButton, None] = None
-    settings: Union[QtWidgets.QPushButton, None] = None
-    utilities: Union[QtWidgets.QPushButton, None] = None
+    run_measurement: Union[QtWidgets.QToolButton, None] = None
+    settings: Union[QtWidgets.QToolButton, None] = None
+    utilities: Union[QtWidgets.QToolButton, None] = None
+    connect: Union[QtWidgets.QToolButton, None] = None
+    destination_folder: Union[QtWidgets.QToolButton, None] = None
+
+    def __setitem__(self, name: str, value: QtWidgets.QToolButton) -> None:
+        return self.__setattr__(HomeButtons._name_to_key(name), value)
+
+    def __getitem__(self, name: str) -> QtWidgets.QToolButton:
+        return self.__getattribute__(HomeButtons._name_to_key(name))
+
+    @staticmethod
+    def _name_to_key(name: str) -> str:
+        return name.casefold().replace(" ", "_")
 
 
-class Home(QtWidgets.QTabWidget):
+class MainWindow(QtWidgets.QTabWidget):
     def __init__(self, home_controller: controller.interface.Home):
         QtWidgets.QTabWidget.__init__(self)
         self.setLayout(QtWidgets.QGridLayout())
         self.controller = home_controller
-        self.dc_signals = plots.DC()
-        self.pti_signal = plots.PTISignal()
         self.buttons = HomeButtons()
         self._init_buttons()
         self._init_signals()
+        self.pti_signal = plots.PTISignal()
+        self.dc = plots.DC()
+        self.interferometric_phase = plots.InterferometricPhase()
         sublayout = QtWidgets.QWidget()
         sublayout.setLayout(QtWidgets.QHBoxLayout())
-        sublayout.layout().addWidget(self.dc_signals.window)
-        sublayout.layout().addWidget(self.pti_signal.window)
+        if self.controller.configuration.plots.dc_signals:
+            sublayout.layout().addWidget(self.dc.window)
+        if self.controller.configuration.plots.interferometric_phase:
+            sublayout.layout().addWidget(self.interferometric_phase.window)
+        if self.controller.configuration.plots.pti_signal:
+            sublayout.layout().addWidget(self.pti_signal.window)
         self.layout().addWidget(sublayout, 0, 0)
 
     def _init_buttons(self) -> None:
         sub_layout = QtWidgets.QWidget()
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
-        self.buttons.run_measurement = helper.create_button(parent=sub_layout, title="Run Measurement",
-                                                            slot=self.controller.enable_motherboard)
-        self.buttons.settings = helper.create_button(parent=sub_layout, title="Settings",
-                                                     slot=self.controller.show_settings)
-        self.buttons.utilities = helper.create_button(parent=sub_layout, title="Utilities",
-                                                      slot=self.controller.show_utilities)
+        sub_layout.layout().setAlignment(QtCore.Qt.AlignHCenter)
+        self._init_button(sub_layout, "Run", self.controller.on_run)
+        if self.controller.configuration.use_settings:
+            self._init_button(sub_layout, "Settings", self.controller.show_settings)
+        if self.controller.configuration.use_utilities:
+            self._init_button(sub_layout, "Utilities", self.controller.show_utilities)
+        if self.controller.configuration.connect.use:
+            self._init_button(sub_layout, "Connect", self.controller.connect_devices)
+        if self.controller.configuration.destination_folder.use:
+            self._init_button(sub_layout, "Directory", self.controller.update_destination_folder)
         self.layout().addWidget(sub_layout, 1, 0)
-        # self.create_button(master=sub_layout, title="Clean Air", slot=self.controller.update_bypass)
+
+    def _init_button(self, parent: QtWidgets.QWidget, text: str, slot: Callable) -> None:
+        text = text.replace("\n", "_")
+        button_layout = QtWidgets.QWidget()
+        button_layout.setLayout(QtWidgets.QVBoxLayout())
+        button_layout.layout().setAlignment(QtCore.Qt.AlignCenter)
+        self.buttons[text] = helper.create_button(parent=button_layout, title=text, only_icon=True, slot=slot)
+        self.buttons[text].setIcon(QtGui.QIcon(f"{minipti.module_path}/gui/images/{text}.svg"))
+        self.buttons[text].setIconSize(QtCore.QSize(40, 40))
+        self.buttons[text].setToolTip(text)
+        button_layout.layout().addWidget(self.buttons[text])
+        label = QtWidgets.QLabel(text)
+        label.setAlignment(QtCore.Qt.AlignCenter)
+        button_layout.layout().addWidget(label)
+        parent.layout().addWidget(button_layout)
 
     @QtCore.pyqtSlot(bool)
     def update_run_measurement(self, state: bool) -> None:
@@ -42,4 +87,4 @@ class Home(QtWidgets.QTabWidget):
     #    helper.toggle_button(state, self.buttons["Clean Air"])
 
     def _init_signals(self) -> None:
-        model.signals.daq_running.connect(self.update_run_measurement)
+        model.signals.DAQ.running.connect(self.update_run_measurement)

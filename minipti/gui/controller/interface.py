@@ -78,6 +78,15 @@ class Home(ABC):
     def show_utilities(self) -> None:
         ...
 
+    @property
+    @abstractmethod
+    def destination_folder(self) -> model.processing.DestinationFolder:
+        ...
+
+    @abstractmethod
+    def update_destination_folder(self) -> None:
+        ...
+
 
 class Settings(ABC):
     def __init__(self):
@@ -85,11 +94,6 @@ class Settings(ABC):
 
     @abstractmethod
     def fire_configuration_change(self) -> None:
-        ...
-
-    @property
-    @abstractmethod
-    def destination_folder(self) -> model.processing.DestinationFolder:
         ...
 
     @abstractmethod
@@ -103,10 +107,6 @@ class Settings(ABC):
     @property
     @abstractmethod
     def settings_table_model(self) -> model.processing.SettingsTable:
-        ...
-
-    @abstractmethod
-    def set_destination_folder(self) -> None:
         ...
 
     @abstractmethod

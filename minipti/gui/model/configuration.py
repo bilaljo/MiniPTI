@@ -51,11 +51,18 @@ class Connect:
 
 
 @dataclass(frozen=True)
+class DestinationFolder:
+    use: bool = True
+
+
+@dataclass(frozen=True)
 class Home:
     use: bool = True
+    use_settings: bool = True
     use_utilities: bool = True
     on_run: OnRun = OnRun()
     connect: Connect = Connect()
+    destination_folder: DestinationFolder = DestinationFolder()
     plots: Plots = Plots()
 
 

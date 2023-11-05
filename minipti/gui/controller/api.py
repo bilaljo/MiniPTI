@@ -118,6 +118,20 @@ class Home(interface.Home):
         self.tec = [model.serial_devices.Tec(model.serial_devices.Tec.PUMP_LASER),
                     model.serial_devices.Tec(model.serial_devices.Tec.PROBE_LASER)]
         self.running = False
+        self._destination_folder = model.processing.DestinationFolder()
+
+    @override
+    def update_destination_folder(self) -> None:
+        destination_folder = QtWidgets.QFileDialog.getExistingDirectory(self.view, "Destination Folder",
+                                                                        self.destination_folder.folder,
+                                                                        QtWidgets.QFileDialog.ShowDirsOnly)
+        if destination_folder:
+            self.destination_folder.folder = destination_folder
+
+    @property
+    @override
+    def destination_folder(self) -> model.processing.DestinationFolder:
+        return self._destination_folder
 
     @override
     def init_devices(self) -> None:
@@ -221,10 +235,7 @@ class Settings(interface.Settings):
         self.motherboard = model.serial_devices.Motherboard()
         self._settings_table = model.processing.SettingsTable()
         self.view = view.settings.SettingsWindow(self)
-        self._destination_folder = model.processing.DestinationFolder()
         self.last_file_path = os.getcwd()
-        if self.configuration is not None and self.configuration.measurement_settings:
-            self.view.measurement_configuration.destination_folder_label.setText(self.destination_folder.folder)
 
     @override
     def fire_configuration_change(self) -> None:
@@ -236,10 +247,6 @@ class Settings(interface.Settings):
     def settings_table_model(self) -> model.processing.SettingsTable:
         return self._settings_table
 
-    @property
-    @override
-    def destination_folder(self) -> model.processing.DestinationFolder:
-        return self._destination_folder
 
     @override
     def update_common_mode_noise_reduction(self, state: bool):
@@ -317,14 +324,6 @@ class Settings(interface.Settings):
         else:
             return
         self.valve.load_configuration()
-
-    @override
-    def set_destination_folder(self) -> None:
-        destination_folder = QtWidgets.QFileDialog.getExistingDirectory(self.view, "Destination Folder",
-                                                                        self.destination_folder.folder,
-                                                                        QtWidgets.QFileDialog.ShowDirsOnly)
-        if destination_folder:
-            self.destination_folder.folder = destination_folder
 
     @override
     def update_valve_period(self, period: str) -> None:

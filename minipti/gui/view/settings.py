@@ -103,7 +103,6 @@ class MeasurementSettings(QtWidgets.QGroupBox):
         self.layout().addWidget(sublayout)
         self.controller = settings_controller
         model.signals.GENERAL_PURPORSE.destination_folder_changed.connect(self.update_destination_folder)
-        self._init_destination_folder()
         sub_layout = QtWidgets.QWidget()
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
         self.save_settings = helper.create_button(sub_layout, title="Save Settings",
@@ -111,11 +110,6 @@ class MeasurementSettings(QtWidgets.QGroupBox):
         self.load_settings = helper.create_button(sub_layout, title="Load Settings",
                                                   slot=self.controller.load_daq_settings)
         self.layout().addWidget(sub_layout)
-
-    def _init_destination_folder(self) -> None:
-        self.destination_folder_button = helper.create_button(parent=self, title="Destination Folder",
-                                                              slot=self.controller.set_destination_folder)
-        self.layout().addWidget(self.destination_folder_label)
 
     @QtCore.pyqtSlot(str)
     def update_destination_folder(self, destionation_folder: str) -> None:
