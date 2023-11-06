@@ -37,10 +37,6 @@ class MainApplication(QtWidgets.QApplication):
     def close(self) -> None:
         ...
 
-    @abstractmethod
-    def await_shutdown(self):
-        ...
-
 
 class Home(ABC):
     def __init__(self):
@@ -85,6 +81,10 @@ class Home(ABC):
 
     @abstractmethod
     def update_destination_folder(self) -> None:
+        ...
+
+    @abstractmethod
+    def shutdown(self) -> None:
         ...
 
 

@@ -61,13 +61,13 @@ class MainWindow(QtWidgets.QTabWidget):
             self._init_button(sub_layout, "Connect", self.controller.connect_devices)
         if self.controller.configuration.destination_folder.use:
             self._init_button(sub_layout, "Directory", self.controller.update_destination_folder)
+        if self.controller.configuration.use_shutdown:
+            self._init_button(sub_layout, "Shutdown", self.controller.shutdown)
         self.layout().addWidget(sub_layout, 1, 0)
 
     def _init_button(self, parent: QtWidgets.QWidget, text: str, slot: Callable) -> None:
-        text = text.replace("\n", "_")
         button_layout = QtWidgets.QWidget()
         button_layout.setLayout(QtWidgets.QVBoxLayout())
-        button_layout.layout().setAlignment(QtCore.Qt.AlignCenter)
         self.buttons[text] = helper.create_button(parent=button_layout, title=text, only_icon=True, slot=slot)
         self.buttons[text].setIcon(QtGui.QIcon(f"{minipti.module_path}/gui/images/{text}.svg"))
         self.buttons[text].setIconSize(QtCore.QSize(40, 40))
@@ -82,9 +82,9 @@ class MainWindow(QtWidgets.QTabWidget):
     def update_run_measurement(self, state: bool) -> None:
         helper.toggle_button(state, self.buttons.run_measurement)
 
-    # @QtCore.pyqtSlot(bool)
-    # def update_clean_air(self, state: bool) -> None:
-    #    helper.toggle_button(state, self.buttons["Clean Air"])
+    @QtCore.pyqtSlot(bool)
+    def update_clean_air(self, state: bool) -> None:
+        helper.toggle_button(state, self.buttons["Clean Air"])
 
     def _init_signals(self) -> None:
         model.signals.DAQ.running.connect(self.update_run_measurement)

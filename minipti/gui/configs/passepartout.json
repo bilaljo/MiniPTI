@@ -1,32 +1,33 @@
 {
-    "use": false,
+    "use": true,
     "GUI": {
-        "window_title": "MiniPTI Passepartout",
+        "window_title": "MiniPTI",
         "logging": {
             "console": true,
             "file": true
         },
         "battery": {
-            "use": true
+            "use": false
         },
         "home": {
             "use": true,
+            "use_shutdown": false,
             "on_run": {
                 "DAQ": true,
-                "BMS": true,
+                "BMS": false,
                 "probe_laser": {
                     "laser_driver": true,
                     "tec_driver": true
                 },
                 "pump_laser": {
-                    "laser_driver": true,
-                    "tec_driver": true
+                    "laser_driver": false,
+                    "tec_driver": false
                 }
             },
             "plots": {
                 "dc_signals": true,
                 "interferometric_phase": true,
-                "pti_signal": true
+                "pti_signal": false
             },
             "connect": {
                 "use": true,
@@ -38,11 +39,11 @@
             }
         },
         "settings": {
-            "valve": true,
-            "measurement_settings": true,
+            "valve": false,
+            "measurement_settings": false,
             "system_settings": {
                 "interferometric": true,
-                "response_phases": true
+                "response_phases": false
             }
         },
         "utilities": {
@@ -50,13 +51,13 @@
             "plot": {
                 "dc": true,
                 "interferometry": true,
-                "inversion": true
+                "inversion": false
             },
             "calculate": {
                 "use": true,
-                "decimation": true,
+                "decimation": false,
                 "interferometry": true,
-                "inversion": true,
+                "inversion": false,
                 "characterisation": true
             }
         },

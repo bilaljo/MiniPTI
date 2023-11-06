@@ -230,7 +230,7 @@ class Home(QtWidgets.QTabWidget):
             button_layout.setLayout(QtWidgets.QVBoxLayout())
             self.buttons.utilities = helper.create_button(parent=button_layout, title="Utilities", only_icon=True,
                                                           slot=self.controller.show_utilities)
-            self.buttons.utilities.setIcon(QtGui.QIcon(f"{minipti.module_path}/gui/images/calculation.svg"))
+            self.buttons.utilities.setIcon(QtGui.QIcon(f"{minipti.module_path}/gui/images/Utilities.svg"))
             self.buttons.utilities.setIconSize(QtCore.QSize(40, 40))
             self.buttons.utilities.setToolTip("Utilities")
             button_layout.layout().addWidget(self.buttons.utilities)

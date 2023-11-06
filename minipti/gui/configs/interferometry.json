@@ -1,5 +1,5 @@
 {
-    "use": false,
+    "use": true,
     "GUI": {
         "window_title": "MiniPTI",
         "logging": {
@@ -11,6 +11,7 @@
         },
         "home": {
             "use": true,
+            "use_shutdown": false,
             "on_run": {
                 "DAQ": true,
                 "BMS": false,

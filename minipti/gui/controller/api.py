@@ -224,6 +224,10 @@ class Home(interface.Home):
 
             logging.debug("%s Motherboard", "Enabled" if self.motherboard.running else "Disabled")
 
+    @override
+    def shutdown(self) -> None:
+        self.motherboard.shutdown_procedure()
+
 
 class Settings(interface.Settings):
     def __init__(self, configuration: typing.Union[model.configuration.Settings, None]):
@@ -246,7 +250,6 @@ class Settings(interface.Settings):
     @override
     def settings_table_model(self) -> model.processing.SettingsTable:
         return self._settings_table
-
 
     @override
     def update_common_mode_noise_reduction(self, state: bool):
@@ -564,7 +567,7 @@ class PumpLaser(Laser):
                 self.laser.enabled = True
             else:
                 self.laser.enabled = False
-            logging.debug(f"{'Enabled' if self.laser.enabled else 'Disabled'} Pump aser")
+            logging.debug(f"{'Enabled' if self.laser.enabled else 'Disabled'} Pump Laser")
 
     def update_driver_voltage(self, bits: int) -> None:
         if bits != self.laser.driver_bits:

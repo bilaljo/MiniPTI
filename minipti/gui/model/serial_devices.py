@@ -192,10 +192,6 @@ class Motherboard(Serial):
             signals.DAQ.running.emit(False)
             self.running_event.clear()
 
-    @property
-    def shutdown_event(self) -> threading.Event:
-        return self.driver.bms.do_shutdown()
-
     def shutdown(self) -> None:
         self.driver.bms.do_shutdown()
 
@@ -657,6 +653,8 @@ class ProbeLaser(Laser):
 class Tec(Serial):
     PUMP_LASER = 0
     PROBE_LASER = 1
+
+    ROOM_TEMPERATURE = hardware.tec.ROOM_TEMPERATURE_CELSIUS
 
     driver = hardware.tec.Driver()
     _buffer = buffer.Tec()

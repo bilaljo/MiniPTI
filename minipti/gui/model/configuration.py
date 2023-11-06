@@ -63,6 +63,7 @@ class Home:
     on_run: OnRun = OnRun()
     connect: Connect = Connect()
     destination_folder: DestinationFolder = DestinationFolder()
+    use_shutdown: bool = False
     plots: Plots = Plots()
 
 

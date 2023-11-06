@@ -21,7 +21,7 @@ class UtilitiesWindow(QtWidgets.QMainWindow):
         self.parent.layout().addWidget(self.plotting, 1, 0)
         self.setCentralWidget(self.parent)
         self.setFixedSize(300, 400)
-        self.setWindowIcon(QtGui.QIcon(f"{minipti.module_path}/gui/images/calculation.svg"))
+        self.setWindowIcon(QtGui.QIcon(f"{minipti.module_path}/gui/images/Utilities.svg"))
 
 
 class UtilitiesBase(QtWidgets.QGroupBox):
@@ -46,7 +46,7 @@ def update_matplotlib_theme(theme: str):
 class Calculation(UtilitiesBase):
     def __init__(self, utilities_controller: controller.interface.Utilities):
         UtilitiesBase.__init__(self, utilities_controller)
-        self.setTitle("_Calculation")
+        self.setTitle("Calculation")
 
     @override
     def _init_button(self) -> None:

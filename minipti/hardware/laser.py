@@ -5,6 +5,7 @@ import logging
 import typing
 from dataclasses import dataclass
 from typing import Annotated, Final, Union
+import platform
 
 import dacite
 from overrides import override
@@ -180,7 +181,10 @@ class LowPowerLaser(Laser):
 
     def __init__(self, driver: Driver):
         Laser.__init__(self, driver)
-        self.config_path: str = f"{minipti.module_path}/hardware/configs/laser/low_power.json"
+        if platform.system() == "Windows":
+            self.config_path: str = f"{minipti.module_path}\hardware\configs\laser\low_power.json"
+        else:
+            self.config_path: str = f"{minipti.module_path}/hardware/configs/laser/low_power.json"
         self.configuration: Union[None, LowPowerLaserConfig] = None
         self._init = protocolls.ASCIIHex("CLI0000")
         self.mode = protocolls.ASCIIHex("SLM0000")
@@ -257,7 +261,10 @@ class HighPowerLaser(Laser):
 
     def __init__(self, driver: Driver):
         Laser.__init__(self, driver)
-        self.config_path: str = f"{minipti.module_path}/hardware/configs/laser/high_power.json"
+        if platform.system() == "Windows":
+            self.config_path: str = f"{minipti.module_path}\hardware\configs\laser\high_power.json"
+        else:
+            self.config_path: str = f"{minipti.module_path}/hardware/configs/laser/high_power.json"
         self.configuration: Union[None, HighPowerLaserConfig] = None
         self._init = protocolls.ASCIIHex("CHI0000")
         self._set_voltage = protocolls.ASCIIHex("SHV0000")
