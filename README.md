@@ -103,3 +103,8 @@ https://publicdomainvectors.org/en/free-clipart/International-symbol-for-USB-vec
 
 ### 4.5 Laser warning icon
 https://publicdomainvectors.org/de/kostenlose-vektorgrafiken/Vektor-Bild-der-dreieckigen-Laser-Strahl-Warnschild/17874.html
+
+
+### 4.6 Shutdown Icon
+https://commons.wikimedia.org/wiki/File:Breathe-system-shutdown.svg
+
