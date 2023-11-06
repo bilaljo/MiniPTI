@@ -9,7 +9,6 @@ from collections import deque
 from dataclasses import dataclass
 from typing import Final, Union
 import json
-import platform
 
 import dacite
 from fastcrc import crc16
@@ -194,10 +193,7 @@ class DAQ:
                                       [deque(maxlen=DAQ.ENCODED_DATA_SIZE) for _ in range(3)],
                                       [deque(maxlen=DAQ.ENCODED_DATA_SIZE) for _ in range(4)])
         self.samples_buffer = DAQData([], [[], [], []], [[], [], [], []])
-        if platform.system() == "Windows":
-            self.config_path: str = f"{minipti.module_path}\hardware\configs\motherboard\daq.json"
-        else:
-            self.config_path: str = f"{minipti.module_path}/hardware/configs/motherboard/daq.json"
+        self.config_path = f"{minipti.module_path}/hardware/configs/motherboard/daq.json"
         self.driver = driver
         self.running = threading.Event()
         self.load_configuration()
