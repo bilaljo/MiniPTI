@@ -18,11 +18,12 @@ from minipti.gui.model import signals
 from minipti.gui.model import buffer
 from minipti.gui.model import serial_devices
 from minipti.gui.model import general_purpose
+from minipti.gui.model import configuration
 
 
 class DestinationFolder:
     def __init__(self):
-        self._destination_folder = os.getcwd()
+        self._destination_folder = configuration.GUI.destination_folder.default_path
 
     @property
     def folder(self) -> str:

@@ -719,11 +719,8 @@ class Tec(Serial):
 
     @d_gain.setter
     def d_gain(self, d_value: int) -> None:
-        if isinstance(d_value, int) and d_value >= 0:
-            self.tec.configuration.pid.derivative_value = d_value
-            self.tec.set_pid_d_gain()
-        else:
-            self.tec_signals.d_gain.emit(self.tec.configuration.pid.derivative_value)
+        self.tec.configuration.pid.derivative_value = d_value
+        self.tec.set_pid_d_gain()
 
     @property
     def setpoint_temperature(self) -> float:

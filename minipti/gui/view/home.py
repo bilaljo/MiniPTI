@@ -41,11 +41,11 @@ class MainWindow(QtWidgets.QTabWidget):
         self.interferometric_phase = plots.InterferometricPhase()
         sublayout = QtWidgets.QWidget()
         sublayout.setLayout(QtWidgets.QHBoxLayout())
-        if model.configuration.GUI.plots.dc_signals:
+        if model.configuration.GUI.home.plots.dc_signals:
             sublayout.layout().addWidget(self.dc.window)
-        if model.configuration.GUI.plots.interferometric_phase:
+        if model.configuration.GUI.home.plots.interferometric_phase:
             sublayout.layout().addWidget(self.interferometric_phase.window)
-        if model.configuration.GUI.plots.pti_signal:
+        if model.configuration.GUI.home.plots.pti_signal:
             sublayout.layout().addWidget(self.pti_signal.window)
         self.layout().addWidget(sublayout, 0, 0)
         self.run_pressed = False
@@ -63,7 +63,7 @@ class MainWindow(QtWidgets.QTabWidget):
             self._init_button(sub_layout, "Utilities", self.controller.show_utilities, image="png")
         if model.configuration.GUI.home.connect.use:
             self._init_button(sub_layout, "Connect", self.controller.connect_devices)
-        if model.configuration.GUI.home.destination_folder.use:
+        if model.configuration.GUI.destination_folder.use:
             self._init_button(sub_layout, "Directory", self.controller.update_destination_folder)
         if model.configuration.GUI.home.use_shutdown:
             self._init_button(sub_layout, "Shutdown", self.controller.shutdown)

@@ -103,7 +103,7 @@ def _get_file_path(parent, dialog_name: str, last_file_path: str, files: str) ->
 
 class Home(interface.Home):
     def __init__(self, settings_controller: "Settings", utilities_controller: "Utilities"):
-        self.view = view.api.Home(self)
+        self.view = view.home.MainWindow(self)
         self.settings = view.settings.SettingsWindow(settings_controller)
         settings_controller.fire_configuration_change()
         self.utilities = view.utilities.UtilitiesWindow(utilities_controller)
@@ -379,11 +379,6 @@ class Utilities(interface.Utilities):
         model.signals.CALCULATION.inversion.connect(plots.pti_signal_offline)
         model.signals.CALCULATION.interferometric_phase.connect(self.interferometric_phase_offline.plot)
         # model.theme_signal.changed.connect(view.utilities.update_matplotlib_theme)
-
-    @property
-    @override
-    def configuration(self) -> model.configuration.Utilities:
-        return self._configuration
 
     @property
     @override
@@ -699,6 +694,7 @@ class Tec(interface.Driver):
     def update_d_gain(self, d_gain: str) -> None:
         try:
             self.tec.d_gain = _string_to_number(self.view, d_gain, cast=float)
+            print(self.tec.d_gain)
         except ValueError:
             self.tec.d_gain = 0
 

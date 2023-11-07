@@ -9,6 +9,10 @@
         "battery": {
             "use": false
         },
+        "destination_folder": {
+            "use": true,
+            "default_path": "Desktop\\Default"
+        },
         "home": {
             "use": true,
             "use_shutdown": false,

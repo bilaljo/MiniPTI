@@ -4,3 +4,4 @@ from . import api
 from . import settings
 from . import utilities
 from . import plots
+from . import home

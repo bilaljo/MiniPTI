@@ -10,88 +10,88 @@ import minipti
 
 
 @dataclass(frozen=True)
-class Logging:
+class _Logging:
     console: bool = True
     file: bool = True
 
 
 @dataclass(frozen=True)
-class TEC:
+class _TEC:
     probe_laser: bool = True
     pump_laser: bool = True
 
 
 @dataclass(frozen=True)
-class Laser:
+class _Laser:
     tec_driver: bool = True
     laser_driver: bool = True
 
 
 @dataclass(frozen=True)
-class LaserWindow(Laser):
+class _LaserWindow(_Laser):
     use: bool = True
 
 
 @dataclass(frozen=True)
-class OnRun:
+class _OnRun:
     DAQ: bool = True
     BMS: bool = True
-    pump_laser: Laser = Laser(False, False)
-    probe_laser: Laser = Laser(False, False)
+    pump_laser: _Laser = _Laser(False, False)
+    probe_laser: _Laser = _Laser(False, False)
 
 
 @dataclass(frozen=True)
-class Plots:
+class _HomePlots:
     dc_signals: bool = True
     interferometric_phase: bool = False
     pti_signal: bool = True
 
 
 @dataclass(frozen=True)
-class Devices(Laser):
+class _Devices(_Laser):
     motherboard: bool = True
 
 
 @dataclass(frozen=True)
-class Connect:
+class _Connect:
     use: bool = True
-    devices: Devices = Devices()
+    devices: _Devices = _Devices()
 
 
 @dataclass(frozen=True)
-class DestinationFolder:
+class _DestinationFolder:
     use: bool = True
+    default_path: str = "."
 
 
 @dataclass(frozen=True)
-class Home:
+class _Home:
     use: bool = True
     use_settings: bool = True
     use_utilities: bool = True
     use_valve: bool = True
-    on_run: OnRun = OnRun()
-    connect: Connect = Connect()
-    destination_folder: DestinationFolder = DestinationFolder()
+    on_run: _OnRun = _OnRun()
+    connect: _Connect = _Connect()
     use_shutdown: bool = False
-    plots: Plots = Plots()
+    plots: _HomePlots = _HomePlots()
 
 
 @dataclass(frozen=True)
-class SystemSettings:
+class _SystemSettings:
     interferometric: bool = True
     response_phases: bool = True
 
 
 @dataclass(frozen=True)
-class Settings:
+class _Settings:
     use: bool = True
     valve: bool = True
     measurement_settings: bool = True
-    system_settings: SystemSettings = SystemSettings()
+    system_settings: _SystemSettings = _SystemSettings()
 
 
 @dataclass(frozen=True)
-class Calculation:
+class _Calculation:
     use: bool = True
     decimation: bool = True
     interferometry: bool = True
@@ -100,53 +100,54 @@ class Calculation:
 
 
 @dataclass(frozen=True)
-class OfflinePlots:
+class _OfflinePlots:
     dc: bool = True
     interferometry: bool = True
     inversion: bool = True
 
 
 @dataclass(frozen=True)
-class Utilities:
+class _Utilities:
     use: bool = True
-    calculate: Calculation = Calculation()
-    plot: OfflinePlots = OfflinePlots()
+    calculate: _Calculation = _Calculation()
+    plot: _OfflinePlots = _OfflinePlots()
 
 
 @dataclass(frozen=True)
-class Plot:
+class _Plot:
     use: bool = True
 
 
 @dataclass(frozen=True)
-class Plots:
-    dc_signals: Plot = Plot()
-    amplitudes: Plot = Plot()
-    output_phases: Plot = Plot()
-    interferometric_phase: Plot = Plot()
-    sensitivity: Plot = Plot()
-    pti_signal: Plot = Plot()
+class _Plots:
+    dc_signals: _Plot = _Plot()
+    amplitudes: _Plot = _Plot()
+    output_phases: _Plot = _Plot()
+    interferometric_phase: _Plot = _Plot()
+    sensitivity: _Plot = _Plot()
+    pti_signal: _Plot = _Plot()
 
 
 @dataclass(frozen=True)
-class Battery:
+class _Battery:
     use: bool = False
 
 
 @dataclass(frozen=True)
-class GUI:
+class _GUI:
     window_title: str = "MiniPTI"
-    logging: Logging = Logging()
-    battery: Battery = Battery()
-    home: Home = Home()
-    settings: Settings = Settings()
-    utilities: Utilities = Utilities()
-    probe_laser: LaserWindow = LaserWindow()
-    pump_laser: LaserWindow = LaserWindow()
-    plots: Plots = Plots()
+    logging: _Logging = _Logging()
+    battery: _Battery = _Battery()
+    home: _Home = _Home()
+    destination_folder: _DestinationFolder = _DestinationFolder()
+    settings: _Settings = _Settings()
+    utilities: _Utilities = _Utilities()
+    probe_laser: _LaserWindow = _LaserWindow()
+    pump_laser: _LaserWindow = _LaserWindow()
+    plots: _Plots = _Plots()
 
 
-def _parse_configuration() -> GUI:
+def _parse_configuration() -> _GUI:
     for file in os.listdir(f"{minipti.module_path}/gui/configs"):
         if not pathlib.Path(file).suffix == ".json":
             continue
@@ -154,10 +155,16 @@ def _parse_configuration() -> GUI:
             try:
                 loaded_configuration = json.load(config)
                 if loaded_configuration["use"]:
-                    return dacite.from_dict(GUI, loaded_configuration["GUI"])
-            except (json.decoder.JSONDecodeError, dacite.WrongTypeError, dacite.exceptions.MissingValueError):
+                    path: str = loaded_configuration["GUI"]["destination_folder"]["default_path"]
+                    path_components = path.split("\\")
+                    if path_components[0] == "Desktop":
+                        desktop = f"{pathlib.Path.home()}/Desktop"
+                        loaded_configuration["GUI"]["destination_folder"]["default_path"] = desktop
+                    return dacite.from_dict(_GUI, loaded_configuration["GUI"])
+            except (json.decoder.JSONDecodeError, dacite.WrongTypeError, dacite.exceptions.MissingValueError,
+                    KeyError):
                 continue
-    return GUI()  # Default constructed object
+    return _GUI()  # Default constructed object
 
 
 GUI: Final = _parse_configuration()

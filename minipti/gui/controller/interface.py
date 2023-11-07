@@ -39,9 +39,6 @@ class MainApplication(QtWidgets.QApplication):
 
 
 class Home(ABC):
-    def __init__(self):
-        self.configuration: Union[None, model.configuration.Home] = None
-
     @abstractmethod
     def init_devices(self) -> None:
         ...
@@ -93,9 +90,6 @@ class Home(ABC):
 
 
 class Settings(ABC):
-    def __init__(self):
-        self.configuration: Union[None, model.configuration.Settings] = None
-
     @abstractmethod
     def fire_configuration_change(self) -> None:
         ...
@@ -124,10 +118,6 @@ class Settings(ABC):
     @abstractmethod
     def load_pti_settings(self) -> None:
         ...
-
-    #@abstractmethod
-    #def save_valve_settings_as(self) -> None:
-    #    ...
 
     @abstractmethod
     def save_valve_settings(self) -> None:
@@ -180,11 +170,6 @@ class Utilities(ABC):
     @property
     @abstractmethod
     def tec(self) -> model.serial_devices.Tec:
-        ...
-
-    @property
-    @abstractmethod
-    def configuration(self) -> model.configuration.Utilities:
         ...
 
     @abstractmethod
