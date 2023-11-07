@@ -6,7 +6,7 @@ from overrides import override
 
 import minipti
 from minipti.gui.view import helper
-from minipti.gui import controller
+from minipti.gui import controller, model
 
 
 class UtilitiesWindow(QtWidgets.QMainWindow):
@@ -50,16 +50,16 @@ class Calculation(UtilitiesBase):
 
     @override
     def _init_button(self) -> None:
-        if self.controller.configuration.calculate.decimation:
+        if model.configuration.GUI.utilities.calculate.decimation:
             self.decimation = helper.create_button(parent=self, title="Decimation",
                                                    slot=self.controller.calculate_decimation)
-        if self.controller.configuration.calculate.interferometry:
+        if model.configuration.GUI.utilities.calculate.interferometry:
             self.interferometry = helper.create_button(parent=self, title="Interferometry",
                                                        slot=self.controller.calculate_interferometry)
-        if self.controller.configuration.calculate.inversion:
+        if model.configuration.GUI.utilities.calculate.inversion:
             self.pti_inversion = helper.create_button(parent=self, title="PTI Inversion",
                                                       slot=self.controller.calculate_pti_inversion)
-        if self.controller.configuration.calculate.characterisation:
+        if model.configuration.GUI.utilities.calculate.characterisation:
             self.characterisation = helper.create_button(parent=self, title="Interferometer Characterisation",
                                                          slot=self.controller.calculate_characterisation)
 
@@ -71,12 +71,12 @@ class Plotting(UtilitiesBase):
         self.setTitle("Plotting")
 
     def _init_button(self) -> None:
-        if self.controller.configuration.plot.dc:
+        if model.configuration.GUI.plots.dc_signals:
             self.dc_signals = helper.create_button(parent=self, title="DC Signals",
                                                    slot=self.controller.plot_dc)
-        if self.controller.configuration.plot.interferometry:
+        if model.configuration.GUI.home.plots.interferometric_phase:
             self.interferometric_phase = helper.create_button(parent=self, title="Interferometric Phase",
                                                               slot=self.controller.plot_interferometric_phase)
-        if self.controller.configuration.plot.inversion:
+        if model.configuration.GUI.plots.pti_signal:
             self.pti_signal = helper.create_button(parent=self, title="PTI Signal",
                                                    slot=self.controller.plot_inversion)

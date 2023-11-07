@@ -1,5 +1,5 @@
 {
-    "use": true,
+    "use": false,
     "GUI": {
         "window_title": "MiniPTI",
         "logging": {
@@ -39,6 +39,7 @@
             }
         },
         "settings": {
+            "use": true,
             "valve": false,
             "measurement_settings": false,
             "system_settings": {

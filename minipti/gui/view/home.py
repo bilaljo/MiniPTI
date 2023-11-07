@@ -40,11 +40,11 @@ class MainWindow(QtWidgets.QTabWidget):
         self.interferometric_phase = plots.InterferometricPhase()
         sublayout = QtWidgets.QWidget()
         sublayout.setLayout(QtWidgets.QHBoxLayout())
-        if self.controller.configuration.plots.dc_signals:
+        if model.configuration.GUI.plots.dc_signals:
             sublayout.layout().addWidget(self.dc.window)
-        if self.controller.configuration.plots.interferometric_phase:
+        if model.configuration.GUI.plots.interferometric_phase:
             sublayout.layout().addWidget(self.interferometric_phase.window)
-        if self.controller.configuration.plots.pti_signal:
+        if model.configuration.GUI.plots.pti_signal:
             sublayout.layout().addWidget(self.pti_signal.window)
         self.layout().addWidget(sublayout, 0, 0)
 
@@ -53,23 +53,25 @@ class MainWindow(QtWidgets.QTabWidget):
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
         sub_layout.layout().setAlignment(QtCore.Qt.AlignHCenter)
         self._init_button(sub_layout, "Run", self.controller.on_run)
-        if self.controller.configuration.use_settings:
+        if model.configuration.GUI.settings.use:
             self._init_button(sub_layout, "Settings", self.controller.show_settings)
-        if self.controller.configuration.use_utilities:
+        if model.configuration.GUI.home.use_valve:
+            self._init_button(sub_layout, "Valve", self.controller.toggle_valve, image="png")
+        if model.configuration.GUI.utilities.use:
             self._init_button(sub_layout, "Utilities", self.controller.show_utilities)
-        if self.controller.configuration.connect.use:
+        if model.configuration.GUI.home.connect.use:
             self._init_button(sub_layout, "Connect", self.controller.connect_devices)
-        if self.controller.configuration.destination_folder.use:
+        if model.configuration.GUI.home.destination_folder.use:
             self._init_button(sub_layout, "Directory", self.controller.update_destination_folder)
-        if self.controller.configuration.use_shutdown:
+        if model.configuration.GUI.home.use_shutdown:
             self._init_button(sub_layout, "Shutdown", self.controller.shutdown)
         self.layout().addWidget(sub_layout, 1, 0)
 
-    def _init_button(self, parent: QtWidgets.QWidget, text: str, slot: Callable) -> None:
+    def _init_button(self, parent: QtWidgets.QWidget, text: str, slot: Callable, image="svg") -> None:
         button_layout = QtWidgets.QWidget()
         button_layout.setLayout(QtWidgets.QVBoxLayout())
         self.buttons[text] = helper.create_button(parent=button_layout, title=text, only_icon=True, slot=slot)
-        self.buttons[text].setIcon(QtGui.QIcon(f"{minipti.module_path}/gui/images/{text}.svg"))
+        self.buttons[text].setIcon(QtGui.QIcon(f"{minipti.module_path}/gui/images/{text}.{image}"))
         self.buttons[text].setIconSize(QtCore.QSize(40, 40))
         self.buttons[text].setToolTip(text)
         button_layout.layout().addWidget(self.buttons[text])
@@ -80,7 +82,8 @@ class MainWindow(QtWidgets.QTabWidget):
 
     @QtCore.pyqtSlot(bool)
     def update_run_measurement(self, state: bool) -> None:
-        helper.toggle_button(state, self.buttons.run_measurement)
+        #helper.toggle_button(state, self.buttons.run_measurement)
+        ...
 
     @QtCore.pyqtSlot(bool)
     def update_clean_air(self, state: bool) -> None:

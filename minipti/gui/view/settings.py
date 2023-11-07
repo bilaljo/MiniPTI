@@ -17,10 +17,10 @@ class SettingsWindow(QtWidgets.QMainWindow):
         self.controller = settings_controller
         self.pti_configuration = PTIConfiguration(settings_controller)
         self.parent.layout().addWidget(self.pti_configuration)
-        if self.controller.configuration.valve:
+        if model.configuration.GUI.settings.valve:
             self.valve_configuration = ValveConfiguration(settings_controller)
             self.parent.layout().addWidget(self.valve_configuration)
-        if self.controller.configuration.measurement_settings:
+        if model.configuration.GUI.settings.measurement_settings:
             self.measurement_configuration = MeasurementSettings(settings_controller)
             self.parent.layout().addWidget(self.measurement_configuration)
         self.setCentralWidget(self.parent)
@@ -203,7 +203,7 @@ class PTIConfiguration(QtWidgets.QGroupBox):
         self._init_buttons()
         self.setFixedSize(680, 270)
         self.setTitle("System Configuration")
-        if not self.controller.configuration.system_settings.response_phases:
+        if not model.configuration.GUI.settings.system_settings.response_phases:
             self.algorithm_settings.hideRow(3)
         model.signals.CALCULATION.settings_pti.connect(self.update_table)
 

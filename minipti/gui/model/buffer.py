@@ -7,7 +7,7 @@ import numpy as np
 from overrides import override
 
 from minipti import algorithm, hardware
-from minipti.gui.model import serial_devices
+from minipti.gui.model import serial_devices, signals
 from minipti.gui.model import processing
 
 
@@ -21,17 +21,6 @@ class BaseClass:
         self.time_counter = itertools.count()
         self.time = deque(maxlen=BaseClass.QUEUE_SIZE)
 
-    def __getitem__(self, key):
-        return getattr(self, key.casefold().replace(" ", "_"))
-
-    def __setitem__(self, key, value) -> None:
-        setattr(self, key.casefold().replace(" ", "_"), value)
-
-    def __iter__(self):
-        for member in dir(self):
-            if not callable(getattr(self, member)) and not member.startswith("__") and member != "time_counter":
-                yield getattr(self, member)
-
     @property
     @abstractmethod
     def is_empty(self) -> bool:
@@ -41,21 +30,26 @@ class BaseClass:
     def append(self, *args: typing.Any) -> None:
         ...
 
-    def clear(self) -> None:
-        for member in dir(self):
-            if not callable(getattr(self, member)) and not member.startswith("__"):
-                if member == self.time_counter:
-                    self.time_counter = itertools.count()  # Reset counter
-                else:
-                    setattr(self, member, deque(maxlen=BaseClass.QUEUE_SIZE))
 
-
-class PTI(BaseClass):
-    MEAN_SIZE = 60
+class _DAQ(BaseClass):
     CHANNELS = 3
 
     def __init__(self):
         BaseClass.__init__(self)
+        signals.DAQ.clear.connect(self.clear)
+
+    @abstractmethod
+    def clear(self) -> None:
+        """
+        Resets all buffers.
+        """
+
+
+class PTI(_DAQ):
+    MEAN_SIZE = 60
+
+    def __init__(self):
+        _DAQ.__init__(self)
         self._pti_signal = deque(maxlen=BaseClass.QUEUE_SIZE)
         self._pti_signal_mean = deque(maxlen=BaseClass.QUEUE_SIZE)
         self._pti_signal_mean_queue = deque(maxlen=PTI.MEAN_SIZE)
@@ -81,12 +75,18 @@ class PTI(BaseClass):
     def pti_signal_mean(self) -> deque:
         return self._pti_signal_mean
 
+    @override
+    def clear(self) -> None:
+        self.time_counter = itertools.count()
+        self.time = deque(maxlen=BaseClass.QUEUE_SIZE)
+        self._pti_signal = deque(maxlen=BaseClass.QUEUE_SIZE)
+        self._pti_signal_mean = deque(maxlen=BaseClass.QUEUE_SIZE)
+        self._pti_signal_mean_queue = deque(maxlen=PTI.MEAN_SIZE)
 
-class Interferometer(BaseClass):
-    CHANNELS = 3
 
+class Interferometer(_DAQ):
     def __init__(self):
-        BaseClass.__init__(self)
+        _DAQ.__init__(self)
         self._dc_values = [deque(maxlen=BaseClass.QUEUE_SIZE) for _ in range(PTI.CHANNELS)]
         self._interferometric_phase = deque(maxlen=BaseClass.QUEUE_SIZE)
         self._sensitivity = [deque(maxlen=BaseClass.QUEUE_SIZE) for _ in range(PTI.CHANNELS)]
@@ -115,15 +115,21 @@ class Interferometer(BaseClass):
         self._interferometric_phase.append(interferometer.phase)
         self.time.append(next(self.time_counter))
 
+    @override
+    def clear(self) -> None:
+        self.time_counter = itertools.count()
+        self.time = deque(maxlen=BaseClass.QUEUE_SIZE)
+        self._dc_values = [deque(maxlen=BaseClass.QUEUE_SIZE) for _ in range(PTI.CHANNELS)]
+        self._interferometric_phase = deque(maxlen=BaseClass.QUEUE_SIZE)
+        self._sensitivity = [deque(maxlen=BaseClass.QUEUE_SIZE) for _ in range(PTI.CHANNELS)]
 
-class Characterisation(BaseClass):
-    CHANNELS = 3
 
+class Characterisation(_DAQ):
     def __init__(self):
-        BaseClass.__init__(self)
+        _DAQ.__init__(self)
         # The first channel has always the phase 0 by definition hence it is not needed.
-        self._output_phases = [deque(maxlen=BaseClass.QUEUE_SIZE) for _ in range(self.CHANNELS - 1)]
-        self._amplitudes = [deque(maxlen=BaseClass.QUEUE_SIZE) for _ in range(Characterisation.CHANNELS)]
+        self._output_phases = [deque(maxlen=BaseClass.QUEUE_SIZE) for _ in range(_DAQ.CHANNELS - 1)]
+        self._amplitudes = [deque(maxlen=BaseClass.QUEUE_SIZE) for _ in range(_DAQ.CHANNELS)]
         self._symmetry = deque(maxlen=BaseClass.QUEUE_SIZE)
         self._relative_symmetry = deque(maxlen=BaseClass.QUEUE_SIZE)
 
@@ -156,6 +162,14 @@ class Characterisation(BaseClass):
     @property
     def relative_symmetry(self) -> deque:
         return self._relative_symmetry
+
+    def clear(self) -> None:
+        self.time_counter = itertools.count()
+        self.time = deque(maxlen=BaseClass.QUEUE_SIZE)
+        self._output_phases = [deque(maxlen=BaseClass.QUEUE_SIZE) for _ in range(_DAQ.CHANNELS - 1)]
+        self._amplitudes = [deque(maxlen=BaseClass.QUEUE_SIZE) for _ in range(_DAQ.CHANNELS)]
+        self._symmetry = deque(maxlen=BaseClass.QUEUE_SIZE)
+        self._relative_symmetry = deque(maxlen=BaseClass.QUEUE_SIZE)
 
 
 class Laser(BaseClass):

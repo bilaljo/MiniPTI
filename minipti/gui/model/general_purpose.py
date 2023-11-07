@@ -1,19 +1,13 @@
-import json
 import logging
-import os
-import pathlib
 from abc import abstractmethod
 from collections import deque
 from typing import Union
 
-import dacite
 import darkdetect
 import pandas as pd
 from PyQt5 import QtCore
 
-import minipti
 from minipti.gui.model import signals
-from minipti.gui.model import configuration
 
 
 class Table(QtCore.QAbstractTableModel):
@@ -73,20 +67,6 @@ class Table(QtCore.QAbstractTableModel):
 def theme_observer() -> None:
     signals.GENERAL_PURPORSE.theme_changed.emit(darkdetect.theme())
     darkdetect.listener(lambda x: signals.GENERAL_PURPORSE.theme_changed.emit(x))
-
-
-def parse_configuration() -> configuration.GUI:
-    for file in os.listdir(f"{minipti.module_path}/gui/configs"):
-        if not pathlib.Path(file).suffix == ".json":
-            continue
-        with open(f"{minipti.module_path}/gui/configs/{file}") as config:
-            try:
-                loaded_configuration = json.load(config)
-                if loaded_configuration["use"]:
-                    return dacite.from_dict(configuration.GUI, loaded_configuration["GUI"])
-            except (json.decoder.JSONDecodeError, dacite.WrongTypeError, dacite.exceptions.MissingValueError):
-                continue
-    return configuration.GUI()  # Default constructed object
 
 
 class Logging(logging.Handler):

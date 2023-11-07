@@ -35,16 +35,14 @@ class Controllers(interface.Controllers):
 class MainApplication(interface.MainApplication):
     def __init__(self, argv=""):
         interface.MainApplication.__init__(self, argv)
-        self.configuration = model.general_purpose.parse_configuration()
-        settings_controller = Settings(self.configuration.settings)
-        utilities_controller = Utilities(self.configuration.utilities)
-        home_controller = Home(self.configuration.home, settings_controller, utilities_controller)
+        settings_controller = Settings()
+        utilities_controller = Utilities()
         self._controllers: Controllers = Controllers(main_application=self,
-                                                     home=home_controller,
+                                                     home=Home(settings_controller, utilities_controller),
                                                      settings=settings_controller,
                                                      utilities=utilities_controller,
-                                                     pump_laser=PumpLaser(self.configuration.pump_laser),
-                                                     probe_laser=ProbeLaser(self.configuration.probe_laser),
+                                                     pump_laser=PumpLaser(),
+                                                     probe_laser=ProbeLaser(),
                                                      tec=[Tec(laser=model.serial_devices.Tec.PUMP_LASER),
                                                           Tec(laser=model.serial_devices.Tec.PROBE_LASER)])
         self.logging_model = model.general_purpose.Logging()
@@ -104,15 +102,14 @@ def _get_file_path(parent, dialog_name: str, last_file_path: str, files: str) ->
 
 
 class Home(interface.Home):
-    def __init__(self, home_configuration: typing.Union[model.configuration.Home, None],
-                 settings_controller: "Settings", utilities_controller: "Utilities"):
-        self.configuration = home_configuration
+    def __init__(self, settings_controller: "Settings", utilities_controller: "Utilities"):
         self.view = view.api.Home(self)
         self.settings = view.settings.SettingsWindow(settings_controller)
         settings_controller.fire_configuration_change()
         self.utilities = view.utilities.UtilitiesWindow(utilities_controller)
         self.calculation_model = settings_controller.calculation_model
         self.motherboard = model.serial_devices.Motherboard()
+        self.valve = model.serial_devices.Valve()
         self.pump_laser = model.serial_devices.PumpLaser()
         self.probe_laser = model.serial_devices.ProbeLaser()
         self.tec = [model.serial_devices.Tec(model.serial_devices.Tec.PUMP_LASER),
@@ -142,17 +139,17 @@ class Home(interface.Home):
 
     @override
     def find_devices(self) -> None:
-        if self.configuration.connect.devices.motherboard:
+        if model.configuration.GUI.home.connect.devices.motherboard:
             try:
                 self.motherboard.find_port()
             except OSError:
                 logging.error("Could not find Motherboard")
-        if self.configuration.connect.devices.laser_driver:
+        if model.configuration.GUI.home.connect.devices.laser_driver:
             try:
                 self.pump_laser.find_port()
             except OSError:
                 logging.error("Could not find Laser Driver")
-        if self.configuration.connect.devices.tec_driver:
+        if model.configuration.GUI.home.connect.devices.tec_driver:
             try:
                 self.tec[0].find_port()
             except OSError:
@@ -185,15 +182,15 @@ class Home(interface.Home):
     @override
     def on_run(self) -> None:
         self.running = not self.running
-        if self.configuration.on_run.pump_laser.laser_driver:
+        if model.configuration.GUI.home.on_run.pump_laser.laser_driver:
             self.pump_laser.enabled = self.running
-        if self.configuration.on_run.probe_laser.laser_driver:
+        if model.configuration.GUI.home.on_run.probe_laser.laser_driver:
             self.probe_laser.enabled = self.running
-        if self.configuration.on_run.pump_laser.tec_driver:
+        if model.configuration.GUI.home.on_run.pump_laser.tec_driver:
             self.tec[model.serial_devices.Tec.PUMP_LASER].enabled = self.running
-        if self.configuration.on_run.probe_laser.tec_driver:
+        if model.configuration.GUI.home.on_run.probe_laser.tec_driver:
             self.tec[model.serial_devices.Tec.PROBE_LASER].enabled = self.running
-        if self.configuration.on_run.DAQ:
+        if model.configuration.GUI.home.on_run.DAQ:
             self.enable_motherboard()
 
     @override
@@ -228,11 +225,14 @@ class Home(interface.Home):
     def shutdown(self) -> None:
         self.motherboard.shutdown_procedure()
 
+    @override
+    def toggle_valve(self) -> None:
+        self.valve.bypass = not self.valve.bypass
+
 
 class Settings(interface.Settings):
-    def __init__(self, configuration: typing.Union[model.configuration.Settings, None]):
+    def __init__(self):
         interface.Settings.__init__(self)
-        self.configuration = configuration
         self.daq = model.serial_devices.DAQ()
         self.calculation_model = model.processing.LiveCalculation()
         self.valve = model.serial_devices.Valve()
@@ -366,8 +366,7 @@ class Settings(interface.Settings):
 
 
 class Utilities(interface.Utilities):
-    def __init__(self, configuration: typing.Union[model.configuration.Utilities, None]):
-        self._configuration = configuration
+    def __init__(self):
         self.view = view.utilities.UtilitiesWindow(self)
         self.calculation_model = model.processing.OfflineCalculation()
         self.last_file_path = os.getcwd()
@@ -506,9 +505,8 @@ def _string_to_number(parent: QtWidgets.QWidget, string_number: str, cast: typin
 
 
 class Laser(interface.Driver):
-    def __init__(self, configuration: model.configuration.Laser):
+    def __init__(self):
         interface.Driver.__init__(self)
-        self.configuration = configuration
         self.laser = model.serial_devices.Laser()
         self.last_file_path = os.getcwd()
 
@@ -545,8 +543,8 @@ class Laser(interface.Driver):
 
 
 class PumpLaser(Laser):
-    def __init__(self, configuration: typing.Union[model.configuration.Laser, None]):
-        Laser.__init__(self, configuration)
+    def __init__(self):
+        Laser.__init__(self)
         self._view = view.hardware.PumpLaser(self)
         self.laser = model.serial_devices.PumpLaser()
 
@@ -598,8 +596,8 @@ class PumpLaser(Laser):
 
 
 class ProbeLaser(Laser):
-    def __init__(self, configuration: typing.Union[model.configuration.Laser, None]):
-        Laser.__init__(self, configuration)
+    def __init__(self):
+        Laser.__init__(self)
         self.laser = model.serial_devices.ProbeLaser()
         self._view = view.hardware.ProbeLaser(self)
 

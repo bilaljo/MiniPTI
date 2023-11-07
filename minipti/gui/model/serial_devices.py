@@ -277,7 +277,7 @@ class Valve(Motherboard):
 
     @bypass.setter
     def bypass(self, state: bool) -> None:
-        self.bypass = state
+        self.valve.bypass = state
         signals.VALVE.bypass.emit(state)
 
     @override
@@ -437,7 +437,6 @@ class PumpLaser(Laser):
     @enabled.setter
     def enabled(self, enable: bool):
         if enable:
-            signals.LASER.clear_pumplaser.emit()
             self.on_notification.send(block=False)
         else:
             self.off_notification.send(block=False)
@@ -583,7 +582,6 @@ class ProbeLaser(Laser):
     @enabled.setter
     def enabled(self, enable: bool) -> None:
         if enable:
-            signals.LASER.clear_probelaser.emit()
             self.on_notification.send(block=False)
         else:
             self.off_notification.send(block=False)
@@ -674,8 +672,6 @@ class Tec(Serial):
 
     @enabled.setter
     def enabled(self, enable) -> None:
-        if enable:
-            self.tec_signals.clear_plots.emit()
         self.tec.enabled = enable
         self.tec_signals.enabled.emit(enable)
 

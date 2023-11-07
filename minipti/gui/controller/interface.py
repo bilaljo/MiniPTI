@@ -87,6 +87,10 @@ class Home(ABC):
     def shutdown(self) -> None:
         ...
 
+    @abstractmethod
+    def toggle_valve(self) -> None:
+        ...
+
 
 class Settings(ABC):
     def __init__(self):

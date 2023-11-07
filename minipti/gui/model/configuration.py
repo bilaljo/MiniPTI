@@ -1,4 +1,12 @@
+import json
+import os
+import pathlib
 from dataclasses import dataclass
+from typing import Final
+
+import dacite
+
+import minipti
 
 
 @dataclass(frozen=True)
@@ -60,6 +68,7 @@ class Home:
     use: bool = True
     use_settings: bool = True
     use_utilities: bool = True
+    use_valve: bool = True
     on_run: OnRun = OnRun()
     connect: Connect = Connect()
     destination_folder: DestinationFolder = DestinationFolder()
@@ -75,6 +84,7 @@ class SystemSettings:
 
 @dataclass(frozen=True)
 class Settings:
+    use: bool = True
     valve: bool = True
     measurement_settings: bool = True
     system_settings: SystemSettings = SystemSettings()
@@ -98,6 +108,7 @@ class OfflinePlots:
 
 @dataclass(frozen=True)
 class Utilities:
+    use: bool = True
     calculate: Calculation = Calculation()
     plot: OfflinePlots = OfflinePlots()
 
@@ -133,3 +144,20 @@ class GUI:
     probe_laser: LaserWindow = LaserWindow()
     pump_laser: LaserWindow = LaserWindow()
     plots: Plots = Plots()
+
+
+def _parse_configuration() -> GUI:
+    for file in os.listdir(f"{minipti.module_path}/gui/configs"):
+        if not pathlib.Path(file).suffix == ".json":
+            continue
+        with open(f"{minipti.module_path}/gui/configs/{file}") as config:
+            try:
+                loaded_configuration = json.load(config)
+                if loaded_configuration["use"]:
+                    return dacite.from_dict(GUI, loaded_configuration["GUI"])
+            except (json.decoder.JSONDecodeError, dacite.WrongTypeError, dacite.exceptions.MissingValueError):
+                continue
+    return GUI()  # Default constructed object
+
+
+GUI: Final = _parse_configuration()

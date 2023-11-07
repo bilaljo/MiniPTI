@@ -56,24 +56,24 @@ class MainWindow(QtWidgets.QMainWindow):
                             plots.TecTemperature(model.serial_devices.Tec.PROBE_LASER)])
         self.home = home.MainWindow(self.controllers.home)
         self.docks = []
-        if self.controllers.configuration.home.use:
+        if model.configuration.GUI.home.use:
             self.docks.append(pg.dockarea.Dock(name="Home", widget=self.home))
-        if self.controllers.configuration.pump_laser.use:
+        if model.configuration.GUI.pump_laser.use:
             self.docks.append(pg.dockarea.Dock(name="Pump Laser", widget=self._init_pump_laser()))
-        if self.controllers.configuration.probe_laser.use:
+        if model.configuration.GUI.probe_laser.use:
             self.docks.append(pg.dockarea.Dock(name="Probe Laser", widget=self._init_probe_laser()))
-        if self.controllers.configuration.plots.dc_signals.use:
+        if model.configuration.GUI.plots.dc_signals.use:
             self.docks.append(pg.dockarea.Dock(name="DC Signals", widget=self.plots.dc.window))
-        if self.controllers.configuration.plots.amplitudes.use:
+        if model.configuration.GUI.plots.amplitudes.use:
             self.docks.append(pg.dockarea.Dock(name="Amplitudes", widget=self.plots.amplitudes.window))
-        if self.controllers.configuration.plots.output_phases.use:
+        if model.configuration.GUI.plots.output_phases.use:
             self.docks.append(pg.dockarea.Dock(name="Output Phases", widget=self.plots.output_phases.window))
-        if self.controllers.configuration.plots.interferometric_phase.use:
+        if model.configuration.GUI.plots.interferometric_phase.use:
             self.docks.append(pg.dockarea.Dock(name="Interferometric Phase",
                                                widget=self.plots.interferometric_phase.window))
-        if self.controllers.configuration.plots.sensitivity.use:
+        if model.configuration.GUI.plots.sensitivity.use:
             self.docks.append(pg.dockarea.Dock(name="Sensitivity", widget=self.plots.sensitivity.window))
-        if self.controllers.configuration.plots.pti_signal.use:
+        if model.configuration.GUI.plots.pti_signal.use:
             self.docks.append(pg.dockarea.Dock(name="PTI Signal", widget=self.plots.pti_signal.window))
         for dock in self.docks:
             self.dock_area.addDock(dock)
@@ -87,22 +87,16 @@ class MainWindow(QtWidgets.QMainWindow):
         self.logging_window = QtWidgets.QLabel()
         self.log = dockarea.Dock("Log", size=(600, 1))
         self.scroll = QtWidgets.QScrollArea(widgetResizable=True)
-        self.battery = dockarea.Dock("Battery", size=(1, 1))
         self.charge_level = QtWidgets.QProgressBar()
         self.charge_level.resize(1, 1)
         self._init_dock_widgets()
         self.resize(MainWindow.HORIZONTAL_SIZE, MainWindow.VERTICAL_SIZE)
         self.setWindowIcon(QtGui.QIcon(f"{minipti.module_path}/gui/images/logo.png"))
-        self.setWindowTitle(self.controllers.configuration.window_title)
+        self.setWindowTitle(model.configuration.GUI.window_title)
         self.show()
 
     def logging_update(self, log_queue: collections.deque) -> None:
         self.logging_window.setText("".join(log_queue))
-
-    @QtCore.pyqtSlot(model.serial_devices.Battery)
-    def update_battery_state(self, battery: model.serial_devices.Battery) -> None:
-        self.minutes_left.setText(f"Minutes left: {battery.minutes_left}")
-        self.charge_level.setText(f"{battery.percentage} % left")
 
     def _init_tec(self, laser: int) -> QtWidgets.QWidget:
         tec_ch = QtWidgets.QWidget()
@@ -140,7 +134,6 @@ class MainWindow(QtWidgets.QMainWindow):
         return dock_area
 
     def _init_dock_widgets(self) -> None:
-        model.signals.GENERAL_PURPORSE.battery_state.connect(self.update_battery_state)
         model.signals.GENERAL_PURPORSE.logging_update.connect(self.logging_update)
         self.scroll.setWidgetResizable(True)
         self.log.addWidget(self.scroll)
@@ -148,14 +141,9 @@ class MainWindow(QtWidgets.QMainWindow):
         sub_layout.setLayout(QtWidgets.QVBoxLayout())
         sub_layout.layout().addWidget(self.charge_level)
         sub_layout.resize(1, 1)
-        # sub_layout.layout().addWidget(self.minutes_left)
-        self.battery.addWidget(sub_layout)
-        if self.controllers.configuration.logging.console:
+        if model.configuration.GUI.logging.console:
             self.dock_area.addDock(self.log, "bottom")
             self.scroll.setWidget(self.logging_window)
-        if self.controllers.configuration.battery.use:
-            self.dock_area.addDock(self.battery, "bottom")
-            self.dock_area.moveDock(self.battery, "right", self.log)
 
     def closeEvent(self, close_event):
         close = QtWidgets.QMessageBox.question(self, "QUIT", "Are you sure you want to close?",
@@ -189,11 +177,11 @@ class Home(QtWidgets.QTabWidget):
         self.interferometric_phase = plots.InterferometricPhase()
         sublayout = QtWidgets.QWidget()
         sublayout.setLayout(QtWidgets.QHBoxLayout())
-        if self.controller.configuration.plots.dc_signals:
+        if model.configuration.GUI.plots.dc_signals:
             sublayout.layout().addWidget(self.dc.window)
-        if self.controller.configuration.plots.interferometric_phase:
+        if model.configuration.GUI.plots.interferometric_phase:
             sublayout.layout().addWidget(self.interferometric_phase.window)
-        if self.controller.configuration.plots.pti_signal:
+        if model.configuration.GUI.plots.pti_signal:
             sublayout.layout().addWidget(self.pti_signal.window)
         self.layout().addWidget(sublayout, 0, 0)
 
@@ -225,7 +213,7 @@ class Home(QtWidgets.QTabWidget):
         sub_layout.layout().setAlignment(Qt.AlignHCenter)
         sub_layout.layout().addWidget(button_layout)
 
-        if self.controller.configuration.use_utilities:
+        if model.configuration.GUI.utilities.use:
             button_layout = QtWidgets.QWidget()
             button_layout.setLayout(QtWidgets.QVBoxLayout())
             self.buttons.utilities = helper.create_button(parent=button_layout, title="Utilities", only_icon=True,
@@ -241,7 +229,7 @@ class Home(QtWidgets.QTabWidget):
             sub_layout.layout().addWidget(button_layout)
             button_layout = QtWidgets.QWidget()
             button_layout.setLayout(QtWidgets.QVBoxLayout())
-        if self.controller.configuration.connect.use:
+        if model.configuration.GUI.home.connect.use:
             button_layout = QtWidgets.QWidget()
             button_layout.setLayout(QtWidgets.QVBoxLayout())
             self.buttons.connect = helper.create_button(parent=button_layout, title="Connect", only_icon=True,
@@ -256,8 +244,6 @@ class Home(QtWidgets.QTabWidget):
             button_layout.layout().setAlignment(Qt.AlignHCenter)
             sub_layout.layout().addWidget(button_layout)
         self.layout().addWidget(sub_layout, 1, 0)
-
-        # self.create_button(master=sub_layout, title="Clean Air", slot=self.controller.update_bypass)
 
     @QtCore.pyqtSlot(bool)
     def update_run_measurement(self, state: bool) -> None:

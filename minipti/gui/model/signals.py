@@ -83,7 +83,7 @@ class _Valve(QtCore.QObject):
 @dataclass(init=False, frozen=True)
 class _DAQ(QtCore.QObject):
     decimation = QtCore.pyqtSignal(buffer.BaseClass)
-    inversion = QtCore.pyqtSignal(buffer.BaseClass, bool)
+    inversion = QtCore.pyqtSignal(buffer.BaseClass)
     interferometry = QtCore.pyqtSignal(buffer.BaseClass)
     characterization = QtCore.pyqtSignal(buffer.BaseClass)
     samples_changed = QtCore.pyqtSignal(int)
