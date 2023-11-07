@@ -3,13 +3,6 @@ from typing import Any, Callable, Union
 from PyQt5 import QtWidgets
 
 
-def toggle_button(checked, button: Union[QtWidgets.QPushButton, QtWidgets.QToolButton]) -> None:
-    if checked:
-        button.setStyleSheet("background-color : lightgreen")
-    else:
-        button.setStyleSheet("background-color : light gray")
-
-
 def create_button(parent, title: str, slot: Callable[[Any], Any], only_icon=False) -> Union[QtWidgets.QPushButton,
                                                                                             QtWidgets.QToolButton]:
     if only_icon:

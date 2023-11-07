@@ -10,7 +10,8 @@ from minipti.gui.view import plots, helper
 
 @dataclass
 class HomeButtons:
-    run_measurement: Union[QtWidgets.QToolButton, None] = None
+    run: Union[QtWidgets.QToolButton, None] = None
+    valve: Union[QtWidgets.QToolButton, None] = None
     settings: Union[QtWidgets.QToolButton, None] = None
     utilities: Union[QtWidgets.QToolButton, None] = None
     connect: Union[QtWidgets.QToolButton, None] = None
@@ -47,18 +48,19 @@ class MainWindow(QtWidgets.QTabWidget):
         if model.configuration.GUI.plots.pti_signal:
             sublayout.layout().addWidget(self.pti_signal.window)
         self.layout().addWidget(sublayout, 0, 0)
+        self.run_pressed = False
 
     def _init_buttons(self) -> None:
         sub_layout = QtWidgets.QWidget()
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
         sub_layout.layout().setAlignment(QtCore.Qt.AlignHCenter)
-        self._init_button(sub_layout, "Run", self.controller.on_run)
+        self._init_button(sub_layout, "Run", self.controller.on_run, image="png")
         if model.configuration.GUI.settings.use:
-            self._init_button(sub_layout, "Settings", self.controller.show_settings)
+            self._init_button(sub_layout, "Settings", self.controller.show_settings, image="png")
         if model.configuration.GUI.home.use_valve:
-            self._init_button(sub_layout, "Valve", self.controller.toggle_valve, image="png")
+            self._init_button(sub_layout, "Valve", self.controller.toggle_valve)
         if model.configuration.GUI.utilities.use:
-            self._init_button(sub_layout, "Utilities", self.controller.show_utilities)
+            self._init_button(sub_layout, "Utilities", self.controller.show_utilities, image="png")
         if model.configuration.GUI.home.connect.use:
             self._init_button(sub_layout, "Connect", self.controller.connect_devices)
         if model.configuration.GUI.home.destination_folder.use:
@@ -72,7 +74,7 @@ class MainWindow(QtWidgets.QTabWidget):
         button_layout.setLayout(QtWidgets.QVBoxLayout())
         self.buttons[text] = helper.create_button(parent=button_layout, title=text, only_icon=True, slot=slot)
         self.buttons[text].setIcon(QtGui.QIcon(f"{minipti.module_path}/gui/images/{text}.{image}"))
-        self.buttons[text].setIconSize(QtCore.QSize(40, 40))
+        self.buttons[text].setIconSize(QtCore.QSize(50, 50))
         self.buttons[text].setToolTip(text)
         button_layout.layout().addWidget(self.buttons[text])
         label = QtWidgets.QLabel(text)
@@ -82,12 +84,20 @@ class MainWindow(QtWidgets.QTabWidget):
 
     @QtCore.pyqtSlot(bool)
     def update_run_measurement(self, state: bool) -> None:
-        #helper.toggle_button(state, self.buttons.run_measurement)
-        ...
+        if state:
+            icon = QtGui.QIcon(f"{minipti.module_path}/gui/images/Stop.svg")
+        else:
+            icon = QtGui.QIcon(f"{minipti.module_path}/gui/images/Run.png")
+        self.buttons.run.setIcon(icon)
 
     @QtCore.pyqtSlot(bool)
     def update_clean_air(self, state: bool) -> None:
-        helper.toggle_button(state, self.buttons["Clean Air"])
+        if state:
+            icon = QtGui.QIcon(f"{minipti.module_path}/gui/images/Valve_on.svg")
+        else:
+            icon = QtGui.QIcon(f"{minipti.module_path}/gui/images/Valve.svg")
+        self.buttons.valve.setIcon(icon)
 
     def _init_signals(self) -> None:
         model.signals.DAQ.running.connect(self.update_run_measurement)
+        model.signals.VALVE.bypass.connect(self.update_clean_air)

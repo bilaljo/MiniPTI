@@ -92,11 +92,11 @@ For the GUI some external public licence pictures were used which are listed bel
 ### 4.1 Gear Icon for Settings
 https://freesvg.org/qubodup-cog-cogwheel-gear-zahnrad
 
-### 4.2 Calculation Iccon
-https://publicdomainvectors.org/en/free-clipart/Vector-clip-art-of-gray-computer-spreadsheet-document-icon/21207.html
+### 4.2 Utilities Iccon
+<a href="https://www.flaticon.com/free-icons/budget" title="budget icons">Budget icons created by Freepik - Flaticon</a>
 
 ### 4.3 Play Icon for run
-https://freesvg.org/play-button
+https://iconspng.com/image/138798/play-blue-button
 
 ### 4.4 USB icon for connect
 https://publicdomainvectors.org/en/free-clipart/International-symbol-for-USB-vector-clip-art/20833.html
@@ -104,7 +104,14 @@ https://publicdomainvectors.org/en/free-clipart/International-symbol-for-USB-vec
 ### 4.5 Laser warning icon
 https://publicdomainvectors.org/de/kostenlose-vektorgrafiken/Vektor-Bild-der-dreieckigen-Laser-Strahl-Warnschild/17874.html
 
-
 ### 4.6 Shutdown Icon
 https://commons.wikimedia.org/wiki/File:Breathe-system-shutdown.svg
 
+### 4.7 Stop Icon
+https://iconspng.com/image/5801/windows-media-player-pause-button
+
+### 4.8 Directory Icon
+https://commons.wikimedia.org/wiki/File:Blue_folder_seth_yastrov_01.svg
+
+### 4.9 Valve Icon
+https://www.svgrepo.com/svg/203212/gas-pipe-valve
