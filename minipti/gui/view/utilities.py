@@ -21,7 +21,7 @@ class UtilitiesWindow(QtWidgets.QMainWindow):
         self.parent.layout().addWidget(self.plotting, 1, 0)
         self.setCentralWidget(self.parent)
         self.setFixedSize(300, 400)
-        self.setWindowIcon(QtGui.QIcon(f"{minipti.module_path}/gui/images/Utilities.svg"))
+        self.setWindowIcon(QtGui.QIcon(f"{minipti.module_path}/gui/images/Utilities.png"))
 
 
 class UtilitiesBase(QtWidgets.QGroupBox):
