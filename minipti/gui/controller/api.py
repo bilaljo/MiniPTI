@@ -226,8 +226,8 @@ class Home(interface.Home):
         self.motherboard.shutdown_procedure()
 
     @override
-    def toggle_valve(self) -> None:
-        self.valve.bypass = not self.valve.bypass
+    def enable_valve(self) -> None:
+        self.valve.enable = not self.valve.enable
 
 
 class Settings(interface.Settings):

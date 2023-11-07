@@ -272,11 +272,11 @@ class Valve(Motherboard):
             self.valve.automatic_switch.clear()
 
     @property
-    def bypass(self) -> bool:
+    def enable(self) -> bool:
         return self.valve.bypass
 
-    @bypass.setter
-    def bypass(self, state: bool) -> None:
+    @enable.setter
+    def enable(self, state: bool) -> None:
         self.valve.bypass = state
         signals.VALVE.bypass.emit(state)
 

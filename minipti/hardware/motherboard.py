@@ -29,33 +29,35 @@ class ValveConfiguration:
 
 class Valve:
     def __init__(self, driver: "Driver"):
-        self.bypass = False
-        self._set_bypass = protocolls.ASCIIHex("SBP0000")
+        self._bypass = protocolls.ASCIIHex("SBP0000")
         self.automatic_switch = threading.Event()
         self.configuration: Union[ValveConfiguration, None] = None
         self.driver: Union[None, "Driver"] = driver
-        self.bypass = False
         self.config_path = f"{minipti.module_path}/hardware/configs/motherboard/valve.json"
         self.load_configuration()
 
-    def automaticValve_change(self) -> None:
+    def automatic_valve_change(self) -> None:
         """
         Periodically bypass a valve. The duty cycle defines how much time for each part (bypassed
         or not) is spent.
         """
         def switch() -> None:
             while self.driver.connected.is_set() and self.automatic_switch.is_set():
-                self.setValve()
+                self.bypass = not self.bypass
                 if self.bypass:
                     time.sleep(self.configuration.period * self.configuration.duty_cycle / 100)
                 else:
                     time.sleep(self.configuration.period * (1 - self.configuration.duty_cycle / 100))
         threading.Thread(target=switch, daemon=True).start()
 
-    def setValve(self) -> None:
-        self._set_bypass.value = self.bypass
-        self.bypass = not self.bypass
-        self.driver.write(self._set_bypass)
+    @property
+    def bypass(self) -> bool:
+        return bool(self._bypass.value)
+
+    @bypass.setter
+    def bypass(self, new_value) -> None:
+        self._bypass.value = new_value
+        self.driver.write(self._bypass)
 
     def load_configuration(self) -> None:
         with open(self.config_path) as config:

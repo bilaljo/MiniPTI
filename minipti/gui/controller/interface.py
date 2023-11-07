@@ -85,7 +85,7 @@ class Home(ABC):
         ...
 
     @abstractmethod
-    def toggle_valve(self) -> None:
+    def enable_valve(self) -> None:
         ...
 
 

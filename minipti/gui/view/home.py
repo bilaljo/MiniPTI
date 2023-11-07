@@ -58,7 +58,7 @@ class MainWindow(QtWidgets.QTabWidget):
         if model.configuration.GUI.settings.use:
             self._init_button(sub_layout, "Settings", self.controller.show_settings, image="png")
         if model.configuration.GUI.home.use_valve:
-            self._init_button(sub_layout, "Valve", self.controller.toggle_valve)
+            self._init_button(sub_layout, "Valve", self.controller.enable_valve)
         if model.configuration.GUI.utilities.use:
             self._init_button(sub_layout, "Utilities", self.controller.show_utilities, image="png")
         if model.configuration.GUI.home.connect.use:
