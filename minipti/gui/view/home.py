@@ -62,7 +62,7 @@ class MainWindow(QtWidgets.QTabWidget):
         if model.configuration.GUI.utilities.use:
             self._init_button(sub_layout, "Utilities", self.controller.show_utilities, image="png")
         if model.configuration.GUI.home.connect.use:
-            self._init_button(sub_layout, "Connect", self.controller.connect_devices)
+            self._init_button(sub_layout, "Connect", self.controller.init_devices)
         if model.configuration.GUI.destination_folder.use:
             self._init_button(sub_layout, "Directory", self.controller.update_destination_folder)
         if model.configuration.GUI.home.use_shutdown:
