@@ -118,7 +118,7 @@ class LiveCalculation(Calculation):
             self.interferometer_characterization.characterise(live=True)
             self.characterisation_buffer.append(self.interferometer_characterization, self.interferometer)
             signals.DAQ.characterization.emit(self.characterisation_buffer)
-            signals.CALCULATION.settings.emit(self.interferometer.characteristic_parameter)
+            signals.CALCULATION.settings_interferometer.emit(self.interferometer.characteristic_parameter)
 
     def _init_calculation(self) -> None:
         self.pti.inversion.init_header = True
@@ -146,13 +146,13 @@ class LiveCalculation(Calculation):
 
     def _characterisation(self) -> None:
         self.interferometer_characterization.add_phase(self.interferometer.phase)
-        self.dc_signals.append(copy.deepcopy(self.pti.decimation.dc_signals))
+        self.dc_signals.append(self.pti.decimation.dc_signals.copy())
         if self.interferometer_characterization.enough_values:
             self.interferometer_characterization.interferometry_data.dc_signals = np.array(self.dc_signals)
             phase: list[float] = self.interferometer_characterization.tracking_phase
             self.interferometer_characterization.interferometry_data.phases = np.array(phase)
-            self.interferometer_characterization.event.set()
             self.dc_signals = []
+            self.interferometer_characterization.event.set()
 
 
 class OfflineCalculation(Calculation):
