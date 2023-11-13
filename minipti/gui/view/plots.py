@@ -190,7 +190,7 @@ class OutputPhases(DAQPlots):
     #@override
     def update_data_live(self, data: model.buffer.Characterisation) -> None:
         for channel in range(2):
-            self.curves[channel].setData(data.time, data.output_phases[channel])
+            self.curves[channel].setData(data.time, np.rad2deg(data.output_phases[channel]))
 
 
 class InterferometricPhaseOffline(OfflinePlot):
