@@ -10,7 +10,9 @@ In this repository a GUI is provided to control the MiniPTI as also presented in
 The library and GUI are tested for Ubuntu 22.04 LTS, Windows 10, Windows 11 and Raspberry Pi OS.
 
 If hardware access is needed (i.e. serial ports) it works only on Windows and Unix.
-# 1. installation
+# 1. Installation
+** Warning ** PIP is still not up to date, use GitHub only.
+
 To install the library + GUI you can use the pip package manager. Just type in the console
 ```
 pip install minipti
