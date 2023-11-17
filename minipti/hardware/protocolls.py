@@ -1,9 +1,9 @@
-from dataclasses import dataclass
 import re
-from typing import Final, NoReturn, Union
-import dacite
 from abc import abstractmethod, ABC
+from dataclasses import dataclass
+from typing import Final, NoReturn, Union
 
+import dacite
 from overrides import override
 
 
@@ -38,8 +38,9 @@ class CommandKeyValue:
 class ASCIIMultimap(ASCIIProtocoll):
     _STREAM_PATTERNS: Final = [re.compile(r"(?P<key>(Set|Get|Do)\w+):(?P<value>([+-]?([0-9]*[.])?[0-9]?|\w+))\n",
                                           flags=re.MULTILINE),
-                               re.compile(r"(?P<key>(Set|Get|Do)\w+):\[(?P<index>\d+),?(?P<value>[+-]?([0-9]*[.])?[0-9]+)]\n",
-                                          flags=re.MULTILINE)]
+                               re.compile(
+                                   r"(?P<key>(Set|Get|Do)\w+):\[(?P<index>\d+),?(?P<value>[+-]?([0-9]*[.])?[0-9]+)]\n",
+                                   flags=re.MULTILINE)]
 
     def __init__(self, stream: Union[str, None] = None, key: Union[str, None] = None,
                  index: Union[int, None] = None, value: Union[float, str, None] = None) -> None:

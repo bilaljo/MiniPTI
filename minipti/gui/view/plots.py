@@ -4,10 +4,10 @@ import matplotlib
 import numpy as np
 import pyqtgraph as pg
 from PyQt5 import QtCore, QtWidgets
+from matplotlib import pyplot as plt
 from matplotlib.backends.backend_qt import NavigationToolbar2QT
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from overrides import override
-from matplotlib import pyplot as plt
 
 from minipti.gui import model
 
@@ -124,7 +124,7 @@ class DC(DAQPlots):
         self.name = "DC Plots"
         model.signals.DAQ.interferometry.connect(self.update_data_live)
 
-    #@override
+    # @override
     def update_data_live(self, data: model.buffer.Interferometer) -> None:
         for channel in range(3):
             self.curves[channel].setData(data.time, data.dc_values[channel])
@@ -158,7 +158,7 @@ class Amplitudes(DAQPlots):
         self.name = "Amplitudes"
         model.signals.DAQ.characterization.connect(self.update_data_live)
 
-    #@override
+    # @override
     def update_data_live(self, data: model.buffer.Characterisation) -> None:
         for channel in range(3):
             self.curves[channel].setData(data.time, data.amplitudes[channel])
@@ -187,7 +187,7 @@ class OutputPhases(DAQPlots):
         self.name = "Output Phases"
         model.signals.DAQ.characterization.connect(self.update_data_live)
 
-    #@override
+    # @override
     def update_data_live(self, data: model.buffer.Characterisation) -> None:
         for channel in range(2):
             self.curves[channel].setData(data.time, np.rad2deg(data.output_phases[channel]))
@@ -217,7 +217,7 @@ class InterferometricPhase(DAQPlots):
         self.name = "Interferometric Phase"
         model.signals.DAQ.interferometry.connect(self.update_data_live)
 
-    #@override
+    # @override
     def update_data_live(self, data: model.buffer.Interferometer) -> None:
         self.curves.setData(data.time, data.interferometric_phase)
 
@@ -244,7 +244,7 @@ class Sensitivity(DAQPlots):
         self.name = "Sensitivity"
         model.signals.DAQ.interferometry.connect(self.update_data_live)
 
-    #@override
+    # @override
     def update_data_live(self, data: model.buffer.Interferometer) -> None:
         for channel in range(3):
             self.curves[channel].setData(data.time, data.sensitivity[channel])
@@ -262,7 +262,7 @@ class Symmetry(DAQPlots):
         self.name = "Symmetry"
         model.signals.DAQ.characterization.connect(self.update_data_live)
 
-    #@override
+    # @override
     def update_data_live(self, data: model.buffer.Characterisation) -> None:
         self.curves[0].setData(data.time, data.symmetry)
         self.curves[1].setData(data.time, data.relative_symmetry)
@@ -292,7 +292,7 @@ class PTISignal(DAQPlots):
         self.name = "PTI Signal"
         model.signals.DAQ.inversion.connect(self.update_data_live)
 
-    #@override
+    # @override
     def update_data_live(self, data: model.buffer.PTI) -> None:
         self.curves["PTI Signal"].setData(data.time, data.pti_signal)
         self.curves["PTI Signal Mean"].setData(data.time, data.pti_signal_mean)
@@ -306,7 +306,7 @@ class PumpLaserCurrent(Plotting):
         self.plot.setLabel(axis="left", text="Current [mA]")
         model.signals.LASER.data.connect(self.update_data_live)
 
-    #@override
+    # @override
     def update_data_live(self, data: model.buffer.Laser) -> None:
         self.curves.setData(data.time, data.pump_laser_current)
 
@@ -319,7 +319,7 @@ class ProbeLaserCurrent(Plotting):
         self.plot.setLabel(axis="left", text="Current [mA]")
         model.signals.LASER.data.connect(self.update_data_live)
 
-    #@override
+    # @override
     def update_data_live(self, data: model.buffer.Laser) -> None:
         self.curves.setData(data.time, data.probe_laser_current)
 
@@ -337,7 +337,7 @@ class TecTemperature(Plotting):
         self.laser = channel
         model.signals.GENERAL_PURPORSE.tec_data.connect(self.update_data_live)
 
-    #@override
+    # @override
     def update_data_live(self, data: model.buffer.Tec) -> None:
         self.curves[TecTemperature.SET_POINT].setData(data.time, data.set_point[self.laser])
         self.curves[TecTemperature.MEASURED].setData(data.time, data.actual_value[self.laser])

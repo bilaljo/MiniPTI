@@ -99,7 +99,7 @@ class Motherboard(Serial):
         Serial.__init__(self, driver)
         self.initialized: bool = False
         self.driver = driver
-        #signals.DAQ.running.connect(self._daq_running_changed)
+        # signals.DAQ.running.connect(self._daq_running_changed)
 
     def load_configuration(self) -> None:
         ...

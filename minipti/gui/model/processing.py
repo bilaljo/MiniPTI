@@ -13,10 +13,10 @@ from scipy import ndimage
 
 import minipti
 from minipti import algorithm
-from minipti.gui.model import signals
 from minipti.gui.model import buffer
-from minipti.gui.model import general_purpose
 from minipti.gui.model import configuration
+from minipti.gui.model import general_purpose
+from minipti.gui.model import signals
 
 
 class DestinationFolder:

@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 from typing import Union
 
-from PyQt5 import QtWidgets, QtCore, QtGui
 import qtwidgets
+from PyQt5 import QtWidgets, QtCore, QtGui
 
 import minipti
 from minipti.gui import model, controller
@@ -45,7 +45,7 @@ class SampleSettings(QtWidgets.QWidget):
         for i in range(1, 80):
             self.average_period.addItem(f"{i * 100 / 8000 * 1000} ms")
         for i in range(80, 320 + 1):
-            self.average_period.addItem(f"{i * 100 / 8000 } s")
+            self.average_period.addItem(f"{i * 100 / 8000} s")
         self.average_period.setCurrentIndex(80 - 1)
         self.layout().addWidget(QtWidgets.QLabel("Averaging Time"))
         self.layout().addWidget(self.average_period)

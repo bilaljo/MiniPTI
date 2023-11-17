@@ -1,21 +1,20 @@
-from abc import abstractmethod, ABC
 import functools
+import itertools
 import logging
 import os
 import platform
+import queue
 import re
+import threading
 import time
+from abc import abstractmethod, ABC
 from dataclasses import dataclass
 from enum import Enum
 from typing import Union
-import queue
-import itertools
 
 from overrides import final
-import threading
 
 if platform.system() == "Windows":
-    import clr
     import System
 else:
     import termios
@@ -283,6 +282,7 @@ class Driver(ABC):
         """
         Serial Port Reading Implementation on Windows.
         """
+
         @final
         def _receive(self, _sender, _arg: System.IO.Ports.SerialDataReceivedEventArgs) -> None:
             if self._serial_port.BytesToRead:
@@ -292,6 +292,7 @@ class Driver(ABC):
         """
         Serial Port Reading Implementation on Unix.
         """
+
         @final
         def _receive(self) -> None:
             """

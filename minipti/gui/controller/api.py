@@ -113,6 +113,7 @@ class Home(interface.Home):
         def find_and_connect():
             self.find_devices()
             self.connect_devices()
+
         threading.Thread(target=find_and_connect, name="Find and Connect Devices Thread", daemon=True).start()
 
     @override

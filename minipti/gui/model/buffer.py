@@ -34,7 +34,7 @@ class _DAQ(BaseClass):
 
     def __init__(self):
         BaseClass.__init__(self)
-        #signals.DAQ.clear.connect(self.clear)
+        # signals.DAQ.clear.connect(self.clear)
 
     @abstractmethod
     def clear(self) -> None:

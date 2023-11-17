@@ -1,19 +1,19 @@
-from abc import abstractmethod
+import atexit
 import dataclasses
 import json
 import logging
+import platform
 import typing
+from abc import abstractmethod
 from dataclasses import dataclass
 from typing import Annotated, Final, Union
-import platform
-import atexit
 
 import dacite
 from overrides import override
 
 import minipti
-from . import serial_device, _json_parser
 from . import protocolls
+from . import serial_device, _json_parser
 
 
 @dataclass

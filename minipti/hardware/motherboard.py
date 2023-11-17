@@ -1,6 +1,7 @@
 import dataclasses
 import enum
 import itertools
+import json
 import logging
 import queue
 import threading
@@ -8,16 +9,15 @@ import time
 from collections import deque
 from dataclasses import dataclass
 from typing import Final, Union, Any, Callable
-import json
 
 import dacite
+import numpy as np
 from fastcrc import crc16
 from overrides import override
-import numpy as np
 
 import minipti
-from . import serial_device, _json_parser
 from . import protocolls
+from . import serial_device, _json_parser
 
 
 class MotherBoardTools:
@@ -59,6 +59,7 @@ class Valve(MotherBoardTools):
         Periodically bypass a valve. The duty cycle defines how much time for each part (bypassed
         or not) is spent.
         """
+
         def switch() -> None:
             while self.driver.connected.is_set() and self.automatic_switch.is_set():
                 self.bypass = not self.bypass
@@ -66,6 +67,7 @@ class Valve(MotherBoardTools):
                     time.sleep(self.configuration.period * self.configuration.duty_cycle / 100)
                 else:
                     time.sleep(self.configuration.period * (1 - self.configuration.duty_cycle / 100))
+
         threading.Thread(target=switch, daemon=True).start()
 
     @property
@@ -354,7 +356,7 @@ class DAQ(MotherBoardTools):
         self.samples_buffer = DAQData([], [[], [], []], [[], [], [], []])
 
     def _check_package_difference(self) -> bool:
-        package_difference = int(self._sample_numbers[1], base=16) - int(self._sample_numbers[0],  base=16)
+        package_difference = int(self._sample_numbers[1], base=16) - int(self._sample_numbers[0], base=16)
         if package_difference != 1:
             logging.error(f"Missing {package_difference} packages.")
             return False

@@ -11,7 +11,7 @@ def toggle_button(checked, button: Union[QtWidgets.QPushButton, QtWidgets.QToolB
 
 
 def create_button(parent, title: str, slot: Callable[[Any], Any], only_icon=False) -> Union[QtWidgets.QPushButton,
-                                                                                            QtWidgets.QToolButton]:
+QtWidgets.QToolButton]:
     if only_icon:
         button: QtWidgets.QToolButton = QtWidgets.QToolButton()
     else:

@@ -1,19 +1,17 @@
 import collections
 from dataclasses import dataclass
-from typing import NamedTuple, Union
+from typing import NamedTuple
 
-from PyQt5 import QtWidgets, QtCore, QtGui
-from PyQt5.QtCore import Qt
 import pyqtgraph as pg
+from PyQt5 import QtWidgets, QtGui
 from pyqtgraph import dockarea
 
 import minipti
-from minipti.gui.view import helper
-from minipti.gui.view import plots
-from minipti.gui.view import hardware
-from minipti.gui.view import home
 from minipti.gui import controller
 from minipti.gui import model
+from minipti.gui.view import hardware
+from minipti.gui.view import home
+from minipti.gui.view import plots
 
 
 @dataclass

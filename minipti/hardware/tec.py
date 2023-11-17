@@ -1,18 +1,17 @@
+import atexit
 import dataclasses
 import enum
 import json
 import logging
 import os
 from dataclasses import dataclass
-import atexit
 
 import dacite
 from overrides import override
 
 import minipti
-from . import serial_device, _json_parser
 from . import protocolls
-
+from . import serial_device, _json_parser
 
 ROOM_TEMPERATURE_CELSIUS = 23
 ROOM_TEMPERATURE_KELVIN = 283.15
@@ -166,7 +165,7 @@ class Tec:
                 try:
                     loaded_config = json.load(config)
                     self.configuration = dacite.from_dict(Configuration, loaded_config["Tec"])
-                except (json.decoder.JSONDecodeError, dacite.WrongTypeError,  dacite.exceptions.MissingValueError):
+                except (json.decoder.JSONDecodeError, dacite.WrongTypeError, dacite.exceptions.MissingValueError):
                     # Config file corrupted or types are wrong
                     logging.warning("Config File was corrupted or wrong")
                     logging.info("Creating a new file")

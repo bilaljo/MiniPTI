@@ -5,8 +5,8 @@ from matplotlib import pyplot as plt
 from overrides import override
 
 import minipti
-from minipti.gui.view import helper
 from minipti.gui import controller, model
+from minipti.gui.view import helper
 
 
 class UtilitiesWindow(QtWidgets.QMainWindow):

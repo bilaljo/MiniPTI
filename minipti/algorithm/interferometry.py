@@ -1,16 +1,16 @@
 """
 API for characterisation and phases of an interferometer.
 """
-from collections.abc import Generator
 import itertools
 import logging
 import os
 import threading
 import typing
+from collections import defaultdict
+from collections.abc import Generator
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Final, Union
-from collections import defaultdict
 
 import numpy as np
 import pandas as pd
@@ -238,7 +238,7 @@ class Interferometer:
         pd.DataFrame(units, index=["s"]).to_csv(f"{self.destination_folder}/Interferometer.csv",
                                                 index_label="Time")
         pd.DataFrame(output_data).to_csv(f"{self.destination_folder}/Interferometer.csv", index_label="Time",
-                                         mode="a",  header=False)
+                                         mode="a", header=False)
         logging.info("Interferometer Data calculated.")
         logging.info("Saved results in %s", str(self.destination_folder))
 

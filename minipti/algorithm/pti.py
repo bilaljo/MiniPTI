@@ -25,8 +25,8 @@ class LockIn:
 @dataclass
 class RawData:
     ref: Union[np.ndarray[np.uint16], None]
-    dc:  Union[np.ndarray[np.uint16], None]
-    ac:  Union[np.ndarray[np.int16], None]
+    dc: Union[np.ndarray[np.uint16], None]
+    ac: Union[np.ndarray[np.int16], None]
 
 
 class Decimation:
@@ -170,9 +170,9 @@ class Inversion:
     LOCK_IN_HEADERS: Final = [([f"X{i}" for i in range(1, 4)], [f"Y{i}" for i in range(1, 4)]),
                               ([f"x{i}" for i in range(1, 4)], [f"y{i}" for i in range(1, 4)]),
                               ([f"Lock In Amplitude CH{i}" for i in range(1, 4)],
-                              [f"Lock In Phase CH{i}" for i in range(1, 4)]),
+                               [f"Lock In Phase CH{i}" for i in range(1, 4)]),
                               ([f"AC CH{i}" for i in range(1, 4)],
-                              [f"AC Phase CH{i}" for i in range(1, 4)])]
+                               [f"AC Phase CH{i}" for i in range(1, 4)])]
 
     def __init__(self, response_phases=None, sign=-1, interferometer=None, decimation=Decimation(),
                  settings_path=f"{minipti.module_path}/algorithm/configs/settings.csv"):
@@ -252,7 +252,7 @@ class Inversion:
         pd.DataFrame(units, index=["s"]).to_csv(f"{self.destination_folder}/PTI_Inversion.csv",
                                                 index_label="Time")
         pd.DataFrame(output_data).to_csv(f"{self.destination_folder}/PTI_Inversion.csv", index_label="Time",
-                                         mode="a",  header=False)
+                                         mode="a", header=False)
         logging.info("PTI Inversion calculated.")
         logging.info("Saved results in %s", str(self.destination_folder))
 
