@@ -6,6 +6,7 @@ import typing
 from dataclasses import dataclass
 from typing import Annotated, Final, Union
 import platform
+import atexit
 
 import dacite
 from overrides import override
@@ -37,14 +38,18 @@ class Driver(serial_device.Driver):
         self.high_power_laser = HighPowerLaser(self)
         self.low_power_laser = LowPowerLaser(self)
         self.encode = False
+        atexit.register(self.clear)
 
-    def open(self) -> None:
-        super().open()
+    def startup(self):
         self.high_power_laser.initialize()
         self.low_power_laser.initialize()
         self.high_power_laser.apply_configuration()
         self.low_power_laser.apply_configuration()
         # Disable lasers, if they were enabled by default, for safety
+        self.low_power_laser.enabled = False
+        self.high_power_laser.enabled = False
+
+    def clear(self):
         self.low_power_laser.enabled = False
         self.high_power_laser.enabled = False
 

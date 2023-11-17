@@ -4,6 +4,7 @@ import json
 import logging
 import os
 from dataclasses import dataclass
+import atexit
 
 import dacite
 from overrides import override
@@ -55,12 +56,15 @@ class Driver(serial_device.Driver):
     def __init__(self):
         serial_device.Driver.__init__(self)
         self.tec = [Tec(1, self), Tec(2, self)]
+        atexit.register(self.clear)
 
-    @override
-    def open(self):
-        super().open()
+    def startup(self):
         self.tec[0].apply_configuration()
         self.tec[1].apply_configuration()
+
+    def clear(self):
+        self.tec[0].enabled = False
+        self.tec[1].enabled = False
 
     @property
     @override
@@ -196,7 +200,7 @@ class Tec:
         self.commands.set_i_gain.value = self.configuration.pid.integral_value
         self.driver.write(self.commands.set_i_gain)
 
-    def set_setpoint_temperature_value(self,) -> None:
+    def set_setpoint_temperature_value(self) -> None:
         setpoint_temperature: float = Tec.celsius_to_kelvin(self.configuration.system_parameter.setpoint_temperature)
         self.commands.set_setpoint.value = setpoint_temperature
         self.driver.write(self.commands.set_setpoint)

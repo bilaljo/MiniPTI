@@ -128,6 +128,18 @@ class Settings(ABC):
         ...
 
     @abstractmethod
+    def update_flow_rate(self, flow_rate: str) -> None:
+        ...
+
+    @abstractmethod
+    def save_pump_settings(self) -> None:
+        ...
+
+    @abstractmethod
+    def load_pump_settings(self) -> None:
+        ...
+
+    @abstractmethod
     def save_daq_settings(self) -> None:
         ...
 
@@ -157,21 +169,6 @@ class Settings(ABC):
 
 
 class Utilities(ABC):
-    @property
-    @abstractmethod
-    def motherboard(self) -> model.serial_devices.Motherboard:
-        ...
-
-    @property
-    @abstractmethod
-    def laser(self) -> model.serial_devices.Laser:
-        ...
-
-    @property
-    @abstractmethod
-    def tec(self) -> model.serial_devices.Tec:
-        ...
-
     @abstractmethod
     def calculate_decimation(self) -> None:
         ...

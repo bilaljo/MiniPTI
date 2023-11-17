@@ -7,7 +7,7 @@ import threading
 import time
 from collections import deque
 from dataclasses import dataclass
-from typing import Final, Union
+from typing import Final, Union, Any, Callable
 import json
 
 import dacite
@@ -20,6 +20,26 @@ from . import serial_device, _json_parser
 from . import protocolls
 
 
+class MotherBoardTools:
+    def __init__(self, tool: str, driver: "Driver", config_type: Any):
+        self.tool = tool
+        self.driver = driver
+        self.config_path = f"{minipti.module_path}/hardware/configs/motherboard/{tool.casefold()}.json"
+        self.configuration: Union[config_type, None] = None
+        self._config_type = config_type
+
+    def load_configuration(self) -> None:
+        with open(self.config_path) as config:
+            loaded_config = json.load(config)
+            self.configuration = dacite.from_dict(self._config_type, loaded_config[self.tool])
+
+    def save_configuration(self) -> None:
+        with open(self.config_path, "w") as configuration:
+            valve = {self.tool: dataclasses.asdict(self.configuration)}
+            configuration.write(_json_parser.to_json(valve) + "\n")
+            logging.info("Saved %s configuration in %s", self.tool.casefold(), self.config_path)
+
+
 @dataclass
 class ValveConfiguration:
     automatic_switch: bool
@@ -27,13 +47,11 @@ class ValveConfiguration:
     duty_cycle: int
 
 
-class Valve:
+class Valve(MotherBoardTools):
     def __init__(self, driver: "Driver"):
+        MotherBoardTools.__init__(self, "Valve", driver, ValveConfiguration)
         self._bypass = protocolls.ASCIIHex("SBP0000")
         self.automatic_switch = threading.Event()
-        self.configuration: Union[ValveConfiguration, None] = None
-        self.driver: Union[None, "Driver"] = driver
-        self.config_path = f"{minipti.module_path}/hardware/configs/motherboard/valve.json"
         self.load_configuration()
 
     def automatic_valve_change(self) -> None:
@@ -58,17 +76,6 @@ class Valve:
     def bypass(self, new_value) -> None:
         self._bypass.value = new_value
         self.driver.write(self._bypass)
-
-    def load_configuration(self) -> None:
-        with open(self.config_path) as config:
-            loaded_config = json.load(config)
-            self.configuration = dacite.from_dict(ValveConfiguration, loaded_config["Valve"])
-
-    def save_configuration(self) -> None:
-        with open(self.config_path, "w") as configuration:
-            valve = {"Valve": dataclasses.asdict(self.configuration)}
-            configuration.write(_json_parser.to_json(valve) + "\n")
-            logging.info("Saved valve configuration in %s", self.config_path)
 
 
 class BMSIndex(enum.IntEnum):
@@ -103,16 +110,13 @@ class BMSConfiguration:
     use_battery: bool
 
 
-class BMS:
+class BMS(MotherBoardTools):
     PACKAGE_SIZE: Final = 38
     SHUTDOWN = 0xFF
 
     def __init__(self, driver: "Driver"):
+        MotherBoardTools.__init__(self, "BMS", driver, BMSConfiguration)
         self._do_shutdown = protocolls.ASCIIHex("SHD0001")
-        self.driver: Union[None, "Driver"] = None
-        self.configuration: Union[None, BMSConfiguration] = None
-        self.config_path = f"{minipti.module_path}/hardware/configs/motherboard/bms.json"
-        self.driver = driver
         self.running = threading.Event()
         self.encoded_data: Union[tuple[bool, BMSData], None] = None
         self.load_configuration()
@@ -124,7 +128,7 @@ class BMS:
         Every byte is an ASCII symbol. The bytes have the following meanings:
         1 - 2:
         Represent the package identifier
-        2 - 4:
+        3 - 4:
         - The next two bytes are the countdown of a shutdown. Attention: if this value is below 255 (0xFF),
         the motherboard will shut down itself soon.
         - The next 
@@ -150,19 +154,33 @@ class BMS:
         self.driver.write(self._do_shutdown)
 
     def load_configuration(self) -> None:
-        with open(self.config_path) as config:
-            loaded_config = json.load(config)
-            self.configuration = dacite.from_dict(BMSConfiguration, loaded_config["BMS"])
+        super().load_configuration()
         if self.configuration.use_battery:
             self.running.set()
         else:
             self.running.clear()
 
-    def save_configuration(self) -> None:
-        with open(self.config_path, "w") as configuration:
-            valve = {"BMS": dataclasses.asdict(self.configuration)}
-            configuration.write(_json_parser.to_json(valve) + "\n")
-            logging.info("Saved valve BMS in %s", self.config_path)
+
+@dataclass
+class PumpConfiguration:
+    flow_rate: int
+
+
+class Pump(MotherBoardTools):
+    MAX_FLOAT_RATE: Final = 0xFFFF
+
+    def __init__(self, driver: "Driver"):
+        MotherBoardTools.__init__(self, "Pump", driver, PumpConfiguration)
+        self._float_rate_command = protocolls.ASCIIHex("SDP0000")
+        self.load_configuration()
+
+    def set_flow_rate(self) -> None:
+        self._float_rate_command.value = self.configuration.flow_rate
+        self.driver.write(self._float_rate_command)
+
+    def disable_pump(self) -> None:
+        self._float_rate_command.value = 0
+        self.driver.write(self._float_rate_command)
 
 
 @dataclass
@@ -178,7 +196,7 @@ class DAQData:
     dc_coupled: Union[list, list[deque]]
 
 
-class DAQ:
+class DAQ(MotherBoardTools):
     PACKAGE_SIZE: Final = 4104
     _SEQUENCE_SIZE: Final = 8
     RAW_DATA_SIZE: Final = PACKAGE_SIZE - _SEQUENCE_SIZE
@@ -188,17 +206,44 @@ class DAQ:
     _DC_CHANNELS: Final = 4
 
     def __init__(self, driver: "Driver"):
+        MotherBoardTools.__init__(self, "DAQ", driver, DAQConfiguration)
         self._sample_numbers = deque(maxlen=2)
         self.synchronize = False
-        self.configuration: Union[DAQConfiguration, None] = None
         self.encoded_buffer = DAQData(deque(maxlen=DAQ.ENCODED_DATA_SIZE),
                                       [deque(maxlen=DAQ.ENCODED_DATA_SIZE) for _ in range(3)],
                                       [deque(maxlen=DAQ.ENCODED_DATA_SIZE) for _ in range(4)])
         self.samples_buffer = DAQData([], [[], [], []], [[], [], [], []])
-        self.config_path = f"{minipti.module_path}/hardware/configs/motherboard/daq.json"
-        self.driver = driver
-        self.running = threading.Event()
+        self._running = threading.Event()
+        self.observers_enable: list[Callable] = []
+        self.observers_disable: list[Callable] = []
         self.load_configuration()
+
+    @property
+    def is_running(self) -> bool:
+        return self._running.is_set()
+
+    @is_running.setter
+    def is_running(self, run: bool) -> None:
+        if run:
+            self.notify_enabled()
+            self._running.set()
+        else:
+            self.notify_disabled()
+            self._running.clear()
+
+    def notify_enabled(self) -> None:
+        """
+        Notifys all observers that DAQ has started to be used.
+        """
+        for observer in self.observers_enable:
+            observer()
+
+    def notify_disabled(self) -> None:
+        """
+        Notifys all observers that DAQ has stopped to be used.
+        """
+        for observer in self.observers_disable:
+            observer()
 
     @property
     def samples_buffer_size(self) -> int:
@@ -214,14 +259,14 @@ class DAQ:
         self.update_buffer_size()
 
     def update_buffer_size(self) -> None:
-        if self.running.is_set():
+        if self.is_running:
             logging.warning("Encoding is running. Need to pause is to update the buffer size and reset samples")
-            self.running.clear()
+            self.is_running = False
         self.samples_buffer = DAQData([], [[], [], []], [[], [], [], []])
-
         self.reset()
+        self.is_running = True
 
-    def build_sample_package(self) -> Union[tuple[np.ndarray, np.ndarray, np.ndarray], None]:
+    def build_sample_package(self) -> None:
         """
         Creates a package of samples that represents approximately 1 s data. It contains 8000
         samples.
@@ -359,7 +404,10 @@ class Driver(serial_device.Driver):
         self.daq = DAQ(self)
         self.bms = BMS(self)
         self.valve = Valve(self)
+        self.pump = Pump(self)
         self.new_run = True
+        self.daq.observers_enable.append(self.pump.set_flow_rate)
+        self.daq.observers_disable.append(self.pump.disable_pump)
         self.data = PackageData([queue.Queue(maxsize=Driver._QUEUE_SIZE) for _ in range(3)],
                                 queue.Queue(maxsize=Driver._QUEUE_SIZE))
 
@@ -410,7 +458,7 @@ class Driver(serial_device.Driver):
 
     @override
     def _encode(self, data: str) -> None:
-        if self.daq.running.is_set() and data[0] == "D" and len(data) == DAQ.PACKAGE_SIZE + Driver.CRC_SIZE + 1:
+        if self.daq.is_running and data[0] == "D" and len(data) == DAQ.PACKAGE_SIZE + Driver.CRC_SIZE + 1:
             if not self._crc_check(data, "DAQ"):
                 return
             self.daq.encode(data[1:-Driver._CRC_START])

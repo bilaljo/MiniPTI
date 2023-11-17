@@ -1,4 +1,3 @@
-import copy
 import csv
 import logging
 import os
@@ -16,7 +15,6 @@ import minipti
 from minipti import algorithm
 from minipti.gui.model import signals
 from minipti.gui.model import buffer
-from minipti.gui.model import serial_devices
 from minipti.gui.model import general_purpose
 from minipti.gui.model import configuration
 
@@ -74,7 +72,6 @@ class LiveCalculation(Calculation):
         self.interferometer_buffer = buffer.Interferometer()
         self.pti_buffer = buffer.PTI()
         self.characterisation_buffer = buffer.Characterisation()
-        self.motherboard = serial_devices.Motherboard()
         self.pti_signal_mean_queue = deque(maxlen=LiveCalculation.ONE_MINUTE)
         signals.DAQ.clear.connect(self._clear_buffers)
 

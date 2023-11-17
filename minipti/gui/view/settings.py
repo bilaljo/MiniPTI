@@ -4,6 +4,7 @@ from typing import Union
 from PyQt5 import QtWidgets, QtCore, QtGui
 import qtwidgets
 
+import minipti
 from minipti.gui import model, controller
 from minipti.gui.view import helper
 from minipti.gui.view import table
@@ -20,12 +21,14 @@ class SettingsWindow(QtWidgets.QMainWindow):
         if model.configuration.GUI.settings.valve:
             self.valve_configuration = ValveConfiguration(settings_controller)
             self.parent.layout().addWidget(self.valve_configuration)
+        self.pump_configuration = PumpConfiguration(settings_controller)
+        self.parent.layout().addWidget(self.pump_configuration)
         if model.configuration.GUI.settings.measurement_settings:
             self.measurement_configuration = MeasurementSettings(settings_controller)
             self.parent.layout().addWidget(self.measurement_configuration)
         self.setCentralWidget(self.parent)
         self.setWindowTitle("Settings")
-        self.setWindowIcon(QtGui.QIcon("minipti/gui/images/settings.svg"))
+        self.setWindowIcon(QtGui.QIcon(f"{minipti.module_path}/gui/images/Settings.png"))
 
 
 class SampleSettings(QtWidgets.QWidget):
@@ -114,6 +117,47 @@ class MeasurementSettings(QtWidgets.QGroupBox):
     @QtCore.pyqtSlot(str)
     def update_destination_folder(self, destionation_folder: str) -> None:
         self.destination_folder_label.setText(destionation_folder)
+
+
+class PumpConfiguration(QtWidgets.QGroupBox):
+    def __init__(self, settings_controller: controller.interface.Settings):
+        QtWidgets.QGroupBox.__init__(self)
+        self.controller = settings_controller
+        self.flow = QtWidgets.QLineEdit()
+        self.enable_on_run = qtwidgets.AnimatedToggle()
+        self.setLayout(QtWidgets.QGridLayout())
+        self._init_buttons()
+        sub_layout = QtWidgets.QWidget()
+        sub_layout.setLayout(QtWidgets.QHBoxLayout())
+        self.enable_on_run.setFixedSize(65, 50)
+        sub_layout.layout().addWidget(self.enable_on_run)
+        sub_layout.layout().addWidget(QtWidgets.QLabel("Enable on Run"))
+        self.layout().addWidget(sub_layout)
+        sub_layout = QtWidgets.QWidget()
+        sub_layout.setLayout(QtWidgets.QHBoxLayout())
+        self.save = helper.create_button(parent=sub_layout, title="Save Settings",
+                                         slot=self.controller.save_pump_settings)
+        self.load = helper.create_button(parent=sub_layout, title="Load Settings",
+                                         slot=self.controller.load_pump_settings)
+        self.layout().addWidget(sub_layout)
+        self._init_signals()
+        self.setTitle("Pump Configuration")
+
+    def _init_buttons(self) -> None:
+        self.layout().addWidget(QtWidgets.QLabel("Flow Rate"), 0, 0)
+        self.layout().addWidget(self.flow, 0, 1)
+        self.layout().addWidget(QtWidgets.QLabel("%"), 0, 2)
+
+    @QtCore.pyqtSlot(float)
+    def update_flow_rate(self, float_rate: float) -> None:
+        self.flow.setText(str(round(float_rate, 2)))
+
+    def _flow_rate_changed(self) -> None:
+        self.controller.update_flow_rate(self.flow.text())
+
+    def _init_signals(self) -> None:
+        self.flow.editingFinished.connect(self._flow_rate_changed)
+        model.signals.PUMP.flow_Rate.connect(self.update_flow_rate)
 
 
 class ValveConfiguration(QtWidgets.QGroupBox):

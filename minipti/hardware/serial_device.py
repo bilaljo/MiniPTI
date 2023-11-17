@@ -40,6 +40,8 @@ class Driver(ABC):
     _IO_BUFFER_SIZE = 8000
     _SEARCH_ATTEMPTS = 3
 
+    SAMPLE = threading.Event()
+
     def __init__(self):
         self._is_found = False
         self._port_name = ""
@@ -55,6 +57,10 @@ class Driver(ABC):
         else:
             self._file_descriptor = -1
         self.connected = threading.Event()
+
+    @classmethod
+    def is_sampling(cls) -> bool:
+        return cls.SAMPLE.is_set()
 
     @property
     def port_name(self) -> str:
@@ -93,7 +99,7 @@ class Driver(ABC):
 
     @final
     def find_port(self) -> None:
-        if self.is_open:
+        if self.is_open or self.is_found:
             return
         for _ in itertools.repeat(None, Driver._SEARCH_ATTEMPTS):
             for port in list_ports.comports():
@@ -130,7 +136,7 @@ class Driver(ABC):
         self._ready_write.set()
 
     if platform.system() == "Windows":
-        #@final
+        @final
         def open(self) -> None:
             if self.port_name and not self.is_open:
                 self._clear()
@@ -143,7 +149,7 @@ class Driver(ABC):
             else:
                 raise OSError("Could not connect with %s", self.device_name)
     else:
-        #@final
+        @final
         def open(self) -> None:
             if self.port_name and not self.is_open:
                 try:

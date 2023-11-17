@@ -72,7 +72,7 @@ class _Home:
     use_valve: bool = True
     on_run: _OnRun = _OnRun()
     connect: _Connect = _Connect()
-    use_shutdown: bool = False
+    use_shutdown: bool = True
     plots: _HomePlots = _HomePlots()
 
 

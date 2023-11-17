@@ -38,7 +38,7 @@ class CommandKeyValue:
 class ASCIIMultimap(ASCIIProtocoll):
     _STREAM_PATTERNS: Final = [re.compile(r"(?P<key>(Set|Get|Do)\w+):(?P<value>([+-]?([0-9]*[.])?[0-9]?|\w+))\n",
                                           flags=re.MULTILINE),
-                               re.compile(r"(?P<key>(Set|Get|Do)\w+):\[(?P<index>\d+),?(?P<value>[+-]?([0-9]*[.])?[0-9]+)\]\n",
+                               re.compile(r"(?P<key>(Set|Get|Do)\w+):\[(?P<index>\d+),?(?P<value>[+-]?([0-9]*[.])?[0-9]+)]\n",
                                           flags=re.MULTILINE)]
 
     def __init__(self, stream: Union[str, None] = None, key: Union[str, None] = None,
@@ -119,7 +119,7 @@ class ASCIIHex(ASCIIProtocoll):
     _NUMBER_OF_HEX_DIGITS = 4
     _STREAM_PATTERN: Final = re.compile(r"(?P<command>([GSC][a-zA-Z][\da-zA-Z]))(?P<value>([\da-fA-F]{4}))")
     _MIN_VALUE = 0
-    _MAX_VALUE = (1 << _NUMBER_OF_HEX_DIGITS * 4) - 1  # 1 hex byte corresponds to 4 binary bytes
+    _MAX_VALUE = (1 << _NUMBER_OF_HEX_DIGITS * 4)  # 1 hex byte corresponds to 4 binary bytes
     _VALUE_INDEX = 3
 
     def __init__(self, stream: str):

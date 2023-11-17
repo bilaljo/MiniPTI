@@ -6,7 +6,6 @@ import numpy as np
 from PyQt5 import QtCore
 
 from minipti import hardware, algorithm
-from minipti.gui.model import serial_devices
 from minipti.gui.model import buffer
 
 
@@ -29,7 +28,7 @@ class _GeneralPurporse(QtCore.QObject):
     logging_update = QtCore.pyqtSignal(deque)
     destination_folder_changed = QtCore.pyqtSignal(str)
     theme_changed = QtCore.pyqtSignal(str)
-    battery_state = QtCore.pyqtSignal(serial_devices.Battery)
+    battery_state = QtCore.pyqtSignal()
     tec_data = QtCore.pyqtSignal(buffer.BaseClass)
     tec_data_display = QtCore.pyqtSignal(hardware.tec.Data)
 
@@ -81,6 +80,14 @@ class _Valve(QtCore.QObject):
 
 
 @dataclass(init=False, frozen=True)
+class _Pump(QtCore.QObject):
+    flow_Rate = QtCore.pyqtSignal(float)
+
+    def __init__(self):
+        QtCore.QObject.__init__(self)
+
+
+@dataclass(init=False, frozen=True)
 class _DAQ(QtCore.QObject):
     decimation = QtCore.pyqtSignal(buffer.BaseClass)
     inversion = QtCore.pyqtSignal(buffer.BaseClass)
@@ -100,3 +107,4 @@ DAQ: Final = _DAQ()
 VALVE: Final = _Valve()
 CALCULATION: Final = _Calculation()
 GENERAL_PURPORSE: Final = _GeneralPurporse()
+PUMP: Final = _Pump()

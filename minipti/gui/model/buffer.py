@@ -7,8 +7,6 @@ import numpy as np
 from overrides import override
 
 from minipti import algorithm, hardware
-from minipti.gui.model import serial_devices, signals
-from minipti.gui.model import processing
 
 
 class BaseClass:
@@ -36,7 +34,7 @@ class _DAQ(BaseClass):
 
     def __init__(self):
         BaseClass.__init__(self)
-        signals.DAQ.clear.connect(self.clear)
+        #signals.DAQ.clear.connect(self.clear)
 
     @abstractmethod
     def clear(self) -> None:
@@ -59,7 +57,7 @@ class PTI(_DAQ):
     def is_empty(self) -> bool:
         return len(self._pti_signal) == 0
 
-    def append(self, pti: processing.PTI, average_period: int) -> None:
+    def append(self, pti, average_period: int) -> None:
         self._pti_signal.append(pti.inversion.pti_signal)
         self._pti_signal_mean_queue.append(pti.inversion.pti_signal)
         time_scaler: float = algorithm.pti.Decimation.REF_PERIOD * algorithm.pti.Decimation.SAMPLE_PERIOD
@@ -203,6 +201,7 @@ class Laser(BaseClass):
 
 
 class Tec(BaseClass):
+
     def __init__(self):
         BaseClass.__init__(self)
         self._set_point: list[deque] = [deque(maxlen=BaseClass.QUEUE_SIZE), deque(maxlen=BaseClass.QUEUE_SIZE)]
@@ -213,14 +212,9 @@ class Tec(BaseClass):
         return len(self._set_point[0]) == 0
 
     def append(self, tec_data: hardware.tec.Data) -> None:
-        self._set_point[serial_devices.Tec.PUMP_LASER].append(
-            tec_data.set_point[serial_devices.Tec.PUMP_LASER])
-        self._set_point[serial_devices.Tec.PROBE_LASER].append(
-            tec_data.set_point[serial_devices.Tec.PROBE_LASER])
-        self._actual_value[serial_devices.Tec.PUMP_LASER].append(
-            tec_data.actual_temperature[serial_devices.Tec.PUMP_LASER])
-        self._actual_value[serial_devices.Tec.PROBE_LASER].append(
-            tec_data.actual_temperature[serial_devices.Tec.PROBE_LASER])
+        for channel in range(2):
+            self._set_point[channel].append(tec_data.set_point[channel])
+            self._actual_value[channel].append(tec_data.actual_temperature[channel])
         self.time.append(next(self.time_counter))
 
     @property

@@ -143,7 +143,8 @@ class MotherBoardBMS(DAQTest):
         received_data_bms = bms_file.read().split("\n")
 
     def _bms_check_1(self) -> None:
-        _, bms_data = self.driver.bms_data
+        shutdown, bms_data = self.driver.bms_data
+        self.assertTrue(shutdown < minipti.hardware.motherboard.BMS.SHUTDOWN)
         self.assertTrue(bms_data.external_dc_power)
         self.assertTrue(bms_data.charging)
         self.assertEqual(bms_data.minutes_left, float("inf"))
