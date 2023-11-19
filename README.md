@@ -117,3 +117,9 @@ https://commons.wikimedia.org/wiki/File:Blue_folder_seth_yastrov_01.svg
 
 ### 4.9 Valve Icon
 https://www.svgrepo.com/svg/203212/gas-pipe-valve
+
+### 4.10 Battery Symbols
+https://commons.wikimedia.org/wiki/File:Batteries-1379208.svg
+
+### 4.11 Battery Charging Flash
+https://commons.wikimedia.org/wiki/File:Antu_battery-charging-060.svg
