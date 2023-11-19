@@ -28,8 +28,7 @@ class _GeneralPurporse(QtCore.QObject):
     logging_update = QtCore.pyqtSignal(deque)
     destination_folder_changed = QtCore.pyqtSignal(str)
     theme_changed = QtCore.pyqtSignal(str)
-    battery_state = QtCore.pyqtSignal()
-    tec_data = QtCore.pyqtSignal(buffer.BaseClass)
+    tec_data = QtCore.pyqtSignal(buffer.Tec)
     tec_data_display = QtCore.pyqtSignal(hardware.tec.Data)
 
     def __init__(self):
@@ -101,6 +100,15 @@ class _DAQ(QtCore.QObject):
         QtCore.QObject.__init__(self)
 
 
+@dataclass(init=False, frozen=True)
+class _BMS(QtCore.QObject):
+    battery_state = QtCore.pyqtSignal(bool, float)
+    battery_data = QtCore.pyqtSignal(buffer.BMS)
+
+    def __init__(self):
+        QtCore.QObject.__init__(self)
+
+
 LASER: Final = _Laser()
 TEC: Final = [_Tec(), _Tec()]
 DAQ: Final = _DAQ()
@@ -108,3 +116,4 @@ VALVE: Final = _Valve()
 CALCULATION: Final = _Calculation()
 GENERAL_PURPORSE: Final = _GeneralPurporse()
 PUMP: Final = _Pump()
+BMS: Final = _BMS()

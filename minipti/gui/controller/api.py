@@ -9,6 +9,7 @@ import qdarktheme
 from PyQt5 import QtWidgets, QtCore
 from overrides import override
 
+import minipti
 from minipti.gui import model
 from minipti.gui import view
 from minipti.gui.controller import interface
@@ -18,7 +19,8 @@ from minipti.gui.view import plots
 @dataclass
 class Controllers(interface.Controllers):
     main_application: "MainApplication"
-    home: "Home"
+    toolbar: "Toolbar"
+    statusbar: "Statusbar"
     settings: "Settings"
     utilities: "Utilities"
     pump_laser: "PumpLaser"
@@ -36,7 +38,8 @@ class MainApplication(interface.MainApplication):
         settings_controller = Settings()
         utilities_controller = Utilities()
         self._controllers: Controllers = Controllers(main_application=self,
-                                                     home=Home(settings_controller, utilities_controller),
+                                                     toolbar=Toolbar(settings_controller, utilities_controller),
+                                                     statusbar=Statusbar(),
                                                      settings=settings_controller,
                                                      utilities=utilities_controller,
                                                      pump_laser=PumpLaser(),
@@ -45,10 +48,11 @@ class MainApplication(interface.MainApplication):
                                                           Tec(laser=model.serial_devices.Tec.PROBE_LASER)])
         self.logging_model = model.general_purpose.Logging()
         self.view = view.api.MainWindow(self.controllers)
+        self.controllers.toolbar.view = self.view
         model.signals.GENERAL_PURPORSE.theme_changed.connect(self.update_theme)
         threading.Thread(target=model.general_purpose.theme_observer, daemon=True).start()
-        self.controllers.home.init_devices()
-        # threading.excepthook = self.thread_exception
+        self.controllers.toolbar.init_devices()
+        threading.excepthook = self.thread_exception
 
     @QtCore.pyqtSlot(str)
     def update_theme(self, theme: str) -> None:
@@ -59,9 +63,6 @@ class MainApplication(interface.MainApplication):
             except AttributeError:  # list of plots
                 for sub_plot in plot:  # type: view.plots.Plotting
                     sub_plot.update_theme(theme)
-        self.view.home.dc.update_theme(theme)
-        self.view.home.interferometric_phase.update_theme(theme)
-        self.view.home.pti_signal.update_theme(theme)
 
     @property
     @override
@@ -85,104 +86,34 @@ def _get_file_path(parent, dialog_name: str, last_file_path: str, files: str) ->
     return file_path[0], last_file_path
 
 
-class Home(interface.Home):
+class Toolbar(interface.Toolbar):
     def __init__(self, settings_controller: "Settings", utilities_controller: "Utilities"):
-        self.view = view.home.MainWindow(self)
-        self.settings = view.settings.SettingsWindow(settings_controller)
-        settings_controller.fire_configuration_change()
-        self.utilities = view.utilities.UtilitiesWindow(utilities_controller)
-        self.calculation_model = settings_controller.calculation_model
-        self.running = False
+        self.view: typing.Union[None, view.api.MainWindow] = None
+        self.settings_controller = settings_controller
+        self.utilities_controller = utilities_controller
         self._destination_folder = model.processing.DestinationFolder()
-
-    @override
-    def update_destination_folder(self) -> None:
-        destination_folder = QtWidgets.QFileDialog.getExistingDirectory(self.view, "Destination Folder",
-                                                                        self.destination_folder.folder,
-                                                                        QtWidgets.QFileDialog.ShowDirsOnly)
-        if destination_folder:
-            self.destination_folder.folder = destination_folder
-
-    @property
-    @override
-    def destination_folder(self) -> model.processing.DestinationFolder:
-        return self._destination_folder
-
-    @override
-    def init_devices(self) -> None:
-        def find_and_connect():
-            self.find_devices()
-            self.connect_devices()
-
-        threading.Thread(target=find_and_connect, name="Find and Connect Devices Thread", daemon=True).start()
-
-    @override
-    def find_devices(self) -> None:
-        if model.configuration.GUI.home.connect.devices.motherboard:
-            try:
-                model.serial_devices.DRIVER.motherboard.find_port()
-            except OSError:
-                logging.error("Could not find Motherboard")
-        if model.configuration.GUI.home.connect.devices.laser_driver:
-            try:
-                model.serial_devices.DRIVER.laser.find_port()
-            except OSError:
-                logging.error("Could not find Laser Driver")
-        if model.configuration.GUI.home.connect.devices.tec_driver:
-            try:
-                model.serial_devices.DRIVER.tec.find_port()
-            except OSError:
-                logging.error("Could not find TEC Driver")
-
-    @override
-    def connect_devices(self) -> None:
-        if model.serial_devices.DRIVER.motherboard.is_found:
-            try:
-                model.serial_devices.DRIVER.motherboard.open()
-                model.serial_devices.DRIVER.motherboard.run()
-                model.serial_devices.DRIVER.motherboard.process_measured_data()
-            except OSError:
-                logging.error("Could not connect with Motherboard")
-        if model.serial_devices.DRIVER.laser.is_found:
-            try:
-                model.serial_devices.DRIVER.laser.open()
-                model.serial_devices.DRIVER.laser.run()
-                model.serial_devices.DRIVER.laser.process_measured_data()
-            except OSError:
-                logging.error("Could not connect with Laser Driver")
-        if model.serial_devices.DRIVER.tec.is_found:
-            try:
-                model.serial_devices.DRIVER.tec.open()
-                model.serial_devices.DRIVER.tec.run()
-                model.serial_devices.DRIVER.laser.process_measured_data()
-            except OSError:
-                logging.error("Could not connect with TEC Driver")
+        self.calculation_model = model.processing.LiveCalculation()
+        self.running = False
 
     @override
     def on_run(self) -> None:
         self.running = not self.running
-        if model.configuration.GUI.home.on_run.pump_laser.laser_driver:
+        if model.configuration.GUI.on_run.pump_laser.laser_driver:
             model.serial_devices.TOOLS.pump_laser.enabled = self.running
-        if model.configuration.GUI.home.on_run.probe_laser.laser_driver:
+            model.serial_devices.DRIVER.laser.sampling = self.running
+        if model.configuration.GUI.on_run.probe_laser.laser_driver:
             model.serial_devices.TOOLS.probe_laser.enabled = self.running
-        if model.configuration.GUI.home.on_run.pump_laser.tec_driver:
+            model.serial_devices.DRIVER.laser.sampling = self.running
+        if model.configuration.GUI.on_run.pump_laser.tec_driver:
             model.serial_devices.TOOLS.tec[model.serial_devices.Tec.PUMP_LASER].enabled = self.running
-        if model.configuration.GUI.home.on_run.probe_laser.tec_driver:
+            model.serial_devices.DRIVER.laser.sampling = self.running
+        if model.configuration.GUI.on_run.probe_laser.tec_driver:
             model.serial_devices.TOOLS.tec[model.serial_devices.Tec.PROBE_LASER].enabled = self.running
+            model.serial_devices.DRIVER.laser.sampling = self.running
+        if model.configuration.GUI.on_run.pump:
+            model.serial_devices.TOOLS.pump.enable_pump()
         if model.configuration.GUI.home.on_run.DAQ:
             self.enable_motherboard()
-
-    @override
-    def show_settings(self) -> None:
-        self.settings.show()
-
-    @override
-    def show_utilities(self) -> None:
-        self.utilities.show()
-
-    @override
-    def fire_motherboard_configuration_change(self) -> None:
-        model.serial_devices.DRIVER.motherboard.fire_configuration_change()
 
     @override
     def enable_motherboard(self) -> None:
@@ -208,6 +139,103 @@ class Home(interface.Home):
     def enable_valve(self) -> None:
         model.serial_devices.TOOLS.valve.enable = not model.serial_devices.TOOLS.valve.enable
 
+    @override
+    def show_settings(self) -> None:
+        self.settings_controller.view.show()
+
+    @override
+    def show_utilities(self) -> None:
+        self.utilities_controller.view.show()
+
+    @property
+    @override
+    def destination_folder(self) -> model.processing.DestinationFolder:
+        return self._destination_folder
+
+    @override
+    def update_destination_folder(self) -> None:
+        destination_folder = QtWidgets.QFileDialog.getExistingDirectory(self.view, "Destination Folder",
+                                                                        self.destination_folder.folder,
+                                                                        QtWidgets.QFileDialog.ShowDirsOnly)
+        if destination_folder:
+            self.destination_folder.folder = destination_folder
+
+    @override
+    def init_devices(self) -> None:
+        def find_and_connect():
+            self.find_devices()
+            self.connect_devices()
+
+        threading.Thread(target=find_and_connect, name="Find and Connect Devices Thread", daemon=True).start()
+
+    @override
+    def find_devices(self) -> None:
+        if model.configuration.GUI.connect.motherboard:
+            try:
+                model.serial_devices.DRIVER.motherboard.find_port()
+            except OSError:
+                logging.error("Could not find Motherboard")
+        if model.configuration.GUI.connect.laser_driver:
+            try:
+                model.serial_devices.DRIVER.laser.find_port()
+            except OSError:
+                logging.error("Could not find Laser Driver")
+        if model.configuration.GUI.connect.tec_driver:
+            try:
+                model.serial_devices.DRIVER.tec.find_port()
+            except OSError:
+                logging.error("Could not find TEC Driver")
+
+    @override
+    def connect_devices(self) -> None:
+        if model.serial_devices.DRIVER.motherboard.is_found:
+            try:
+                model.serial_devices.DRIVER.motherboard.open()
+                model.serial_devices.DRIVER.motherboard.run()
+                model.serial_devices.TOOLS.valve.process_measured_data()
+                model.serial_devices.TOOLS.bms.process_measured_data()
+                model.serial_devices.TOOLS.valve.automatic_valve_change()
+            except OSError:
+                logging.error("Could not connect with Motherboard")
+        if model.serial_devices.DRIVER.laser.is_found:
+            try:
+                model.serial_devices.DRIVER.laser.open()
+                model.serial_devices.DRIVER.laser.run()
+                model.serial_devices.DRIVER.laser.process_measured_data()
+            except OSError:
+                logging.error("Could not connect with Laser Driver")
+        if model.serial_devices.DRIVER.tec.is_found:
+            try:
+                model.serial_devices.DRIVER.tec.open()
+                model.serial_devices.DRIVER.tec.run()
+                model.serial_devices.DRIVER.laser.process_measured_data()
+            except OSError:
+                logging.error("Could not connect with TEC Driver")
+
+    @override
+    def set_clean_air(self) -> None:
+        model.serial_devices.TOOLS.valve.change_valve()
+
+
+class Statusbar(interface.Statusbar):
+    def __init__(self):
+        self._view = view.general_purpose.StatusBar(self)
+        self.bms = view.hardware.BMS()
+        self.view.showMessage(str(minipti.module_path.parent))
+
+    @property
+    @override
+    def view(self) -> QtWidgets.QStatusBar:
+        return self._view
+
+    @override
+    def show_bms(self) -> None:
+        self.bms.show()
+
+    @override
+    def update_destination_folder(self, folder: str) -> None:
+        self.view.showMessage(folder)
+
 
 class Settings(interface.Settings):
     def __init__(self):
@@ -216,6 +244,9 @@ class Settings(interface.Settings):
         self._settings_table = model.processing.SettingsTable()
         self.view = view.settings.SettingsWindow(self)
         self.last_file_path = os.getcwd()
+        if model.configuration.GUI.settings.pump:
+            self.view.pump_configuration.enable_on_run.setChecked(True)
+        self.fire_configuration_change()
 
     @override
     def fire_configuration_change(self) -> None:
@@ -239,7 +270,7 @@ class Settings(interface.Settings):
     @override
     def update_average_period(self, samples: str) -> None:
         samples_number = samples.split(" Samples")[0]  # Value has the structure "X Samples"
-        self.daq.number_of_samples = int(samples_number)
+        model.serial_devices.TOOLS.daq.number_of_samples = int(samples_number)
         self.calculation_model.pti.decimation.average_period = int(samples_number)
 
     @override
@@ -348,6 +379,10 @@ class Settings(interface.Settings):
             QtWidgets.QMessageBox.critical(self.view, "Valve Error", f"{str(error)}. {info_text}")
 
     @override
+    def update_enable_on_run(self, enable: bool) -> None:
+        model.serial_devices.TOOLS.pump.start_on_run = enable
+
+    @override
     def update_automatic_valve_switch(self, automatic_valve_switch: bool) -> None:
         model.serial_devices.TOOLS.valve.automatic_valve_switch = automatic_valve_switch
 
@@ -362,7 +397,7 @@ class Settings(interface.Settings):
         except ValueError:
             flow_rate = 50
         try:
-            self.pump.flow_rate = flow_rate
+            model.serial_devices.TOOLS.pump.flow_rate = flow_rate
         except ValueError as error:
             info_text = "Value must be an floating number between 0 and 100"
             logging.error(str(error))
@@ -381,10 +416,6 @@ class Utilities(interface.Utilities):
         model.signals.CALCULATION.inversion.connect(plots.pti_signal_offline)
         model.signals.CALCULATION.interferometric_phase.connect(self.interferometric_phase_offline.plot)
         # model.theme_signal.changed.connect(view.utilities.update_matplotlib_theme)
-
-    @override
-    def set_clean_air(self, bypass: bool) -> None:
-        self.motherboard.bypass = bypass
 
     @override
     def calculate_decimation(self) -> None:

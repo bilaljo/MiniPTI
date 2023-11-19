@@ -1,4 +1,5 @@
 from . import interferometry
+from . import _utilities
 
 try:
     from . import pti

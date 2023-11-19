@@ -55,7 +55,6 @@ class Driver(serial_device.Driver):
     def __init__(self):
         serial_device.Driver.__init__(self)
         self.tec = [Tec(1, self), Tec(2, self)]
-        atexit.register(self.clear)
 
     def startup(self):
         self.tec[0].apply_configuration()
@@ -64,6 +63,7 @@ class Driver(serial_device.Driver):
     def clear(self):
         self.tec[0].enabled = False
         self.tec[1].enabled = False
+        super().clear()
 
     @property
     @override

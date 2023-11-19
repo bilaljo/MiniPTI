@@ -10,7 +10,8 @@ from minipti.gui import model
 @dataclass
 class Controllers(ABC):
     main_application: "MainApplication"
-    home: "Home"
+    toolbar: "Toolbar"
+    statusbar: "Statusbar"
     settings: "Settings"
     utilities: "Utilities"
     pump_laser: "PumpLaser"
@@ -33,12 +34,24 @@ class MainApplication(QtWidgets.QApplication):
     def controllers(self) -> Controllers:
         ...
 
+
+class Toolbar(ABC):
     @abstractmethod
-    def close(self) -> None:
+    def on_run(self) -> None:
         ...
 
+    @abstractmethod
+    def enable_motherboard(self) -> None:
+        ...
 
-class Home(ABC):
+    @abstractmethod
+    def shutdown(self) -> None:
+        ...
+
+    @abstractmethod
+    def enable_valve(self) -> None:
+        ...
+
     @abstractmethod
     def init_devices(self) -> None:
         ...
@@ -51,26 +64,6 @@ class Home(ABC):
     def find_devices(self) -> None:
         ...
 
-    @abstractmethod
-    def on_run(self) -> None:
-        ...
-
-    @abstractmethod
-    def fire_motherboard_configuration_change(self) -> None:
-        ...
-
-    @abstractmethod
-    def enable_motherboard(self) -> None:
-        ...
-
-    @abstractmethod
-    def show_settings(self) -> None:
-        ...
-
-    @abstractmethod
-    def show_utilities(self) -> None:
-        ...
-
     @property
     @abstractmethod
     def destination_folder(self) -> model.processing.DestinationFolder:
@@ -81,12 +74,32 @@ class Home(ABC):
         ...
 
     @abstractmethod
-    def shutdown(self) -> None:
+    def show_settings(self) -> None:
         ...
 
     @abstractmethod
-    def enable_valve(self) -> None:
+    def show_utilities(self) -> None:
         ...
+
+    @abstractmethod
+    def set_clean_air(self) -> None:
+        ...
+
+
+class Statusbar(ABC):
+    @property
+    @abstractmethod
+    def view(self) -> QtWidgets.QStatusBar:
+        ...
+
+    @abstractmethod
+    def show_bms(self) -> None:
+        ...
+
+    @abstractmethod
+    def update_destination_folder(self, folder: str) -> None:
+        ...
+
 
 
 class Settings(ABC):
@@ -167,6 +180,10 @@ class Settings(ABC):
     def update_valve_duty_cycle(self, duty_cycle: str) -> None:
         ...
 
+    @abstractmethod
+    def update_enable_on_run(self, enable: bool) -> None:
+        ...
+
 
 class Utilities(ABC):
     @abstractmethod
@@ -199,10 +216,6 @@ class Utilities(ABC):
 
     @abstractmethod
     def plot_characterisation(self) -> None:
-        ...
-
-    @abstractmethod
-    def set_clean_air(self, bypass: bool) -> None:
         ...
 
 

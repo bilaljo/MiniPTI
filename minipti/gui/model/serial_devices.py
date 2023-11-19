@@ -7,6 +7,7 @@ import threading
 import time
 import typing
 from abc import abstractmethod, ABC
+from collections import deque
 from dataclasses import asdict, dataclass
 from datetime import datetime
 
@@ -16,7 +17,7 @@ from overrides import override
 
 import minipti
 from minipti import hardware
-from minipti.gui.model import buffer
+from minipti.gui.model import buffer, configuration
 from minipti.gui.model import signals
 
 LaserData = hardware.laser.Data
@@ -36,10 +37,6 @@ class Serial(ABC):
         self._running = False
         signals.GENERAL_PURPORSE.destination_folder_changed.connect(self._update_destination_folder)
 
-    def is_sampling(self) -> bool:
-        return self.driver.is_sampling()
-
-    # @QtCore.pyqtSlot(str)
     def _update_destination_folder(self, destination_folder: str) -> None:
         self._destination_folder = destination_folder
         self._init_headers = True
@@ -62,12 +59,9 @@ class Serial(ABC):
         """
         self.driver.close()
 
-    @classmethod
-    @abstractmethod
-    def save_configuration(cls) -> None:
+    def save_configuration(self) -> None:
         ...
 
-    @abstractmethod
     def fire_configuration_change(self) -> None:
         """
         By initiation of a Serial Object (on which the laser model relies) the configuration is
@@ -75,7 +69,6 @@ class Serial(ABC):
         once to manually activate the firing.
         """
 
-    @abstractmethod
     def load_configuration(self) -> None:
         self.fire_configuration_change()
 
@@ -91,29 +84,22 @@ class Serial(ABC):
         return processing_thread
 
 
-class Motherboard(Serial):
-    MINIUM_PERCENTAGE = 15
-    CRITICAL_PERCENTAGE = 5
-
+class DAQ(Serial):
     def __init__(self, driver: hardware.motherboard.Driver):
         Serial.__init__(self, driver)
-        self.initialized: bool = False
         self.driver = driver
-        # signals.DAQ.running.connect(self._daq_running_changed)
 
-    def load_configuration(self) -> None:
-        ...
+    @property
+    def ref_signal(self) -> deque:
+        return self.driver.daq.ref_signal
 
-    def save_configuration(self) -> None:
-        ...
+    @property
+    def dc_coupled(self) -> deque:
+        return self.driver.daq.dc_coupled
 
-    def fire_configuration_change(self) -> None:
-        ...
-
-
-class DAQ(Motherboard):
-    def __init__(self, driver: hardware.motherboard.Driver):
-        Motherboard.__init__(self, driver)
+    @property
+    def ac_coupled(self) -> deque:
+        return self.driver.daq.ac_coupled
 
     def save_configuration(self) -> None:
         self.driver.daq.save_configuration()
@@ -142,16 +128,15 @@ class DAQ(Motherboard):
         signals.DAQ.samples_changed.emit(self.driver.daq.configuration.number_of_samples)
 
 
-@dataclass
-class Battery:
-    percentage: int
-    minutes_left: int
+class BMS(Serial):
+    MINIUM_PERCENTAGE = 15
+    CRITICAL_PERCENTAGE = 5
 
-
-class BMS(Motherboard):
     def __init__(self, driver: hardware.motherboard.Driver):
-        Motherboard.__init__(self, driver)
+        Serial.__init__(self, driver)
         self._destination_folder = "."
+        self.driver = driver
+        self.driver.bms.configuration.use_battery = configuration.GUI.battery.use
 
     def shutdown_procedure(self) -> None:
         self.shutdown()
@@ -160,6 +145,7 @@ class BMS(Motherboard):
             subprocess.run(r"shutdown /s /t 1", shell=True)
         else:
             subprocess.run("sleep 0.5s && poweroff", shell=True)
+        exit(0)
 
     def shutdown(self) -> None:
         self.driver.bms.do_shutdown()
@@ -168,26 +154,28 @@ class BMS(Motherboard):
     def centi_kelvin_to_celsius(temperature: float) -> float:
         return round((temperature - 273.15) / 100, 2)
 
+    @override
     def _incoming_data(self) -> None:
         init_headers = True
-        while BMS.DRIVER.connected.is_set():
-            shudtown, bms_data = self.driver.bms_data
-            if shudtown:
+        while self.driver.connected.is_set():
+            shutdown, bms_data = self.driver.bms.data  # type: bool, hardware.motherboard.BMSData
+            if shutdown:
                 logging.critical("BMS has started a shutdown")
                 logging.critical("The system will make an emergency shutdown now")
                 self.shutdown_procedure()
                 return
-            elif Motherboard.CRITICAL_PERCENTAGE < bms_data.battery_percentage < Motherboard.MINIUM_PERCENTAGE:
-                logging.warning(f"Battery below {Motherboard.MINIUM_PERCENTAGE}.")
+            elif BMS.CRITICAL_PERCENTAGE < bms_data.battery_percentage < BMS.MINIUM_PERCENTAGE:
+                logging.warning(f"Battery below {BMS.MINIUM_PERCENTAGE}.")
                 logging.warning("An automatic shutdown will occur soon")
-            elif bms_data.battery_percentage < Motherboard.CRITICAL_PERCENTAGE:
+            elif bms_data.battery_percentage < BMS.CRITICAL_PERCENTAGE:
                 logging.critical("Battery too low")
                 logging.warning("The system will make an emergency shutdown now")
                 self.shutdown_procedure()
                 return
             bms_data.battery_temperature = BMS.centi_kelvin_to_celsius(bms_data.battery_temperature)
-            signals.GENERAL_PURPORSE.battery_state.emit(Battery(bms_data.battery_percentage, bms_data.minutes_left))
-            if self.driver.is_sampling():
+            signals.BMS.battery_data.emit(bms_data)
+            signals.BMS.battery_state.emit(bms_data.charging, bms_data.battery_percentage)
+            if self.driver.sampling and configuration.GUI.save.bms:
                 if init_headers:
                     units = {"Time": "H:M:S", "External DC Power": "bool",
                              "Charging Battery": "bool",
@@ -204,9 +192,10 @@ class BMS(Motherboard):
                 bms_data_frame.to_csv(self._destination_folder + "/BMS.csv", header=False, mode="a")
 
 
-class Valve(Motherboard):
+class Valve(Serial):
     def __init__(self, driver: hardware.motherboard.Driver):
-        Motherboard.__init__(self, driver)
+        Serial.__init__(self, driver)
+        self.driver = driver
 
     @property
     def period(self) -> int:
@@ -242,13 +231,12 @@ class Valve(Motherboard):
             self.driver.valve.automatic_switch.clear()
 
     @property
-    def enable(self) -> bool:
+    def valve_state(self) -> bool:
         return self.driver.valve.bypass
 
-    @enable.setter
-    def enable(self, state: bool) -> None:
-        self.driver.valve.bypass = state
-        signals.VALVE.bypass.emit(state)
+    def change_valve(self) -> None:
+        self.driver.valve.bypass = not self.driver.valve.bypass
+        signals.VALVE.bypass.emit(self.driver.valve.bypass)
 
     @override
     def save_configuration(self) -> None:
@@ -264,21 +252,46 @@ class Valve(Motherboard):
         signals.VALVE.period.emit(self.driver.valve.configuration.period)
         signals.VALVE.automatic_switch.emit(self.driver.valve.configuration.automatic_switch)
 
+    @override
+    def _incoming_data(self) -> None:
+        init_headers = True
+        while self.driver.connected.is_set():
+            if self.driver.sampling and configuration.GUI.valve.save:
+                if init_headers:
+                    units = {"Time": "H:M:S", "Clean Air": "bool", "Aerosole": "bool"}
+                    pd.DataFrame(units, index=["Y:M:D"]).to_csv(self._destination_folder + "/gas.csv",
+                                                                index_label="Date")
+                    init_headers = False
+                now = datetime.now()
+                output_data = {"Time": str(now.strftime("%H:%M:%S")), "Clean Air": self.valve_state,
+                               "Aerosole": not self.valve_state}
+                output_data_data_frame = pd.DataFrame(output_data, index=[str(now.strftime("%Y-%m-%d"))])
+                output_data_data_frame.to_csv(self._destination_folder + "/gas.csv", header=False, mode="a")
 
-class Pump(Motherboard):
+
+class Pump(Serial):
     def __init__(self, driver: hardware.motherboard.Driver):
-        Motherboard.__init__(self, driver)
+        Serial.__init__(self, driver)
+        self.driver = driver
+        self.running = False
 
     @property
     def flow_rate(self) -> float:
-        return self.driver.pump.configuration.flow_rate / hardware.motherboard.Pump.MAX_FLOAT_RATE * 100
+        return self.driver.pump.configuration.duty_cycle / hardware.motherboard.Pump.MAX_DUTY_CYCLE * 100
 
     @flow_rate.setter
     def flow_rate(self, flow_rate: float) -> None:
         if not 0 <= flow_rate <= 100:
             raise ValueError("Invalid value for duty cycle")
-        self.driver.pump.configuration.flow_rate = int(flow_rate / 100 * hardware.motherboard.Pump.MAX_FLOAT_RATE)
-        self.driver.pump.set_flow_rate()
+        self.driver.pump.configuration.duty_cycle = int(flow_rate / 100 * hardware.motherboard.Pump.MAX_DUTY_CYCLE)
+        self.driver.pump.set_duty_cycle()
+
+    def enable_pump(self) -> None:
+        self.running = not self.running
+        if self.running:
+            self.driver.pump.disable_pump()
+        else:
+            self.driver.pump.set_duty_cycle()
 
     @override
     def save_configuration(self) -> None:
@@ -289,6 +302,7 @@ class Pump(Motherboard):
         self.driver.pump.load_configuration()
         self.fire_configuration_change()
 
+    @override
     def fire_configuration_change(self) -> None:
         signals.PUMP.flow_Rate.emit(self.flow_rate)
 
@@ -341,12 +355,12 @@ class Laser(Serial):
         ...
 
     def _incoming_data(self):
-        while self.driver.connected:
+        while self.driver.connected.is_set():
             received_data: hardware.laser.Data = self.driver.data.get(block=True)
             Laser.buffer.append(received_data)
             signals.LASER.data.emit(Laser.buffer)
             signals.LASER.data_display.emit(received_data)
-            if self.driver.is_sampling():
+            if self.driver.sampling and configuration.GUI.save.laser:
                 if self._init_headers:
                     units = {"Time": "H:M:S",
                              "Pump Laser Enabled": "bool",
@@ -773,7 +787,7 @@ class Tec(Serial):
             self._buffer.append(received_data)
             signals.GENERAL_PURPORSE.tec_data.emit(self._buffer)
             signals.GENERAL_PURPORSE.tec_data_display.emit(received_data)
-            if self.driver.is_sampling():
+            if self.driver.sampling and configuration.GUI.save.tec:
                 if self._init_headers:
                     units = {"Time": "H:M:S",
                              "TEC Pump Laser Enabled": "bool",

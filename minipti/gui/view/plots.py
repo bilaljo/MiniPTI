@@ -33,31 +33,25 @@ class Plotting(pg.PlotWidget):
 
     def update_theme(self, theme: str) -> None:
         if theme == "Dark":
-            self.window.setBackground("k")
-            try:
-                self.plot.getAxis('bottom').setPen('w')
-                self.plot.getAxis("left").setPen('w')
-                self.legend.setLabelTextColor("w")
-            except TypeError:
-                for channel in range(len(self.plot)):
-                    self.plot[channel].getAxis('bottom').setPen('w')
-                    self.plot[channel].getAxis('bottom').setTextPen('w')
-                    self.plot[channel].getAxis('left').setPen('w')
-                    self.plot[channel].getAxis('left').setTextPen('w')
+            background = "k"
+            color = "w"
         else:
-            self.window.setBackground("w")
-            self.legend.setLabelTextColor("r")
-            try:
-                self.plot.getAxis('bottom').setPen('k')
-                self.plot.getAxis("left").setPen('k')
-                self.plot.getAxis('bottom').setTextPen('k')
-                self.plot.getAxis("left").setTextPen('k')
-            except TypeError:
-                for channel in range(len(self.plot)):
-                    self.plot[channel].getAxis('bottom').setPen('k')
-                    self.plot[channel].getAxis('bottom').setTextPen('k')
-                    self.plot[channel].getAxis('left').setPen('k')
-                    self.plot[channel].getAxis('left').setTextPen('k')
+            background = "w"
+            color = "k"
+        self.window.setBackground(background)
+        try:
+            self.legend.setLabelTextColor(color)
+        except RuntimeError:
+            pass  # No legend existent
+        try:
+            self.plot.getAxis('bottom').setPen(color)
+            self.plot.getAxis("left").setPen(color)
+        except AttributeError:
+            for channel in range(len(self.plot)):
+                self.plot[channel].getAxis('bottom').setPen(color)
+                self.plot[channel].getAxis('bottom').setTextPen(color)
+                self.plot[channel].getAxis('left').setPen(color)
+                self.plot[channel].getAxis('left').setTextPen(color)
 
     @QtCore.pyqtSlot()
     def clear(self) -> None:
@@ -124,7 +118,7 @@ class DC(DAQPlots):
         self.name = "DC Plots"
         model.signals.DAQ.interferometry.connect(self.update_data_live)
 
-    # @override
+    @override(check_signature=False)
     def update_data_live(self, data: model.buffer.Interferometer) -> None:
         for channel in range(3):
             self.curves[channel].setData(data.time, data.dc_values[channel])
@@ -158,7 +152,7 @@ class Amplitudes(DAQPlots):
         self.name = "Amplitudes"
         model.signals.DAQ.characterization.connect(self.update_data_live)
 
-    # @override
+    @override(check_signature=False)
     def update_data_live(self, data: model.buffer.Characterisation) -> None:
         for channel in range(3):
             self.curves[channel].setData(data.time, data.amplitudes[channel])
@@ -187,7 +181,7 @@ class OutputPhases(DAQPlots):
         self.name = "Output Phases"
         model.signals.DAQ.characterization.connect(self.update_data_live)
 
-    # @override
+    @override(check_signature=False)
     def update_data_live(self, data: model.buffer.Characterisation) -> None:
         for channel in range(2):
             self.curves[channel].setData(data.time, np.rad2deg(data.output_phases[channel]))
@@ -217,7 +211,7 @@ class InterferometricPhase(DAQPlots):
         self.name = "Interferometric Phase"
         model.signals.DAQ.interferometry.connect(self.update_data_live)
 
-    # @override
+    @override(check_signature=False)
     def update_data_live(self, data: model.buffer.Interferometer) -> None:
         self.curves.setData(data.time, data.interferometric_phase)
 
@@ -244,7 +238,7 @@ class Sensitivity(DAQPlots):
         self.name = "Sensitivity"
         model.signals.DAQ.interferometry.connect(self.update_data_live)
 
-    # @override
+    @override(check_signature=False)
     def update_data_live(self, data: model.buffer.Interferometer) -> None:
         for channel in range(3):
             self.curves[channel].setData(data.time, data.sensitivity[channel])
@@ -262,7 +256,7 @@ class Symmetry(DAQPlots):
         self.name = "Symmetry"
         model.signals.DAQ.characterization.connect(self.update_data_live)
 
-    # @override
+    @override(check_signature=False)
     def update_data_live(self, data: model.buffer.Characterisation) -> None:
         self.curves[0].setData(data.time, data.symmetry)
         self.curves[1].setData(data.time, data.relative_symmetry)
@@ -282,6 +276,28 @@ def pti_signal_offline(data: dict[str]) -> None:
         pass
 
 
+class Characterisation(QtWidgets.QTabWidget):
+    def __init__(self):
+        QtWidgets.QTabWidget.__init__(self)
+        self.setLayout(QtWidgets.QHBoxLayout())
+        self.amplitudes = Amplitudes()
+        self.output_phase = OutputPhases()
+        self.symmetry = Symmetry()
+        self.layout().addWidget(self.amplitudes.window)
+        self.layout().addWidget(self.output_phase.window)
+        self.layout().addWidget(self.symmetry.window)
+
+
+class Interferometrie(QtWidgets.QTabWidget):
+    def __init__(self):
+        QtWidgets.QTabWidget.__init__(self)
+        self.setLayout(QtWidgets.QHBoxLayout())
+        self.dc_plot = DC()
+        self.phase_plot = InterferometricPhase()
+        self.layout().addWidget(self.dc_plot.window)
+        self.layout().addWidget(self.phase_plot.window)
+
+
 class PTISignal(DAQPlots):
     def __init__(self):
         DAQPlots.__init__(self)
@@ -292,10 +308,20 @@ class PTISignal(DAQPlots):
         self.name = "PTI Signal"
         model.signals.DAQ.inversion.connect(self.update_data_live)
 
-    # @override
+    @override(check_signature=False)
     def update_data_live(self, data: model.buffer.PTI) -> None:
         self.curves["PTI Signal"].setData(data.time, data.pti_signal)
         self.curves["PTI Signal Mean"].setData(data.time, data.pti_signal_mean)
+
+
+class Measurement(QtWidgets.QTabWidget):
+    def __init__(self):
+        QtWidgets.QTabWidget.__init__(self)
+        self.setLayout(QtWidgets.QHBoxLayout())
+        self.sensitivity = Sensitivity()
+        self.pti = PTISignal()
+        self.layout().addWidget(self.sensitivity.window)
+        self.layout().addWidget(self.pti.window)
 
 
 class PumpLaserCurrent(Plotting):
@@ -306,7 +332,7 @@ class PumpLaserCurrent(Plotting):
         self.plot.setLabel(axis="left", text="Current [mA]")
         model.signals.LASER.data.connect(self.update_data_live)
 
-    # @override
+    @override(check_signature=False)
     def update_data_live(self, data: model.buffer.Laser) -> None:
         self.curves.setData(data.time, data.pump_laser_current)
 
@@ -319,7 +345,7 @@ class ProbeLaserCurrent(Plotting):
         self.plot.setLabel(axis="left", text="Current [mA]")
         model.signals.LASER.data.connect(self.update_data_live)
 
-    # @override
+    @override(check_signature=False)
     def update_data_live(self, data: model.buffer.Laser) -> None:
         self.curves.setData(data.time, data.probe_laser_current)
 
@@ -337,7 +363,34 @@ class TecTemperature(Plotting):
         self.laser = channel
         model.signals.GENERAL_PURPORSE.tec_data.connect(self.update_data_live)
 
-    # @override
+    @override(check_signature=False)
     def update_data_live(self, data: model.buffer.Tec) -> None:
         self.curves[TecTemperature.SET_POINT].setData(data.time, data.set_point[self.laser])
         self.curves[TecTemperature.MEASURED].setData(data.time, data.actual_value[self.laser])
+
+
+class BMS(Plotting):
+    def __init__(self):
+        Plotting.__init__(self)
+        self.window.removeItem(self.plot)
+        self.plot = []
+        self.plot.append(self.window.addPlot(row=0, col=0, title="Temperature", pen=pg.mkPen(_MatplotlibColors.BLUE)))
+        self.plot.append(self.window.addPlot(row=0, col=1, title="Voltage",
+                                             pen=pg.mkPen(_MatplotlibColors.BLUE)))
+        self.plot.append(self.window.addPlot(row=0, col=2, title="Current", pen=pg.mkPen(_MatplotlibColors.BLUE)))
+        self.plot.append(self.window.addPlot(row=1, col=0, title="Percentage", pen=pg.mkPen(_MatplotlibColors.BLUE)))
+        self.plot.append(self.window.addPlot(row=1, col=1, title="Remaining Capacity",
+                                             pen=pg.mkPen(_MatplotlibColors.BLUE)))
+        self.plot.append(self.window.addPlot(row=1, col=2, title="Full Charged Capacity",
+                                             pen=pg.mkPen(_MatplotlibColors.BLUE)))
+        for plot in self.plot:
+            plot.showGrid(x=True, y=True)
+
+    @override(check_signature=False)
+    def update_data_live(self, data: model.buffer.BMS) -> None:
+        self.plot[0].setData(data.time, data.temperature)
+        self.plot[1].setData(data.time, data.voltage)
+        self.plot[2].setData(data.time, data.current)
+        self.plot[3].setData(data.time, data.percentage)
+        self.plot[4].setData(data.time, data.remaining_capacity)
+        self.plot[5].setData(data.time, data.full_charged_capacity)

@@ -8,7 +8,7 @@ import threading
 import time
 from collections import deque
 from dataclasses import dataclass
-from typing import Final, Union, Any, Callable
+from typing import Final, Union, Any
 
 import dacite
 import numpy as np
@@ -21,6 +21,8 @@ from . import serial_device, _json_parser
 
 
 class MotherBoardTools:
+    _QUEUE_SIZE = 50
+
     def __init__(self, tool: str, driver: "Driver", config_type: Any):
         self.tool = tool
         self.driver = driver
@@ -52,6 +54,8 @@ class Valve(MotherBoardTools):
         MotherBoardTools.__init__(self, "Valve", driver, ValveConfiguration)
         self._bypass = protocolls.ASCIIHex("SBP0000")
         self.automatic_switch = threading.Event()
+        self.configuration: Union[ValveConfiguration, None] = None
+
         self.load_configuration()
 
     def automatic_valve_change(self) -> None:
@@ -61,7 +65,8 @@ class Valve(MotherBoardTools):
         """
 
         def switch() -> None:
-            while self.driver.connected.is_set() and self.automatic_switch.is_set():
+            while self.driver.connected.is_set():
+                self.automatic_switch.wait()
                 self.bypass = not self.bypass
                 if self.bypass:
                     time.sleep(self.configuration.period * self.configuration.duty_cycle / 100)
@@ -121,7 +126,13 @@ class BMS(MotherBoardTools):
         self._do_shutdown = protocolls.ASCIIHex("SHD0001")
         self.running = threading.Event()
         self.encoded_data: Union[tuple[bool, BMSData], None] = None
+        self._data = queue.Queue(maxsize=MotherBoardTools._QUEUE_SIZE)
+        self.configuration: Union[BMSConfiguration, None] = None
         self.load_configuration()
+
+    @property
+    def data(self) -> tuple[bool, BMSData]:
+        return self._data.get(block=True)
 
     def encode(self, data: str) -> None:
         shutdown = int(data[BMSIndex.SHUTDOWN:BMSIndex.SHUTDOWN + 2], base=16) < BMS.SHUTDOWN
@@ -150,7 +161,7 @@ class BMS(MotherBoardTools):
             remaining_capacity=int(data[BMSIndex.REMAINING_CAPACITY:BMSIndex.REMAINING_CAPACITY + 4], base=16))
         if self.encoded_data.charging:
             self.encoded_data.minutes_left = float("inf")
-        self.driver.data.BMS.put((shutdown, self.encoded_data))
+        self._data.put((shutdown, self.encoded_data))
 
     def do_shutdown(self) -> None:
         self.driver.write(self._do_shutdown)
@@ -165,24 +176,25 @@ class BMS(MotherBoardTools):
 
 @dataclass
 class PumpConfiguration:
-    flow_rate: int
+    duty_cycle: int
 
 
 class Pump(MotherBoardTools):
-    MAX_FLOAT_RATE: Final = 0xFFFF
+    MAX_DUTY_CYCLE: Final = 0xFFFF
 
     def __init__(self, driver: "Driver"):
         MotherBoardTools.__init__(self, "Pump", driver, PumpConfiguration)
-        self._float_rate_command = protocolls.ASCIIHex("SDP0000")
+        self._duty_cycle_command = protocolls.ASCIIHex("SDP0000")
+        self.configuration: Union[PumpConfiguration, None] = None
         self.load_configuration()
 
-    def set_flow_rate(self) -> None:
-        self._float_rate_command.value = self.configuration.flow_rate
-        self.driver.write(self._float_rate_command)
+    def set_duty_cycle(self) -> None:
+        self._duty_cycle_command.value = self.configuration.duty_cycle
+        self.driver.write(self._duty_cycle_command)
 
     def disable_pump(self) -> None:
-        self._float_rate_command.value = 0
-        self.driver.write(self._float_rate_command)
+        self._duty_cycle_command.value = 0
+        self.driver.write(self._duty_cycle_command)
 
 
 @dataclass
@@ -216,9 +228,21 @@ class DAQ(MotherBoardTools):
                                       [deque(maxlen=DAQ.ENCODED_DATA_SIZE) for _ in range(4)])
         self.samples_buffer = DAQData([], [[], [], []], [[], [], [], []])
         self._running = threading.Event()
-        self.observers_enable: list[Callable] = []
-        self.observers_disable: list[Callable] = []
+        self.data = [queue.Queue(maxsize=DAQ._QUEUE_SIZE) for _ in range(3)]
+        self.configuration: Union[DAQConfiguration, None] = None
         self.load_configuration()
+
+    @property
+    def ref_signal(self) -> deque:
+        return self.data[PackageIndex.REF].get(block=True)
+
+    @property
+    def dc_coupled(self) -> deque:
+        return self.data[PackageIndex.DC].get(block=True)
+
+    @property
+    def ac_coupled(self) -> deque:
+        return self.data[PackageIndex.AC].get(block=True)
 
     @property
     def is_running(self) -> bool:
@@ -227,25 +251,9 @@ class DAQ(MotherBoardTools):
     @is_running.setter
     def is_running(self, run: bool) -> None:
         if run:
-            self.notify_enabled()
             self._running.set()
         else:
-            self.notify_disabled()
             self._running.clear()
-
-    def notify_enabled(self) -> None:
-        """
-        Notifys all observers that DAQ has started to be used.
-        """
-        for observer in self.observers_enable:
-            observer()
-
-    def notify_disabled(self) -> None:
-        """
-        Notifys all observers that DAQ has stopped to be used.
-        """
-        for observer in self.observers_disable:
-            observer()
 
     @property
     def samples_buffer_size(self) -> int:
@@ -285,9 +293,9 @@ class DAQ(MotherBoardTools):
             for channel in range(3):
                 dc_package[channel].append(self.samples_buffer.dc_coupled[channel].pop(0))
                 ac_package[channel].append(self.samples_buffer.ac_coupled[channel].pop(0))
-        self.driver.data.DAQ[PackageIndex.REF].put(np.array(ref), block=False)
-        self.driver.data.DAQ[PackageIndex.DC].put(np.array(dc_package), block=False)
-        self.driver.data.DAQ[PackageIndex.AC].put(np.array(ac_package), block=False)
+        self.data[PackageIndex.REF].put(np.array(ref), block=False)
+        self.data[PackageIndex.DC].put(np.array(dc_package), block=False)
+        self.data[PackageIndex.AC].put(np.array(ac_package), block=False)
 
     def _encode_binary(self, raw_data: str) -> None:
         """
@@ -354,6 +362,7 @@ class DAQ(MotherBoardTools):
                                       [deque(maxlen=DAQ.ENCODED_DATA_SIZE) for _ in range(3)],
                                       [deque(maxlen=DAQ.ENCODED_DATA_SIZE) for _ in range(4)])
         self.samples_buffer = DAQData([], [[], [], []], [[], [], [], []])
+        self.data = [queue.Queue(maxsize=DAQ._QUEUE_SIZE) for _ in range(3)]
 
     def _check_package_difference(self) -> bool:
         package_difference = int(self._sample_numbers[1], base=16) - int(self._sample_numbers[0], base=16)
@@ -408,10 +417,6 @@ class Driver(serial_device.Driver):
         self.valve = Valve(self)
         self.pump = Pump(self)
         self.new_run = True
-        self.daq.observers_enable.append(self.pump.set_flow_rate)
-        self.daq.observers_disable.append(self.pump.disable_pump)
-        self.data = PackageData([queue.Queue(maxsize=Driver._QUEUE_SIZE) for _ in range(3)],
-                                queue.Queue(maxsize=Driver._QUEUE_SIZE))
 
     @property
     def device_id(self) -> bytes:
@@ -420,22 +425,6 @@ class Driver(serial_device.Driver):
     @property
     def device_name(self) -> str:
         return Driver.NAME
-
-    @property
-    def bms_data(self) -> BMSData:
-        return self.data.BMS.get(block=True)
-
-    @property
-    def ref_signal(self) -> deque:
-        return self.data.DAQ[PackageIndex.REF].get(block=True)
-
-    @property
-    def dc_coupled(self) -> deque:
-        return self.data.DAQ[PackageIndex.DC].get(block=True)
-
-    @property
-    def ac_coupled(self) -> deque:
-        return self.data.DAQ[PackageIndex.AC].get(block=True)
 
     @property
     def buffer_size(self) -> int:
@@ -483,10 +472,6 @@ class Driver(serial_device.Driver):
 
     def _process_data(self) -> None:
         self.daq.reset()
-        self.data = PackageData([queue.Queue(maxsize=Driver._QUEUE_SIZE),
-                                 queue.Queue(maxsize=Driver._QUEUE_SIZE),
-                                 queue.Queue(maxsize=Driver._QUEUE_SIZE)],
-                                queue.Queue(maxsize=Driver._QUEUE_SIZE))
         self._package_buffer = ""
         while self.connected.is_set():
             if self.new_run:

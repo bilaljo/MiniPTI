@@ -71,12 +71,12 @@ class Plotting(UtilitiesBase):
         self.setTitle("Plotting")
 
     def _init_button(self) -> None:
-        if model.configuration.GUI.plots.dc_signals:
+        if model.configuration.GUI.utilities.plot.dc:
             self.dc_signals = helper.create_button(parent=self, title="DC Signals",
                                                    slot=self.controller.plot_dc)
-        if model.configuration.GUI.home.plots.interferometric_phase:
+        if model.configuration.GUI.utilities.plot.interferometry:
             self.interferometric_phase = helper.create_button(parent=self, title="Interferometric Phase",
                                                               slot=self.controller.plot_interferometric_phase)
-        if model.configuration.GUI.plots.pti_signal:
+        if model.configuration.GUI.utilities.plot.inversion:
             self.pti_signal = helper.create_button(parent=self, title="PTI Signal",
                                                    slot=self.controller.plot_inversion)

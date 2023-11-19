@@ -1,6 +1,5 @@
 {
     "Pump": {
-        "flow_rate": 65535,
-        "enable_on_run": true
+        "duty_cycle": 32767
     }
 }

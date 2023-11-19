@@ -1,4 +1,6 @@
+import dataclasses
 import json
+import logging
 import os
 import pathlib
 from dataclasses import dataclass
@@ -6,7 +8,6 @@ from typing import Final
 
 import dacite
 
-import minipti
 
 
 @dataclass(frozen=True)
@@ -38,24 +39,7 @@ class _OnRun:
     BMS: bool = True
     pump_laser: _Laser = _Laser(False, False)
     probe_laser: _Laser = _Laser(False, False)
-
-
-@dataclass(frozen=True)
-class _HomePlots:
-    dc_signals: bool = True
-    interferometric_phase: bool = False
-    pti_signal: bool = True
-
-
-@dataclass(frozen=True)
-class _Devices(_Laser):
-    motherboard: bool = True
-
-
-@dataclass(frozen=True)
-class _Connect:
-    use: bool = True
-    devices: _Devices = _Devices()
+    pump: bool = True
 
 
 @dataclass(frozen=True)
@@ -65,29 +49,34 @@ class _DestinationFolder:
 
 
 @dataclass(frozen=True)
-class _Home:
-    use: bool = True
-    use_settings: bool = True
-    use_utilities: bool = True
-    use_valve: bool = True
-    on_run: _OnRun = _OnRun()
-    connect: _Connect = _Connect()
-    use_shutdown: bool = True
-    plots: _HomePlots = _HomePlots()
-
-
-@dataclass(frozen=True)
 class _SystemSettings:
     interferometric: bool = True
     response_phases: bool = True
 
 
 @dataclass(frozen=True)
+class _Valve:
+    use: bool = True
+    bypass_button: bool = True
+    automatic_switch: bool = True
+
+
+@dataclass(frozen=True)
 class _Settings:
     use: bool = True
-    valve: bool = True
     measurement_settings: bool = True
+    pump: bool = True
     system_settings: _SystemSettings = _SystemSettings()
+
+
+@dataclass(frozen=True)
+class _Save:
+    daq: bool = True
+    laser: bool = True
+    tec: bool = True
+    valve: bool = True
+    pump: bool = True
+    bms: bool = True
 
 
 @dataclass(frozen=True)
@@ -120,17 +109,22 @@ class _Plot:
 
 @dataclass(frozen=True)
 class _Plots:
-    dc_signals: _Plot = _Plot()
-    amplitudes: _Plot = _Plot()
-    output_phases: _Plot = _Plot()
-    interferometric_phase: _Plot = _Plot()
-    sensitivity: _Plot = _Plot()
-    pti_signal: _Plot = _Plot()
+    interferometry: _Plot = _Plot()
+    characterisation: _Plot = _Plot()
+    measurement: _Plot = _Plot()
 
 
 @dataclass(frozen=True)
 class _Battery:
-    use: bool = False
+    use: bool = True
+
+
+@dataclass(frozen=True)
+class Connect:
+    use: bool = True
+    motherboard: bool = True
+    tec_driver: bool = True
+    laser_driver: bool = True
 
 
 @dataclass(frozen=True)
@@ -138,20 +132,25 @@ class _GUI:
     window_title: str = "MiniPTI"
     logging: _Logging = _Logging()
     battery: _Battery = _Battery()
-    home: _Home = _Home()
     destination_folder: _DestinationFolder = _DestinationFolder()
     settings: _Settings = _Settings()
     utilities: _Utilities = _Utilities()
+    valve: _Valve = _Valve()
+    save: _Save = _Save()
+    use_shutdown: bool = True
+    connect: Connect = Connect()
     probe_laser: _LaserWindow = _LaserWindow()
     pump_laser: _LaserWindow = _LaserWindow()
     plots: _Plots = _Plots()
+    on_run: _OnRun = _OnRun()
 
 
 def _parse_configuration() -> _GUI:
-    for file in os.listdir(f"{minipti.module_path}/gui/configs"):
+    module_path = f"{pathlib.Path(__file__).parent.parent}/configs"
+    for file in os.listdir(module_path):
         if not pathlib.Path(file).suffix == ".json":
             continue
-        with open(f"{minipti.module_path}/gui/configs/{file}") as config:
+        with open(f"{module_path}/{file}") as config:
             try:
                 loaded_configuration = json.load(config)
                 if loaded_configuration["use"]:
@@ -162,9 +161,21 @@ def _parse_configuration() -> _GUI:
                         loaded_configuration["GUI"]["destination_folder"]["default_path"] = desktop
                     return dacite.from_dict(_GUI, loaded_configuration["GUI"])
             except (json.decoder.JSONDecodeError, dacite.WrongTypeError, dacite.exceptions.MissingValueError,
-                    KeyError):
+                    KeyError) as e:
+                logging.debug(e)
                 continue
     return _GUI()  # Default constructed object
 
 
-GUI: Final = _parse_configuration()
+def _generate_config_file() -> None:
+    gui = _GUI()
+    module_path = f"{pathlib.Path(__file__).parent.parent}/configs"
+    with open(f"{module_path}/sandbox.json", "w") as config:
+        gui_dict = {"use": True, "GUI": dataclasses.asdict(gui)}
+        json.dump(gui_dict, config, indent=4)
+
+
+if __name__ == "__main__":
+    _generate_config_file()
+else:
+    GUI: Final = _parse_configuration()

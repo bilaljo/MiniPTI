@@ -1,13 +1,13 @@
 {
-    "use": true,
+    "use": false,
     "GUI": {
-        "window_title": "MiniPTI Interferometry",
+        "window_title": "MiniPTI",
         "logging": {
             "console": true,
             "file": true
         },
         "battery": {
-            "use": false
+            "use": true
         },
         "destination_folder": {
             "use": true,
@@ -15,57 +15,57 @@
         },
         "settings": {
             "use": true,
-            "measurement_settings": false,
-            "pump": false,
+            "measurement_settings": true,
+            "pump": true,
             "system_settings": {
                 "interferometric": true,
-                "response_phases": false
+                "response_phases": true
             }
         },
         "utilities": {
             "use": true,
             "calculate": {
                 "use": true,
-                "decimation": false,
+                "decimation": true,
                 "interferometry": true,
-                "inversion": false,
+                "inversion": true,
                 "characterisation": true
             },
             "plot": {
                 "dc": true,
                 "interferometry": true,
-                "inversion": false
+                "inversion": true
             }
         },
         "valve": {
-            "use": false,
-            "bypass_button": false,
-            "automatic_switch": false
+            "use": true,
+            "bypass_button": true,
+            "automatic_switch": true
         },
         "save": {
             "daq": true,
-            "laser": false,
-            "tec": false,
-            "valve": false,
-            "pump": false,
-            "bms": false
+            "laser": true,
+            "tec": true,
+            "valve": true,
+            "pump": true,
+            "bms": true
         },
-        "use_shutdown": false,
+        "use_shutdown": true,
         "connect": {
             "use": true,
             "motherboard": true,
-            "tec_driver": false,
-            "laser_driver": false
+            "tec_driver": true,
+            "laser_driver": true
         },
         "probe_laser": {
-            "tec_driver": false,
-            "laser_driver": false,
-            "use": false
+            "tec_driver": true,
+            "laser_driver": true,
+            "use": true
         },
         "pump_laser": {
-            "tec_driver": false,
-            "laser_driver": false,
-            "use": false
+            "tec_driver": true,
+            "laser_driver": true,
+            "use": true
         },
         "plots": {
             "interferometry": {
@@ -75,12 +75,12 @@
                 "use": true
             },
             "measurement": {
-                "use": false
+                "use": true
             }
         },
         "on_run": {
             "DAQ": true,
-            "BMS": false,
+            "BMS": true,
             "pump_laser": {
                 "tec_driver": false,
                 "laser_driver": false
@@ -89,7 +89,7 @@
                 "tec_driver": false,
                 "laser_driver": false
             },
-            "pump": false
+            "pump": true
         }
     }
 }

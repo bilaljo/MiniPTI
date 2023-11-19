@@ -16,6 +16,8 @@ import numpy as np
 import pandas as pd
 from scipy import optimize, linalg
 
+from minipti.algorithm import _utilities
+
 
 class _Locks(typing.NamedTuple):
     output_phases: threading.Lock = threading.Lock()
@@ -295,15 +297,26 @@ class InterferometryData:
     phases: Union[np.ndarray, None] = None
 
 
+@dataclass(frozen=True)
+class CharacterizationSettings:
+    use_default_settings: bool
+    keep_settings: bool
+    number_of_steps: int
+
+
 class Characterization:
     """
     Provided an API for the characterization_live of an interferometer as described in [1].
     [1]:
     """
-    MAX_ITERATIONS: Final[int] = 50
-    STEP_SIZE: Final[int] = 100
+    CONFIGURATION: Final[CharacterizationSettings] = _utilities.load_configuration(CharacterizationSettings,
+                                                                                   "interferometry",
+                                                                                   "characterization")
+    STEP_SIZE: Final = CONFIGURATION.number_of_steps
+    MAX_ITERATIONS: Final = 50
 
-    def __init__(self, interferometer=Interferometer(), use_configuration=True, use_parameters=True):
+    def __init__(self, interferometer=Interferometer(), use_configuration=CONFIGURATION.use_default_settings,
+                 use_parameters=CONFIGURATION.keep_settings):
         self.interferometer = interferometer
         self.tracking_phase = []
         self._occurred_phases = np.full(Characterization.STEP_SIZE, False)

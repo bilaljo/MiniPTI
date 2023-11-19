@@ -66,11 +66,11 @@ class PTI(_DAQ):
         self.time.append(next(self.time_counter) * average_period / time_scaler)
 
     @property
-    def pti_signal(self) -> deque:
+    def pti_signal(self) -> deque[float]:
         return self._pti_signal
 
     @property
-    def pti_signal_mean(self) -> deque:
+    def pti_signal_mean(self) -> deque[float]:
         return self._pti_signal_mean
 
     @override
@@ -95,15 +95,15 @@ class Interferometer(_DAQ):
         return len(self._interferometric_phase) == 0
 
     @property
-    def dc_values(self) -> list[deque]:
+    def dc_values(self) -> list[deque[float]]:
         return self._dc_values
 
     @property
-    def interferometric_phase(self) -> deque:
+    def interferometric_phase(self) -> deque[float]:
         return self._interferometric_phase
 
     @property
-    def sensitivity(self) -> list[deque]:
+    def sensitivity(self) -> list[deque[float]]:
         return self._sensitivity
 
     def append(self, interferometer: algorithm.interferometry.Interferometer) -> None:
@@ -135,30 +135,29 @@ class Characterisation(_DAQ):
     def is_empty(self) -> bool:
         return len(self._output_phases) == 0
 
-    def append(self, characterization: algorithm.interferometry.Characterization,
-               interferometer: algorithm.interferometry.Interferometer) -> None:
+    def append(self, characterization: algorithm.interferometry.Characterization) -> None:
         for i in range(3):
-            self._amplitudes[i].append(interferometer.amplitudes[i])
+            self._amplitudes[i].append(characterization.interferometer.amplitudes[i])
         for i in range(2):
-            self._output_phases[i].append(interferometer.output_phases[i + 1])
-        self.symmetry.append(interferometer.symmetry.absolute)
-        self.relative_symmetry.append(interferometer.symmetry.relative)
+            self._output_phases[i].append(characterization.interferometer.output_phases[i + 1])
+        self.symmetry.append(characterization.interferometer.symmetry.absolute)
+        self.relative_symmetry.append(characterization.interferometer.symmetry.relative)
         self.time.append(characterization.time_stamp)
 
     @property
-    def output_phases(self) -> list[deque]:
+    def output_phases(self) -> list[deque[float]]:
         return self._output_phases
 
     @property
-    def amplitudes(self) -> list[deque]:
+    def amplitudes(self) -> list[deque[float]]:
         return self._amplitudes
 
     @property
-    def symmetry(self) -> deque:
+    def symmetry(self) -> deque[float]:
         return self._symmetry
 
     @property
-    def relative_symmetry(self) -> deque:
+    def relative_symmetry(self) -> deque[float]:
         return self._relative_symmetry
 
     def clear(self) -> None:
@@ -188,20 +187,19 @@ class Laser(BaseClass):
         self.probe_laser_current.append(laser_data.low_power_laser_current)
 
     @property
-    def pump_laser_voltage(self) -> deque:
+    def pump_laser_voltage(self) -> deque[float]:
         return self._pump_laser_voltage
 
     @property
-    def pump_laser_current(self) -> deque:
+    def pump_laser_current(self) -> deque[float]:
         return self._pump_laser_current
 
     @property
-    def probe_laser_current(self) -> deque:
+    def probe_laser_current(self) -> deque[float]:
         return self._probe_laser_current
 
 
 class Tec(BaseClass):
-
     def __init__(self):
         BaseClass.__init__(self)
         self._set_point: list[deque] = [deque(maxlen=BaseClass.QUEUE_SIZE), deque(maxlen=BaseClass.QUEUE_SIZE)]
@@ -218,9 +216,58 @@ class Tec(BaseClass):
         self.time.append(next(self.time_counter))
 
     @property
-    def set_point(self) -> list[deque]:
+    def set_point(self) -> list[deque[float]]:
         return self._set_point
 
     @property
-    def actual_value(self) -> list[deque]:
+    def actual_value(self) -> list[deque[float]]:
         return self._actual_value
+
+
+class BMS(BaseClass):
+    QUEUE_SIZE = 1000
+
+    def __init__(self):
+        BaseClass.__init__(self)
+        self._temperature = deque(maxlen=BMS.QUEUE_SIZE)
+        self._current = deque(maxlen=BMS.QUEUE_SIZE)
+        self._voltage = deque(maxlen=BMS.QUEUE_SIZE)
+        self._percentage = deque(maxlen=BMS.QUEUE_SIZE)
+        self._remaining_capacity = deque(maxlen=BMS.QUEUE_SIZE)
+        self._full_charged_capacity = deque(maxlen=BMS.QUEUE_SIZE)
+
+    def append(self, data: hardware.motherboard.BMSData) -> None:
+        self._temperature.append(data.battery_temperature)
+        self._current.append(data.battery_current)
+        self._voltage.append(data.battery_voltage)
+        self._percentage.append(data.battery_percentage)
+        self._remaining_capacity.append(data.remaining_capacity)
+        self._full_charged_capacity.append(data.full_charged_capacity)
+
+    @property
+    def is_empty(self) -> bool:
+        return len(self._temperature) == 0
+
+    @property
+    def temperature(self) -> deque[float]:
+        return self._temperature
+
+    @property
+    def current(self) -> deque[float]:
+        return self._current
+
+    @property
+    def voltage(self) -> deque[float]:
+        return self._voltage
+
+    @property
+    def percentage(self) -> deque[float]:
+        return self._percentage
+
+    @property
+    def remaining_capacity(self) -> deque[float]:
+        return self._remaining_capacity
+
+    @property
+    def full_charged_capacity(self) -> deque[float]:
+        return self._full_charged_capacity

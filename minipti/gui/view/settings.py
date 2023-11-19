@@ -18,11 +18,12 @@ class SettingsWindow(QtWidgets.QMainWindow):
         self.controller = settings_controller
         self.pti_configuration = PTIConfiguration(settings_controller)
         self.parent.layout().addWidget(self.pti_configuration)
-        if model.configuration.GUI.settings.valve:
+        if model.configuration.GUI.valve.use:
             self.valve_configuration = ValveConfiguration(settings_controller)
             self.parent.layout().addWidget(self.valve_configuration)
-        self.pump_configuration = PumpConfiguration(settings_controller)
-        self.parent.layout().addWidget(self.pump_configuration)
+        if model.configuration.GUI.settings.pump:
+            self.pump_configuration = PumpConfiguration(settings_controller)
+            self.parent.layout().addWidget(self.pump_configuration)
         if model.configuration.GUI.settings.measurement_settings:
             self.measurement_configuration = MeasurementSettings(settings_controller)
             self.parent.layout().addWidget(self.measurement_configuration)
@@ -144,7 +145,7 @@ class PumpConfiguration(QtWidgets.QGroupBox):
         self.setTitle("Pump Configuration")
 
     def _init_buttons(self) -> None:
-        self.layout().addWidget(QtWidgets.QLabel("Flow Rate"), 0, 0)
+        self.layout().addWidget(QtWidgets.QLabel("Duty Cycle"), 0, 0)
         self.layout().addWidget(self.flow, 0, 1)
         self.layout().addWidget(QtWidgets.QLabel("%"), 0, 2)
 
@@ -157,7 +158,11 @@ class PumpConfiguration(QtWidgets.QGroupBox):
 
     def _init_signals(self) -> None:
         self.flow.editingFinished.connect(self._flow_rate_changed)
+        self.enable_on_run.stateChanged.connect(self.enable_on_run_changed)
         model.signals.PUMP.flow_Rate.connect(self.update_flow_rate)
+
+    def enable_on_run_changed(self) -> None:
+        self.controller.update_enable_on_run(self.enable_on_run.isChecked())
 
 
 class ValveConfiguration(QtWidgets.QGroupBox):

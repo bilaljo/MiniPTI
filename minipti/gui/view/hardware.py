@@ -3,11 +3,12 @@ import typing
 from abc import ABC
 from dataclasses import dataclass
 
-from PyQt5 import QtWidgets, QtCore
+from PyQt5 import QtWidgets, QtCore, QtGui
 
+import minipti
 from minipti.gui import model
 from minipti.gui.controller import interface
-from minipti.gui.view import helper
+from minipti.gui.view import helper, plots
 
 
 class Slider(QtWidgets.QWidget):
@@ -432,3 +433,11 @@ class Tec(QtWidgets.QWidget):
 
     def max_power_changed(self) -> None:
         self.controller.update_max_power(self.text_fields.max_power.text())
+
+
+class BMS(QtWidgets.QMainWindow):
+    def __init__(self):
+        QtWidgets.QWidget.__init__(self)
+        self.plots = plots.BMS()
+        self.setWindowTitle("BMS")
+        self.setCentralWidget(self.plots.window)

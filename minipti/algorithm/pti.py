@@ -14,6 +14,7 @@ import pandas as pd
 
 import minipti
 import minipti.algorithm.interferometry as interferometry
+from minipti.algorithm import _utilities
 
 
 @dataclass
@@ -29,6 +30,14 @@ class RawData:
     ac: Union[np.ndarray[np.int16], None]
 
 
+@dataclass(frozen=True)
+class DecimationSettings:
+    amplification: float
+    ref_voltage: float
+    dc_resolution: int
+    ac_resolution: int
+
+
 class Decimation:
     """
     Provided an API for the PTI decimation described in [1] from Weingartner et al.
@@ -37,11 +46,8 @@ class Decimation:
          interferometer for aerosol measurements
     """
     REF_VOLTAGE: Final = 3.3  # V
-    REF_PERIOD: Final = 100  # Samples
-    DC_RESOLUTION: Final = (1 << 12) - 1  # 12 Bit ADC
-    AC_RESOLUTION: Final = (1 << (16 - 1)) - 1  # 16 bit ADC with 2 complement
-    AMPLIFICATION: Final = 100  # Theoretical value given by the hardware
     SAMPLE_PERIOD: Final = 8e3
+    REF_PERIOD: Final = 100  # Samples
 
     UNTIL_MICRO_SECONDS = -3
 
@@ -56,6 +62,7 @@ class Decimation:
         self.file_path: str = ""
         self.init_header: bool = True
         self.use_common_mode_noise_reduction = True
+        self.configuration = _utilities.load_configuration(DecimationSettings, "pti", "decimation")
         self._update_lock_in_look_up_table()
 
     @property
@@ -76,9 +83,9 @@ class Decimation:
         Reads the binary data and save it into numpy arrays. The data is saved into npy archives in
         debug mode.
         """
-        self.raw_data.dc = self.raw_data.dc * Decimation.REF_VOLTAGE / Decimation.DC_RESOLUTION
-        self.raw_data.ac = self.raw_data.ac * Decimation.REF_VOLTAGE / (Decimation.AMPLIFICATION
-                                                                        * Decimation.AC_RESOLUTION)
+        self.raw_data.dc = self.raw_data.dc * Decimation.REF_VOLTAGE / self.configuration.dc_resolution
+        self.raw_data.ac = self.raw_data.ac * Decimation.REF_VOLTAGE / (self.configuration.amplification
+                                                                        * self.configuration.ac_resolution)
 
     def save(self) -> None:
         with h5py.File(f"{self.destination_folder}/raw_data.hdf5", "a") as h5f:
@@ -159,6 +166,12 @@ class Decimation:
             logging.info("Saved results in %s", str(self.destination_folder))
 
 
+@dataclass(frozen=True)
+class InversionSettings:
+    resolution: float
+    sign: int
+
+
 class Inversion:
     """
     Provided an API for the PTI algorithm described in [1] from Weingartner et al.
@@ -166,7 +179,6 @@ class Inversion:
     [1]: Waveguide based passively demodulated photo-thermal
          interferometer for aerosol measurements
     """
-    MICRO_RAD: Final[float] = 1e6
     LOCK_IN_HEADERS: Final = [([f"X{i}" for i in range(1, 4)], [f"Y{i}" for i in range(1, 4)]),
                               ([f"x{i}" for i in range(1, 4)], [f"y{i}" for i in range(1, 4)]),
                               ([f"Lock In Amplitude CH{i}" for i in range(1, 4)],
@@ -174,13 +186,15 @@ class Inversion:
                               ([f"AC CH{i}" for i in range(1, 4)],
                                [f"AC Phase CH{i}" for i in range(1, 4)])]
 
-    def __init__(self, response_phases=None, sign=-1, interferometer=None, decimation=Decimation(),
+    CONFIGURATION: Final[InversionSettings] = _utilities.load_configuration(InversionSettings, "pti",
+                                                                            "inversion")
+
+    def __init__(self, response_phases=None, interferometer=None, decimation=Decimation(),
                  settings_path=f"{minipti.module_path}/algorithm/configs/settings.csv"):
         self.response_phases: np.ndarray = response_phases
         self.pti_signal: Union[float, np.ndarray] = 0
         self.settings_path: str = settings_path
         self.init_header: bool = True
-        self.sign: int = sign  # Makes the pti signal positive if it isn't
         self.interferometer: interferometry.Interferometer = interferometer
         self.decimation = decimation
         self.destination_folder: str = os.getcwd()
@@ -220,7 +234,7 @@ class Inversion:
             pti_signal += demodulated_signal * sign
         total_sensitivity = np.sum(self.interferometer.sensitivity, axis=0)
         self.pti_signal = -pti_signal / total_sensitivity
-        self.pti_signal *= Inversion.MICRO_RAD * self.sign
+        self.pti_signal *= Inversion.CONFIGURATION.resolution * Inversion.CONFIGURATION.sign
 
     def _get_lock_in_data(self, file_path: str) -> None:
         data = pd.read_csv(file_path, sep=None, engine="python", skiprows=[1])

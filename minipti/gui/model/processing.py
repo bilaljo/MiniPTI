@@ -13,7 +13,7 @@ from scipy import ndimage
 
 import minipti
 from minipti import algorithm
-from minipti.gui.model import buffer
+from minipti.gui.model import buffer, serial_devices
 from minipti.gui.model import configuration
 from minipti.gui.model import general_purpose
 from minipti.gui.model import signals
@@ -104,16 +104,16 @@ class LiveCalculation(Calculation):
 
     def _run_calculation(self):
         self._init_calculation()
-        while self.motherboard.driver.daq.running.is_set():
+        while serial_devices.TOOLS.daq.running:
             self._decimation()
             self._interferometer_calculation()
             self._characterisation()
             self._pti_inversion()
 
     def _run_characterization(self) -> None:
-        while self.motherboard.driver.daq.running.is_set():
+        while serial_devices.TOOLS.daq.running:
             self.interferometer_characterization.characterise(live=True)
-            self.characterisation_buffer.append(self.interferometer_characterization, self.interferometer)
+            self.characterisation_buffer.append(self.interferometer_characterization)
             signals.DAQ.characterization.emit(self.characterisation_buffer)
             signals.CALCULATION.settings_interferometer.emit(self.interferometer.characteristic_parameter)
 
@@ -125,9 +125,9 @@ class LiveCalculation(Calculation):
         self.interferometer.load_settings()
 
     def _decimation(self) -> None:
-        self.pti.decimation.raw_data.ref = self.motherboard.driver.ref_signal.copy()
-        self.pti.decimation.raw_data.dc = self.motherboard.driver.dc_coupled.copy()
-        self.pti.decimation.raw_data.ac = self.motherboard.driver.ac_coupled.copy()
+        self.pti.decimation.raw_data.ref = serial_devices.TOOLS.daq.ref_signal.copy()
+        self.pti.decimation.raw_data.dc = serial_devices.TOOLS.daq.dc_coupled.copy()
+        self.pti.decimation.raw_data.ac = serial_devices.TOOLS.daq.ac_coupled.copy()
         self.pti.decimation.run(live=True)
 
     def _interferometer_calculation(self) -> None:

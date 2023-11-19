@@ -1,3 +1,4 @@
+import atexit
 import functools
 import itertools
 import logging
@@ -39,8 +40,6 @@ class Driver(ABC):
     _IO_BUFFER_SIZE = 8000
     _SEARCH_ATTEMPTS = 3
 
-    SAMPLE = threading.Event()
-
     def __init__(self):
         self._is_found = False
         self._port_name = ""
@@ -56,10 +55,22 @@ class Driver(ABC):
         else:
             self._file_descriptor = -1
         self.connected = threading.Event()
+        self._sampling = threading.Event()
+        atexit.register(self.clear)
 
-    @classmethod
-    def is_sampling(cls) -> bool:
-        return cls.SAMPLE.is_set()
+    def clear(self) -> None:
+        self.close()
+
+    @property
+    def sampling(self) -> bool:
+        return self._sampling.is_set()
+
+    @sampling.setter
+    def sampling(self, sampling: bool) -> None:
+        if sampling:
+            self._sampling.set()
+        else:
+            self._sampling.clear()
 
     @property
     def port_name(self) -> str:

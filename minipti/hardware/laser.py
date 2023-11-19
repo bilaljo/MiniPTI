@@ -38,7 +38,6 @@ class Driver(serial_device.Driver):
         self.high_power_laser = HighPowerLaser(self)
         self.low_power_laser = LowPowerLaser(self)
         self.encode = False
-        atexit.register(self.clear)
 
     def startup(self):
         self.high_power_laser.initialize()
@@ -52,6 +51,7 @@ class Driver(serial_device.Driver):
     def clear(self):
         self.low_power_laser.enabled = False
         self.high_power_laser.enabled = False
+        super().clear()
 
     @property
     def device_id(self) -> bytes:

@@ -1,0 +1,24 @@
+{
+    "Algorithm": {
+        "interferometry": {
+            "characterization": {
+                "use_default_settings": true,
+                "keep_settings": true,
+                "number_of_steps": 100
+            },
+            "interferometer": null
+        },
+        "pti": {
+            "decimation": {
+                "amplification": 100,
+                "ref_voltage": 3.3,
+                "dc_resolution": 4095,
+                "ac_resolution": 32767
+            },
+            "inversion": {
+                "resolution": 1e6,
+                "sign": -1
+            }
+        }
+    }
+}
