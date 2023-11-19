@@ -20,12 +20,12 @@ class DriverTests(unittest.TestCase):
     def setUp(self) -> None:
         self.driver.daq.synchronize = False
         DriverTests.driver.bms.running.set()
-        DriverTests.driver.daq.running.set()
+        DriverTests.driver.daq.is_running = True
         DriverTests.driver.connected.set()
 
     def tearDown(self) -> None:
         DriverTests.driver.bms.running.clear()
-        DriverTests.driver.daq.running.clear()
+        DriverTests.driver.daq.is_running = False
 
 
 class DAQTest(DriverTests):
@@ -189,7 +189,7 @@ class MotherBoardBMS(DAQTest):
         self.driver.received_data.put(self.received_data_bms[3] + "\n" + self.received_data_bms[1])
         self.driver.encode_data()
         self.assertEqual(self.driver.buffer_size, len(self.received_data_bms[1]))
-        self.assertTrue(self.driver.bms_package_empty)
+        self.assertTrue(self.driver.bms.empty)
         self.driver.clear_buffer()
 
     def test_bms_5_too_long_package(self) -> None:
@@ -217,7 +217,7 @@ class MotherBoardDAQBMS(DAQTest):
         """
         A test case where complete BMS and DAQ packages are in one run transmitted.
         """
-        self.driver.daq.running.set()
+        self.driver.daq.is_running = True
         self.driver.received_data.put(self.received_data_package[0] + "\n"
                                       + self.received_data_package[1] + "\n"
                                       + self.received_data_package[2] + "\n", block=False)

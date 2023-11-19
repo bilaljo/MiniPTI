@@ -163,6 +163,10 @@ class BMS(MotherBoardTools):
             self.encoded_data.minutes_left = float("inf")
         self._data.put((shutdown, self.encoded_data))
 
+    @property
+    def empty(self) -> bool:
+        return self._data.empty()
+
     def do_shutdown(self) -> None:
         self.driver.write(self._do_shutdown)
 
@@ -384,12 +388,6 @@ class DAQ(MotherBoardTools):
             logging.info("Saved valve DAQ configuration in %s", self.config_path)
 
 
-@dataclass
-class PackageData:
-    DAQ: list[queue.Queue, queue.Queue, queue.Queue]
-    BMS: queue.Queue
-
-
 class PackageIndex(enum.IntEnum):
     REF = 0
     AC = 1
@@ -429,10 +427,6 @@ class Driver(serial_device.Driver):
     @property
     def buffer_size(self) -> int:
         return len(self._package_buffer)
-
-    @property
-    def bms_package_empty(self) -> bool:
-        return self.data.BMS.empty()
 
     def clear_buffer(self) -> None:
         self._package_buffer = ""

@@ -9,7 +9,6 @@ from typing import Final
 import dacite
 
 
-
 @dataclass(frozen=True)
 class _Logging:
     console: bool = True
