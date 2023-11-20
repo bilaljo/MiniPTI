@@ -20,12 +20,12 @@ class DriverTests(unittest.TestCase):
     def setUp(self) -> None:
         self.driver.daq.synchronize = False
         DriverTests.driver.bms.running.set()
-        DriverTests.driver.daq.is_running = True
+        DriverTests.driver.daq.running.set()
         DriverTests.driver.connected.set()
 
     def tearDown(self) -> None:
         DriverTests.driver.bms.running.clear()
-        DriverTests.driver.daq.is_running = False
+        DriverTests.driver.daq.running.clear()
 
 
 class DAQTest(DriverTests):
