@@ -110,7 +110,7 @@ class DAQ(Serial):
 
     @property
     def running(self) -> bool:
-        return self.driver.daq.is_running
+        return self.driver.daq.running.is_set()
 
     @running.setter
     def running(self, running: bool):
@@ -118,10 +118,10 @@ class DAQ(Serial):
             # Before we start a new run, we clear all old data
             self.driver.reset()
             signals.DAQ.clear.emit()
-            self.driver.daq.is_running = True
+            self.driver.daq.running.set()
             signals.DAQ.running.emit(True)
         else:
-            self.driver.daq.is_running = False
+            self.driver.daq.running.clear()
             signals.DAQ.running.emit(False)
 
     def fire_configuration_change(self) -> None:
@@ -281,11 +281,11 @@ class Pump(Serial):
         self.driver.pump.set_duty_cycle()
 
     def enable_pump(self) -> None:
-        self.running = not self.running
         if self.running:
             self.driver.pump.disable_pump()
         else:
             self.driver.pump.set_duty_cycle()
+        self.running = not self.running
 
     @override
     def save_configuration(self) -> None:

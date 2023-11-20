@@ -41,7 +41,7 @@ class Toolbar(ABC):
         ...
 
     @abstractmethod
-    def enable_motherboard(self) -> None:
+    def enable_daq(self) -> None:
         ...
 
     @abstractmethod

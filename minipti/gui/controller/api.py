@@ -113,10 +113,10 @@ class Toolbar(interface.Toolbar):
         if model.configuration.GUI.on_run.pump:
             model.serial_devices.TOOLS.pump.enable_pump()
         if model.configuration.GUI.on_run.DAQ:
-            self.enable_motherboard()
+            self.enable_daq()
 
     @override
-    def enable_motherboard(self) -> None:
+    def enable_daq(self) -> None:
         if not model.serial_devices.DRIVER.motherboard.connected:
             QtWidgets.QMessageBox.critical(self.view, "IO Error",
                                            "Cannot enable Motherboard. Motherboard is not connected.")
@@ -124,7 +124,7 @@ class Toolbar(interface.Toolbar):
             logging.warning("Motherboard is not connected")
         else:
             if self.running:
-                model.serial_devices.DRIVER.motherboard.running = True
+                model.serial_devices.TOOLS.daq.running = True
                 self.calculation_model.process_daq_data()
             else:
                 model.serial_devices.DRIVER.motherboard.running = False

@@ -231,7 +231,7 @@ class DAQ(MotherBoardTools):
                                       [deque(maxlen=DAQ.ENCODED_DATA_SIZE) for _ in range(3)],
                                       [deque(maxlen=DAQ.ENCODED_DATA_SIZE) for _ in range(4)])
         self.samples_buffer = DAQData([], [[], [], []], [[], [], [], []])
-        self._running = threading.Event()
+        self.running = threading.Event()
         self.data = [queue.Queue(maxsize=DAQ._QUEUE_SIZE) for _ in range(3)]
         self.configuration: Union[DAQConfiguration, None] = None
         self.load_configuration()
@@ -249,17 +249,6 @@ class DAQ(MotherBoardTools):
         return self.data[PackageIndex.AC].get(block=True)
 
     @property
-    def is_running(self) -> bool:
-        return self._running.is_set()
-
-    @is_running.setter
-    def is_running(self, run: bool) -> None:
-        if run:
-            self._running.set()
-        else:
-            self._running.clear()
-
-    @property
     def samples_buffer_size(self) -> int:
         return len(self.samples_buffer.ref_signal)
 
@@ -273,12 +262,12 @@ class DAQ(MotherBoardTools):
         self.update_buffer_size()
 
     def update_buffer_size(self) -> None:
-        if self.is_running:
+        if self.running.is_set():
             logging.warning("Encoding is running. Need to pause is to update the buffer size and reset samples")
-            self.is_running = False
+            self.running.clear()
         self.samples_buffer = DAQData([], [[], [], []], [[], [], [], []])
         self.reset()
-        self.is_running = True
+        self.running.set()
 
     def build_sample_package(self) -> None:
         """
@@ -440,10 +429,11 @@ class Driver(serial_device.Driver):
 
     def reset(self) -> None:
         self.clear_buffer()
+        self.daq.reset()
 
     @override
     def _encode(self, data: str) -> None:
-        if self.daq.is_running and data[0] == "D" and len(data) == DAQ.PACKAGE_SIZE + Driver.CRC_SIZE + 1:
+        if self.daq.running.is_set() and data[0] == "D" and len(data) == DAQ.PACKAGE_SIZE + Driver.CRC_SIZE + 1:
             if not self._crc_check(data, "DAQ"):
                 return
             self.daq.encode(data[1:-Driver._CRC_START])
