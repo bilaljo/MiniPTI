@@ -249,7 +249,7 @@ class Valve(Serial):
         init_headers = True
         while self.driver.connected.is_set():
             self.driver.wait()
-            if configuration.GUI.valve.save:
+            if configuration.GUI.save.valve:
                 if init_headers:
                     units = {"Time": "H:M:S", "Clean Air": "bool", "Aerosole": "bool"}
                     pd.DataFrame(units, index=["Y:M:D"]).to_csv(self._destination_folder + "/gas.csv",

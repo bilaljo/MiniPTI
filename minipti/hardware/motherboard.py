@@ -53,9 +53,8 @@ class Valve(MotherBoardTools):
     def __init__(self, driver: "Driver"):
         MotherBoardTools.__init__(self, "Valve", driver, ValveConfiguration)
         self._bypass = protocolls.ASCIIHex("SBP0000")
-        self.automatic_switch = threading.Event()
+        self._automatic_switch = threading.Event()
         self.configuration: Union[ValveConfiguration, None] = None
-
         self.load_configuration()
 
     def automatic_valve_change(self) -> None:
@@ -63,10 +62,9 @@ class Valve(MotherBoardTools):
         Periodically bypass a valve. The duty cycle defines how much time for each part (bypassed
         or not) is spent.
         """
-
         def switch() -> None:
             while self.driver.connected.is_set():
-                self.automatic_switch.wait()
+                self._automatic_switch.wait()
                 self.bypass = not self.bypass
                 if self.bypass:
                     time.sleep(self.configuration.period * self.configuration.duty_cycle / 100)
@@ -74,6 +72,24 @@ class Valve(MotherBoardTools):
                     time.sleep(self.configuration.period * (1 - self.configuration.duty_cycle / 100))
 
         threading.Thread(target=switch, daemon=True).start()
+
+    @property
+    def automatic_switch(self):
+        return self._automatic_switch.is_set()
+
+    @automatic_switch.setter
+    def automatic_switch(self, automatic_switch: bool) -> None:
+        self.configuration.automatic_switch = automatic_switch
+        if automatic_switch:
+            self._automatic_switch.set()
+        else:
+            self._automatic_switch.clear()
+
+    @override
+    def load_configuration(self) -> None:
+        super().load_configuration()
+        if self.configuration.automatic_switch:
+            self.automatic_switch.set()
 
     @property
     def bypass(self) -> bool:
@@ -416,6 +432,11 @@ class Driver(serial_device.Driver):
     @property
     def buffer_size(self) -> int:
         return len(self._package_buffer)
+    
+    @override
+    def clear(self) -> None:
+        self.pump.disable_pump()
+        super().clear()
 
     def clear_buffer(self) -> None:
         self._package_buffer = ""

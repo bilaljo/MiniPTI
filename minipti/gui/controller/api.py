@@ -98,23 +98,21 @@ class Toolbar(interface.Toolbar):
     @override
     def on_run(self) -> None:
         self.running = not self.running
+        model.serial_devices.DRIVER.laser.sampling = self.running
+        model.serial_devices.DRIVER.tec.sampling = self.running
+        model.serial_devices.DRIVER.motherboard.sampling = self.running
         if model.configuration.GUI.on_run.pump_laser.laser_driver:
             model.serial_devices.TOOLS.pump_laser.enabled = self.running
-            model.serial_devices.DRIVER.laser.sampling = self.running
         if model.configuration.GUI.on_run.probe_laser.laser_driver:
             model.serial_devices.TOOLS.probe_laser.enabled = self.running
-            model.serial_devices.DRIVER.laser.sampling = self.running
         if model.configuration.GUI.on_run.pump_laser.tec_driver:
             model.serial_devices.TOOLS.tec[model.serial_devices.Tec.PUMP_LASER].enabled = self.running
-            model.serial_devices.DRIVER.laser.sampling = self.running
         if model.configuration.GUI.on_run.probe_laser.tec_driver:
             model.serial_devices.TOOLS.tec[model.serial_devices.Tec.PROBE_LASER].enabled = self.running
-            model.serial_devices.DRIVER.laser.sampling = self.running
         if model.configuration.GUI.on_run.pump:
             model.serial_devices.TOOLS.pump.enable_pump()
         if model.configuration.GUI.on_run.DAQ:
             self.enable_daq()
-            model.serial_devices.DRIVER.motherboard.sampling = self.running
 
     @override
     def enable_daq(self) -> None:

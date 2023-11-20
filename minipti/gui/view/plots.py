@@ -389,9 +389,16 @@ class BMS(Plotting):
 
     @override(check_signature=False)
     def update_data_live(self, data: model.buffer.BMS) -> None:
-        self.plot[0].setData(0, data.time, data.temperature)
-        self.plot[1].setData(1, data.time, data.voltage)
-        self.plot[2].setData(2, data.time, data.current)
-        self.plot[3].setData(3, data.time, data.percentage)
-        self.plot[4].setData(4, data.time, data.remaining_capacity)
-        self.plot[5].setData(5, data.time, data.full_charged_capacity)
+        self.plot = []
+        self.plot.append(self.window.addPlot(row=0, col=0, title="Temperature", pen=pg.mkPen(_MatplotlibColors.BLUE),
+                                             x=data.time, y=data.temperature))
+        self.plot.append(self.window.addPlot(row=0, col=1, title="Voltage", pen=pg.mkPen(_MatplotlibColors.BLUE),
+                                             x=data.time, y=data.voltage))
+        self.plot.append(self.window.addPlot(row=0, col=2, title="Current", pen=pg.mkPen(_MatplotlibColors.BLUE),
+                                             x=data.time, y=data.current))
+        self.plot.append(self.window.addPlot(row=1, col=0, title="Percentage", pen=pg.mkPen(_MatplotlibColors.BLUE),
+                                             x=data.time, y=data.percentage))
+        self.plot.append(self.window.addPlot(row=1, col=1, title="Remaining Capacity", x=data.time,
+                                             y=data.remaining_capacity, pen=pg.mkPen(_MatplotlibColors.BLUE)))
+        self.plot.append(self.window.addPlot(row=1, col=2, title="Full Charged Capacity", x=data.time,
+                                             y=data.full_charged_capacity, pen=pg.mkPen(_MatplotlibColors.BLUE)))
