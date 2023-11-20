@@ -176,5 +176,5 @@ def _generate_config_file() -> None:
 
 if __name__ == "__main__":
     _generate_config_file()
-else:
-    GUI: Final = _parse_configuration()
+
+GUI: Final = _parse_configuration()

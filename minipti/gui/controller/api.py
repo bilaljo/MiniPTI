@@ -52,7 +52,7 @@ class MainApplication(interface.MainApplication):
         model.signals.GENERAL_PURPORSE.theme_changed.connect(self.update_theme)
         threading.Thread(target=model.general_purpose.theme_observer, daemon=True).start()
         self.controllers.toolbar.init_devices()
-        threading.excepthook = self.thread_exception
+        # threading.excepthook = self.thread_exception
 
     @QtCore.pyqtSlot(str)
     def update_theme(self, theme: str) -> None:
@@ -201,14 +201,14 @@ class Toolbar(interface.Toolbar):
             try:
                 model.serial_devices.DRIVER.laser.open()
                 model.serial_devices.DRIVER.laser.run()
-                model.serial_devices.DRIVER.laser.process_measured_data()
+                model.serial_devices.TOOLS.pump_laser.process_measured_data()
             except OSError:
                 logging.error("Could not connect with Laser Driver")
         if model.serial_devices.DRIVER.tec.is_found:
             try:
                 model.serial_devices.DRIVER.tec.open()
                 model.serial_devices.DRIVER.tec.run()
-                model.serial_devices.DRIVER.laser.process_measured_data()
+                model.serial_devices.TOOLS.tec[0].process_measured_data()
             except OSError:
                 logging.error("Could not connect with TEC Driver")
 

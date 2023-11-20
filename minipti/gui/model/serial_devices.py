@@ -805,8 +805,8 @@ class Tec(Serial):
 @dataclass
 class Driver:
     motherboard: hardware.motherboard.Driver = hardware.motherboard.Driver()
-    laser: hardware.motherboard.Driver = hardware.laser.Driver()
-    tec: hardware.motherboard.Driver = hardware.tec.Driver()
+    laser: hardware.laser.Driver = hardware.laser.Driver()
+    tec: hardware.tec.Driver = hardware.tec.Driver()
 
 
 DRIVER: typing.Final = Driver()
