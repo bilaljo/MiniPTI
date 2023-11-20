@@ -3,12 +3,11 @@ import typing
 from abc import ABC
 from dataclasses import dataclass
 
-from PyQt5 import QtWidgets, QtCore, QtGui
+from PyQt5 import QtWidgets, QtCore
 
-import minipti
 from minipti.gui import model
 from minipti.gui.controller import interface
-from minipti.gui.view import helper, plots
+from minipti.gui.view import helper
 
 
 class Slider(QtWidgets.QWidget):
