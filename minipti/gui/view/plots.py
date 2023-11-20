@@ -385,6 +385,7 @@ class BMS(Plotting):
                                              pen=pg.mkPen(_MatplotlibColors.BLUE)))
         for plot in self.plot:
             plot.showGrid(x=True, y=True)
+        model.signals.BMS.battery_data.connect(self.update_data_live)
 
     @override(check_signature=False)
     def update_data_live(self, data: model.buffer.BMS) -> None:

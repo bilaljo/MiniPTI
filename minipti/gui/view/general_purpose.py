@@ -117,17 +117,16 @@ class StatusBar(QtWidgets.QStatusBar):
     def _set_battery_icon(self, percentage: float, charing: bool):
         suffix = "_charging.png" if charing else ".svg"
         if percentage > StatusBar.BATTERY_THREE_QUARATERS_FULL:
-            self.charging_indicator.setIcon(QtGui.QPixmap(f"{self.base_path}/100_percent{suffix}"))
+            self.charging_indicator.setIcon(QtGui.QIcon(f"{self.base_path}/100_percent{suffix}"))
         elif percentage > StatusBar.BATTERY_HALF_FULL:
-            self.charging_indicator.setIcon(QtGui.QPixmap(f"{self.base_path}/75_percent{suffix}"))
+            self.charging_indicator.setIcon(QtGui.QIcon(f"{self.base_path}/75_percent{suffix}"))
         elif percentage > StatusBar.BATTERY_QUARTER_FULL:
-            self.charging_indicator.setIcon(QtGui.QPixmap(f"{self.base_path}/50_percent{suffix}"))
+            self.charging_indicator.setIcon(QtGui.QIcon(f"{self.base_path}/50_percent{suffix}"))
         else:
-            self.charging_indicator.setIcon(QtGui.QPixmap(f"{self.base_path}/25_percent{suffix}"))
+            self.charging_indicator.setIcon(QtGui.QIcon(f"{self.base_path}/25_percent{suffix}"))
 
     @QtCore.pyqtSlot(bool, float)
-    def update_battery_state(self, state: tuple[bool, float]) -> None:
-        charging, percentage = state
+    def update_battery_state(self, charging: bool, percentage: int) -> None:
         self._set_battery_icon(percentage, charging)
         # We clip up every decimal place because so preciouse information about percentage is rather confusing
         if charging:
