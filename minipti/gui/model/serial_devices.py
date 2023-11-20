@@ -246,7 +246,8 @@ class Valve(Serial):
     def _incoming_data(self) -> None:
         init_headers = True
         while self.driver.connected.is_set():
-            if self.driver.sampling and configuration.GUI.valve.save:
+            self.driver.wait()
+            if configuration.GUI.valve.save:
                 if init_headers:
                     units = {"Time": "H:M:S", "Clean Air": "bool", "Aerosole": "bool"}
                     pd.DataFrame(units, index=["Y:M:D"]).to_csv(self._destination_folder + "/gas.csv",
@@ -257,7 +258,7 @@ class Valve(Serial):
                                "Aerosole": not self.valve_state}
                 output_data_data_frame = pd.DataFrame(output_data, index=[str(now.strftime("%Y-%m-%d"))])
                 output_data_data_frame.to_csv(self._destination_folder + "/gas.csv", header=False, mode="a")
-
+                time.sleep(1)
 
 class Pump(Serial):
     def __init__(self, driver: hardware.motherboard.Driver):

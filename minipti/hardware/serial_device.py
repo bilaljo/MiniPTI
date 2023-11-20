@@ -61,6 +61,9 @@ class Driver(ABC):
     def clear(self) -> None:
         self.close()
 
+    def wait(self) -> None:
+        self._sampling.wait()
+
     @property
     def sampling(self) -> bool:
         return self._sampling.is_set()

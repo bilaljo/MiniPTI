@@ -112,7 +112,7 @@ class Toolbar(interface.Toolbar):
             model.serial_devices.DRIVER.laser.sampling = self.running
         if model.configuration.GUI.on_run.pump:
             model.serial_devices.TOOLS.pump.enable_pump()
-        if model.configuration.GUI.home.on_run.DAQ:
+        if model.configuration.GUI.on_run.DAQ:
             self.enable_motherboard()
 
     @override
