@@ -49,10 +49,6 @@ class Toolbar(ABC):
         ...
 
     @abstractmethod
-    def enable_valve(self) -> None:
-        ...
-
-    @abstractmethod
     def init_devices(self) -> None:
         ...
 
@@ -82,7 +78,7 @@ class Toolbar(ABC):
         ...
 
     @abstractmethod
-    def set_clean_air(self) -> None:
+    def change_valve(self) -> None:
         ...
 
 
@@ -99,7 +95,6 @@ class Statusbar(ABC):
     @abstractmethod
     def update_destination_folder(self, folder: str) -> None:
         ...
-
 
 
 class Settings(ABC):

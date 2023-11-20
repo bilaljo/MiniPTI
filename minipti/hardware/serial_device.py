@@ -16,6 +16,7 @@ from typing import Union
 from overrides import final
 
 if platform.system() == "Windows":
+    import clr
     import System
 else:
     import termios

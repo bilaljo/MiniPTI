@@ -5,7 +5,10 @@ import threading
 import typing
 from dataclasses import dataclass
 
-import qdarktheme
+try:
+    import qdarktheme
+except ModuleNotFoundError:
+    pass
 from PyQt5 import QtWidgets, QtCore
 from overrides import override
 
@@ -13,7 +16,6 @@ import minipti
 from minipti.gui import model
 from minipti.gui import view
 from minipti.gui.controller import interface
-from minipti.gui.view import plots
 
 
 @dataclass
@@ -56,7 +58,10 @@ class MainApplication(interface.MainApplication):
 
     @QtCore.pyqtSlot(str)
     def update_theme(self, theme: str) -> None:
-        qdarktheme.setup_theme(theme.casefold())
+        try:
+            qdarktheme.setup_theme(theme.casefold())
+        except ModuleNotFoundError:
+            pass
         for plot in self.view.plots:  # type: typing.Union[view.plots.Plotting, list]
             try:
                 plot.update_theme(theme)
@@ -135,10 +140,6 @@ class Toolbar(interface.Toolbar):
         model.serial_devices.TOOLS.bms.shutdown_procedure()
 
     @override
-    def enable_valve(self) -> None:
-        model.serial_devices.TOOLS.valve.enable = not model.serial_devices.TOOLS.valve.enable
-
-    @override
     def show_settings(self) -> None:
         self.settings_controller.view.show()
 
@@ -212,19 +213,19 @@ class Toolbar(interface.Toolbar):
                 logging.error("Could not connect with TEC Driver")
 
     @override
-    def set_clean_air(self) -> None:
-        model.serial_devices.TOOLS.valve.change_valve()
+    def change_valve(self) -> None:
+        model.serial_devices.TOOLS.valve.bypass = not model.serial_devices.TOOLS.valve.bypass
 
 
 class Statusbar(interface.Statusbar):
     def __init__(self):
         self._view = view.general_purpose.StatusBar(self)
-        self.bms = view.hardware.BMS()
+        self.bms = view.general_purpose.BatteryWindow()
         self.view.showMessage(str(minipti.module_path.parent))
 
     @property
     @override
-    def view(self) -> QtWidgets.QStatusBar:
+    def view(self) -> view.general_purpose.StatusBar:
         return self._view
 
     @override
@@ -233,7 +234,7 @@ class Statusbar(interface.Statusbar):
 
     @override
     def update_destination_folder(self, folder: str) -> None:
-        self.view.showMessage(folder)
+        self.view.addWidget(QtWidgets.QLabel(folder))
 
 
 class Settings(interface.Settings):
@@ -356,7 +357,7 @@ class Settings(interface.Settings):
         except ValueError:
             period = 600
         try:
-            model.serial_devices.TOOLS.valve.valve_period = period
+            model.serial_devices.TOOLS.valve.period = period
         except ValueError as error:
             info_text = "Value must be a positive integer"
             logging.error(str(error))
@@ -383,7 +384,7 @@ class Settings(interface.Settings):
 
     @override
     def update_automatic_valve_switch(self, automatic_valve_switch: bool) -> None:
-        model.serial_devices.TOOLS.valve.automatic_valve_switch = automatic_valve_switch
+        model.serial_devices.TOOLS.valve.automatic_switch = automatic_valve_switch
 
     @override
     def update_bypass(self) -> None:
@@ -409,10 +410,10 @@ class Utilities(interface.Utilities):
         self.view = view.utilities.UtilitiesWindow(self)
         self.calculation_model = model.processing.OfflineCalculation()
         self.last_file_path = os.getcwd()
-        self.interferometric_phase_offline = plots.InterferometricPhaseOffline()
-        self.dc_offline = plots.DCOffline()
+        self.interferometric_phase_offline = view.plots.InterferometricPhaseOffline()
+        self.dc_offline = view.plots.DCOffline()
         model.signals.CALCULATION.dc_signals.connect(self.dc_offline.plot)
-        model.signals.CALCULATION.inversion.connect(plots.pti_signal_offline)
+        model.signals.CALCULATION.inversion.connect(view.plots.pti_signal_offline)
         model.signals.CALCULATION.interferometric_phase.connect(self.interferometric_phase_offline.plot)
         # model.theme_signal.changed.connect(view.utilities.update_matplotlib_theme)
 

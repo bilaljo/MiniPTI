@@ -89,7 +89,7 @@ class Valve(MotherBoardTools):
     def load_configuration(self) -> None:
         super().load_configuration()
         if self.configuration.automatic_switch:
-            self.automatic_switch.set()
+            self._automatic_switch.set()
 
     @property
     def bypass(self) -> bool:
@@ -435,7 +435,6 @@ class Driver(serial_device.Driver):
     
     @override
     def clear(self) -> None:
-        self.pump.disable_pump()
         super().clear()
 
     def clear_buffer(self) -> None:

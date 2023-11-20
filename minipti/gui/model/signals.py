@@ -103,7 +103,7 @@ class _DAQ(QtCore.QObject):
 @dataclass(init=False, frozen=True)
 class _BMS(QtCore.QObject):
     battery_state = QtCore.pyqtSignal(bool, float)
-    battery_data = QtCore.pyqtSignal(buffer.BMS)
+    battery_data = QtCore.pyqtSignal(float, float, float)
 
     def __init__(self):
         QtCore.QObject.__init__(self)

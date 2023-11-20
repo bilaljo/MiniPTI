@@ -433,11 +433,3 @@ class Tec(QtWidgets.QWidget):
 
     def max_power_changed(self) -> None:
         self.controller.update_max_power(self.text_fields.max_power.text())
-
-
-class BMS(QtWidgets.QMainWindow):
-    def __init__(self):
-        QtWidgets.QWidget.__init__(self)
-        self.plots = plots.BMS()
-        self.setWindowTitle("BMS")
-        self.setCentralWidget(self.plots.window)

@@ -3,7 +3,7 @@ from typing import Any, Callable, Union
 from PyQt5 import QtWidgets
 
 
-def toggle_button(checked, button: Union[QtWidgets.QPushButton, QtWidgets.QToolButton]) -> None:
+def toggle_button(checked, button: Union[QtWidgets.QPushButton, QtWidgets.QToolButton, QtWidgets.QLabel]) -> None:
     if checked:
         button.setStyleSheet("background-color : lightgreen")
     else:

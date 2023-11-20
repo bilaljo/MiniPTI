@@ -367,38 +367,3 @@ class TecTemperature(Plotting):
     def update_data_live(self, data: model.buffer.Tec) -> None:
         self.curves[TecTemperature.SET_POINT].setData(data.time, data.set_point[self.laser])
         self.curves[TecTemperature.MEASURED].setData(data.time, data.actual_value[self.laser])
-
-
-class BMS(Plotting):
-    def __init__(self):
-        Plotting.__init__(self)
-        self.window.removeItem(self.plot)
-        self.plot = []
-        self.plot.append(self.window.addPlot(row=0, col=0, title="Temperature", pen=pg.mkPen(_MatplotlibColors.BLUE)))
-        self.plot.append(self.window.addPlot(row=0, col=1, title="Voltage",
-                                             pen=pg.mkPen(_MatplotlibColors.BLUE)))
-        self.plot.append(self.window.addPlot(row=0, col=2, title="Current", pen=pg.mkPen(_MatplotlibColors.BLUE)))
-        self.plot.append(self.window.addPlot(row=1, col=0, title="Percentage", pen=pg.mkPen(_MatplotlibColors.BLUE)))
-        self.plot.append(self.window.addPlot(row=1, col=1, title="Remaining Capacity",
-                                             pen=pg.mkPen(_MatplotlibColors.BLUE)))
-        self.plot.append(self.window.addPlot(row=1, col=2, title="Full Charged Capacity",
-                                             pen=pg.mkPen(_MatplotlibColors.BLUE)))
-        for plot in self.plot:
-            plot.showGrid(x=True, y=True)
-        model.signals.BMS.battery_data.connect(self.update_data_live)
-
-    @override(check_signature=False)
-    def update_data_live(self, data: model.buffer.BMS) -> None:
-        self.plot = []
-        self.plot.append(self.window.addPlot(row=0, col=0, title="Temperature", pen=pg.mkPen(_MatplotlibColors.BLUE),
-                                             x=data.time, y=data.temperature))
-        self.plot.append(self.window.addPlot(row=0, col=1, title="Voltage", pen=pg.mkPen(_MatplotlibColors.BLUE),
-                                             x=data.time, y=data.voltage))
-        self.plot.append(self.window.addPlot(row=0, col=2, title="Current", pen=pg.mkPen(_MatplotlibColors.BLUE),
-                                             x=data.time, y=data.current))
-        self.plot.append(self.window.addPlot(row=1, col=0, title="Percentage", pen=pg.mkPen(_MatplotlibColors.BLUE),
-                                             x=data.time, y=data.percentage))
-        self.plot.append(self.window.addPlot(row=1, col=1, title="Remaining Capacity", x=data.time,
-                                             y=data.remaining_capacity, pen=pg.mkPen(_MatplotlibColors.BLUE)))
-        self.plot.append(self.window.addPlot(row=1, col=2, title="Full Charged Capacity", x=data.time,
-                                             y=data.full_charged_capacity, pen=pg.mkPen(_MatplotlibColors.BLUE)))

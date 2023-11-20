@@ -137,7 +137,6 @@ class BMS(Serial):
         self._destination_folder = "."
         self.driver = driver
         self.driver.bms.configuration.use_battery = configuration.GUI.battery.use
-        self.buffer = buffer.BMS()
 
     def shutdown_procedure(self) -> None:
         self.shutdown()
@@ -174,8 +173,7 @@ class BMS(Serial):
                 self.shutdown_procedure()
                 return
             bms_data.battery_temperature = BMS.centi_kelvin_to_celsius(bms_data.battery_temperature)
-            self.buffer.append(bms_data)
-            signals.BMS.battery_data.emit(self.buffer)
+            signals.BMS.battery_data.emit(bms_data.battery_voltage, bms_data.battery_current, bms_data.battery_percentage)
             signals.BMS.battery_state.emit(bms_data.charging, bms_data.battery_percentage)
             if self.driver.sampling and configuration.GUI.save.bms:
                 if init_headers:
@@ -219,15 +217,21 @@ class Valve(Serial):
             raise ValueError("Invalid value for duty cycle")
         self.driver.valve.configuration.duty_cycle = duty_cycle
 
-    def automatic_valve_change(self) -> None:
-        self.driver.valve.automatic_valve_change()
+    @property
+    def automatic_switch(self) -> bool:
+        return self.driver.valve.automatic_switch
+
+    @automatic_switch.setter
+    def automatic_switch(self, automatic_switch: bool) -> None:
+        self.driver.valve.automatic_switch = automatic_switch
 
     @property
-    def valve_state(self) -> bool:
+    def bypass(self) -> bool:
         return self.driver.valve.bypass
 
-    def change_valve(self) -> None:
-        self.driver.valve.bypass = not self.driver.valve.bypass
+    @bypass.setter
+    def bypass(self, bypass: bool) -> None:
+        self.driver.valve.bypass = bypass
         signals.VALVE.bypass.emit(self.driver.valve.bypass)
 
     @override
