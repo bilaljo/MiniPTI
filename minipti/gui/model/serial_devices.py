@@ -181,8 +181,8 @@ class BMS(Serial):
             if self.driver.sampling and configuration.GUI.save.bms:
                 if init_headers:
                     units = {"Time": "H:M:S", "External DC Power": "bool",
-                             "Charging Battery": "bool",
-                             "Minutes Left": "min", "Charging Level": "%", "Temperature": "°C", "Current": "mA",
+                             "Charging Battery": "bool", "Minutes Left": "min", "Charging Level": "%",
+                             "Temperature": "°C", "Current": "mA",
                              "Voltage": "mV", "Full Charge Capacity": "mAh", "Remaining Charge Capacity": "mAh"}
                     pd.DataFrame(units, index=["Y:M:D"]).to_csv(self._destination_folder + "/BMS.csv",
                                                                 index_label="Date")
@@ -291,11 +291,15 @@ class Pump(Serial):
         self.driver.pump.set_duty_cycle()
 
     def enable_pump(self) -> None:
-        if self.running:
-            self.driver.pump.disable_pump()
-        else:
-            self.driver.pump.set_duty_cycle()
+        if self.driver.pump.enabled:
+            if self.running:
+                self.driver.pump.disable_pump()
+            else:
+                self.driver.pump.set_duty_cycle()
         self.running = not self.running
+
+    def disable_pump(self) -> None:
+        self.driver.pump.disable_pump()
 
     @override
     def save_configuration(self) -> None:

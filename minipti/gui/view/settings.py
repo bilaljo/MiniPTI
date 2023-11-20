@@ -125,14 +125,14 @@ class PumpConfiguration(QtWidgets.QGroupBox):
         QtWidgets.QGroupBox.__init__(self)
         self.controller = settings_controller
         self.flow = QtWidgets.QLineEdit()
-        self.enable_on_run = qtwidgets.AnimatedToggle()
+        self.enable = qtwidgets.AnimatedToggle()
         self.setLayout(QtWidgets.QGridLayout())
         self._init_buttons()
         sub_layout = QtWidgets.QWidget()
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
-        self.enable_on_run.setFixedSize(65, 50)
-        sub_layout.layout().addWidget(self.enable_on_run)
-        sub_layout.layout().addWidget(QtWidgets.QLabel("Enable on Run"))
+        self.enable.setFixedSize(65, 50)
+        #sub_layout.layout().addWidget(self.enable)
+        #sub_layout.layout().addWidget(QtWidgets.QLabel("Enable"))
         self.layout().addWidget(sub_layout)
         sub_layout = QtWidgets.QWidget()
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
@@ -158,11 +158,11 @@ class PumpConfiguration(QtWidgets.QGroupBox):
 
     def _init_signals(self) -> None:
         self.flow.editingFinished.connect(self._flow_rate_changed)
-        self.enable_on_run.stateChanged.connect(self.enable_on_run_changed)
+        self.enable.stateChanged.connect(self.enable_changed)
         model.signals.PUMP.flow_Rate.connect(self.update_flow_rate)
 
-    def enable_on_run_changed(self) -> None:
-        self.controller.update_enable_on_run(self.enable_on_run.isChecked())
+    def enable_changed(self) -> None:
+        self.controller.enable_pump(self.enable.isChecked())
 
 
 class ValveConfiguration(QtWidgets.QGroupBox):

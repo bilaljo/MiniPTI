@@ -1,4 +1,3 @@
-import atexit
 import dataclasses
 import json
 import logging

@@ -9,6 +9,7 @@ try:
     import qdarktheme
 except ModuleNotFoundError:
     pass
+
 from PyQt5 import QtWidgets, QtCore
 from overrides import override
 
@@ -60,14 +61,24 @@ class MainApplication(interface.MainApplication):
     def update_theme(self, theme: str) -> None:
         try:
             qdarktheme.setup_theme(theme.casefold())
-        except ModuleNotFoundError:
-            pass
+        except NameError:
+            theme = "Light"
         for plot in self.view.plots:  # type: typing.Union[view.plots.Plotting, list]
             try:
                 plot.update_theme(theme)
             except AttributeError:  # list of plots
-                for sub_plot in plot:  # type: view.plots.Plotting
-                    sub_plot.update_theme(theme)
+                try:
+                    for sub_plot in plot:  # type: view.plots.Plotting
+                        sub_plot.update_theme(theme)
+                except TypeError:
+                    pass
+        self.view.plots.measurement.pti.update_theme(theme)
+        self.view.plots.measurement.sensitivity.update_theme(theme)
+        self.view.plots.interferometrie.dc_plot.update_theme(theme)
+        self.view.plots.interferometrie.phase_plot.update_theme(theme)
+        self.view.plots.characterisation.amplitudes.update_theme(theme)
+        self.view.plots.characterisation.output_phase.update_theme(theme)
+        self.view.plots.characterisation.symmetry.update_theme(theme)
 
     @property
     @override
@@ -247,7 +258,7 @@ class Settings(interface.Settings):
         self.view = view.settings.SettingsWindow(self)
         self.last_file_path = os.getcwd()
         if model.configuration.GUI.settings.pump:
-            self.view.pump_configuration.enable_on_run.setChecked(True)
+            self.view.pump_configuration.enable.setChecked(True)
         self.fire_configuration_change()
 
     @override
@@ -381,10 +392,6 @@ class Settings(interface.Settings):
             QtWidgets.QMessageBox.critical(self.view, "Valve Error", f"{str(error)}. {info_text}")
 
     @override
-    def update_enable_on_run(self, enable: bool) -> None:
-        model.serial_devices.TOOLS.pump.start_on_run = enable
-
-    @override
     def update_automatic_valve_switch(self, automatic_valve_switch: bool) -> None:
         model.serial_devices.TOOLS.valve.automatic_switch = automatic_valve_switch
 
@@ -405,6 +412,10 @@ class Settings(interface.Settings):
             logging.error(str(error))
             logging.warning(info_text)
             QtWidgets.QMessageBox.critical(self.view, "Pump Error", f"{str(error)}. {info_text}")
+
+    @override
+    def enable_pump(self, enable: bool) -> None:
+        model.serial_devices.TOOLS.pump.enable = True
 
 
 class Utilities(interface.Utilities):

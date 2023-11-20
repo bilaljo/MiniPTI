@@ -16,6 +16,9 @@ from minipti.gui.view import general_purpose
 
 
 class Plots(NamedTuple):
+    measurement: plots.Measurement
+    interferometrie: plots.Interferometrie
+    characterisation: plots.Characterisation
     probe_laser: plots.ProbeLaserCurrent
     pump_laser: plots.PumpLaserCurrent
     tec: list[plots.TecTemperature]
@@ -32,43 +35,36 @@ class MainWindow(QtWidgets.QMainWindow):
         self.toolbar = general_purpose.ToolBar(self.controllers.toolbar)
         self.addToolBar(QtCore.Qt.LeftToolBarArea, self.toolbar)
         self.setStatusBar(self.controllers.statusbar.view)
+        self.tabbar = QtWidgets.QTabWidget(movable=True)
         self.dock_area = pg.dockarea.DockArea()
-        self.plots = Plots(plots.ProbeLaserCurrent(),
+        self.plots = Plots(plots.Measurement(), plots.Interferometrie(), plots.Characterisation(),
+                           plots.ProbeLaserCurrent(),
                            plots.PumpLaserCurrent(),
                            [plots.TecTemperature(model.serial_devices.Tec.PUMP_LASER),
                             plots.TecTemperature(model.serial_devices.Tec.PROBE_LASER)])
-        self.docks = []
         if model.configuration.GUI.plots.measurement.use:
-            self.docks.append(pg.dockarea.Dock(name="Measurement", widget=plots.Measurement()))
+            self.tabbar.addTab(self.plots.measurement, "Measurement")
         if model.configuration.GUI.plots.interferometry.use:
-            self.docks.append(pg.dockarea.Dock(name="Interferometry", widget=plots.Interferometrie()))
+            self.tabbar.addTab(self.plots.interferometrie, "Interferometry")
         if model.configuration.GUI.plots.characterisation.use:
-            self.docks.append(pg.dockarea.Dock(name="Characterisation", widget=plots.Characterisation()))
+            self.tabbar.addTab(self.plots.characterisation, "Characterization")
         if model.configuration.GUI.pump_laser.use:
             pump_laser = self._init_laser_tab(hardware.PumpLaser(self.controllers.pump_laser),
                                               self.plots.pump_laser.window, model.serial_devices.Tec.PUMP_LASER)
-            self.docks.append(pg.dockarea.Dock(name="Pump Laser", widget=pump_laser))
+            self.tabbar.addTab(pump_laser, "Pump Laser")
         if model.configuration.GUI.probe_laser.use:
             probe_laser = self._init_laser_tab(hardware.ProbeLaser(self.controllers.probe_laser),
                                                self.plots.probe_laser.window, model.serial_devices.Tec.PROBE_LASER)
-            self.docks.append(pg.dockarea.Dock(name="Probe Laser", widget=probe_laser))
-        for dock in self.docks:
-            self.dock_area.addDock(dock)
-        if len(self.docks) == 1:
-            self.setWindowTitle(self.docks[0].title())
-            self.docks[0].setTitle("")
-        else:
-            for i in range(len(self.docks) - 1, 0, -1):
-                self.dock_area.moveDock(self.docks[i - 1], "above", self.docks[i])
-        self.setCentralWidget(self.dock_area)
+            self.tabbar.addTab(probe_laser, "Probe Laser")
         self.logging_window = QtWidgets.QLabel()
-        self.log = dockarea.Dock("Log", size=(600, 1))
+        self.log = QtWidgets.QDockWidget("Log")
         self.scroll = QtWidgets.QScrollArea(widgetResizable=True)
         self._init_dock_widgets()
         self.resize(MainWindow.HORIZONTAL_SIZE, MainWindow.VERTICAL_SIZE)
         self.setWindowIcon(QtGui.QIcon(f"{minipti.module_path}/gui/images/logo.png"))
         self.setWindowTitle(model.configuration.GUI.window_title)
         self.full_screen = False
+        self.setCentralWidget(self.tabbar)
         self.show()
 
     def keyPressEvent(self, e):
@@ -94,27 +90,24 @@ class MainWindow(QtWidgets.QMainWindow):
         return tec_ch
 
     def _init_laser_tab(self, laser_widget: QtWidgets.QWidget, laser_plot: pg.GraphicsWidget,
-                        channel: int) -> pg.dockarea.DockArea:
+                        channel: int) -> QtWidgets.QTabWidget:
         laser = QtWidgets.QWidget()
         laser.setLayout(QtWidgets.QHBoxLayout())
         laser.layout().addWidget(laser_widget)
         laser.layout().addWidget(laser_plot)
-        dock_area = pg.dockarea.DockArea()
+        tabbar = QtWidgets.QTabWidget(movable=True)
         tec = self._init_tec(channel)
-        laser_dock = pg.dockarea.Dock(name="Laser Driver", widget=laser)
-        tec_dock = pg.dockarea.Dock(name="TEC Driver", widget=tec)
-        dock_area.addDock(laser_dock)
-        dock_area.addDock(tec_dock)
-        dock_area.moveDock(laser_dock, "above", tec_dock)
-        return dock_area
+        tabbar.addTab(laser, "Lase Driver")
+        tabbar.addTab(tec, "TEC Driver")
+        return tabbar
 
     def _init_dock_widgets(self) -> None:
         model.signals.GENERAL_PURPORSE.logging_update.connect(self.logging_update)
         self.scroll.setWidgetResizable(True)
-        self.log.addWidget(self.scroll)
+        self.log.setWidget(self.scroll)
+        self.scroll.setWidget(self.logging_window)
         if model.configuration.GUI.logging.console:
-            self.dock_area.addDock(self.log, "bottom")
-            self.scroll.setWidget(self.logging_window)
+            self.addDockWidget(Qt.BottomDockWidgetArea, self.log)
 
     def closeEvent(self, close_event):
         close = QtWidgets.QMessageBox.question(self, "QUIT", "Are you sure you want to close?",

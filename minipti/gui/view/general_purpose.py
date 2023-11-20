@@ -126,7 +126,6 @@ class StatusBar(QtWidgets.QStatusBar):
     def __init__(self, bms_controller: controller.interface.Statusbar):
         QtWidgets.QStatusBar.__init__(self)
         self.controller = bms_controller
-        self.setLayout(QtWidgets.QHBoxLayout())
         self.base_path = f"{minipti.module_path}/gui/images/battery"
         self.bypass = QtWidgets.QLabel("Bypass")
         self.addPermanentWidget(self.bypass)

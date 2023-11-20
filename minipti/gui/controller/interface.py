@@ -176,7 +176,7 @@ class Settings(ABC):
         ...
 
     @abstractmethod
-    def update_enable_on_run(self, enable: bool) -> None:
+    def enable_pump(self, enable: bool) -> None:
         ...
 
 
