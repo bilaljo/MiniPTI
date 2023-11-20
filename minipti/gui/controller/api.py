@@ -200,6 +200,8 @@ class Toolbar(interface.Toolbar):
         if model.serial_devices.DRIVER.laser.is_found:
             try:
                 model.serial_devices.DRIVER.laser.open()
+                model.serial_devices.TOOLS.pump_laser.start_up()
+                model.serial_devices.TOOLS.probe_laser.start_up()
                 model.serial_devices.DRIVER.laser.run()
                 model.serial_devices.TOOLS.pump_laser.process_measured_data()
             except OSError:

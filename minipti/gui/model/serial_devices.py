@@ -77,6 +77,7 @@ class Serial(ABC):
         Listens to incoming data and emits them as _signals to the view as long a serial connection
         is established.
         """
+        self.setCentralWidget(self.parent)
 
     def process_measured_data(self) -> threading.Thread:
         processing_thread = threading.Thread(target=self._incoming_data, name="Incoming Data", daemon=True)
@@ -131,6 +132,7 @@ class DAQ(Serial):
 class BMS(Serial):
     MINIUM_PERCENTAGE = 15
     CRITICAL_PERCENTAGE = 5
+    DATA = hardware.motherboard.BMSData
 
     def __init__(self, driver: hardware.motherboard.Driver):
         Serial.__init__(self, driver)
@@ -173,7 +175,9 @@ class BMS(Serial):
                 self.shutdown_procedure()
                 return
             bms_data.battery_temperature = BMS.centi_kelvin_to_celsius(bms_data.battery_temperature)
-            signals.BMS.battery_data.emit(bms_data.battery_voltage, bms_data.battery_current, bms_data.battery_percentage)
+            signals.BMS.battery_data.emit(bms_data.battery_current, bms_data.battery_voltage,
+                                          bms_data.battery_temperature, bms_data.minutes_left,
+                                          bms_data.battery_percentage, bms_data.remaining_capacity)
             signals.BMS.battery_state.emit(bms_data.charging, bms_data.battery_percentage)
             if self.driver.sampling and configuration.GUI.save.bms:
                 if init_headers:
@@ -196,6 +200,7 @@ class Valve(Serial):
     def __init__(self, driver: hardware.motherboard.Driver):
         Serial.__init__(self, driver)
         self.driver = driver
+        self.driver.valve.observers.append(lambda x: signals.VALVE.bypass.emit(x))
 
     @property
     def period(self) -> int:
@@ -255,13 +260,12 @@ class Valve(Serial):
             self.driver.wait()
             if configuration.GUI.save.valve:
                 if init_headers:
-                    units = {"Time": "H:M:S", "Clean Air": "bool", "Aerosole": "bool"}
+                    units = {"Time": "H:M:S", "Bypass": "bool"}
                     pd.DataFrame(units, index=["Y:M:D"]).to_csv(self._destination_folder + "/gas.csv",
                                                                 index_label="Date")
                     init_headers = False
                 now = datetime.now()
-                output_data = {"Time": str(now.strftime("%H:%M:%S")), "Clean Air": self.valve_state,
-                               "Aerosole": not self.valve_state}
+                output_data = {"Time": str(now.strftime("%H:%M:%S")), "Bypass": self.bypass}
                 output_data_data_frame = pd.DataFrame(output_data, index=[str(now.strftime("%Y-%m-%d"))])
                 output_data_data_frame.to_csv(self._destination_folder + "/gas.csv", header=False, mode="a")
                 time.sleep(1)
@@ -395,6 +399,10 @@ class PumpLaser(Laser):
         self.pump_laser = self.driver.high_power_laser
         self.on_notification.message = "Pump Laser is on"
         self.off_notification.message = "Pump Laser is off"
+
+    def start_up(self) -> None:
+        self.pump_laser.initialize()
+        self.pump_laser.apply_configuration()
 
     @property
     def connected(self) -> bool:
@@ -550,6 +558,10 @@ class ProbeLaser(Laser):
         self.probe_laser = self.driver.low_power_laser
         self.on_notification.message = "Probe Laser is on"
         self.off_notification.message = "Probe Laser is off"
+
+    def start_up(self) -> None:
+        self.probe_laser.initialize()
+        self.probe_laser.apply_configuration()
 
     @property
     def connected(self) -> bool:

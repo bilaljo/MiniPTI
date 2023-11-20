@@ -8,7 +8,7 @@ import threading
 import time
 from collections import deque
 from dataclasses import dataclass
-from typing import Final, Union, Any
+from typing import Final, Union, Any, Callable
 
 import dacite
 import numpy as np
@@ -55,6 +55,7 @@ class Valve(MotherBoardTools):
         self._bypass = protocolls.ASCIIHex("SBP0000")
         self._automatic_switch = threading.Event()
         self.configuration: Union[ValveConfiguration, None] = None
+        self.observers: list[Callable[[bool], None]] = []
         self.load_configuration()
 
     def automatic_valve_change(self) -> None:
@@ -90,6 +91,7 @@ class Valve(MotherBoardTools):
         super().load_configuration()
         if self.configuration.automatic_switch:
             self._automatic_switch.set()
+        self.bypass = False
 
     @property
     def bypass(self) -> bool:
@@ -99,6 +101,8 @@ class Valve(MotherBoardTools):
     def bypass(self, new_value) -> None:
         self._bypass.value = new_value
         self.driver.write(self._bypass)
+        for observer in self.observers:
+            observer(self.bypass)
 
 
 class BMSIndex(enum.IntEnum):
@@ -435,6 +439,8 @@ class Driver(serial_device.Driver):
     
     @override
     def clear(self) -> None:
+        self.pump.disable_pump()
+        self.valve.bypass = False
         super().clear()
 
     def clear_buffer(self) -> None:
@@ -449,7 +455,6 @@ class Driver(serial_device.Driver):
 
     def reset(self) -> None:
         self.clear_buffer()
-        self.daq.reset()
 
     @override
     def _encode(self, data: str) -> None:
