@@ -217,18 +217,8 @@ class Valve(Serial):
             raise ValueError("Invalid value for duty cycle")
         self.driver.valve.configuration.duty_cycle = duty_cycle
 
-    @property
-    def automatic_switch(self) -> bool:
-        return self.driver.valve.automatic_switch.is_set()
-
-    @automatic_switch.setter
-    def automatic_switch(self, automatic_switch: bool) -> None:
-        self.driver.valve.configuration.automatic_switch = automatic_switch
-        if automatic_switch:
-            self.driver.valve.automatic_switch.set()
-            self.driver.valve.automatic_valve_change()
-        else:
-            self.driver.valve.automatic_switch.clear()
+    def automatic_valve_change(self) -> None:
+        self.driver.valve.automatic_valve_change()
 
     @property
     def valve_state(self) -> bool:
