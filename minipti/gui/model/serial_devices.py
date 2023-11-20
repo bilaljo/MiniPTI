@@ -77,7 +77,6 @@ class Serial(ABC):
         Listens to incoming data and emits them as _signals to the view as long a serial connection
         is established.
         """
-        self.setCentralWidget(self.parent)
 
     def process_measured_data(self) -> threading.Thread:
         processing_thread = threading.Thread(target=self._incoming_data, name="Incoming Data", daemon=True)
@@ -184,7 +183,7 @@ class BMS(Serial):
                     units = {"Time": "H:M:S", "External DC Power": "bool",
                              "Charging Battery": "bool",
                              "Minutes Left": "min", "Charging Level": "%", "Temperature": "°C", "Current": "mA",
-                             "Voltage": "V", "Full Charge Capacity": "mAh", "Remaining Charge Capacity": "mAh"}
+                             "Voltage": "mV", "Full Charge Capacity": "mAh", "Remaining Charge Capacity": "mAh"}
                     pd.DataFrame(units, index=["Y:M:D"]).to_csv(self._destination_folder + "/BMS.csv",
                                                                 index_label="Date")
                     init_headers = False
@@ -242,6 +241,9 @@ class Valve(Serial):
     @override
     def save_configuration(self) -> None:
         self.driver.valve.save_configuration()
+
+    def automatic_valve_change(self) -> None:
+        self.driver.valve.automatic_valve_change()
 
     @override
     def load_configuration(self) -> None:
