@@ -389,9 +389,9 @@ class BMS(Plotting):
 
     @override(check_signature=False)
     def update_data_live(self, data: model.buffer.BMS) -> None:
-        self.plot[0].setData(0, 0, data.time, data.temperature)
-        self.plot[1].setData(data.time, data.voltage)
-        self.plot[2].setData(data.time, data.current)
-        self.plot[3].setData(data.time, data.percentage)
-        self.plot[4].setData(data.time, data.remaining_capacity)
-        self.plot[5].setData(data.time, data.full_charged_capacity)
+        self.plot[0].setData(0, data.time, data.temperature)
+        self.plot[1].setData(1, data.time, data.voltage)
+        self.plot[2].setData(2, data.time, data.current)
+        self.plot[3].setData(3, data.time, data.percentage)
+        self.plot[4].setData(4, data.time, data.remaining_capacity)
+        self.plot[5].setData(5, data.time, data.full_charged_capacity)

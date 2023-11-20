@@ -114,6 +114,7 @@ class Toolbar(interface.Toolbar):
             model.serial_devices.TOOLS.pump.enable_pump()
         if model.configuration.GUI.on_run.DAQ:
             self.enable_daq()
+            model.serial_devices.DRIVER.motherboard.sampling = self.running
 
     @override
     def enable_daq(self) -> None:
@@ -127,8 +128,8 @@ class Toolbar(interface.Toolbar):
                 model.serial_devices.TOOLS.daq.running = True
                 self.calculation_model.process_daq_data()
             else:
-                model.serial_devices.DRIVER.motherboard.running = False
-            text = "Enabled" if model.serial_devices.DRIVER.motherboard else "Disabled"
+                model.serial_devices.TOOLS.daq.running = False
+            text = "Enabled" if self.running else "Disabled"
             logging.debug("%s Motherboard", text)
 
     @override
