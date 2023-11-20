@@ -282,12 +282,14 @@ class DAQ(MotherBoardTools):
         self.update_buffer_size()
 
     def update_buffer_size(self) -> None:
+        was_running = self.running.is_set()
         if self.running.is_set():
             logging.warning("Encoding is running. Need to pause is to update the buffer size and reset samples")
             self.running.clear()
         self.samples_buffer = DAQData([], [[], [], []], [[], [], [], []])
         self.reset()
-        self.running.set()
+        if was_running:
+            self.running.set()
 
     def build_sample_package(self) -> None:
         """
@@ -375,7 +377,6 @@ class DAQ(MotherBoardTools):
                                       [deque(maxlen=DAQ.ENCODED_DATA_SIZE) for _ in range(3)],
                                       [deque(maxlen=DAQ.ENCODED_DATA_SIZE) for _ in range(4)])
         self.samples_buffer = DAQData([], [[], [], []], [[], [], [], []])
-        self.data = [queue.Queue(maxsize=DAQ._QUEUE_SIZE) for _ in range(3)]
 
     def _check_package_difference(self) -> bool:
         package_difference = int(self._sample_numbers[1], base=16) - int(self._sample_numbers[0], base=16)
@@ -445,7 +446,7 @@ class Driver(serial_device.Driver):
 
     def clear_buffer(self) -> None:
         self._package_buffer = ""
-        self.data.DAQ = [queue.Queue(maxsize=Driver._QUEUE_SIZE) for _ in range(3)]
+        self.daq.data = [queue.Queue(maxsize=Driver._QUEUE_SIZE) for _ in range(3)]
 
     @staticmethod
     def binary_to_2_complement(number: int, byte_length: int = 16) -> int:
