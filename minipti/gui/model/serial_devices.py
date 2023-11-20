@@ -137,6 +137,7 @@ class BMS(Serial):
         self._destination_folder = "."
         self.driver = driver
         self.driver.bms.configuration.use_battery = configuration.GUI.battery.use
+        self.buffer = buffer.BMS()
 
     def shutdown_procedure(self) -> None:
         self.shutdown()
@@ -173,7 +174,8 @@ class BMS(Serial):
                 self.shutdown_procedure()
                 return
             bms_data.battery_temperature = BMS.centi_kelvin_to_celsius(bms_data.battery_temperature)
-            signals.BMS.battery_data.emit(bms_data)
+            self.buffer.append(bms_data)
+            signals.BMS.battery_data.emit(self.buffer)
             signals.BMS.battery_state.emit(bms_data.charging, bms_data.battery_percentage)
             if self.driver.sampling and configuration.GUI.save.bms:
                 if init_headers:
@@ -259,6 +261,7 @@ class Valve(Serial):
                 output_data_data_frame = pd.DataFrame(output_data, index=[str(now.strftime("%Y-%m-%d"))])
                 output_data_data_frame.to_csv(self._destination_folder + "/gas.csv", header=False, mode="a")
                 time.sleep(1)
+
 
 class Pump(Serial):
     def __init__(self, driver: hardware.motherboard.Driver):

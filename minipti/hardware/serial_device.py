@@ -59,6 +59,7 @@ class Driver(ABC):
         atexit.register(self.clear)
 
     def clear(self) -> None:
+        time.sleep(0.1)
         self.close()
 
     def wait(self) -> None:
