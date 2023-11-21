@@ -134,6 +134,7 @@ class DAQ(Serial):
     @number_of_samples.setter
     def number_of_samples(self, number_of_sampes: int) -> None:
         self.driver.daq.number_of_samples = number_of_sampes
+        self.fire_configuration_change()
 
 
 class BMS(Serial):
