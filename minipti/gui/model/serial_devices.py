@@ -300,12 +300,15 @@ class Pump(Serial):
         self.driver.pump.configuration.duty_cycle = int(flow_rate / 100 * hardware.motherboard.Pump.MAX_DUTY_CYCLE)
         self.driver.pump.set_duty_cycle()
 
-    def enable_pump(self) -> None:
-        if not self.running or self.enable:
+    def set_duty_cycle(self) -> None:
+        if not self.running and self.enable:
             self.driver.pump.set_duty_cycle()
         else:
             self.driver.pump.disable_pump()
         self.running = not self.running
+
+    def enable_pump(self) -> None:
+        self.driver.pump.set_duty_cycle()
 
     def disable_pump(self) -> None:
         self.driver.pump.disable_pump()

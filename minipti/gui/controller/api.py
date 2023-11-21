@@ -138,7 +138,7 @@ class Toolbar(interface.Toolbar):
         if model.configuration.GUI.on_run.probe_laser.tec_driver:
             model.serial_devices.TOOLS.tec[model.serial_devices.Tec.PROBE_LASER].enabled = self.running
         if model.configuration.GUI.on_run.pump:
-            model.serial_devices.TOOLS.pump.enable_pump()
+            model.serial_devices.TOOLS.pump.set_duty_cycle()
         if model.configuration.GUI.on_run.DAQ:
             self.enable_daq()
 
