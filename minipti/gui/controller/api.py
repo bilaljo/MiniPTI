@@ -195,17 +195,20 @@ class Toolbar(interface.Toolbar):
     def find_devices(self) -> None:
         if model.configuration.GUI.connect.motherboard:
             try:
-                model.serial_devices.DRIVER.motherboard.find_port()
+                if not model.serial_devices.DRIVER.motherboard.is_found:
+                    model.serial_devices.DRIVER.motherboard.find_port()
             except OSError:
                 logging.error("Could not find Motherboard")
         if model.configuration.GUI.connect.laser_driver:
             try:
-                model.serial_devices.DRIVER.laser.find_port()
+                if model.serial_devices.DRIVER.laser.is_found:
+                    model.serial_devices.DRIVER.laser.find_port()
             except OSError:
                 logging.error("Could not find Laser Driver")
         if model.configuration.GUI.connect.tec_driver:
             try:
-                model.serial_devices.DRIVER.tec.find_port()
+                if model.serial_devices.DRIVER.tec.is_found:
+                    model.serial_devices.DRIVER.tec.find_port()
             except OSError:
                 logging.error("Could not find TEC Driver")
 

@@ -287,6 +287,7 @@ class Pump(Serial):
         Serial.__init__(self, driver)
         self.driver = driver
         self.running = False
+        self.enable = False
 
     @property
     def flow_rate(self) -> float:
