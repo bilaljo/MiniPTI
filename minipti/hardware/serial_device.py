@@ -292,6 +292,7 @@ class Driver(ABC):
             if self.is_open:
                 self.connected.clear()
                 os.close(self._file_descriptor)
+                self._file_descriptor = -1
                 logging.info("Closed connection to %s", self.device_name)
 
     if platform.system() == "Windows":

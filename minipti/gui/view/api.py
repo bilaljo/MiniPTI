@@ -75,7 +75,7 @@ class MainWindow(QtWidgets.QMainWindow):
             else:
                 self.showFullScreen()
                 self.full_screen = True
-        if e.key == Qt.Key_Escape:
+        if e.key == Qt.Key_F11:
             self.controllers.main_application.emergency_stop()
 
     def logging_update(self, log_queue: collections.deque) -> None:

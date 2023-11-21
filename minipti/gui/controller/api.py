@@ -72,7 +72,7 @@ class MainApplication(interface.MainApplication):
     def update_theme(self, theme: str) -> None:
         try:
             qdarktheme.setup_theme(theme.casefold())
-        except NameError:
+        except ModuleNotFoundError:
             theme = "Light"
         for plot in self.view.plots:  # type: typing.Union[view.plots.Plotting, list]
             try:
