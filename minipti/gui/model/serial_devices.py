@@ -88,7 +88,6 @@ class DAQ(Serial):
     def __init__(self, driver: hardware.motherboard.Driver):
         Serial.__init__(self, driver)
         self.driver = driver
-        self.load_configuration()
 
     @property
     def ref_signal(self) -> deque:

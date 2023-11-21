@@ -128,6 +128,7 @@ class Toolbar(interface.Toolbar):
         if model.configuration.GUI.on_run.pump:
             model.serial_devices.TOOLS.pump.enable_pump()
         if model.configuration.GUI.on_run.DAQ:
+            model.serial_devices.TOOLS.daq.load_configuration()
             self.enable_daq()
 
     @override
