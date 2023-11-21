@@ -291,11 +291,10 @@ class Pump(Serial):
         self.driver.pump.set_duty_cycle()
 
     def enable_pump(self) -> None:
-        if self.driver.pump.enabled:
-            if self.running:
-                self.driver.pump.disable_pump()
-            else:
-                self.driver.pump.set_duty_cycle()
+        if self.running:
+            self.driver.pump.disable_pump()
+        else:
+            self.driver.pump.set_duty_cycle()
         self.running = not self.running
 
     def disable_pump(self) -> None:
