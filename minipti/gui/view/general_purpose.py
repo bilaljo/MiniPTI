@@ -55,7 +55,7 @@ class ToolBar(QtWidgets.QToolBar):
             self.actions.valve.triggered.connect(self.controller.change_valve)
         if model.configuration.GUI.pump.use:
             self.addAction(self.actions.pump)
-            self.actions.valve.triggered.connect(self.controller.enable_pump)
+            self.actions.pump.triggered.connect(self.controller.enable_pump)
         if model.configuration.GUI.connect.use:
             self.addAction(self.actions.connect)
             self.actions.connect.triggered.connect(self.controller.init_devices)
@@ -167,14 +167,14 @@ class StatusBar(QtWidgets.QStatusBar):
     @QtCore.pyqtSlot(bool)
     def update_valve_state(self, bypass: bool):
         if bypass:
-            self.bypass.setStyleSheet("background-color : light green")
+            self.bypass.setStyleSheet("background-color : green")
         else:
             self.bypass.setStyleSheet("background-color : light gray")
 
     @QtCore.pyqtSlot(bool)
     def update_pump(self, enabled) -> None:
         if enabled:
-            self.pump.setStyleSheet("background-color : light green")
+            self.pump.setStyleSheet("background-color : green")
         else:
             self.pump.setStyleSheet("background-color : light gray")
 

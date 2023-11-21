@@ -288,6 +288,7 @@ class Pump(Serial):
         self.driver = driver
         self.running = False
         self._enabled = False
+        self.enable_on_run = True
 
     @property
     def flow_rate(self) -> float:
@@ -301,6 +302,8 @@ class Pump(Serial):
         self.driver.pump.set_duty_cycle()
 
     def set_duty_cycle(self) -> None:
+        if not self.enable_on_run:
+            return
         if not self.running:
             self.driver.pump.enabled = True
             self.driver.pump.set_duty_cycle()

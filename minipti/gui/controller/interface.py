@@ -90,7 +90,7 @@ class Toolbar(ABC):
         ...
 
     @abstractmethod
-    def enable_pump(self, enable: bool) -> None:
+    def enable_pump(self) -> None:
         ...
 
 

@@ -248,8 +248,8 @@ class Toolbar(interface.Toolbar):
         model.serial_devices.TOOLS.valve.bypass = not model.serial_devices.TOOLS.valve.bypass
 
     @override
-    def enable_pump(self, enable: bool) -> None:
-        model.serial_devices.TOOLS.pump.enabled = enable
+    def enable_pump(self) -> None:
+        model.serial_devices.TOOLS.pump.enabled = not model.serial_devices.TOOLS.pump.enabled
 
 
 class Statusbar(interface.Statusbar):
@@ -446,7 +446,7 @@ class Settings(interface.Settings):
 
     @override
     def enable_pump_on_run(self, enable: bool) -> None:
-        model.serial_devices.TOOLS.pump.enable = True
+        model.serial_devices.TOOLS.pump.enable_on_run = True
 
 
 class Utilities(interface.Utilities):

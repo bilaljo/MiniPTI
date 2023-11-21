@@ -163,7 +163,7 @@ class PumpConfiguration(QtWidgets.QGroupBox):
         model.signals.PUMP.flow_Rate.connect(self.update_flow_rate)
 
     def enable_changed(self) -> None:
-        self.controller.enable_pump(self.enable.isChecked())
+        self.controller.enable_pump(self.enable.isEnabled())
 
 
 class ValveConfiguration(QtWidgets.QGroupBox):
