@@ -131,6 +131,7 @@ class PumpConfiguration(QtWidgets.QGroupBox):
         sub_layout = QtWidgets.QWidget()
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
         self.enable.setFixedSize(65, 50)
+        self.enable.setChecked(True)
         sub_layout.layout().addWidget(self.enable)
         sub_layout.layout().addWidget(QtWidgets.QLabel("Enable on Run"))
         self.enable.stateChanged.connect(self.controller.enable_pump_on_run)
