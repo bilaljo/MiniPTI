@@ -110,6 +110,7 @@ class Toolbar(interface.Toolbar):
         self._destination_folder = model.processing.DestinationFolder()
         self.calculation_model = model.processing.LiveCalculation()
         self.running = False
+        model.serial_devices.TOOLS.daq.fire_configuration_change()
 
     @override
     def on_run(self) -> None:
@@ -128,7 +129,6 @@ class Toolbar(interface.Toolbar):
         if model.configuration.GUI.on_run.pump:
             model.serial_devices.TOOLS.pump.enable_pump()
         if model.configuration.GUI.on_run.DAQ:
-            model.serial_devices.TOOLS.daq.load_configuration()
             self.enable_daq()
 
     @override
