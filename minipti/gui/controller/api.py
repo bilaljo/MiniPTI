@@ -57,6 +57,17 @@ class MainApplication(interface.MainApplication):
         self.controllers.toolbar.init_devices()
         # threading.excepthook = self.thread_exception
 
+    @override
+    def emergency_stop(self) -> None:
+        model.serial_devices.TOOLS.pump_laser.enabled = False
+        model.serial_devices.TOOLS.probe_laser.enabled = False
+
+    @override
+    def close(self) -> None:
+        model.serial_devices.DRIVER.motherboard.clear()
+        model.serial_devices.DRIVER.tec.clear()
+        model.serial_devices.DRIVER.laser.clear()
+
     @QtCore.pyqtSlot(str)
     def update_theme(self, theme: str) -> None:
         try:

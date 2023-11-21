@@ -34,6 +34,14 @@ class MainApplication(QtWidgets.QApplication):
     def controllers(self) -> Controllers:
         ...
 
+    @abstractmethod
+    def emergency_stop(self) -> None:
+        ...
+
+    @abstractmethod
+    def close(self) -> None:
+        ...
+
 
 class Toolbar(ABC):
     @abstractmethod

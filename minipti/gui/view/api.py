@@ -76,8 +76,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.showFullScreen()
                 self.full_screen = True
         if e.key == Qt.Key_Escape:
-            # Implement me
-            ...
+            self.controllers.main_application.emergency_stop()
 
     def logging_update(self, log_queue: collections.deque) -> None:
         self.logging_window.setText("".join(log_queue))
@@ -115,6 +114,7 @@ class MainWindow(QtWidgets.QMainWindow):
                                                QtWidgets.QMessageBox.StandardButton.No)
         if close == QtWidgets.QMessageBox.StandardButton.Yes:
             close_event.accept()
+            self.controllers.main_application.close()
             QApplication.closeAllWindows()
         else:
             close_event.ignore()
