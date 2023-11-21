@@ -393,9 +393,9 @@ class DAQ(MotherBoardTools):
 
     def save_configuration(self) -> None:
         with open(self.config_path, "w") as configuration:
-            valve = {"DAQ": dataclasses.asdict(self.configuration)}
-            configuration.write(_json_parser.to_json(valve) + "\n")
-            logging.info("Saved valve DAQ configuration in %s", self.config_path)
+            config = {"DAQ": dataclasses.asdict(self.configuration)}
+            configuration.write(_json_parser.to_json(config) + "\n")
+            logging.info("Saved DAQ configuration in %s", self.config_path)
 
 
 class PackageIndex(enum.IntEnum):
