@@ -13,6 +13,7 @@ class Actions:
     settings: QtWidgets.QAction
     utilities: QtWidgets.QAction
     valve: QtWidgets.QAction
+    pump: QtWidgets.QAction
     connect: QtWidgets.QAction
     directory: QtWidgets.QAction
     shutdown: QtWidgets.QAction
@@ -25,12 +26,13 @@ class ToolBar(QtWidgets.QToolBar):
         self.run = QtWidgets.QAction()
         base_path = f"{minipti.module_path}/gui/images"
         self.actions = Actions(QtWidgets.QAction("Run"), QtWidgets.QAction("Settings"), QtWidgets.QAction("Utilities"),
-                               QtWidgets.QAction("Valve"), QtWidgets.QAction("Connect"), QtWidgets.QAction("Directory"),
-                               QtWidgets.QAction("Shutdown"))
+                               QtWidgets.QAction("Bypass"), QtWidgets.QAction("Pump"), QtWidgets.QAction("Connect"),
+                               QtWidgets.QAction("Directory"), QtWidgets.QAction("Shutdown"))
         self.actions.run.setIcon(QtGui.QIcon(f"{base_path}/Run.png"))
         self.actions.settings.setIcon(QtGui.QIcon(f"{base_path}/Settings.png"))
         self.actions.utilities.setIcon(QtGui.QIcon(f"{base_path}/Utilities.png"))
         self.actions.valve.setIcon(QtGui.QIcon(f"{base_path}/Valve.png"))
+        self.actions.pump.setIcon(QtGui.QIcon(f"{base_path}/Pump.png"))
         self.actions.connect.setIcon(QtGui.QIcon(f"{base_path}/Connect.svg"))
         self.actions.directory.setIcon(QtGui.QIcon(f"{base_path}/Directory.svg"))
         self.actions.shutdown.setIcon(QtGui.QIcon(f"{base_path}/Shutdown.svg"))
@@ -51,6 +53,9 @@ class ToolBar(QtWidgets.QToolBar):
         if model.configuration.GUI.valve.use:
             self.addAction(self.actions.valve)
             self.actions.valve.triggered.connect(self.controller.change_valve)
+        if model.configuration.GUI.pump.use:
+            self.addAction(self.actions.pump)
+            self.actions.valve.triggered.connect(self.controller.enable_pump)
         if model.configuration.GUI.connect.use:
             self.addAction(self.actions.connect)
             self.actions.connect.triggered.connect(self.controller.init_devices)
@@ -128,7 +133,11 @@ class StatusBar(QtWidgets.QStatusBar):
         self.controller = bms_controller
         self.base_path = f"{minipti.module_path}/gui/images/battery"
         self.bypass = QtWidgets.QLabel("Bypass")
-        self.addPermanentWidget(self.bypass)
+        self.pump = QtWidgets.QLabel("Pump")
+        if model.configuration.GUI.valve.use:
+            self.addPermanentWidget(self.bypass)
+        if model.configuration.GUI.pump.use:
+            self.addPermanentWidget(self.pump)
         if model.configuration.GUI.battery.use:
             self.charging_indicator = QtWidgets.QToolButton()
             self.charging_indicator.clicked.connect(self.controller.show_bms)
@@ -139,6 +148,7 @@ class StatusBar(QtWidgets.QStatusBar):
             model.signals.BMS.battery_state.connect(self.update_battery_state)
         model.signals.GENERAL_PURPORSE.destination_folder_changed.connect(self.update_destination_folder)
         model.signals.VALVE.bypass.connect(self.update_valve_state)
+        model.signals.PUMP.enabled.connect(self.update_pump)
 
     def update_destination_folder(self, folder: str) -> None:
         self.controller.update_destination_folder(folder)
@@ -157,9 +167,16 @@ class StatusBar(QtWidgets.QStatusBar):
     @QtCore.pyqtSlot(bool)
     def update_valve_state(self, bypass: bool):
         if bypass:
-            self.bypass.setStyleSheet("background-color : green")
+            self.bypass.setStyleSheet("background-color : light green")
         else:
             self.bypass.setStyleSheet("background-color : light gray")
+
+    @QtCore.pyqtSlot(bool)
+    def update_pump(self, enabled) -> None:
+        if enabled:
+            self.pump.setStyleSheet("background-color : light green")
+        else:
+            self.pump.setStyleSheet("background-color : light gray")
 
     @QtCore.pyqtSlot(bool, float)
     def update_battery_state(self, charging: bool, percentage: int) -> None:

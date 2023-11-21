@@ -89,6 +89,10 @@ class Toolbar(ABC):
     def change_valve(self) -> None:
         ...
 
+    @abstractmethod
+    def enable_pump(self, enable: bool) -> None:
+        ...
+
 
 class Statusbar(ABC):
     @property
@@ -185,6 +189,10 @@ class Settings(ABC):
 
     @abstractmethod
     def enable_pump(self, enable: bool) -> None:
+        ...
+
+    @abstractmethod
+    def enable_pump_on_run(self, enable: bool) -> None:
         ...
 
 

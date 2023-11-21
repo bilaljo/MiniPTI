@@ -81,6 +81,7 @@ class _Valve(QtCore.QObject):
 @dataclass(init=False, frozen=True)
 class _Pump(QtCore.QObject):
     flow_Rate = QtCore.pyqtSignal(float)
+    enabled = QtCore.pyqtSignal(bool)
 
     def __init__(self):
         QtCore.QObject.__init__(self)

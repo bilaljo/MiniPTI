@@ -287,7 +287,7 @@ class Pump(Serial):
         Serial.__init__(self, driver)
         self.driver = driver
         self.running = False
-        self.enable = False
+        self._enabled = False
 
     @property
     def flow_rate(self) -> float:
@@ -301,11 +301,28 @@ class Pump(Serial):
         self.driver.pump.set_duty_cycle()
 
     def set_duty_cycle(self) -> None:
-        if not self.running and self.enable:
+        if not self.running:
+            self.driver.pump.enabled = True
             self.driver.pump.set_duty_cycle()
         else:
             self.driver.pump.disable_pump()
+            self.driver.pump.enabled = False
         self.running = not self.running
+
+    @property
+    def enabled(self) -> bool:
+        return self._enabled
+
+    @enabled.setter
+    def enabled(self, enabled: bool) -> None:
+        self._enabled = enabled
+        signals.PUMP.enabled.emit(enabled)
+        if enabled:
+            self.driver.pump.enabled = True
+            self.enable_pump()
+        else:
+            self.driver.pump.enabled = False
+            self.disable_pump()
 
     def enable_pump(self) -> None:
         self.driver.pump.set_duty_cycle()

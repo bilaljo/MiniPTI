@@ -210,11 +210,13 @@ class Pump(MotherBoardTools):
         MotherBoardTools.__init__(self, "Pump", driver, PumpConfiguration)
         self._duty_cycle_command = protocolls.ASCIIHex("SDP0000")
         self.configuration: Union[PumpConfiguration, None] = None
+        self.enabled = False
         self.load_configuration()
 
     def set_duty_cycle(self) -> None:
         self._duty_cycle_command.value = self.configuration.duty_cycle
-        self.driver.write(self._duty_cycle_command)
+        if self.enabled:
+            self.driver.write(self._duty_cycle_command)
 
     def disable_pump(self) -> None:
         self._duty_cycle_command.value = 0

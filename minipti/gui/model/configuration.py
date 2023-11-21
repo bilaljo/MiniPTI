@@ -127,6 +127,11 @@ class Connect:
 
 
 @dataclass(frozen=True)
+class _Pump:
+    use: bool = True
+
+
+@dataclass(frozen=True)
 class _GUI:
     window_title: str = "MiniPTI"
     logging: _Logging = _Logging()
@@ -136,6 +141,7 @@ class _GUI:
     utilities: _Utilities = _Utilities()
     valve: _Valve = _Valve()
     save: _Save = _Save()
+    pump: _Pump = _Pump()
     use_shutdown: bool = True
     connect: Connect = Connect()
     probe_laser: _LaserWindow = _LaserWindow()
