@@ -201,20 +201,21 @@ class Toolbar(interface.Toolbar):
                 logging.error("Could not find Motherboard")
         if model.configuration.GUI.connect.laser_driver:
             try:
-                if model.serial_devices.DRIVER.laser.is_found:
+                if not model.serial_devices.DRIVER.laser.is_found:
                     model.serial_devices.DRIVER.laser.find_port()
             except OSError:
                 logging.error("Could not find Laser Driver")
         if model.configuration.GUI.connect.tec_driver:
             try:
-                if model.serial_devices.DRIVER.tec.is_found:
+                if not model.serial_devices.DRIVER.tec.is_found:
                     model.serial_devices.DRIVER.tec.find_port()
             except OSError:
                 logging.error("Could not find TEC Driver")
 
     @override
     def connect_devices(self) -> None:
-        if model.serial_devices.DRIVER.motherboard.is_found:
+        if not model.serial_devices.DRIVER.motherboard.is_open and \
+                model.serial_devices.DRIVER.motherboard.is_found:
             try:
                 model.serial_devices.DRIVER.motherboard.open()
                 model.serial_devices.DRIVER.motherboard.run()
@@ -223,7 +224,8 @@ class Toolbar(interface.Toolbar):
                 model.serial_devices.TOOLS.valve.automatic_valve_change()
             except OSError:
                 logging.error("Could not connect with Motherboard")
-        if model.serial_devices.DRIVER.laser.is_found:
+        if not model.serial_devices.DRIVER.laser.is_open and\
+                model.serial_devices.DRIVER.laser.is_found:
             try:
                 model.serial_devices.DRIVER.laser.open()
                 model.serial_devices.TOOLS.pump_laser.start_up()
@@ -232,7 +234,8 @@ class Toolbar(interface.Toolbar):
                 model.serial_devices.TOOLS.pump_laser.process_measured_data()
             except OSError:
                 logging.error("Could not connect with Laser Driver")
-        if model.serial_devices.DRIVER.tec.is_found:
+        if not model.serial_devices.DRIVER.tec.is_open and\
+                model.serial_devices.DRIVER.tec.is_found:
             try:
                 model.serial_devices.DRIVER.tec.open()
                 model.serial_devices.DRIVER.tec.run()
@@ -430,7 +433,12 @@ class Settings(interface.Settings):
 
     @override
     def enable_pump(self, enable: bool) -> None:
-        model.serial_devices.TOOLS.pump.enable = True
+        if enable:
+            model.serial_devices.TOOLS.pump.enable = True
+            model.serial_devices.TOOLS.pump.enable_pump()
+        else:
+            model.serial_devices.TOOLS.pump.enable = False
+            model.serial_devices.TOOLS.pump.disable_pump()
 
 
 class Utilities(interface.Utilities):

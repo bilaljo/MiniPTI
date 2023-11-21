@@ -301,10 +301,10 @@ class Pump(Serial):
         self.driver.pump.set_duty_cycle()
 
     def enable_pump(self) -> None:
-        if self.running:
-            self.driver.pump.disable_pump()
-        else:
+        if not self.running or self.enable:
             self.driver.pump.set_duty_cycle()
+        else:
+            self.driver.pump.disable_pump()
         self.running = not self.running
 
     def disable_pump(self) -> None:
