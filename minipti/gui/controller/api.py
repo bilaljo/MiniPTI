@@ -119,7 +119,7 @@ class Toolbar(interface.Toolbar):
         self.settings_controller = settings_controller
         self.utilities_controller = utilities_controller
         self._destination_folder = model.processing.DestinationFolder()
-        self.calculation_model = model.processing.LiveCalculation()
+        self.calculation_model = settings_controller.calculation_model
         self.running = False
         model.serial_devices.TOOLS.daq.fire_configuration_change()
 

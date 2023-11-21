@@ -67,7 +67,6 @@ class LiveCalculation(Calculation):
     def __init__(self):
         Calculation.__init__(self)
         self.current_time = 0
-        self.save_raw_data = False
         self.dc_signals = []
         self.interferometer_buffer = buffer.Interferometer()
         self.pti_buffer = buffer.PTI()
