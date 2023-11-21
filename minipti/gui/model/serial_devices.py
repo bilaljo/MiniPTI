@@ -127,6 +127,14 @@ class DAQ(Serial):
     def fire_configuration_change(self) -> None:
         signals.DAQ.samples_changed.emit(self.driver.daq.configuration.number_of_samples)
 
+    @property
+    def number_of_samples(self) -> int:
+        return self.driver.daq.number_of_samples
+    
+    @number_of_samples.setter
+    def number_of_samples(self, number_of_sampes: int) -> None:
+        self.driver.daq.number_of_samples = number_of_sampes
+
 
 class BMS(Serial):
     MINIUM_PERCENTAGE = 15
