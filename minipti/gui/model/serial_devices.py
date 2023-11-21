@@ -305,9 +305,11 @@ class Pump(Serial):
         if not self.enable_on_run:
             return
         if not self.running:
+            signals.PUMP.enabled.emit(True)
             self.driver.pump.enabled = True
             self.driver.pump.set_duty_cycle()
         else:
+            signals.PUMP.enabled.emit(False)
             self.driver.pump.disable_pump()
             self.driver.pump.enabled = False
         self.running = not self.running

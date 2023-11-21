@@ -445,8 +445,8 @@ class Settings(interface.Settings):
             model.serial_devices.TOOLS.pump.disable_pump()
 
     @override
-    def enable_pump_on_run(self, enable: bool) -> None:
-        model.serial_devices.TOOLS.pump.enable_on_run = True
+    def enable_pump_on_run(self) -> None:
+        model.serial_devices.TOOLS.pump.enable_on_run = not model.serial_devices.TOOLS.pump.enable_on_run
 
 
 class Utilities(interface.Utilities):

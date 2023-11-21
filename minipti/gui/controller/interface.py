@@ -192,7 +192,7 @@ class Settings(ABC):
         ...
 
     @abstractmethod
-    def enable_pump_on_run(self, enable: bool) -> None:
+    def enable_pump_on_run(self) -> None:
         ...
 
 
