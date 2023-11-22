@@ -36,7 +36,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.addToolBar(QtCore.Qt.LeftToolBarArea, self.toolbar)
         self.setStatusBar(self.controllers.statusbar.view)
         self.tabbar = QtWidgets.QTabWidget(movable=True)
-        self.dock_area = pg.dockarea.DockArea()
         self.plots = Plots(plots.Measurement(), plots.Interferometrie(), plots.Characterisation(),
                            plots.ProbeLaserCurrent(),
                            plots.PumpLaserCurrent(),
@@ -64,8 +63,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setWindowIcon(QtGui.QIcon(f"{minipti.module_path}/gui/images/logo.png"))
         self.setWindowTitle(model.configuration.GUI.window_title)
         self.full_screen = False
+        self.tabbar.tabBar().setExpanding(True)
         self.setCentralWidget(self.tabbar)
         self.show()
+
+    def resizeEvent(self, event):
+        self.tabbar.tabBar().setFixedWidth(self.width())
+        super().resizeEvent(event)
 
     def keyPressEvent(self, e):
         if e.key() == Qt.Key_F11:
@@ -96,7 +100,7 @@ class MainWindow(QtWidgets.QMainWindow):
         laser.layout().addWidget(laser_plot)
         tabbar = QtWidgets.QTabWidget(movable=True)
         tec = self._init_tec(channel)
-        tabbar.addTab(laser, "Lase Driver")
+        tabbar.addTab(laser, "Laser Driver")
         tabbar.addTab(tec, "TEC Driver")
         return tabbar
 

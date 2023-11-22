@@ -10,7 +10,7 @@ try:
 except ModuleNotFoundError:
     pass
 
-from PyQt5 import QtWidgets, QtCore
+from PyQt5 import QtWidgets, QtCore, QtGui
 from overrides import override
 
 import minipti
@@ -55,6 +55,7 @@ class MainApplication(interface.MainApplication):
         model.signals.GENERAL_PURPORSE.theme_changed.connect(self.update_theme)
         threading.Thread(target=model.general_purpose.theme_observer, daemon=True).start()
         self.controllers.toolbar.init_devices()
+        self.setFont(QtGui.QFont('Arial', 12))
         # threading.excepthook = self.thread_exception
 
     @override
@@ -269,7 +270,8 @@ class Statusbar(interface.Statusbar):
 
     @override
     def update_destination_folder(self, folder: str) -> None:
-        self.view.addWidget(QtWidgets.QLabel(folder))
+        self.view.clearMessage()
+        self.view.showMessage(folder)
 
 
 class Settings(interface.Settings):

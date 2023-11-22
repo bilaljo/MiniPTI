@@ -40,6 +40,7 @@ class ToolBar(QtWidgets.QToolBar):
         self.setStyleSheet("QToolBar{spacing:12px;}")
         self._init_actions()
         self._init_signals()
+        self.setContextMenuPolicy(QtCore.Qt.PreventContextMenu)
 
     def _init_actions(self) -> None:
         self.addAction(self.actions.run)
@@ -123,6 +124,18 @@ class BatteryWindow(QtWidgets.QMainWindow):
         self.remaining_capacity_value.setText(str(round(remaining_capacity, 2)))
 
 
+class LabelIgnorePressed(QtWidgets.QLabel):
+    def __init__(self, text=""):
+        QtWidgets.QLabel.__init__(self, text)
+
+    def event(self, event):
+        if event.type() == QtCore.QEvent.HoverEnter or event.type() == QtCore.QEvent.HoverLeave \
+                or event.type() == QtCore.QEvent.HoverMove:
+            return True
+        else:
+            return super().event(event)
+
+
 class StatusBar(QtWidgets.QStatusBar):
     BATTERY_THREE_QUARATERS_FULL = 75
     BATTERY_HALF_FULL = 50
@@ -132,9 +145,12 @@ class StatusBar(QtWidgets.QStatusBar):
         QtWidgets.QStatusBar.__init__(self)
         self.controller = bms_controller
         self.base_path = f"{minipti.module_path}/gui/images/battery"
-        self.bypass = QtWidgets.QLabel("Bypass")
-        self.pump = QtWidgets.QLabel("Pump")
+        self.bypass = LabelIgnorePressed("Bypass")
+        self.pump = LabelIgnorePressed("Pump")
+        if model.configuration.GUI.destination_folder.use:
+            model.signals.GENERAL_PURPORSE.destination_folder_changed.connect(self.controller.update_destination_folder)
         if model.configuration.GUI.valve.use:
+            self.bypass_container = QtWidgets.QWidget()
             self.addPermanentWidget(self.bypass)
         if model.configuration.GUI.pump.use:
             self.addPermanentWidget(self.pump)
@@ -146,12 +162,8 @@ class StatusBar(QtWidgets.QStatusBar):
             self.charging_indicator.setIconSize(QtCore.QSize(30, 40))
             self.addPermanentWidget(self.charging_indicator)
             model.signals.BMS.battery_state.connect(self.update_battery_state)
-        model.signals.GENERAL_PURPORSE.destination_folder_changed.connect(self.update_destination_folder)
         model.signals.VALVE.bypass.connect(self.update_valve_state)
         model.signals.PUMP.enabled.connect(self.update_pump)
-
-    def update_destination_folder(self, folder: str) -> None:
-        self.controller.update_destination_folder(folder)
 
     def _set_battery_icon(self, percentage: float, charing: bool):
         suffix = "_charging.png" if charing else ".svg"
