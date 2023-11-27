@@ -33,7 +33,7 @@ class Symmetry:
 
 
 @dataclass
-class CharateristicParameter:
+class CharacteristicParameter:
     amplitudes: np.ndarray[float]
     offsets: np.ndarray[float]
     output_phases: np.ndarray[float]
@@ -53,11 +53,11 @@ class Interferometer:
         self.settings_path = settings_path
         self.decimation_filepath = decimation_filepath
         self.phase: Union[float, np.ndarray] = 0
-        self._characteristic_parameter = CharateristicParameter(amplitudes=np.zeros(interferometer_dimension),
-                                                                offsets=np.zeros(interferometer_dimension),
-                                                                output_phases=np.array([0,
-                                                                                        2 * np.pi / 3,
-                                                                                        4 * np.pi / 3]))
+        self._characteristic_parameter = CharacteristicParameter(amplitudes=np.zeros(interferometer_dimension),
+                                                                 offsets=np.zeros(interferometer_dimension),
+                                                                 output_phases=np.array([0,
+                                                                                         2 * np.pi / 3,
+                                                                                         4 * np.pi / 3]))
         self.symmetry = Symmetry()
         self._locks = _Locks()
         self.sensitivity: np.ndarray = np.empty(shape=interferometer_dimension)
@@ -103,12 +103,12 @@ class Interferometer:
         return amplitude_str + "\n" + offset_str + "\n" + output_phase_str
 
     @property
-    def characteristic_parameter(self) -> CharateristicParameter:
+    def characteristic_parameter(self) -> CharacteristicParameter:
         with self._locks.characteristic_parameter:
             return self._characteristic_parameter
 
     @characteristic_parameter.setter
-    def characteristic_parameter(self, new_parameter: CharateristicParameter) -> None:
+    def characteristic_parameter(self, new_parameter: CharacteristicParameter) -> None:
         with self._locks.characteristic_parameter:
             self._characteristic_parameter = new_parameter
 
@@ -371,8 +371,8 @@ class Characterization:
                 units[f"Output Phase CH{channel}"] = "deg"
                 units[f"Amplitude CH{channel}"] = "V"
                 units[f"Offset CH{channel}"] = "V"
-            # units["Symmetry"] = "%"
-            # units["Relative Symmetry"] = "%"
+            units["Symmetry"] = "%"
+            units["Relative Symmetry"] = "%"
             pd.DataFrame(units, index=["s"]).to_csv(f"{self.destination_folder}/Characterisation.csv",
                                                     index_label="Time Stamp")
             self.init_headers = False
@@ -407,9 +407,9 @@ class Characterization:
 
     def _load_settings(self) -> None:
         settings = pd.read_csv(self.interferometer.settings_path, index_col="Setting")
-        self.interferometer.output_phases = np.deg2rad(settings.loc["Output Phases [deg]"])
-        self.interferometer.amplitudes = settings.loc["Amplitude [V]"]
-        self.interferometer.offsets = settings.loc["Offset [V]"]
+        self.interferometer.output_phases = np.deg2rad(settings.loc["Output Phases [deg]"]).to_numpy()
+        self.interferometer.amplitudes = settings.loc["Amplitude [V]"].to_numpy()
+        self.interferometer.offsets = settings.loc["Offset [V]"].to_numpy()
         self.use_parameters = True
 
     def _estimate_settings(self, dc_signals: np.ndarray) -> None:
@@ -425,6 +425,12 @@ class Characterization:
             self._load_settings()
         else:
             self._estimate_settings(dc_signals)
+        if not self.use_configuration:
+            self.interferometer.intensities = dc_signals
+            self.interferometer.calculate_phase()
+            self.interferometry_data.phases = self.interferometer.phase
+            self._iterate_characterization()
+            self.use_parameters = True  # For next time these values can be used now
         for i in range(data_length):
             self.interferometer.intensities = dc_signals[i]
             self.interferometer.calculate_phase()
@@ -441,7 +447,7 @@ class Characterization:
                 last_index = i + 1
                 self.clear()
                 yield i
-        if last_index == 0:
+        if last_index == 0 and (not self.use_parameters or not self.use_configuration):
             raise ValueError("Not enough values for characterisation")
 
     def _characterise_interferometer(self, update_amplitude_offsets=True) -> None:

@@ -4,7 +4,7 @@
             "characterization": {
                 "use_default_settings": true,
                 "keep_settings": true,
-                "number_of_steps": 100
+                "number_of_steps": 10
             },
             "interferometer": null
         },

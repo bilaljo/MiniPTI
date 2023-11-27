@@ -12,7 +12,7 @@ from minipti.gui.model import buffer
 @dataclass(init=False, frozen=True)
 class _Calculation(QtCore.QObject):
     settings_pti = QtCore.pyqtSignal()
-    settings_interferometer = QtCore.pyqtSignal(algorithm.interferometry.CharateristicParameter)
+    settings_interferometer = QtCore.pyqtSignal(algorithm.interferometry.CharacteristicParameter)
     dc_signals = QtCore.pyqtSignal(np.ndarray)
     inversion = QtCore.pyqtSignal(dict)
     characterization = QtCore.pyqtSignal(np.ndarray)

@@ -5,7 +5,7 @@ import pyqtgraph as pg
 from PyQt5 import QtWidgets, QtGui, QtCore
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QApplication
-from pyqtgraph import dockarea
+from overrides import override
 
 import minipti
 from minipti.gui import controller
@@ -24,6 +24,16 @@ class Plots(NamedTuple):
     tec: list[plots.TecTemperature]
 
 
+class _FullSizeTab(QtWidgets.QTabWidget):
+    def __init__(self, *args, **kwargs):
+        QtWidgets.QTabWidget.__init__(self, *args, **kwargs)
+
+    @override
+    def resizeEvent(self, event):
+        self.tabBar().setFixedWidth(self.width())
+        super().resizeEvent(event)
+
+
 class MainWindow(QtWidgets.QMainWindow):
     HORIZONTAL_SIZE = 1200
     VERTICAL_SIZE = 1000
@@ -35,7 +45,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.toolbar = general_purpose.ToolBar(self.controllers.toolbar)
         self.addToolBar(QtCore.Qt.LeftToolBarArea, self.toolbar)
         self.setStatusBar(self.controllers.statusbar.view)
-        self.tabbar = QtWidgets.QTabWidget(movable=True)
+        self.tabbar = _FullSizeTab(movable=True)
         self.plots = Plots(plots.Measurement(), plots.Interferometrie(), plots.Characterisation(),
                            plots.ProbeLaserCurrent(),
                            plots.PumpLaserCurrent(),
@@ -67,20 +77,22 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setCentralWidget(self.tabbar)
         self.show()
 
-    def resizeEvent(self, event):
-        self.tabbar.tabBar().setFixedWidth(self.width())
-        super().resizeEvent(event)
-
     def keyPressEvent(self, e):
-        if e.key() == Qt.Key_F11:
+        if e.key() == Qt.Key_F1:
+            self.controllers.toolbar.show_settings()
+        elif e.key() == Qt.Key_F2:
+            self.controllers.toolbar.show_utilities()
+        elif e.key() == Qt.Key_F11:
             if self.full_screen:
                 self.showNormal()
                 self.full_screen = False
             else:
                 self.showFullScreen()
                 self.full_screen = True
-        if e.key == Qt.Key_F11:
+        elif e.key() == Qt.Key_Escape:
             self.controllers.main_application.emergency_stop()
+        elif e.key() == Qt.Key_Space or e.key() == Qt.Key_Return:
+            self.controllers.toolbar.on_run()
 
     def logging_update(self, log_queue: collections.deque) -> None:
         self.logging_window.setText("".join(log_queue))
@@ -98,7 +110,7 @@ class MainWindow(QtWidgets.QMainWindow):
         laser.setLayout(QtWidgets.QHBoxLayout())
         laser.layout().addWidget(laser_widget)
         laser.layout().addWidget(laser_plot)
-        tabbar = QtWidgets.QTabWidget(movable=True)
+        tabbar = _FullSizeTab(movable=True)
         tec = self._init_tec(channel)
         tabbar.addTab(laser, "Laser Driver")
         tabbar.addTab(tec, "TEC Driver")

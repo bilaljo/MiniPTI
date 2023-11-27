@@ -72,7 +72,12 @@ class LiveCalculation(Calculation):
         self.pti_buffer = buffer.PTI()
         self.characterisation_buffer = buffer.Characterisation()
         self.pti_signal_mean_queue = deque(maxlen=LiveCalculation.ONE_MINUTE)
+        self.new_directory = True
         signals.DAQ.clear.connect(self._clear_buffers)
+        signals.GENERAL_PURPORSE.destination_folder_changed.connect(self.update_new_directory)
+
+    def update_new_directory(self) -> None:
+        self.new_directory = True
 
     def _clear_buffers(self) -> None:
         self.interferometer_buffer.clear()
@@ -117,11 +122,13 @@ class LiveCalculation(Calculation):
             signals.CALCULATION.settings_interferometer.emit(self.interferometer.characteristic_parameter)
 
     def _init_calculation(self) -> None:
-        self.pti.inversion.init_header = True
-        self.pti.decimation.init_header = True
-        self.interferometer.init_online = True
-        self.interferometer_characterization.init_online = True
-        self.interferometer.load_settings()
+        if self.new_directory:
+            self.pti.inversion.init_header = True
+            self.pti.decimation.init_header = True
+            self.interferometer.init_online = True
+            self.interferometer_characterization.init_online = True
+            self.interferometer.load_settings()
+            self.new_directory = False
 
     def _decimation(self) -> None:
         self.pti.decimation.raw_data.ref = serial_devices.TOOLS.daq.ref_signal.copy()
@@ -258,8 +265,8 @@ class SettingsTable(general_purpose.Table):
     def _indices(self) -> list[str]:
         return ["Amplitude [V]", "Offset [V]", "Output Phases [deg]", "Response Phases [rad]"]
 
-    @QtCore.pyqtSlot(algorithm.interferometry.CharateristicParameter)
-    def update_settings(self, characteristic_parameter: algorithm.interferometry.CharateristicParameter) -> None:
+    @QtCore.pyqtSlot(algorithm.interferometry.CharacteristicParameter)
+    def update_settings(self, characteristic_parameter: algorithm.interferometry.CharacteristicParameter) -> None:
         self.update_settings_parameters(characteristic_parameter)
 
     def save(self) -> None:
@@ -268,7 +275,7 @@ class SettingsTable(general_purpose.Table):
     def load(self) -> None:
         self.table_data = pd.read_csv(self.file_path, index_col="Setting")
 
-    def update_settings_parameters(self, characteristic_parameter: algorithm.interferometry.CharateristicParameter):
+    def update_settings_parameters(self, characteristic_parameter: algorithm.interferometry.CharacteristicParameter):
         self.table_data.loc["Output Phases [deg]"] = np.rad2deg(characteristic_parameter.output_phases)
         self.table_data.loc["Amplitude [V]"] = characteristic_parameter.amplitudes
         self.table_data.loc["Offset [V]"] = characteristic_parameter.offsets
