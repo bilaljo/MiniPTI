@@ -22,6 +22,7 @@ class UtilitiesWindow(QtWidgets.QMainWindow):
         self.setCentralWidget(self.parent)
         self.setFixedSize(300, 400)
         self.setWindowIcon(QtGui.QIcon(f"{minipti.module_path}/gui/images/Utilities.png"))
+        self.progessbar = QtWidgets.QProgressBar()
 
 
 class UtilitiesBase(QtWidgets.QGroupBox):

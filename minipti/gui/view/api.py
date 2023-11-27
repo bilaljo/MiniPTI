@@ -75,7 +75,20 @@ class MainWindow(QtWidgets.QMainWindow):
         self.full_screen = False
         self.tabbar.tabBar().setExpanding(True)
         self.setCentralWidget(self.tabbar)
+        self.progress_bar = QtWidgets.QProgressBar()
+        model.signals.GENERAL_PURPORSE.progess_bar.connect(self.update_progess_bar)
+        model.signals.GENERAL_PURPORSE.progess_bar_start.connect(self.start_progess_bar)
+        model.signals.GENERAL_PURPORSE.progess_bar_stop.connect(self.stop_progess_bar)
         self.show()
+
+    def start_progess_bar(self) -> None:
+        self.progress_bar.show()
+
+    def stop_progess_bar(self) -> None:
+        self.progress_bar.close()
+
+    def update_progess_bar(self, progress: int) -> None:
+        self.progress_bar.setValue(progress)
 
     def keyPressEvent(self, e):
         if e.key() == Qt.Key_F1:
