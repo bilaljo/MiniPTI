@@ -429,6 +429,7 @@ class Characterization:
             self.interferometer.intensities = dc_signals
             self.interferometer.calculate_phase()
             self.interferometry_data.phases = self.interferometer.phase
+            self.interferometry_data.dc_signals = dc_signals
             self._iterate_characterization()
             self.use_parameters = True  # For next time these values can be used now
         for i in range(data_length):
@@ -488,18 +489,14 @@ class Characterization:
 
     def estimate_error(self) -> float:
         error = 0
-        for channel in range(3):
+        for channel in range(1, 3):
             error += np.sum((self.interferometer.amplitudes[channel] *
                              np.cos(self.interferometer.phase - self.interferometer.output_phases[channel])
                              + self.interferometer.offsets[channel] - self.interferometer.intensities.T[channel]) ** 2)
         return error
 
-    def _iterate_characterization(self) -> None:
-        self.interferometer.intensities = np.array(self.interferometry_data.dc_signals)
-        self.interferometer.calculate_amplitudes()
-        self.interferometer.calculate_offsets()
+    def _iterate_phase_space(self, phase_space) -> np.ndarray:
         solutions = {}
-        phase_space = [2 * np.pi * k / 10 for k in range(10)]
         alpha_value = itertools.product(phase_space, phase_space)
         for alpha in alpha_value:
             self.interferometer.output_phases[1:] = np.array(alpha)
@@ -507,7 +504,15 @@ class Characterization:
             self.interferometry_data.phases = self.interferometer.phase
             self._characterise_interferometer(update_amplitude_offsets=False)
             solutions[self.estimate_error()] = self.interferometer.output_phases
-        self.interferometer.output_phases = solutions[min(solutions)]
+        return solutions[min(solutions)]
+
+    def _iterate_characterization(self) -> None:
+        self.interferometer.intensities = np.array(self.interferometry_data.dc_signals)
+        self.interferometer.calculate_amplitudes()
+        self.interferometer.calculate_offsets()
+        phase_space = [2 * np.pi * k / 10 for k in range(10)]
+        guess = self._iterate_phase_space(phase_space)
+        self.interferometer.output_phases = guess
         for _ in itertools.repeat(None, Characterization.MAX_ITERATIONS):
             self.interferometer.calculate_phase()
             self.interferometry_data.phases = self.interferometer.phase

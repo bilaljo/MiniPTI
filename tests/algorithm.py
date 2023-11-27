@@ -1,15 +1,11 @@
 """
 Unit tests for Characterisation algorithm of an interferometer.
 """
-import logging
 import os
 import unittest
-import sys
 
 import numpy as np
 import pandas as pd
-
-sys.path.extend(".")
 
 import minipti
 
@@ -21,6 +17,7 @@ class TestInterferometer(unittest.TestCase):
     """
     MAX_ERROR_PHASE = 1e-6 * 2 * np.pi
     MAX_ERROR_PARAMETERS = 1e-6
+    MAX_ERROR_DC = 1e-1
 
     def setUp(self):
         unittest.TestCase.__init__(self)
@@ -73,7 +70,7 @@ class TestInterferometer(unittest.TestCase):
         self.interferometer.intensities = self.dc_data.T
         self.interferometer.calculate_phase()
         reconstructed_signal = self._reconstruct_signal(self.interferometer.phase)
-#        self.assertTrue((np.abs(reconstructed_signal - self.dc_data) < TestInterferometer.MAX_ERROR_PHASE).all())
+        self.assertTrue((np.abs(reconstructed_signal - self.dc_data) < TestInterferometer.MAX_ERROR_DC).all())
 
     def tearDown(self) -> None:
         data_path: str = f"{os.path.dirname(__file__)}"

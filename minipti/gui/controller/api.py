@@ -531,7 +531,7 @@ class Utilities(interface.Utilities):
         if not characterisation_path:
             return
         use_settings = QtWidgets.QMessageBox.question(self.view, "Characterisation",
-                                                      "Do you want to use the algorithm_settings values?",
+                                                      "Do you want to use the Algorithm Settings Values?",
                                                       QtWidgets.QMessageBox.StandardButton.Yes
                                                       | QtWidgets.QMessageBox.StandardButton.No)
         use_settings = use_settings == QtWidgets.QMessageBox.StandardButton.Yes
