@@ -24,6 +24,6 @@ jobs:
              pip install fastcrc numpy pandas scipy dacite pyserial h5py nptyping[complete] \
              beartype commented-configparser overrides
       - name: Run Hardware Tests
-        run: python tests/hardware.py
+        run: green tests/hardware.py
       - name: Run Algorithm Tests
-        run: python tests/algorithm.py
+        run: green tests/algorithm.py
