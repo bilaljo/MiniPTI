@@ -38,6 +38,8 @@ class Controllers(interface.Controllers):
 class MainApplication(interface.MainApplication):
     def __init__(self, argv=""):
         interface.MainApplication.__init__(self, argv)
+        splash = QtWidgets.QSplashScreen(QtGui.QPixmap(f"{minipti.module_path}/gui/images/logo.svg"))
+        splash.show()
         settings_controller = Settings()
         utilities_controller = Utilities()
         self._controllers: Controllers = Controllers(main_application=self,
@@ -56,6 +58,8 @@ class MainApplication(interface.MainApplication):
         threading.Thread(target=model.general_purpose.theme_observer, daemon=True).start()
         self.controllers.toolbar.init_devices()
         self.setFont(QtGui.QFont('Arial', 12))
+        splash.finish(self.view)
+        splash.close()
         # threading.excepthook = self.thread_exception
 
     @override
@@ -458,10 +462,14 @@ class Utilities(interface.Utilities):
         self.last_file_path = os.getcwd()
         self.interferometric_phase_offline = view.plots.InterferometricPhaseOffline()
         self.dc_offline = view.plots.DCOffline()
+        self.calculation_model.interferometer_characterization.progress_observer.append(self.update_progess_bar)
         model.signals.CALCULATION.dc_signals.connect(self.dc_offline.plot)
         model.signals.CALCULATION.inversion.connect(view.plots.pti_signal_offline)
         model.signals.CALCULATION.interferometric_phase.connect(self.interferometric_phase_offline.plot)
         # model.theme_signal.changed.connect(view.utilities.update_matplotlib_theme)
+
+    def update_progess_bar(self, progress: int) -> None:
+        model.signals.GENERAL_PURPORSE.progess_bar.emit(progress)
 
     @override
     def calculate_decimation(self) -> None:
@@ -535,6 +543,7 @@ class Utilities(interface.Utilities):
                                                       QtWidgets.QMessageBox.StandardButton.Yes
                                                       | QtWidgets.QMessageBox.StandardButton.No)
         use_settings = use_settings == QtWidgets.QMessageBox.StandardButton.Yes
+        # model.signals.GENERAL_PURPORSE.progess_bar_start.emit()
         threading.Thread(target=self.calculation_model.calculate_characterisation,
                          args=[characterisation_path, use_settings]).start()
 

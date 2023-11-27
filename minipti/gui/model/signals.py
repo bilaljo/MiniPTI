@@ -30,6 +30,9 @@ class _GeneralPurporse(QtCore.QObject):
     theme_changed = QtCore.pyqtSignal(str)
     tec_data = QtCore.pyqtSignal(buffer.Tec)
     tec_data_display = QtCore.pyqtSignal(hardware.tec.Data)
+    progess_bar = QtCore.pyqtSignal(int)
+    progess_bar_start = QtCore.pyqtSignal()
+    progess_bar_stop = QtCore.pyqtSignal()
 
     def __init__(self):
         QtCore.QObject.__init__(self)

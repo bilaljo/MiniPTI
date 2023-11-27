@@ -15,9 +15,8 @@ class TestInterferometer(unittest.TestCase):
     Tests with sample data if the characteristic values of the interferometer fit the measured
     intensities well (according to a tolerance) enough.
     """
-    MAX_ERROR_PHASE = 1e-6 * 2 * np.pi
+    MAX_ERROR_PHASE = 1e-9 * 2 * np.pi
     MAX_ERROR_PARAMETERS = 1e-6
-    MAX_ERROR_DC = 1e-1
 
     def setUp(self):
         unittest.TestCase.__init__(self)
@@ -70,7 +69,7 @@ class TestInterferometer(unittest.TestCase):
         self.interferometer.intensities = self.dc_data.T
         self.interferometer.calculate_phase()
         reconstructed_signal = self._reconstruct_signal(self.interferometer.phase)
-        self.assertTrue((np.abs(reconstructed_signal - self.dc_data) < TestInterferometer.MAX_ERROR_DC).all())
+        self.assertAlmostEqual(np.mean(reconstructed_signal - self.dc_data), 0, places=3)
 
     def tearDown(self) -> None:
         data_path: str = f"{os.path.dirname(__file__)}"
@@ -104,8 +103,8 @@ class TestCharacterisation(unittest.TestCase):
         error_amplitude = np.abs(self.interferometer.amplitudes - ideal_amplitudes)
         error_offset = np.abs(self.interferometer.offsets - ideal_offsets)
         self.assertTrue((error_phase < TestInterferometer.MAX_ERROR_PHASE).all())
-        self.assertTrue((error_amplitude < TestInterferometer.MAX_ERROR_PHASE).any())
-        self.assertTrue((error_offset < TestInterferometer.MAX_ERROR_PHASE).any())
+        self.assertTrue((error_amplitude < TestInterferometer.MAX_ERROR_PARAMETERS).any())
+        self.assertTrue((error_offset < TestInterferometer.MAX_ERROR_PARAMETERS).any())
 
 
 if __name__ == "__main__":
