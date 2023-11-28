@@ -98,9 +98,10 @@ class Interferometer:
             output_phase_str += f"CH {i + 1}: {np.round(np.rad2deg(self.output_phases[i]), 2)}, "
             amplitude_str += f"CH {i + 1}: {np.round(self.amplitudes[i], 2)}, "
             offset_str += f"CH {i + 1}: {np.round(self.offsets[i], 2)}, "
-        output_phase_str += f"CH3: {np.round(np.rad2deg(self.output_phases[2]), 2)}"
-        amplitude_str += f"CH3: {np.round(self.amplitudes[2], 2)}"
-        offset_str += f"CH3: {np.round(self.offsets[2], 2)}"
+        i = self.interferometer_dimension - 1
+        output_phase_str += f"CH{i}: {np.round(np.rad2deg(self.output_phases[i]), 2)}"
+        amplitude_str += f"CH{i}: {np.round(self.amplitudes[i], 2)}"
+        offset_str += f"CH{i}: {np.round(self.offsets[i], 2)}"
         return amplitude_str + "\n" + offset_str + "\n" + output_phase_str
 
     @property
@@ -314,7 +315,7 @@ class Characterization:
                                                                                    "interferometry",
                                                                                    "characterization")
     STEP_SIZE: Final = CONFIGURATION.number_of_steps
-    MAX_ITERATIONS: Final = 50
+    MAX_ITERATIONS: Final = 30
 
     def __init__(self, interferometer=Interferometer(), use_configuration=CONFIGURATION.use_default_settings,
                  use_parameters=CONFIGURATION.keep_settings):
@@ -392,8 +393,11 @@ class Characterization:
         if live:
             self._calculate_online()
         else:
-            self._calculate_offline(file_path)
-            self.init_headers = True
+            try:
+                self._calculate_offline(file_path)
+                self.init_headers = True
+            except ValueError:
+                logging.warning("Not enough values for characterisation")
 
     def add_phase(self, phase: float) -> None:
         """
@@ -517,7 +521,7 @@ class Characterization:
 
     def _iterate_phase_space(self, phase_space) -> np.ndarray:
         solutions = {}
-        alpha_value = itertools.product(phase_space)
+        alpha_value = itertools.product(phase_space, phase_space)
         pbar = tqdm(total=len(phase_space) ** 2)
         for alpha in alpha_value:
             self.interferometer.output_phases[1:] = np.array(alpha)
@@ -535,12 +539,21 @@ class Characterization:
         guess = self._iterate_phase_space(phase_space)
         logging.info("Estimate %s", guess)
         self.interferometer.output_phases = guess
+        current_estimates = []
         for _ in trange(Characterization.MAX_ITERATIONS):
             self.progress += 1
             self.interferometer.calculate_phase()
             self.interferometry_data.phases = self.interferometer.phase
             self._characterise_interferometer()
+            current_estimates.append(self.interferometer.output_phases)
             logging.info("Current estimation:\n%s", str(self.interferometer))
+        error = np.mean(np.abs(np.gradient(current_estimates, axis=0)), axis=0)
+        # Error should be normally distributed around zero
+        if error[1] > 1e-1:
+            # Value is fishy
+            logging.warning("Value of Channel 2 is probally wrong")
+        elif error[2] > 1e-1:
+            logging.warning("Value of Channel 3 is probally wrong")
         logging.info("Final values:\n%s", str(self.interferometer))
 
     def _add_characterised_data(self, output_data: defaultdict) -> None:
