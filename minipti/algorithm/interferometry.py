@@ -15,6 +15,7 @@ from typing import Final, Union
 import numpy as np
 import pandas as pd
 from scipy import optimize, linalg
+from tqdm import tqdm, trange
 
 from minipti.algorithm import _utilities
 
@@ -414,6 +415,7 @@ class Characterization:
         """
         self.tracking_phase = []
         self.interferometry_data.dc_signals = []
+        self.interferometry_data.phases = []
         self._occurred_phases = np.full(Characterization.STEP_SIZE, False)
         self.event.clear()
 
@@ -505,20 +507,24 @@ class Characterization:
     def estimate_error(self) -> float:
         error = 0
         for channel in range(3):
-            error += np.mean((self.interferometer.amplitudes[channel] *
-                              np.cos(self.interferometer.phase - self.interferometer.output_phases[channel])
-                              + self.interferometer.offsets[channel]
-                              - self.interferometer.intensities.T[channel]) ** 2)
+            amplitude = self.interferometer.amplitudes[channel]
+            outputphase = self.interferometer.output_phases[channel]
+            offset = self.interferometer.offsets[channel]
+            intensity = self.interferometer.intensities.T[channel]
+            phase = self.interferometer.phase
+            error += np.mean((amplitude * np.cos(phase - outputphase) + offset - intensity) ** 2)
         return error / 3
 
     def _iterate_phase_space(self, phase_space) -> np.ndarray:
         solutions = {}
-        alpha_value = itertools.product(phase_space, phase_space)
+        alpha_value = itertools.product(phase_space)
+        pbar = tqdm(total=len(phase_space) ** 2)
         for alpha in alpha_value:
             self.interferometer.output_phases[1:] = np.array(alpha)
             self.interferometer.calculate_phase()
             solutions[self.estimate_error()] = list(self.interferometer.output_phases)
             self.progress += 1
+            pbar.update()
         return np.array(solutions[min(solutions)])
 
     def _iterate_characterization(self) -> None:
@@ -527,8 +533,9 @@ class Characterization:
         self.interferometer.calculate_offsets()
         phase_space = [2 * np.pi * k / 10 for k in range(10)]
         guess = self._iterate_phase_space(phase_space)
+        logging.info("Estimate %s", guess)
         self.interferometer.output_phases = guess
-        for _ in itertools.repeat(None, Characterization.MAX_ITERATIONS):
+        for _ in trange(Characterization.MAX_ITERATIONS):
             self.progress += 1
             self.interferometer.calculate_phase()
             self.interferometry_data.phases = self.interferometer.phase
@@ -558,17 +565,13 @@ class Characterization:
         else:
             raise KeyError("Invalid key for DC values given")
         process_characterisation = self.process(dc_signals)
-        try:
-            for i in process_characterisation:
-                time_stamps.append(i)
-            self._add_characterised_data(output_data)
-        except ValueError:
-            logging.warning("Not enough values for characterization")
-        else:
-            pd.DataFrame(output_data, index=time_stamps).to_csv(f"{self.destination_folder}/Characterisation.csv",
-                                                                mode="a", index_label="Time Stamp", header=False)
-            logging.info("Characterization finished")
-            logging.info("Saved data into %s", self.destination_folder)
+        for i in process_characterisation:
+            time_stamps.append(i)
+        self._add_characterised_data(output_data)
+        pd.DataFrame(output_data, index=time_stamps).to_csv(f"{self.destination_folder}/Characterisation.csv",
+                                                            mode="a", index_label="Time Stamp", header=False)
+        logging.info("Characterization finished")
+        logging.info("Saved data into %s", self.destination_folder)
 
     def _calculate_online(self) -> None:
         self.event.wait()

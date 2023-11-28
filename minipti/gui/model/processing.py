@@ -74,7 +74,6 @@ class LiveCalculation(Calculation):
         self.pti_signal_mean_queue = deque(maxlen=LiveCalculation.ONE_MINUTE)
         self.new_directory = True
         signals.DAQ.clear.connect(self._clear_buffers)
-        signals.GENERAL_PURPORSE.destination_folder_changed.connect(self.update_new_directory)
 
     def update_new_directory(self) -> None:
         self.new_directory = True
@@ -122,13 +121,11 @@ class LiveCalculation(Calculation):
             signals.CALCULATION.settings_interferometer.emit(self.interferometer.characteristic_parameter)
 
     def _init_calculation(self) -> None:
-        if self.new_directory:
-            self.pti.inversion.init_header = True
-            self.pti.decimation.init_header = True
-            self.interferometer.init_online = True
-            self.interferometer_characterization.init_online = True
-            self.interferometer.load_settings()
-            self.new_directory = False
+        self.pti.inversion.init_header = True
+        self.pti.decimation.init_header = True
+        self.interferometer.init_online = True
+        self.interferometer_characterization.init_online = True
+        self.interferometer.load_settings()
 
     def _decimation(self) -> None:
         self.pti.decimation.raw_data.ref = serial_devices.TOOLS.daq.ref_signal.copy()
