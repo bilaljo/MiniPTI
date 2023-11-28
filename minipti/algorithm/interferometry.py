@@ -588,6 +588,7 @@ class Characterization:
 
     def _calculate_online(self) -> None:
         self.event.wait()
+        self.interferometry_data.dc_signals = np.array(self.interferometry_data.dc_signals)
         self._characterise_interferometer()
         characterised_data = {}
         for i in range(3):
