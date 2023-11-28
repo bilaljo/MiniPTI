@@ -22,7 +22,7 @@ jobs:
       - name: Install Packages
         run: pip install --upgrade pip
              pip install fastcrc numpy pandas scipy dacite pyserial h5py nptyping[complete] \
-             beartype commented-configparser overrides green
+             beartype commented-configparser overrides green tqdm
       - name: Run Hardware Tests
         run: green tests/hardware.py
       - name: Run Algorithm Tests
