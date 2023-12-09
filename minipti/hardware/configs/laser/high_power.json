@@ -2,33 +2,14 @@
     "High Power Laser": {
         "max_current_mA": 1500,
         "bit_value": 27,
-        "DAC": [
-            {
+        "DAC": [{
                 "bit_value": 1678,
-                "continuous_wave": [
-                    false,
-                    true,
-                    false
-                ],
-                "pulsed_mode": [
-                    true,
-                    false,
-                    false
-                ]
-            },
-            {
+                "continuous_wave": [false, true, false],
+                "pulsed_mode": [true, false, false]
+            }, {
                 "bit_value": 2673,
-                "continuous_wave": [
-                    false,
-                    false,
-                    false
-                ],
-                "pulsed_mode": [
-                    true,
-                    false,
-                    true
-                ]
-            }
-        ]
+                "continuous_wave": [false, false, false],
+                "pulsed_mode": [true, false, true]
+            }]
     }
 }

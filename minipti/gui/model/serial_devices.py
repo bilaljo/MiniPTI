@@ -449,7 +449,7 @@ class PumpLaser(Laser):
     @driver_bits.setter
     def driver_bits(self, bits: int) -> None:
         # With increasing the slider decreases its value but the voltage should increase, hence we subtract the bits.
-        self.pump_laser.configuration.bit_value = hardware.laser.HighPowerLaserConfig.NUMBER_OF_STEPS - bits
+        self.pump_laser.configuration.bit_value = hardware.laser.HighPowerLaser.NUMBER_OF_STEPS - bits
         self.fire_driver_bits_signal()
         self.pump_laser.set_voltage()
 
@@ -477,8 +477,8 @@ class PumpLaser(Laser):
 
     def fire_driver_bits_signal(self) -> None:
         bits: int = self.pump_laser.configuration.bit_value
-        voltage: float = hardware.laser.HighPowerLaserConfig.bit_to_voltage(bits)
-        bits = hardware.laser.HighPowerLaserConfig.NUMBER_OF_STEPS - bits
+        voltage: float = hardware.laser.HighPowerLaser.bit_to_voltage(bits)
+        bits = hardware.laser.HighPowerLaser.NUMBER_OF_STEPS - bits
         signals.LASER.laser_voltage.emit(bits, voltage)
 
     @property

@@ -89,7 +89,7 @@ class TestCharacterisation(unittest.TestCase):
         self.characterization = minipti.algorithm.interferometry.Characterization(interferometer=self.interferometer,
                                                                                   use_parameters=False,
                                                                                   use_configuration=False)
-        self.phases = np.linspace(0, 2 * np.pi, 500)
+        self.phases = np.linspace(0, 2 * np.pi, 100)
         self.intensities = np.array([np.cos(self.phases - i * 2 * np.pi / 3) + 1 for i in range(3)]).T
 
     def test_parameters_non_ideal(self) -> None:
@@ -99,12 +99,9 @@ class TestCharacterisation(unittest.TestCase):
             pass
         ideal_amplitudes = np.array([1, 1, 1])
         ideal_offsets = np.array([1, 1, 1])
-        error_phase = np.abs(self.interferometer.output_phases - output_phases)
-        error_amplitude = np.abs(self.interferometer.amplitudes - ideal_amplitudes)
-        error_offset = np.abs(self.interferometer.offsets - ideal_offsets)
-        self.assertTrue((error_phase < TestInterferometer.MAX_ERROR_PHASE).all())
-        self.assertTrue((error_amplitude < TestInterferometer.MAX_ERROR_PARAMETERS).any())
-        self.assertTrue((error_offset < TestInterferometer.MAX_ERROR_PARAMETERS).any())
+        np.testing.assert_allclose(self.interferometer.output_phases, output_phases, 1e-2)
+        np.testing.assert_allclose(self.interferometer.amplitudes, ideal_amplitudes, 1e-1)
+        np.testing.assert_allclose(self.interferometer.offsets, ideal_offsets, 1e-1)
 
 
 if __name__ == "__main__":

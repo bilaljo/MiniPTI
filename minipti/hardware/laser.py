@@ -1,7 +1,6 @@
 import dataclasses
 import json
 import logging
-import platform
 import typing
 from abc import abstractmethod
 from dataclasses import dataclass
@@ -97,23 +96,6 @@ class HighPowerLaserConfig:
     bit_value: int
     DAC: list[DAC, DAC]
 
-    _RESISTOR: Final[float] = 2.2e4
-    _DIGITAL_POT: Final[float] = 1e4
-    NUMBER_OF_STEPS: Final[int] = 1 << 7
-    _PRE_RESISTOR: Final[float] = 1.6e3
-
-    @staticmethod
-    def bit_to_voltage(bits: int) -> float:
-        # 0.8 is an interpolation constant without any practical meaning.
-        return 0.8 * HighPowerLaserConfig._RESISTOR / (bits * HighPowerLaserConfig._DIGITAL_POT
-                                                       / HighPowerLaserConfig.NUMBER_OF_STEPS
-                                                       + HighPowerLaserConfig._PRE_RESISTOR) + 0.8
-
-    @staticmethod
-    def voltage_to_bit(voltage: float) -> int:
-        return int((0.8 * HighPowerLaserConfig._RESISTOR / (voltage - 0.8) - HighPowerLaserConfig._PRE_RESISTOR)
-                   * HighPowerLaserConfig.NUMBER_OF_STEPS / HighPowerLaserConfig._DIGITAL_POT)
-
 
 @dataclass
 class Mode:
@@ -185,10 +167,7 @@ class LowPowerLaser(Laser):
 
     def __init__(self, driver: Driver):
         Laser.__init__(self, driver)
-        if platform.system() == "Windows":
-            self.config_path: str = f"{minipti.module_path}\hardware\configs\laser\low_power.json"
-        else:
-            self.config_path: str = f"{minipti.module_path}/hardware/configs/laser/low_power.json"
+        self.config_path: str = f"{minipti.module_path}/hardware/configs/laser/low_power.json"
         self.configuration: Union[None, LowPowerLaserConfig] = None
         self._init = protocolls.ASCIIHex("CLI0000")
         self.mode = protocolls.ASCIIHex("SLM0000")
@@ -262,13 +241,14 @@ class HighPowerLaser(Laser):
     _DAC = typing.Annotated[tuple[int], 6]
     _DAC_REGISTER: Final[tuple[_DAC, _DAC]] = ((1 << 8, 1 << 9, 1 << 10, 1 << 11, 1 << 12, 1 << 13),
                                                (1 << 14, 1 << 15, 1 << 0, 1 << 1, 1 << 2, 1 << 3))
+    _RESISTOR: Final[float] = 2.2e4
+    _DIGITAL_POT: Final[float] = 1e4
+    NUMBER_OF_STEPS: Final[int] = 1 << 7
+    _PRE_RESISTOR: Final[float] = 1.6e3
 
     def __init__(self, driver: Driver):
         Laser.__init__(self, driver)
-        if platform.system() == "Windows":
-            self.config_path: str = f"{minipti.module_path}\hardware\configs\laser\high_power.json"
-        else:
-            self.config_path: str = f"{minipti.module_path}/hardware/configs/laser/high_power.json"
+        self.config_path: str = f"{minipti.module_path}/hardware/configs/laser/high_power.json"
         self.configuration: Union[None, HighPowerLaserConfig] = None
         self._init = protocolls.ASCIIHex("CHI0000")
         self._set_voltage = protocolls.ASCIIHex("SHV0000")
@@ -329,3 +309,14 @@ class HighPowerLaser(Laser):
                     matrix |= HighPowerLaser._DAC_REGISTER[j][2 * i + 1]
         self._control_register.value = matrix
         self._driver.write(self._control_register)
+
+    @staticmethod
+    def bit_to_voltage(bits: int) -> float:
+        # 0.8 is an interpolation constant without any practical meaning.
+        return 0.8 * HighPowerLaser._RESISTOR / (bits * HighPowerLaser._DIGITAL_POT / HighPowerLaser.NUMBER_OF_STEPS
+                                                 + HighPowerLaser._PRE_RESISTOR) + 0.8
+
+    @staticmethod
+    def voltage_to_bit(voltage: float) -> int:
+        return int((0.8 * HighPowerLaser._RESISTOR / (voltage - 0.8) - HighPowerLaser._PRE_RESISTOR)
+                   * HighPowerLaser.NUMBER_OF_STEPS / HighPowerLaser._DIGITAL_POT)

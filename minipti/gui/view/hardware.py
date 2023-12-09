@@ -359,7 +359,7 @@ class Tec(QtWidgets.QWidget):
         self.frames.temperature = helper.create_frame(parent=self, title="Temperature", x_position=0, y_position=0)
         self.frames.pid_configuration = helper.create_frame(parent=self, title="PID Configuration", x_position=1,
                                                             y_position=0, x_span=2)
-        self.frames.system_settings = helper.create_frame(parent=self, title="System SettingsWindow", x_position=3,
+        self.frames.system_settings = helper.create_frame(parent=self, title="System Settings", x_position=3,
                                                           y_position=0, x_span=2)
         self.frames.configuration = helper.create_frame(parent=self, title="Configuration", x_position=5, y_position=0,
                                                         x_span=2)

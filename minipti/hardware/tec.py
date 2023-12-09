@@ -130,6 +130,7 @@ class Tec:
 
     def __init__(self, channel: int, driver: Driver):
         self.commands = Commands(channel - 1)
+        self.channel = channel
         self.commands.set_ntc_dac.value = Tec._NTC_DAC_CALIBRATION_VALUE
         self.config_path = f"{minipti.module_path}/hardware/configs/tec/channel_{channel}.json"
         self.driver = driver
@@ -178,6 +179,7 @@ class Tec:
         with open(self.config_path, "w") as configuration:
             tec = {f"Tec": dataclasses.asdict(self.configuration)}
             configuration.write(_json_parser.to_json(tec) + "\n")
+            logging.info("Saved TEC configuration of channel %d in %s", self.channel, self.config_path)
 
     def apply_configuration(self) -> None:
         self.set_pid_d_gain()
