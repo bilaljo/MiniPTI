@@ -197,12 +197,9 @@ class Interferometer:
             x0 = initial_guesses
         else:
             x0 = 0
-        phases = {}
-        cost_norms = ["huber", "arctan", "cauchy", "soft_l1"]
-        for norm in cost_norms:
-            res = optimize.least_squares(fun=self._error_function(intensity), x0=x0, loss=norm)
-            phases[res.cost] = (res.x, norm)
-        return phases[min(phases)][0] % (2 * np.pi)
+        res = optimize.least_squares(fun=self._error_function(intensity), x0=x0, loss="cauchy",
+                                     jac=self._error_function_df).x
+        return res % (2 * np.pi)
 
     def calculate_phase(self, initial_guesses=None) -> None:
         """
@@ -331,7 +328,7 @@ class Characterization:
                                                                                    "interferometry",
                                                                                    "characterization")
     STEP_SIZE: Final = CONFIGURATION.number_of_steps
-    MAX_ITERATIONS: Final = 1000
+    MAX_ITERATIONS: Final = 30
 
     def __init__(self, interferometer=Interferometer(), use_configuration=CONFIGURATION.use_default_settings,
                  use_parameters=CONFIGURATION.keep_settings):
@@ -560,12 +557,11 @@ class Characterization:
         solutions = {}
         for _ in trange(Characterization.MAX_ITERATIONS):
             self.progress += 1
-            self.interferometer.calculate_phase()
+            self.interferometer.calculate_phase(self.interferometer.phase)
             self.interferometry_data.phases = self.interferometer.phase
             cost = self._characterise_interferometer()
             solutions[cost] = self.interferometer.output_phases
             logging.info("Current estimation:\n%s", str(self.interferometer))
-        print(repr(solutions))
         logging.info("Final values:\n%s", str(self.interferometer))
 
     def _add_characterised_data(self, output_data: defaultdict) -> None:
