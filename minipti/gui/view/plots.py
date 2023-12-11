@@ -265,8 +265,8 @@ class Symmetry(DAQPlots):
 def pti_signal_offline(data: dict[str]) -> None:
     plt.figure()
     try:
-        plt.plot(data["PTI Signal"], label="1-s Data")
-        plt.plot(data["PTI Signal 60 s Mean"], label="60-s Mean")
+        plt.plot(data["PTI Signal 60 s Mean"], label="60-s Mean", color=_MatplotlibColors.ORANGE)
+        plt.scatter(range(len(data["PTI Signal"])), data["PTI Signal"], label="1-s Data")
         plt.grid()
         plt.xlabel("Time [s]")
         plt.ylabel("PTI Signal [µrad]")

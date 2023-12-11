@@ -60,10 +60,10 @@ class PTI(_DAQ):
     def append(self, pti, average_period: int) -> None:
         self._pti_signal.append(pti.inversion.pti_signal)
         self._pti_signal_mean_queue.append(pti.inversion.pti_signal)
-        time_scaler: float = algorithm.pti.Decimation.REF_PERIOD * algorithm.pti.Decimation.SAMPLE_PERIOD
-        if average_period / time_scaler == 1:
+        if average_period == algorithm.pti.Decimation.SAMPLE_PERIOD:
             self._pti_signal_mean.append(np.mean(np.array(self._pti_signal_mean_queue)))
-        self.time.append(next(self.time_counter) * average_period / time_scaler)
+        time_scaler = average_period / algorithm.pti.Decimation.SAMPLE_PERIOD
+        self.time.append(next(self.time_counter) * time_scaler)
 
     @property
     def pti_signal(self) -> deque[float]:

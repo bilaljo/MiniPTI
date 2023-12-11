@@ -61,9 +61,7 @@ class Calculation:
 
 
 class LiveCalculation(Calculation):
-    MEAN_INTERVAL = 60
-    QUEUE_SIZE = 1000
-    ONE_MINUTE = 60  # s
+    MEAN_INTERVAL = 60  # s
 
     def __init__(self):
         Calculation.__init__(self)
@@ -72,7 +70,7 @@ class LiveCalculation(Calculation):
         self.interferometer_buffer = buffer.Interferometer()
         self.pti_buffer = buffer.PTI()
         self.characterisation_buffer = buffer.Characterisation()
-        self.pti_signal_mean_queue = deque(maxlen=LiveCalculation.ONE_MINUTE)
+        self.pti_signal_mean_queue = deque(maxlen=LiveCalculation.MEAN_INTERVAL)
         self.new_directory = True
         signals.DAQ.clear.connect(self._clear_buffers)
 
@@ -220,7 +218,7 @@ def process_inversion_data(inversion_file_path: str) -> None:
         headers = ["PTI Signal"]
         data = _process_data(inversion_file_path, headers)
         send_data["PTI Signal"] = data
-        send_data["PTI Signal 60 s Mean"] = LiveCalculation.running_average(data, mean_size=60)
+        send_data["PTI Signal 60 s Mean"] = pd.DataFrame(data).rolling(60, center=True).mean()
     except FileNotFoundError:
         return
     signals.CALCULATION.inversion.emit(send_data)
