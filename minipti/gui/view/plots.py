@@ -85,9 +85,8 @@ class OfflinePlot(QtWidgets.QMainWindow):
         self.parent.layout().addWidget(self.toolbar)
         self.setCentralWidget(self.parent)
 
-    @abstractmethod
     def plot(self, data: np.ndarray) -> None:
-        ...
+        plt.clf()
 
 
 class DCOffline(OfflinePlot):
@@ -97,6 +96,7 @@ class DCOffline(OfflinePlot):
 
     @override
     def plot(self, data: np.ndarray) -> None:
+        super().plot(data)
         ax = self.figure.add_subplot()
         for channel in range(3):
             ax.plot(data[channel], label=f"CH{channel + 1}")
@@ -193,6 +193,7 @@ class InterferometricPhaseOffline(OfflinePlot):
         self.setWindowTitle("Interferometric Phase")
 
     def plot(self, data: np.ndarray) -> None:
+        super().plot(data)
         ax = self.figure.add_subplot()
         ax.plot(data)
         ax.grid()
@@ -265,6 +266,7 @@ class Symmetry(DAQPlots):
 def pti_signal_offline(data: dict[str]) -> None:
     plt.figure()
     try:
+        plt.clf()
         plt.plot(data["PTI Signal 60 s Mean"], label="60-s Mean", color=_MatplotlibColors.ORANGE)
         plt.scatter(range(len(data["PTI Signal"])), data["PTI Signal"], label="1-s Data")
         plt.grid()
