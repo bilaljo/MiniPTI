@@ -37,7 +37,7 @@ class Table(QtCore.QAbstractTableModel):
         if index.isValid():
             if role == QtCore.Qt.DisplayRole or role == QtCore.Qt.EditRole:
                 value = self._data.iloc[index.row()][self._headers[index.column()]]
-                return str(round(value, Table.SIGNIFICANT_VALUES))
+                return f"{value:.2E}"
 
     def flags(self, index):
         return QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsEditable

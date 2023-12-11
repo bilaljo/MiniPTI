@@ -9,6 +9,7 @@ from typing import Union
 import numpy as np
 import pandas as pd
 from PyQt5 import QtCore
+from overrides import override
 from scipy import ndimage
 
 import minipti
@@ -255,10 +256,12 @@ class SettingsTable(general_purpose.Table):
         self.load()
 
     @property
+    @override
     def _headers(self) -> list[str]:
         return ["Detector 1", "Detector 2", "Detector 3"]
 
     @property
+    @override
     def _indices(self) -> list[str]:
         return ["Amplitude [V]", "Offset [V]", "Output Phases [deg]", "Response Phases [rad]"]
 
