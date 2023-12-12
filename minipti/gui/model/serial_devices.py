@@ -834,6 +834,8 @@ class Tec(Serial):
             if self.driver.sampling and configuration.GUI.save.tec:
                 if self._init_headers:
                     units = {"Time": "H:M:S",
+                             "PWM Duty Cycle Pump Laser": "%",
+                             "PWM Duty Cycle Probe Laser": "%",
                              "TEC Pump Laser Enabled": "bool",
                              "TEC Probe Laser Enabled": "bool",
                              "Measured Temperature Pump Laser": "°C",
@@ -845,6 +847,8 @@ class Tec(Serial):
                     self._init_headers = False
                 now = datetime.now()
                 tec_data = {"Time": str(now.strftime("%H:%M:%S")),
+                            "PWM Duty Cycle Pump Laser": received_data.pwm_duty_cycle[Tec.PUMP_LASER],
+                            "PWM Duty Cycle Probe Laser": received_data.pwm_duty_cycle[Tec.PROBE_LASER],
                             "TEC Pump Laser Enabled": self.driver.tec[Tec.PUMP_LASER].enabled,
                             "TEC Probe Laser Enabled": self.driver.tec[Tec.PROBE_LASER].enabled,
                             "Measured Temperature Pump Laser": received_data.actual_temperature[Tec.PUMP_LASER],
