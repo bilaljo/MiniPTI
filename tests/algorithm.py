@@ -89,15 +89,13 @@ class TestCharacterisation(unittest.TestCase):
         self.characterization = minipti.algorithm.interferometry.Characterization(interferometer=self.interferometer,
                                                                                   use_parameters=False,
                                                                                   use_configuration=False)
-        self.phases = np.linspace(0, 4 * np.pi, 500)
+        self.phases = np.linspace(0, 2 * np.pi, 100)
         self.intensities = np.array([np.cos(self.phases - i * 2 * np.pi / 3) + 1 for i in range(3)]).T
 
     def test_parameters_non_ideal(self) -> None:
         output_phases = np.array([0, 0.4, 0.7]) * 2 * np.pi
         self.intensities = np.array([np.cos(self.phases - output_phases[i]) + 1 for i in range(3)]).T
-        self.intensities = np.array([np.cos(self.phases - i * 2 * np.pi / 3) + 1 for i in range(3)]).T
         for _ in self.characterization.process(self.intensities):
-            print("called")
             pass
         ideal_amplitudes = np.array([1, 1, 1])
         ideal_offsets = np.array([1, 1, 1])
