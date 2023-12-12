@@ -210,6 +210,10 @@ class Utilities(ABC):
         ...
 
     @abstractmethod
+    def calculate_response_phases(self) -> None:
+        ...
+
+    @abstractmethod
     def calculate_pti_inversion(self) -> None:
         ...
 
@@ -219,6 +223,10 @@ class Utilities(ABC):
 
     @abstractmethod
     def plot_interferometric_phase(self) -> None:
+        ...
+
+    @abstractmethod
+    def plot_lock_in_phases(self) -> None:
         ...
 
     @abstractmethod

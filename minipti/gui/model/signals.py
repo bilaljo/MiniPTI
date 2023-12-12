@@ -17,6 +17,8 @@ class _Calculation(QtCore.QObject):
     inversion = QtCore.pyqtSignal(dict)
     characterization = QtCore.pyqtSignal(np.ndarray)
     interferometric_phase = QtCore.pyqtSignal(np.ndarray)
+    lock_in_phases = QtCore.pyqtSignal(np.ndarray)
+    response_phases = QtCore.pyqtSignal(np.ndarray)
     settings_path_changed = QtCore.pyqtSignal(str)
 
     def __init__(self):

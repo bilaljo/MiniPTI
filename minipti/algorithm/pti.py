@@ -110,7 +110,7 @@ class Decimation:
     def lock_in_amplifier(self) -> None:
         ac_x = np.mean(self.raw_data.ac * self.in_phase, axis=1)
         ac_y = np.mean(self.raw_data.ac * self.quadrature, axis=1)
-        self.lock_in.phase = np.arctan2(ac_y, ac_x)
+        self.lock_in.phase = np.arctan2(ac_y, ac_x) % (2 * np.pi)
         self.lock_in.amplitude = np.sqrt(ac_x ** 2 + ac_y ** 2)
 
     def _calculate_decimation(self) -> None:
@@ -209,6 +209,15 @@ class Inversion:
     def __str__(self) -> str:
         return f"Interferometric Phase: {self.interferometer.phase}\n PTI signal: {self.pti_signal}"
 
+    def calculate_response_phase(self, file_path: str) -> None:
+        self._get_lock_in_data(file_path)
+        variances = [np.mean(np.var(self.decimation.lock_in.phase.T[i:i + 100], axis=0))
+                     for i in range(self.decimation.lock_in.phase.size // 3 - 100)]
+        self.response_phases = self.decimation.lock_in.phase.T[np.argmin(variances)] % (2 * np.pi)
+        self.response_phases[self.response_phases > np.pi] -= np.pi
+        logging.info(f"Calculated Response Phases {self.response_phases}  with standard deviation "
+                     f"{np.sqrt(min(variances)):.2E} rad")
+
     def load_response_phase(self) -> None:
         settings = pd.read_csv(self.settings_path, index_col="Setting")
         self.response_phases = settings.loc["Response Phases [rad]"].to_numpy()
@@ -244,7 +253,7 @@ class Inversion:
                     in_phase_component = data[lock_in_header_1].to_numpy().T
                     quadrature_component = data[lock_in_header_2].to_numpy().T
                     self.decimation.lock_in = LockIn(np.sqrt(in_phase_component ** 2 + quadrature_component ** 2),
-                                                     np.arctan2(quadrature_component, in_phase_component))
+                                                     np.arctan2(quadrature_component, in_phase_component) % (2 * np.pi))
                     break
                 else:
                     self.decimation.lock_in = LockIn(data[lock_in_header_1].to_numpy().T,

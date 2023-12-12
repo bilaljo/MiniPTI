@@ -462,10 +462,12 @@ class Utilities(interface.Utilities):
         self.last_file_path = os.getcwd()
         self.interferometric_phase_offline = view.plots.InterferometricPhaseOffline()
         self.dc_offline = view.plots.DCOffline()
+        self.lock_in_phases_offline = view.plots.LockInPhaseOffline()
         self.calculation_model.interferometer_characterization.progress_observer.append(self.update_progess_bar)
         model.signals.CALCULATION.dc_signals.connect(self.dc_offline.plot)
         model.signals.CALCULATION.inversion.connect(view.plots.pti_signal_offline)
         model.signals.CALCULATION.interferometric_phase.connect(self.interferometric_phase_offline.plot)
+        model.signals.CALCULATION.lock_in_phases.connect(self.lock_in_phases_offline.plot)
         # model.theme_signal.changed.connect(view.utilities.update_matplotlib_theme)
 
     def update_progess_bar(self, progress: int) -> None:
@@ -492,7 +494,7 @@ class Utilities(interface.Utilities):
 
     @override
     def calculate_interferometry(self) -> None:
-        interferometry_path, self.last_file_path = _get_file_path(self.view, "Interferometry",
+        interferometry_path, self.last_file_path = _get_file_path(self.view, "Decimation File",
                                                                   self.last_file_path,
                                                                   "CSV File (*.csv);; TXT File (*.txt);; All Files (*)")
         if not interferometry_path:
@@ -500,8 +502,17 @@ class Utilities(interface.Utilities):
         threading.Thread(target=self.calculation_model.calculate_interferometry, args=[interferometry_path]).start()
 
     @override
+    def calculate_response_phases(self) -> None:
+        decimation_path, self.last_file_path = _get_file_path(self.view, "Decimation File",
+                                                              self.last_file_path,
+                                                              "CSV File (*.csv);; TXT File (*.txt);; All Files (*)")
+        if not decimation_path:
+            return
+        self.calculation_model.calculate_response_phases(decimation_path)
+
+    @override
     def calculate_pti_inversion(self) -> None:
-        inversion_path, self.last_file_path = _get_file_path(self.view, "Inversion", self.last_file_path,
+        inversion_path, self.last_file_path = _get_file_path(self.view, "Decimation File", self.last_file_path,
                                                              "CSV File (*.csv);; TXT File (*.txt);; All Files (*)")
         if not inversion_path:
             return
@@ -527,6 +538,18 @@ class Utilities(interface.Utilities):
                                                                              " All Files (*)")
             if interferometric_phase_path:
                 model.processing.process_interferometric_phase_data(interferometric_phase_path)
+        except KeyError:
+            QtWidgets.QMessageBox.critical(self.view, "Plotting Error", "Invalid data given. Could not plot.")
+
+    @override
+    def plot_lock_in_phases(self) -> None:
+        try:
+            lock_in_phases, self.last_file_path = _get_file_path(self.view, "Lock In Phases",
+                                                                 self.last_file_path,
+                                                                 "CSV File (*.csv);; TXT File (*.txt);;"
+                                                                 " All Files (*)")
+            if lock_in_phases:
+                model.processing.process_lock_in_phases_data(lock_in_phases)
         except KeyError:
             QtWidgets.QMessageBox.critical(self.view, "Plotting Error", "Invalid data given. Could not plot.")
 

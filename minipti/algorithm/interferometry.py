@@ -551,6 +551,7 @@ class Characterization:
         self.interferometer.calculate_offsets()
         phase_space = [2 * np.pi * k / 10 for k in range(10)]
         guess = self._iterate_phase_space(phase_space)
+        print(guess)
         logging.info("Estimate %s", guess)
         self.interferometer.output_phases = guess
         self.interferometer.calculate_phase()
@@ -562,6 +563,7 @@ class Characterization:
             cost = self._characterise_interferometer()
             solutions[cost] = self.interferometer.output_phases
             logging.info("Current estimation:\n%s", str(self.interferometer))
+        print(solutions)
         logging.info("Final values:\n%s", str(self.interferometer))
 
     def _add_characterised_data(self, output_data: defaultdict) -> None:

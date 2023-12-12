@@ -50,6 +50,7 @@ class PTI(_DAQ):
         _DAQ.__init__(self)
         self._pti_signal = deque(maxlen=BaseClass.QUEUE_SIZE)
         self._pti_signal_mean = deque(maxlen=BaseClass.QUEUE_SIZE)
+        self._pti_signal_median = deque(maxlen=BaseClass.QUEUE_SIZE)
         self._pti_signal_mean_queue = deque(maxlen=PTI.MEAN_SIZE)
 
     @property
@@ -62,6 +63,7 @@ class PTI(_DAQ):
         self._pti_signal_mean_queue.append(pti.inversion.pti_signal)
         if average_period == algorithm.pti.Decimation.SAMPLE_PERIOD:
             self._pti_signal_mean.append(np.mean(np.array(self._pti_signal_mean_queue)))
+            self._pti_signal_median.append(np.median(np.array(self._pti_signal_mean_queue)))
         time_scaler = average_period / algorithm.pti.Decimation.SAMPLE_PERIOD
         self.time.append(next(self.time_counter) * time_scaler)
 
@@ -73,12 +75,17 @@ class PTI(_DAQ):
     def pti_signal_mean(self) -> deque[float]:
         return self._pti_signal_mean
 
+    @property
+    def pti_signal_median(self) -> deque[float]:
+        return self._pti_signal_median
+
     @override
     def clear(self) -> None:
         self.time_counter = itertools.count()
         self.time = deque(maxlen=BaseClass.QUEUE_SIZE)
         self._pti_signal = deque(maxlen=BaseClass.QUEUE_SIZE)
         self._pti_signal_mean = deque(maxlen=BaseClass.QUEUE_SIZE)
+        self._pti_signal_median = deque(maxlen=BaseClass.QUEUE_SIZE)
         self._pti_signal_mean_queue = deque(maxlen=PTI.MEAN_SIZE)
 
 

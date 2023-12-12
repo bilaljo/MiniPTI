@@ -86,18 +86,6 @@ class LiveCalculation(Calculation):
         threading.Thread(target=self._run_calculation, name="PTI Inversion", daemon=True).start()
         threading.Thread(target=self._run_characterization, name="Characterisation", daemon=True).start()
 
-    @staticmethod
-    def running_average(data, mean_size: int) -> list[float]:
-        i = 1
-        current_mean = data[0]
-        result = [current_mean]
-        while i < LiveCalculation.MEAN_INTERVAL and i < len(data):
-            current_mean += data[i]
-            result.append(current_mean / i)
-            i += 1
-        result.extend(ndimage.uniform_filter1d(data[mean_size:], size=mean_size))
-        return result
-
     def set_raw_data_saving(self, save_raw_data: bool) -> None:
         self.pti.decimation.save_raw_data = save_raw_data
 
@@ -168,6 +156,11 @@ class OfflineCalculation(Calculation):
         logging.info("Starting Decimation of Raw Data")
         threading.Thread(target=self.pti.decimation.run, name="Decimation Thread").start()
 
+    def calculate_response_phases(self, decimation_path: str) -> None:
+        threading.Thread(target=self.pti.inversion.calculate_response_phase, name="Decimation Thread",
+                         args=[decimation_path]).start()
+        signals.CALCULATION.response_phases.emit(self.pti.inversion.response_phases)
+
     def calculate_interferometry(self, interferometry_path: str) -> None:
         self.interferometer.load_settings()
         self.interferometer.run(file_path=interferometry_path)
@@ -218,7 +211,9 @@ def process_inversion_data(inversion_file_path: str) -> None:
         headers = ["PTI Signal"]
         data = _process_data(inversion_file_path, headers)
         send_data["PTI Signal"] = data
-        send_data["PTI Signal 60 s Mean"] = pd.DataFrame(data).rolling(60, center=True).mean()
+        rolling_window = pd.DataFrame(data).rolling(60, center=True)
+        send_data["PTI Signal 60 s Mean"] = rolling_window.mean()
+        send_data["PTI Signal 60 s Median"] = rolling_window.median()
     except FileNotFoundError:
         return
     signals.CALCULATION.inversion.emit(send_data)
@@ -231,6 +226,15 @@ def process_interferometric_phase_data(interferometric_phase_file_path: str) -> 
     except FileNotFoundError:
         return
     signals.CALCULATION.interferometric_phase.emit(data)
+
+
+def process_lock_in_phases_data(lock_in_phases_file_path: str) -> None:
+    try:
+        headers = [f"Lock In Phase CH{i}" for i in range(1, 4)]
+        data = _process_data(lock_in_phases_file_path, headers)
+    except FileNotFoundError:
+        return
+    signals.CALCULATION.lock_in_phases.emit(data)
 
 
 def process_characterization_data(characterization_file_path: str) -> None:
@@ -251,6 +255,7 @@ class SettingsTable(general_purpose.Table):
         self._data = pd.DataFrame(columns=self._headers, index=self._indices)
         self.file_path = f"{minipti.module_path}/algorithm/configs/settings.csv"
         signals.CALCULATION.settings_interferometer.connect(self.update_settings)
+        signals.CALCULATION.response_phases.connect(self.update_response_phases)
         self.load()
 
     @property
@@ -266,6 +271,10 @@ class SettingsTable(general_purpose.Table):
     @QtCore.pyqtSlot(algorithm.interferometry.CharacteristicParameter)
     def update_settings(self, characteristic_parameter: algorithm.interferometry.CharacteristicParameter) -> None:
         self.update_settings_parameters(characteristic_parameter)
+
+    @QtCore.pyqtSlot(np.ndarray)
+    def update_response_phases(self, response_phases: np.ndarray) -> None:
+        self.table_data.loc["Response Phases [rad]"] = response_phases
 
     def save(self) -> None:
         self._data.to_csv(self.file_path, index_label="Setting", index=True)

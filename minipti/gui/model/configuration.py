@@ -83,6 +83,7 @@ class _Calculation:
     use: bool = True
     decimation: bool = True
     interferometry: bool = True
+    response_phases: bool = True
     inversion: bool = True
     characterisation: bool = True
 
@@ -92,6 +93,7 @@ class _OfflinePlots:
     dc: bool = True
     interferometry: bool = True
     inversion: bool = True
+    lock_in_phases: bool = True
 
 
 @dataclass(frozen=True)

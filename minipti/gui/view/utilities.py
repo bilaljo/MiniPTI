@@ -57,6 +57,9 @@ class Calculation(UtilitiesBase):
         if model.configuration.GUI.utilities.calculate.interferometry:
             self.interferometry = helper.create_button(parent=self, title="Interferometry",
                                                        slot=self.controller.calculate_interferometry)
+        if model.configuration.GUI.utilities.calculate.response_phases:
+            self.response_phases = helper.create_button(parent=self, title="Response Phase",
+                                                        slot=self.controller.calculate_response_phases)
         if model.configuration.GUI.utilities.calculate.inversion:
             self.pti_inversion = helper.create_button(parent=self, title="PTI Inversion",
                                                       slot=self.controller.calculate_pti_inversion)
@@ -78,6 +81,11 @@ class Plotting(UtilitiesBase):
         if model.configuration.GUI.utilities.plot.interferometry:
             self.interferometric_phase = helper.create_button(parent=self, title="Interferometric Phase",
                                                               slot=self.controller.plot_interferometric_phase)
+
+        if model.configuration.GUI.utilities.plot.lock_in_phases:
+            self.lock_in_phases = helper.create_button(parent=self, title="Lock In Phases",
+                                                       slot=self.controller.plot_lock_in_phases)
+
         if model.configuration.GUI.utilities.plot.inversion:
             self.pti_signal = helper.create_button(parent=self, title="PTI Signal",
                                                    slot=self.controller.plot_inversion)

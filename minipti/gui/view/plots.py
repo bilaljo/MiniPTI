@@ -89,6 +89,10 @@ class OfflinePlot(QtWidgets.QMainWindow):
     def plot(self, data: np.ndarray) -> None:
         ...
 
+    def closeEvent(self, e):
+        self.canvas = FigureCanvasQTAgg(self.figure)
+        super().closeEvent(e)
+
 
 class DCOffline(OfflinePlot):
     def __init__(self):
@@ -97,6 +101,7 @@ class DCOffline(OfflinePlot):
 
     @override
     def plot(self, data: np.ndarray) -> None:
+        plt.clf()
         ax = self.figure.add_subplot()
         for channel in range(3):
             ax.plot(data[channel], label=f"CH{channel + 1}")
@@ -124,17 +129,6 @@ class DC(DAQPlots):
             self.curves[channel].setData(data.time, data.dc_values[channel])
 
 
-def amplitudes_offline(data: np.ndarray) -> None:
-    plt.figure()
-    for channel in range(3):
-        plt.plot(data[channel], label=f"CH{channel + 1}")
-    plt.grid()
-    plt.xlabel("Time [s]")
-    plt.ylabel(r"Amplitude [V]")
-    plt.legend()
-    plt.show()
-
-
 class Amplitudes(DAQPlots):
     def __init__(self):
         DAQPlots.__init__(self)
@@ -156,17 +150,6 @@ class Amplitudes(DAQPlots):
     def update_data_live(self, data: model.buffer.Characterisation) -> None:
         for channel in range(3):
             self.curves[channel].setData(data.time, data.amplitudes[channel])
-
-
-def output_phases_offline(data: np.ndarray) -> None:
-    plt.figure()
-    for channel in range(1, 3):
-        plt.plot(data[channel], label=f"CH{channel + 1}")
-    plt.grid()
-    plt.xlabel("Time [s]")
-    plt.ylabel(r"Output Phase [rad]")
-    plt.legend()
-    plt.show()
 
 
 class OutputPhases(DAQPlots):
@@ -193,11 +176,30 @@ class InterferometricPhaseOffline(OfflinePlot):
         self.setWindowTitle("Interferometric Phase")
 
     def plot(self, data: np.ndarray) -> None:
+        plt.clf()
         ax = self.figure.add_subplot()
         ax.plot(data)
         ax.grid()
         ax.set_xlabel("Time [s]")
-        ax.set_ylabel(r"Interferometric [rad]")
+        ax.set_ylabel(r"Interferometric Phase [rad]")
+        self.canvas.draw()
+        self.show()
+
+
+class LockInPhaseOffline(OfflinePlot):
+    def __init__(self):
+        OfflinePlot.__init__(self)
+        self.setWindowTitle("Response Phase")
+
+    def plot(self, data: np.ndarray) -> None:
+        plt.clf()
+        ax = self.figure.add_subplot()
+        for channel in range(3):
+            ax.scatter(range(len(data.T[channel])), data.T[channel], label=f"CH{channel + 1}")
+        ax.grid()
+        ax.set_xlabel("Time [s]")
+        ax.set_ylabel(r"Response Phase [rad]")
+        ax.legend()
         self.canvas.draw()
         self.show()
 
@@ -266,7 +268,8 @@ def pti_signal_offline(data: dict[str]) -> None:
     plt.figure()
     try:
         plt.plot(data["PTI Signal 60 s Mean"], label="60-s Mean", color=_MatplotlibColors.ORANGE)
-        plt.scatter(range(len(data["PTI Signal"])), data["PTI Signal"], label="1-s Data")
+        plt.plot(data["PTI Signal 60 s Median"], label="60-s Median", color=_MatplotlibColors.GREEN)
+        plt.scatter(range(len(data["PTI Signal"])), data["PTI Signal"], label="1-s Data", s=2)
         plt.grid()
         plt.xlabel("Time [s]")
         plt.ylabel("PTI Signal [µrad]")
@@ -302,7 +305,8 @@ class PTISignal(DAQPlots):
     def __init__(self):
         DAQPlots.__init__(self)
         self.curves = {"PTI Signal": self.plot.scatterPlot(pen=pg.mkPen(_MatplotlibColors.BLUE), name="1 s", size=6),
-                       "PTI Signal Mean": self.plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="60 s Mean")}
+                       "PTI Signal Mean": self.plot.plot(pen=pg.mkPen(_MatplotlibColors.ORANGE), name="60 s Mean"),
+                       "PTI Signal Median": self.plot.plot(pen=pg.mkPen(_MatplotlibColors.GREEN), name="60 s Median")}
         self.plot.setLabel(axis="bottom", text="Time [s]")
         self.plot.setLabel(axis="left", text="PTI Signal [µrad]")
         self.name = "PTI Signal"
@@ -312,6 +316,7 @@ class PTISignal(DAQPlots):
     def update_data_live(self, data: model.buffer.PTI) -> None:
         self.curves["PTI Signal"].setData(data.time, data.pti_signal)
         self.curves["PTI Signal Mean"].setData(data.time, data.pti_signal_mean)
+        self.curves["PTI Signal Median"].setData(data.time, data.pti_signal_median)
 
 
 class Measurement(QtWidgets.QTabWidget):

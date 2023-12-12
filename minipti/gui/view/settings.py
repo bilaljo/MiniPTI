@@ -257,6 +257,7 @@ class PTIConfiguration(QtWidgets.QGroupBox):
         if not model.configuration.GUI.settings.system_settings.response_phases:
             self.algorithm_settings.hideRow(3)
         model.signals.CALCULATION.settings_pti.connect(self.update_table)
+        model.signals.CALCULATION.response_phases.connect(self.update_table)
 
     def _init_buttons(self) -> None:
         sub_layout = QtWidgets.QWidget()

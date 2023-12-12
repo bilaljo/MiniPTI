@@ -104,7 +104,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.full_screen = True
         elif e.key() == Qt.Key_Escape:
             self.controllers.main_application.emergency_stop()
-        elif e.key() == Qt.Key_Space or e.key() == Qt.Key_Return:
+        elif e.key() == Qt.Key_Space:
             self.controllers.toolbar.on_run()
 
     def logging_update(self, log_queue: collections.deque) -> None:
