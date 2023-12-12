@@ -28,19 +28,24 @@
                 "use": true,
                 "decimation": false,
                 "interferometry": true,
+                "response_phases": false,
                 "inversion": false,
                 "characterisation": true
             },
             "plot": {
                 "dc": true,
                 "interferometry": true,
-                "inversion": false
+                "inversion": false,
+                "lock_in_phases": false
             }
         },
         "valve": {
             "use": false,
             "bypass_button": false,
             "automatic_switch": false
+        },
+        "pump": {
+            "use": false
         },
         "save": {
             "daq": true,

@@ -28,13 +28,15 @@
                 "use": true,
                 "decimation": true,
                 "interferometry": true,
+                "response_phases": true,
                 "inversion": true,
                 "characterisation": true
             },
             "plot": {
                 "dc": true,
                 "interferometry": true,
-                "inversion": true
+                "inversion": true,
+                "lock_in_phases": true
             }
         },
         "valve": {
@@ -49,6 +51,9 @@
             "valve": true,
             "pump": true,
             "bms": true
+        },
+        "pump": {
+            "use": true
         },
         "use_shutdown": true,
         "connect": {
