@@ -1,5 +1,5 @@
 {
-    "use": false,
+    "use": true,
     "GUI": {
         "window_title": "MiniPTI Interferometry",
         "logging": {
