@@ -452,6 +452,7 @@ class Characterization:
     def process(self, dc_signals: np.ndarray) -> Generator[int, None, None]:
         last_index: int = 0
         data_length: int = dc_signals.size // self.interferometer.interferometer_dimension
+        unknown_paramters = False
         if self.use_configuration:
             self._load_settings()
         else:
@@ -461,6 +462,7 @@ class Characterization:
             self.interferometry_data.dc_signals = dc_signals
             self._iterate_characterization()
             self.use_parameters = True  # For next time these values can be used now
+            unknown_paramters = True
         for i in range(data_length):
             self.interferometer.intensities = dc_signals[i]
             self.interferometer.calculate_phase()
@@ -477,7 +479,7 @@ class Characterization:
                 last_index = i + 1
                 self.clear()
                 yield i
-        if last_index == 0 and (not self.use_parameters or not self.use_configuration):
+        if last_index == 0 and not unknown_paramters:
             raise CharacterizationError("Not enough values for characterisation")
 
     def _characterise_interferometer(self, update_amplitude_offsets=True) -> float:
