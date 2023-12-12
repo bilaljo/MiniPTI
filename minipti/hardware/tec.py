@@ -3,7 +3,6 @@ import enum
 import json
 import logging
 import os
-import time
 from dataclasses import dataclass
 
 import dacite
@@ -19,9 +18,9 @@ ROOM_TEMPERATURE_KELVIN = 283.15
 
 @dataclass
 class Data:
-    pwm_duty_cycle: list[float]
     set_point: list[float]
     actual_temperature: list[float]
+    pwm_duty_cycle: list[float]
 
 
 class Status:
@@ -97,7 +96,7 @@ class Driver(serial_device.Driver):
                 logging.debug("Command %s successfully applied", data)
             self._ready_write.set()
         elif data[0] == "T":
-            data_frame = data.split("\t")[Driver._START_DATA_FRAME:]
+            data_frame: list[str] = data.split("\t")[Driver._START_DATA_FRAME:]
             status_byte_frame = int(data_frame[TecDataIndex.PT1000_STATUS])
             for error in Status.ERROR:
                 if error[Status.VALUE] & status_byte_frame:
@@ -109,7 +108,9 @@ class Driver(serial_device.Driver):
                 pwm_duty_cycle.append(float(data_frame[TecDataIndex.PWM_DUTY_CYCLE + i]) * 100)
                 actual_temperature[i] = Tec.kelvin_to_celsisus(float(data_frame[TecDataIndex.TEMPERATURE + i]))
                 setpoint_temperature[i] = Tec.kelvin_to_celsisus(float(data_frame[TecDataIndex.SET_POINT + i]))
-            self.data.put(Data(setpoint_temperature, actual_temperature, pwm_duty_cycle))
+            self.data.put(Data(set_point=setpoint_temperature,
+                               actual_temperature=actual_temperature,
+                               pwm_duty_cycle=pwm_duty_cycle))
 
 
 class Commands:
