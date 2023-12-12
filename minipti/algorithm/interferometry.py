@@ -328,7 +328,7 @@ class Characterization:
                                                                                    "interferometry",
                                                                                    "characterization")
     STEP_SIZE: Final = CONFIGURATION.number_of_steps
-    MAX_ITERATIONS: Final = 30
+    MAX_ITERATIONS: Final = 10
 
     def __init__(self, interferometer=Interferometer(), use_configuration=CONFIGURATION.use_default_settings,
                  use_parameters=CONFIGURATION.keep_settings):
@@ -452,7 +452,7 @@ class Characterization:
     def process(self, dc_signals: np.ndarray) -> Generator[int, None, None]:
         last_index: int = 0
         data_length: int = dc_signals.size // self.interferometer.interferometer_dimension
-        unknown_paramters = False
+        unknown_parameters = False
         if self.use_configuration:
             self._load_settings()
         else:
@@ -462,14 +462,14 @@ class Characterization:
             self.interferometry_data.dc_signals = dc_signals
             self._iterate_characterization()
             self.use_parameters = True  # For next time these values can be used now
-            unknown_paramters = True
+            unknown_parameters = True
         for i in range(data_length):
             self.interferometer.intensities = dc_signals[i]
             self.interferometer.calculate_phase()
             self.add_phase(self.interferometer.phase)
             if self.enough_values:
                 self.interferometry_data.dc_signals = dc_signals[last_index:i + 1]
-                self.interferometry_data.phases = self.tracking_phase
+                self.interferometry_data.phases = np.array(self.tracking_phase)
                 if not self.use_parameters:
                     self._iterate_characterization()
                     self.use_parameters = True  # For next time these values can be used now
@@ -479,7 +479,8 @@ class Characterization:
                 last_index = i + 1
                 self.clear()
                 yield i
-        if last_index == 0 and not unknown_paramters:
+        self.clear()
+        if last_index == 0 and not unknown_parameters:
             raise CharacterizationError("Not enough values for characterisation")
 
     def _characterise_interferometer(self, update_amplitude_offsets=True) -> float:
@@ -527,11 +528,11 @@ class Characterization:
         error = []
         for channel in range(3):
             amplitude = self.interferometer.amplitudes[channel]
-            outputphase = self.interferometer.output_phases[channel]
+            output_phase = self.interferometer.output_phases[channel]
             offset = self.interferometer.offsets[channel]
             intensity = self.interferometer.intensities.T[channel]
             phase = self.interferometer.phase
-            error.append((np.abs(amplitude * np.cos(phase - outputphase) + offset - intensity)))
+            error.append((np.abs(amplitude * np.cos(phase - output_phase) + offset - intensity)))
         error = np.array(error)
         return np.mean(np.mean(error, axis=0))
 
@@ -553,7 +554,6 @@ class Characterization:
         self.interferometer.calculate_offsets()
         phase_space = [2 * np.pi * k / 10 for k in range(10)]
         guess = self._iterate_phase_space(phase_space)
-        print(guess)
         logging.info("Estimate %s", guess)
         self.interferometer.output_phases = guess
         self.interferometer.calculate_phase()
@@ -565,7 +565,6 @@ class Characterization:
             cost = self._characterise_interferometer()
             solutions[cost] = self.interferometer.output_phases
             logging.info("Current estimation:\n%s", str(self.interferometer))
-        print(solutions)
         logging.info("Final values:\n%s", str(self.interferometer))
 
     def _add_characterised_data(self, output_data: defaultdict) -> None:
@@ -592,7 +591,7 @@ class Characterization:
         process_characterisation = self.process(dc_signals)
         for i in process_characterisation:
             time_stamps.append(i)
-        self._add_characterised_data(output_data)
+            self._add_characterised_data(output_data)
         pd.DataFrame(output_data, index=time_stamps).to_csv(f"{self.destination_folder}/Characterisation.csv",
                                                             mode="a", index_label="Time Stamp", header=False)
         logging.info("Characterization finished")
