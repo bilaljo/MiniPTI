@@ -85,9 +85,8 @@ class OfflinePlot(QtWidgets.QMainWindow):
         self.parent.layout().addWidget(self.toolbar)
         self.setCentralWidget(self.parent)
 
-    @abstractmethod
     def plot(self, data: np.ndarray) -> None:
-        ...
+        plt.clf()
 
     def closeEvent(self, e):
         self.canvas = FigureCanvasQTAgg(self.figure)
