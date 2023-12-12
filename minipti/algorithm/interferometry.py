@@ -328,7 +328,7 @@ class Characterization:
                                                                                    "interferometry",
                                                                                    "characterization")
     STEP_SIZE: Final = CONFIGURATION.number_of_steps
-    MAX_ITERATIONS: Final = 10
+    MAX_ITERATIONS: Final = 30
 
     def __init__(self, interferometer=Interferometer(), use_configuration=CONFIGURATION.use_default_settings,
                  use_parameters=CONFIGURATION.keep_settings):
