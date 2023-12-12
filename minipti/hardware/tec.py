@@ -19,6 +19,7 @@ ROOM_TEMPERATURE_KELVIN = 283.15
 
 @dataclass
 class Data:
+    pwm_duty_cycle: list[float]
     set_point: list[float]
     actual_temperature: list[float]
 
@@ -42,6 +43,7 @@ class TecDataIndex(enum.IntEnum):
     PELTIER_STATUS = 0
     PT1000_STATUS = 6
     SET_POINT = 7
+    PWM_DUTY_CYCLE = 11
     TEMPERATURE = 16
 
 
@@ -102,10 +104,12 @@ class Driver(serial_device.Driver):
                     logging.error("Got \"%s\" from TEC Driver", error[Status.TEXT])
             actual_temperature: list[float] = [0, 0]
             setpoint_temperature: list[float] = [0, 0]
+            pwm_duty_cycle: list[float] = [0, 0]
             for i in range(Driver.CHANNELS):
+                pwm_duty_cycle.append(float(data_frame[TecDataIndex.PWM_DUTY_CYCLE + i]) * 100)
                 actual_temperature[i] = Tec.kelvin_to_celsisus(float(data_frame[TecDataIndex.TEMPERATURE + i]))
                 setpoint_temperature[i] = Tec.kelvin_to_celsisus(float(data_frame[TecDataIndex.SET_POINT + i]))
-            self.data.put(Data(setpoint_temperature, actual_temperature))
+            self.data.put(Data(setpoint_temperature, actual_temperature, pwm_duty_cycle))
 
 
 class Commands:
