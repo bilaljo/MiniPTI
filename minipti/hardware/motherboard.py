@@ -284,14 +284,11 @@ class DAQ(MotherBoardTools):
         self.update_buffer_size()
 
     def update_buffer_size(self) -> None:
-        was_running = self.running.is_set()
         if self.running.is_set():
-            logging.warning("Encoding is running. Need to pause is to update the buffer size and reset samples")
-            self.running.clear()
-        self.samples_buffer = DAQData([], [[], [], []], [[], [], [], []])
-        self.reset()
-        if was_running:
-            self.running.set()
+            logging.warning("Measurement is running. Cannot change sample rate while running")
+        else:
+            self.samples_buffer = DAQData([], [[], [], []], [[], [], [], []])
+            self.reset()
 
     def build_sample_package(self) -> None:
         """
