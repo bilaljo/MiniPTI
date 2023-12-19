@@ -280,11 +280,8 @@ class DAQ(MotherBoardTools):
 
     @number_of_samples.setter
     def number_of_samples(self, number_of_samples: int) -> None:
-        if self.running.is_set():
-            logging.warning("Measurement is running. Cannot change sample rate while running")
-        else:
-            self.configuration.number_of_samples = number_of_samples
-            self.update_buffer_size()
+        self.configuration.number_of_samples = number_of_samples
+        self.update_buffer_size()
 
     def update_buffer_size(self) -> None:
         self.samples_buffer = DAQData([], [[], [], []], [[], [], [], []])

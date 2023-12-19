@@ -309,12 +309,6 @@ class Settings(interface.Settings):
         self.calculation_model.set_raw_data_saving(state)
 
     @override
-    def update_average_period(self, samples: str) -> None:
-        samples_number = samples.split(" Samples")[0]  # Value has the structure "X Samples"
-        model.serial_devices.TOOLS.daq.number_of_samples = int(samples_number)
-        self.calculation_model.pti.decimation.average_period = int(samples_number)
-
-    @override
     def save_pti_settings(self) -> None:
         self.settings_table_model.save()
 
@@ -453,6 +447,24 @@ class Settings(interface.Settings):
     @override
     def enable_pump_on_run(self) -> None:
         model.serial_devices.TOOLS.pump.enable_on_run = not model.serial_devices.TOOLS.pump.enable_on_run
+
+    @override
+    def update_sample_setting(self) -> None:
+        sample_settings = self.view.measurement_configuration.sample_settings
+        if model.serial_devices.TOOLS.daq.running:
+            logging.error("Cannot change sample rate while DAQ is running")
+            sample_settings.average_period.setCurrentIndex(sample_settings.last_period)
+            return
+        self.update_samples(sample_settings.average_period.currentText())
+
+    def update_samples(self, average_period: str) -> None:
+        if average_period[-2:] == "ms":
+            samples = int((float(average_period[:-3]) / 1000) * 8000)
+        else:
+            samples = int(float(average_period[:-2]) * 8000)
+        model.serial_devices.TOOLS.daq.number_of_samples = samples
+        self.calculation_model.pti.decimation.average_period = samples
+        self.view.measurement_configuration.sample_settings.samples.setText(f"{samples} Samples")
 
 
 class Utilities(interface.Utilities):
