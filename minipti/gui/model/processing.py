@@ -10,7 +10,6 @@ import numpy as np
 import pandas as pd
 from PyQt5 import QtCore
 from overrides import override
-from scipy import ndimage
 
 import minipti
 from minipti import algorithm
@@ -113,6 +112,7 @@ class LiveCalculation(Calculation):
         self.interferometer.init_online = True
         self.interferometer_characterization.init_online = True
         self.interferometer.load_settings()
+        self.pti.inversion.load_response_phase()
 
     def _decimation(self) -> None:
         self.pti.decimation.raw_data.ref = serial_devices.TOOLS.daq.ref_signal.copy()
@@ -167,6 +167,7 @@ class OfflineCalculation(Calculation):
 
     def calculate_inversion(self, inversion_path: str) -> None:
         self.interferometer.load_settings()
+        self.pti.inversion.load_response_phase()
         self.pti.inversion.run(file_path=inversion_path)
 
 
@@ -179,7 +180,7 @@ def find_delimiter(file_path: str) -> typing.Union[str, None]:
     return delimiter
 
 
-def _process_data(file_path: str, headers: list[str, ...]) -> Union[pd.DataFrame, typing.NoReturn]:
+def _process_data(file_path: str, headers: list[str]) -> Union[pd.DataFrame, typing.NoReturn]:
     if not file_path:
         raise FileNotFoundError("No file path given")
     delimiter = find_delimiter(file_path)
@@ -286,7 +287,6 @@ class SettingsTable(general_purpose.Table):
         self.table_data.loc["Output Phases [deg]"] = np.rad2deg(characteristic_parameter.output_phases)
         self.table_data.loc["Amplitude [V]"] = characteristic_parameter.amplitudes
         self.table_data.loc["Offset [V]"] = characteristic_parameter.offsets
-        signals.CALCULATION.settings_pti.emit()
 
     def update_settings_paths(self, interferometer: algorithm.interferometry.Interferometer,
                               inversion: algorithm.pti.Inversion) -> None:
