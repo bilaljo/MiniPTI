@@ -40,6 +40,7 @@ class SampleSettings(QtWidgets.QWidget):
         self.controller = settings_controller
         self.average_period = QtWidgets.QComboBox()
         self._init_average_period_box()
+        self.last_period = self.average_period.currentIndex()
         model.signals.DAQ.samples_changed.connect(self.update_average_period)
 
     def _init_average_period_box(self) -> None:
@@ -57,12 +58,8 @@ class SampleSettings(QtWidgets.QWidget):
         self.average_period.setCurrentIndex(samples // 100 - 1)
 
     def update_samples(self) -> None:
-        text = self.average_period.currentText()
-        if text[-2:] == "ms":
-            self.samples.setText(f"{int((float(text[:-3]) / 1000) * 8000)} Samples")
-        else:
-            self.samples.setText(f"{int(float(text[:-2]) * 8000)} Samples")
-        self.controller.update_average_period(self.samples.text())
+        self.controller.update_sample_setting()
+        self.last_period = self.average_period.currentIndex()
 
 
 class MeasurementOptions(QtWidgets.QWidget):

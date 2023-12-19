@@ -168,10 +168,6 @@ class Settings(ABC):
         ...
 
     @abstractmethod
-    def update_average_period(self, samples: str) -> None:
-        ...
-
-    @abstractmethod
     def update_automatic_valve_switch(self, automatic_valve_switch: bool) -> None:
         ...
 
@@ -193,6 +189,10 @@ class Settings(ABC):
 
     @abstractmethod
     def enable_pump_on_run(self) -> None:
+        ...
+
+    @abstractmethod
+    def update_sample_setting(self) -> None:
         ...
 
 
