@@ -57,7 +57,7 @@ class MainApplication(interface.MainApplication):
         model.signals.GENERAL_PURPORSE.theme_changed.connect(self.update_theme)
         threading.Thread(target=model.general_purpose.theme_observer, daemon=True).start()
         self.controllers.toolbar.init_devices()
-        self.setFont(QtGui.QFont('Arial', 12))
+        self.setFont(QtGui.QFont('Arial', 11))
         splash.finish(self.view)
         splash.close()
         # threading.excepthook = self.thread_exception
