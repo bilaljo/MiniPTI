@@ -85,35 +85,38 @@ class Driver(serial_device.Driver):
 
 @dataclass
 class DAC:
-    bit_value: int
-    continuous_wave: Annotated[list[bool], 3]
-    pulsed_mode: Annotated[list[bool], 3]
+    bit_value: int = 0
+    continuous_wave: list[bool] = dataclasses.field(
+        default_factory=lambda: [False, False, False]
+    )
+    pulsed_mode: list[bool] = dataclasses.field(
+        default_factory=lambda: [False, False, False])
 
 
 @dataclass
 class HighPowerLaserConfig:
-    max_current_mA: float
-    bit_value: int
-    DAC: list[DAC, DAC]
+    max_current_mA: float = 0
+    bit_value: int = 255
+    DAC: list[DAC, DAC] = dataclasses.field(default_factory=lambda: [DAC(), DAC()])
 
 
 @dataclass
 class Mode:
-    constant_current: bool
-    constant_light: bool
+    constant_current: bool = True
+    constant_light: bool = False
 
 
 @dataclass
 class Current:
-    max_mA: float
-    bits: int
+    max_mA: float = 0
+    bits: int = 127
 
 
 @dataclass
 class LowPowerLaserConfig:
-    current: Current
-    mode: Mode
-    photo_diode_gain: int
+    current: Current = Current()
+    mode: Mode = Mode()
+    photo_diode_gain: int = 1
 
     @staticmethod
     def bit_to_current(bits: int) -> float:
@@ -148,7 +151,7 @@ class Laser:
         ...
 
     @abstractmethod
-    def load_configuration(self) -> None:
+    def load_configuration(self) -> bool:
         ...
 
     @abstractmethod
@@ -194,10 +197,16 @@ class LowPowerLaser(Laser):
         self._driver.write(self._init)
 
     @override
-    def load_configuration(self) -> None:
+    def load_configuration(self) -> bool:
         with open(self.config_path) as config:
-            loaded_config = json.load(config)
-            self.configuration = dacite.from_dict(LowPowerLaserConfig, loaded_config["Low Power Laser"])
+            try:
+                loaded_config = json.load(config)
+                self.configuration = dacite.from_dict(LowPowerLaserConfig,
+                                                      loaded_config["Low Power Laser"])
+                return True
+            except (dacite.DaciteError, json.decoder.JSONDecodeError):
+                self.configuration = LowPowerLaserConfig()
+                return False
 
     @override
     def save_configuration(self) -> None:
@@ -272,10 +281,15 @@ class HighPowerLaser(Laser):
         self._driver.write(self._enable)
 
     @override
-    def load_configuration(self) -> None:
+    def load_configuration(self) -> bool:
         with open(self.config_path) as config:
-            loaded_config = json.load(config)
-            self.configuration = dacite.from_dict(HighPowerLaserConfig, loaded_config["High Power Laser"])
+            try:
+                loaded_config = json.load(config)
+                self.configuration = dacite.from_dict(HighPowerLaserConfig, loaded_config["High Power Laser"])
+                return True
+            except (dacite.DaciteError, json.decoder.JSONDecodeError):
+                self.configuration = HighPowerLaserConfig()
+                return False
 
     @override
     def save_configuration(self) -> None:

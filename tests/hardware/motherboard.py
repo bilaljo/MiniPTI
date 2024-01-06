@@ -1,5 +1,5 @@
 """
-Unit tests for the hardware API of the MiniPTI.
+Unit tests for the hardware.Motherboard API of the MiniPTI.
 """
 import itertools
 import logging
@@ -41,7 +41,7 @@ class MotherBoardDAQ(DAQTest):
     """
     Unit tests for several kind of packages for the DAQ.
     """
-    with open(f"{os.path.dirname(__file__)}/sample_data/hardware/daq.data", "r",
+    with open(f"{os.path.dirname(__file__)}/sample_data/daq.data", "r",
               encoding="ASCII") as daq_file:
         received_data_daq = daq_file.read().split("\n")
 
@@ -138,7 +138,7 @@ class MotherBoardBMS(DAQTest):
     """
     Unit tests for several kind of packages for the BMS.
     """
-    with open(f"{os.path.dirname(__file__)}/sample_data/hardware/bms.data", "r",
+    with open(f"{os.path.dirname(__file__)}/sample_data/bms.data", "r",
               encoding="ASCII") as bms_file:
         received_data_bms = bms_file.read().split("\n")
 
@@ -209,7 +209,7 @@ class MotherBoardDAQBMS(DAQTest):
     """
     driver = minipti.hardware.motherboard.Driver()
 
-    with open(f"{os.path.dirname(__file__)}/sample_data/hardware/package.data",
+    with open(f"{os.path.dirname(__file__)}/sample_data/package.data",
               "r", encoding="ASCII") as package_file:
         received_data_package = package_file.read().split("\n")
 

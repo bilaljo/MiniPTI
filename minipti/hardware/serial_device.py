@@ -59,6 +59,10 @@ class Driver(ABC):
         self._sampling = threading.Event()
         atexit.register(self.clear)
 
+    @property
+    def write_buffer_size(self) -> int:
+        return self._write_buffer.qsize()
+
     def clear(self) -> None:
         time.sleep(0.1)
         self.close()
