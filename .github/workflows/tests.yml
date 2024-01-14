@@ -24,6 +24,6 @@ jobs:
              pip install fastcrc numpy pandas scipy dacite pyserial h5py nptyping[complete] \
              beartype commented-configparser overrides green tqdm
       - name: Run Hardware Tests
-        run: green tests/hardware.py
+        run: green tests/hardware
       - name: Run Algorithm Tests
         run: green tests/algorithm.py
