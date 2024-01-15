@@ -498,37 +498,37 @@ class PumpLaser(Laser):
 
     @property
     def current_bits_dac_1(self) -> int:
-        return self.pump_laser.configuration.DAC[0].bit_value
+        return self.pump_laser.configuration.dac[0].bit_value
 
     @current_bits_dac_1.setter
     def current_bits_dac_1(self, bits: int) -> None:
-        self.pump_laser.configuration.DAC[0].bit_value = bits
+        self.pump_laser.configuration.dac[0].bit_value = bits
         self.fire_current_bits_dac_1()
         self.pump_laser.set_dac(0)
 
     def fire_current_bits_dac_1(self) -> None:
-        signals.LASER.current_dac.emit(0, self.pump_laser.configuration.DAC[0].bit_value)
+        signals.LASER.current_dac.emit(0, self.pump_laser.configuration.dac[0].bit_value)
 
     @property
     def current_bits_dac_2(self) -> int:
-        return self.pump_laser.configuration.DAC[1].bit_value
+        return self.pump_laser.configuration.dac[1].bit_value
 
     @current_bits_dac_2.setter
     def current_bits_dac_2(self, bits: int) -> None:
-        self.pump_laser.configuration.DAC[1].bit_value = bits
+        self.pump_laser.configuration.dac[1].bit_value = bits
         self.fire_current_bits_dac2()
         self.pump_laser.set_dac(1)
 
     def fire_current_bits_dac2(self) -> None:
-        signals.LASER.current_dac.emit(1, self.pump_laser.configuration.DAC[1].bit_value)
+        signals.LASER.current_dac.emit(1, self.pump_laser.configuration.dac[1].bit_value)
 
     @property
     def dac_1_matrix(self) -> hardware.laser.DAC:
-        return self.pump_laser.configuration.DAC[0]
+        return self.pump_laser.configuration.dac[0]
 
     @property
     def dac_2_matrix(self) -> hardware.laser.DAC:
-        return self.pump_laser.configuration.DAC[1]
+        return self.pump_laser.configuration.dac[1]
 
     @staticmethod
     def _set_indices(dac_number: int, dac: hardware.laser.DAC) -> None:
@@ -544,7 +544,7 @@ class PumpLaser(Laser):
 
     @dac_1_matrix.setter
     def dac_1_matrix(self, dac: hardware.laser.DAC) -> None:
-        self.pump_laser.configuration.DAC[0] = dac
+        self.pump_laser.configuration.dac[0] = dac
         self.fire_dac_matrix_1()
 
     def fire_dac_matrix_1(self) -> None:
@@ -552,7 +552,7 @@ class PumpLaser(Laser):
 
     @dac_2_matrix.setter
     def dac_2_matrix(self, dac: hardware.laser.DAC) -> None:
-        self.pump_laser.configuration.DAC[1] = dac
+        self.pump_laser.configuration.dac[1] = dac
         self.fire_dac_matrix_2()
 
     def fire_dac_matrix_2(self) -> None:

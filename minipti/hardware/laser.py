@@ -97,7 +97,7 @@ class DAC:
 class HighPowerLaserConfig:
     max_current_mA: float = 0
     bit_value: int = 255
-    DAC: list[DAC, DAC] = dataclasses.field(default_factory=lambda: [DAC(), DAC()])
+    dac: list[DAC, DAC] = dataclasses.field(default_factory=lambda: [DAC(), DAC()])
 
 
 @dataclass
@@ -312,16 +312,16 @@ class HighPowerLaser(Laser):
         self._driver.write(self._set_voltage)
 
     def set_dac(self, i: int) -> None:
-        self._set_dac[i].value = self.configuration.DAC[i].bit_value
+        self._set_dac[i].value = self.configuration.dac[i].bit_value
         self._driver.write(self._set_dac[i])
 
     def set_dac_matrix(self) -> None:
         matrix = 0
         for i in range(HighPowerLaser._CHANNELS):
             for j in range(HighPowerLaser._DAC_CHANNELS):
-                if self.configuration.DAC[j].continuous_wave[i]:
+                if self.configuration.dac[j].continuous_wave[i]:
                     matrix |= HighPowerLaser._DAC_REGISTER[j][2 * i]
-                elif self.configuration.DAC[j].pulsed_mode[i]:
+                elif self.configuration.dac[j].pulsed_mode[i]:
                     matrix |= HighPowerLaser._DAC_REGISTER[j][2 * i + 1]
         self._control_register.value = matrix
         self._driver.write(self._control_register)
