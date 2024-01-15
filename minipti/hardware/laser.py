@@ -114,8 +114,10 @@ class Current:
 
 @dataclass
 class LowPowerLaserConfig:
-    current: Current = Current()
-    mode: Mode = Mode()
+    current: Current = dataclasses.field(
+        default_factory=lambda: Current())
+    mode: Mode = dataclasses.field(
+        default_factory=lambda: Mode())
     photo_diode_gain: int = 1
 
     @staticmethod
