@@ -472,14 +472,11 @@ class Utilities(interface.Utilities):
         self.view = view.utilities.UtilitiesWindow(self)
         self.calculation_model = model.processing.OfflineCalculation()
         self.last_file_path = os.getcwd()
-        self.interferometric_phase_offline = view.plots.InterferometricPhaseOffline()
-        self.dc_offline = view.plots.DCOffline()
-        self.lock_in_phases_offline = view.plots.LockInPhaseOffline()
         self.calculation_model.interferometer_characterization.progress_observer.append(self.update_progess_bar)
-        model.signals.CALCULATION.dc_signals.connect(self.dc_offline.plot)
+        model.signals.CALCULATION.dc_signals.connect(view.plots.dc_offline)
         model.signals.CALCULATION.inversion.connect(view.plots.pti_signal_offline)
-        model.signals.CALCULATION.interferometric_phase.connect(self.interferometric_phase_offline.plot)
-        model.signals.CALCULATION.lock_in_phases.connect(self.lock_in_phases_offline.plot)
+        model.signals.CALCULATION.interferometric_phase.connect(view.plots.interferometric_phase_offline)
+        model.signals.CALCULATION.lock_in_phases.connect(view.plots.lock_in_phase_offline)
         # model.theme_signal.changed.connect(view.utilities.update_matplotlib_theme)
 
     def update_progess_bar(self, progress: int) -> None:

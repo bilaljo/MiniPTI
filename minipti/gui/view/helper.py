@@ -5,7 +5,7 @@ from PyQt5 import QtWidgets
 
 def toggle_button(checked, button: Union[QtWidgets.QPushButton, QtWidgets.QToolButton, QtWidgets.QLabel]) -> None:
     if checked:
-        button.setStyleSheet("background-color : lightgreen")
+        button.setStyleSheet("background-color : green")
     else:
         button.setStyleSheet("background-color : light gray")
 

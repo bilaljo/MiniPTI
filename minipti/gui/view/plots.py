@@ -73,42 +73,18 @@ class DAQPlots(Plotting):
         ...
 
 
-class OfflinePlot(QtWidgets.QMainWindow):
-    def __init__(self):
-        QtWidgets.QMainWindow.__init__(self)
-        self.parent = QtWidgets.QWidget()
-        self.parent.setLayout(QtWidgets.QVBoxLayout())
-        self.figure = plt.Figure()
-        self.canvas = FigureCanvasQTAgg(self.figure)
-        self.toolbar = NavigationToolbar2QT(self.canvas, self)
-        self.parent.layout().addWidget(self.canvas)
-        self.parent.layout().addWidget(self.toolbar)
-        self.setCentralWidget(self.parent)
-
-    def plot(self, data: np.ndarray) -> None:
-        plt.clf()
-
-    def closeEvent(self, e):
-        self.canvas = FigureCanvasQTAgg(self.figure)
-        super().closeEvent(e)
-
-
-class DCOffline(OfflinePlot):
-    def __init__(self):
-        OfflinePlot.__init__(self)
-        self.setWindowTitle("DC Signals")
-
-    @override
-    def plot(self, data: np.ndarray) -> None:
-        plt.clf()
-        ax = self.figure.add_subplot()
+def dc_offline(data: dict[str]) -> None:
+    plt.figure()
+    try:
         for channel in range(3):
-            ax.plot(data[channel], label=f"CH{channel + 1}")
-        ax.grid()
-        ax.set_xlabel("Time [s]")
-        ax.set_ylabel("Intensity [V]")
-        self.canvas.draw()
-        self.show()
+            plt.plot(data[channel], label=f"CH{channel + 1}")
+        plt.grid()
+        plt.xlabel("Time [s]")
+        plt.ylabel("Intensity [V]")
+        plt.legend()
+        plt.show()
+    except KeyError:
+        pass
 
 
 class DC(DAQPlots):
@@ -169,38 +145,30 @@ class OutputPhases(DAQPlots):
             self.curves[channel].setData(data.time, np.rad2deg(data.output_phases[channel]))
 
 
-class InterferometricPhaseOffline(OfflinePlot):
-    def __init__(self):
-        OfflinePlot.__init__(self)
-        self.setWindowTitle("Interferometric Phase")
+def interferometric_phase_offline(data) -> None:
+    plt.figure()
+    try:
+        plt.plot(data)
+        plt.grid()
+        plt.xlabel("Time [s]")
+        plt.ylabel(r"Interferometric Phase [rad]")
+        plt.legend()
+        plt.show()
+    except KeyError:
+        pass
 
-    def plot(self, data: np.ndarray) -> None:
-        plt.clf()
-        ax = self.figure.add_subplot()
-        ax.plot(data)
-        ax.grid()
-        ax.set_xlabel("Time [s]")
-        ax.set_ylabel(r"Interferometric Phase [rad]")
-        self.canvas.draw()
-        self.show()
-
-
-class LockInPhaseOffline(OfflinePlot):
-    def __init__(self):
-        OfflinePlot.__init__(self)
-        self.setWindowTitle("Response Phase")
-
-    def plot(self, data: np.ndarray) -> None:
-        plt.clf()
-        ax = self.figure.add_subplot()
+def lock_in_phase_offline(data) -> None:
+    plt.figure()
+    try:
         for channel in range(3):
-            ax.scatter(range(len(data.T[channel])), data.T[channel], label=f"CH{channel + 1}")
-        ax.grid()
-        ax.set_xlabel("Time [s]")
-        ax.set_ylabel(r"Response Phase [rad]")
-        ax.legend()
-        self.canvas.draw()
-        self.show()
+            plt.scatter(range(len(data.T[channel])), data.T[channel], label=f"CH{channel + 1}")
+        plt.grid()
+        plt.xlabel("Time [s]")
+        plt.ylabel(r"Response Phase [rad]")
+        plt.legend()
+        plt.show()
+    except KeyError:
+        pass
 
 
 class InterferometricPhase(DAQPlots):

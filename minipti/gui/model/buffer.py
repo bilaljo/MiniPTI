@@ -13,7 +13,7 @@ class BaseClass:
     """
     The buffer contains the queues for incoming data and the timer for them.
     """
-    QUEUE_SIZE = 100
+    QUEUE_SIZE = 1000
 
     def __init__(self):
         self.time_counter = itertools.count()
