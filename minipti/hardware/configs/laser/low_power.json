@@ -2,7 +2,7 @@
     "Low Power Laser": {
         "current": {
             "max_mA": 12.5,
-            "bits": 197
+            "bits": 196
         },
         "mode": {
             "constant_current": true,
