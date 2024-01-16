@@ -40,6 +40,7 @@ class MainApplication(interface.MainApplication):
         interface.MainApplication.__init__(self, argv)
         splash = QtWidgets.QSplashScreen(QtGui.QPixmap(f"{minipti.module_path}/gui/images/loading_screen.jpg"))
         splash.show()
+        self.setStyle("Fusion")
         settings_controller = Settings()
         utilities_controller = Utilities()
         self._controllers: Controllers = Controllers(main_application=self,
