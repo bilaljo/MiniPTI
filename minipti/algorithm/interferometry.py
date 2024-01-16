@@ -634,7 +634,6 @@ class Characterization:
         self.interferometer.calculate_phase(fast=False)
         self.interferometry_data.phases = self.interferometer.phase
         costs.append(self._characterise_interferometer())
-        print(costs)
         logging.info("Final values:\n%s", str(self.interferometer))
 
     def _add_characterised_data(self, output_data: defaultdict) -> None:
