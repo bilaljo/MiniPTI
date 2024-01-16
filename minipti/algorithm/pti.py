@@ -88,7 +88,9 @@ class Decimation:
                                                                         * self.configuration.ac_resolution)
 
     def save(self) -> None:
-        with h5py.File(f"{self.destination_folder}/raw_data.hdf5", "a") as h5f:
+        now = datetime.now()
+        date = str(now.strftime("%Y-%m-%d"))
+        with h5py.File(f"{self.destination_folder}/{date}_raw_data.hdf5", "a") as h5f:
             now = datetime.now()
             time_stamp = str(now.strftime("%Y-%m-%d %H:%M:%S:%S.%f")[:Decimation.UNTIL_MICRO_SECONDS])
             h5f.create_group(time_stamp)
@@ -128,7 +130,7 @@ class Decimation:
             output_data[f"Lock In Phase CH{channel + 1}"] = self.lock_in.phase[channel]
             output_data[f"DC CH{channel + 1}"] = self.dc_signals[channel]
         try:
-            pd.DataFrame(output_data, index=[date]).to_csv(f"{self.destination_folder}/Decimation.csv", mode="a",
+            pd.DataFrame(output_data, index=[date]).to_csv(f"{self.destination_folder}/{date}_Decimation.csv", mode="a",
                                                            index_label="Date", header=False)
         except PermissionError:
             logging.warning("Could not write data. Missing values are: %s at %s.",
@@ -149,7 +151,9 @@ class Decimation:
                 output_data[f"Lock In Amplitude CH{channel + 1}"] = "V"
                 output_data[f"Lock In Phase CH{channel + 1}"] = "rad"
                 output_data[f"DC CH{channel + 1}"] = "V"
-            pd.DataFrame(output_data, index=["Y:M:D"]).to_csv(f"{self.destination_folder}/Decimation.csv",
+            now = datetime.now()
+            date = str(now.strftime("%Y-%m-%d"))
+            pd.DataFrame(output_data, index=["Y:M:D"]).to_csv(f"{self.destination_folder}/{date}_Decimation.csv",
                                                               index_label="Date")
             self.init_header = False
         if live:
@@ -281,9 +285,11 @@ class Inversion:
 
     def _calculate_online(self) -> None:
         output_data = {"Time": "H:M:S"}
+        now = datetime.now()
+        date = str(now.strftime("%Y-%m-%d"))
         if self.init_header:
             output_data["PTI Signal"] = "µrad"
-            pd.DataFrame(output_data, index=["Y:M:D"]).to_csv(f"{self.destination_folder}/PTI_Inversion.csv",
+            pd.DataFrame(output_data, index=["Y:M:D"]).to_csv(f"{self.destination_folder}/{date}_PTI_Inversion.csv",
                                                               index_label="Date")
             self.init_header = False
         self.calculate_pti_signal()
@@ -295,7 +301,7 @@ class Inversion:
         time = str(now.strftime("%H:%M:%S"))
         output_data = {"Time": time, "PTI Signal": self.pti_signal}
         try:
-            pd.DataFrame(output_data, index=[date]).to_csv(f"{self.destination_folder}/PTI_Inversion.csv",
+            pd.DataFrame(output_data, index=[date]).to_csv(f"{self.destination_folder}/{date}_PTI_Inversion.csv",
                                                            mode="a", index_label="Date", header=False)
         except PermissionError:
             logging.warning("Could not write data. Missing values are: %s at %s.",

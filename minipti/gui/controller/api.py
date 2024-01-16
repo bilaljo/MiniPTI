@@ -38,7 +38,7 @@ class Controllers(interface.Controllers):
 class MainApplication(interface.MainApplication):
     def __init__(self, argv=""):
         interface.MainApplication.__init__(self, argv)
-        splash = QtWidgets.QSplashScreen(QtGui.QPixmap(f"{minipti.module_path}/gui/images/logo.svg"))
+        splash = QtWidgets.QSplashScreen(QtGui.QPixmap(f"{minipti.module_path}/gui/images/loading_screen.jpg"))
         splash.show()
         settings_controller = Settings()
         utilities_controller = Utilities()
@@ -143,7 +143,7 @@ class Toolbar(interface.Toolbar):
         if model.configuration.GUI.on_run.probe_laser.tec_driver:
             model.serial_devices.TOOLS.tec[model.serial_devices.Tec.PROBE_LASER].enabled = self.running
         if model.configuration.GUI.on_run.pump:
-            model.serial_devices.TOOLS.pump.set_duty_cycle()
+            model.serial_devices.TOOLS.pump.enabled = self.running
         if model.configuration.GUI.on_run.DAQ:
             self.enable_daq()
 
