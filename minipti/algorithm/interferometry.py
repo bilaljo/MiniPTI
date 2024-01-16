@@ -64,9 +64,11 @@ class Interferometer:
 
     OPTIMAL_SYMMETRY: Final[float] = 86.58  # %
 
-    CONFIGURATION: Final[InterferometerSettings] = _utilities.load_configuration(InterferometerSettings,
-                                                                                   "interferometry",
-                                                                                   "interferometer")
+    CONFIGURATION: Final[InterferometerSettings] = _utilities.load_configuration(
+        InterferometerSettings,
+        "interferometry",
+        "interferometer"
+    )
 
     def __init__(self, settings_path=f"{os.path.dirname(__file__)}/configs/settings.csv", interferometer_dimension=3,
                  decimation_filepath="data/Decimation.csv"):
@@ -291,8 +293,10 @@ class Interferometer:
             output_data["Interferometric Phase"] = "rad"
             for channel in range(1, 4):
                 output_data[f"Sensitivity CH{channel}"] = "V/rad"
-            pd.DataFrame(output_data, index=["Y:M:D"]).to_csv(f"{self.destination_folder}/Interferometer.csv",
-                                                              index_label="Date")
+            pd.DataFrame(output_data, index=["Y:M:D"]).to_csv(
+                f"{self.destination_folder}/{_utilities.PATH_PREFIX}_Interferometer.csv",
+                index_label="Date"
+            )
             self._init_live_data_frame()
             self.init_online = False
         self.calculate_phase()
@@ -303,8 +307,12 @@ class Interferometer:
         units, output_data = self._prepare_data()
         pd.DataFrame(units, index=["s"]).to_csv(f"{self.destination_folder}/Interferometer.csv",
                                                 index_label="Time")
-        pd.DataFrame(output_data).to_csv(f"{self.destination_folder}/Interferometer.csv", index_label="Time",
-                                         mode="a", header=False)
+        pd.DataFrame(output_data).to_csv(
+            f"{self.destination_folder}/{_utilities.PATH_PREFIX}_Interferometer.csv",
+            index_label="Time",
+            mode="a",
+            header=False
+        )
         logging.info("Interferometer Data calculated.")
         logging.info("Saved results in %s", str(self.destination_folder))
 
@@ -324,7 +332,7 @@ class Interferometer:
         for channel in range(3):
             self.output_data_frame[f"Sensitivity CH{channel + 1}"] = self.sensitivity[channel]
         try:
-            self.output_data_frame.to_csv(f"{self.destination_folder}/Interferometer.csv", mode="a",
+            self.output_data_frame.to_csv(f"{self.destination_folder}/{self.path_prefix}_Interferometer.csv", mode="a",
                                           index_label="Date", header=False)
         except PermissionError:
             logging.warning("Could not write data. Missing values are: %s at %s.",
@@ -393,6 +401,7 @@ class Characterization:
         self.interferometry_data = InterferometryData()
         self._progess = 0
         self.progress_observer = []
+        self.path_prefix = ""
 
     def __repr__(self) -> str:
         class_name = self.__class__.__name__
@@ -661,8 +670,12 @@ class Characterization:
         for i in process_characterisation:
             time_stamps.append(i)
             self._add_characterised_data(output_data)
-        pd.DataFrame(output_data, index=time_stamps).to_csv(f"{self.destination_folder}/Characterisation.csv",
-                                                            mode="a", index_label="Time Stamp", header=False)
+        pd.DataFrame(output_data, index=time_stamps).to_csv(
+            f"{self.destination_folder}/{_utilities.PATH_PREFIX}_Characterisation.csv",
+            mode="a",
+            index_label="Time Stamp",
+            header=False
+        )
         logging.info("Characterization finished")
         logging.info("Saved data into %s", self.destination_folder)
 
@@ -677,7 +690,7 @@ class Characterization:
             characterised_data[f"Output Phase CH{1 + i}"] = np.rad2deg(self.interferometer.output_phases[i])
             characterised_data[f"Amplitude CH{1 + i}"] = self.interferometer.amplitudes[i]
             characterised_data[f"Offset CH{1 + i}"] = self.interferometer.offsets[i]
-        file_destination: str = f"{self.destination_folder}/Characterisation.csv"
+        file_destination: str = f"{self.destination_folder}/{_utilities.PATH_PREFIX}_Characterisation.csv"
         pd.DataFrame(characterised_data, index=[self.time_stamp]).to_csv(file_destination, mode="a", header=False,
                                                                          index_label="Time Stamp")
         self.clear()
