@@ -3,7 +3,7 @@ fastcrc==0.3
 h5py==3.10.0
 numpy
 pandas==2.1.4
-PyQt5>=5.15.2
+PyQt5==5.15.10
 pyqtgraph==0.13.3
 pyserial==3.5
 python-dateutil==2.8.2
@@ -15,7 +15,7 @@ pythonnet==3.0.3; platform_system == "Windows"
 overrides==7.4.0
 pyqtdarktheme==2.1.0
 matplotlib==3.8.2
-markdown==3.5.1
+markdown==3.5.2
 qtwidgets==1.1
 darkdetect[macos-listener]
 qtpy==2.4.1
