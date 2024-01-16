@@ -36,6 +36,7 @@ class Driver(serial_device.Driver):
         self.high_power_laser = HighPowerLaser(self)
         self.low_power_laser = LowPowerLaser(self)
         self.encode = False
+        self.startup()
 
     def startup(self):
         self.high_power_laser.initialize()
@@ -136,7 +137,6 @@ class Laser:
         self.config_path = ""
         self._driver = driver
         self._initialized = False
-        self._enabled = False
 
     @abstractmethod
     def initialize(self) -> None:
@@ -184,12 +184,11 @@ class LowPowerLaser(Laser):
     @property
     @override
     def enabled(self) -> bool:
-        return self._enabled
+        return bool(self._enable.value)
 
     @enabled.setter
     @override
     def enabled(self, enabled: bool) -> None:
-        self._enabled = enabled
         self._enable.value = enabled
         self._driver.write(self._enable)
 

@@ -658,9 +658,9 @@ class PumpLaser(Laser):
     def enable(self) -> None:
         if not self.laser.connected:
             QtWidgets.QMessageBox.critical(self.view, "IO Error",
-                                           "Cannot enable Pump Laser. Pump Laser is not connected.")
+                                           "Cannot enable Pump Laser. Laser Driver is not connected.")
             logging.error("Cannot enable Pump Laser")
-            logging.warning("Pump Laser is not connected")
+            logging.warning("Laser Driver is not connected")
         else:
             if not self.laser.enabled:
                 self.laser.enabled = True
@@ -711,15 +711,15 @@ class ProbeLaser(Laser):
     def enable(self) -> None:
         if not self.laser.connected:
             QtWidgets.QMessageBox.critical(self.view, "IO Error",
-                                           "Cannot enable Tec Driver of Probe Laser. Tec Driver is not connected.")
-            logging.error("Cannot enable Tec Driver of Probe Laser")
-            logging.warning("Tec Driver is not connected")
+                                           "Cannot enable Probe Laser. Laser Driver is not connected.")
+            logging.error("Cannot enable Probe Laser")
+            logging.warning("Laser Driver is not connected")
         else:
             if not self.laser.enabled:
                 self.laser.enabled = True
             else:
                 self.laser.enabled = False
-            logging.debug(f"{'Enabled' if self.laser.enabled else 'Disabled'} Tec Driver of Probe Laser")
+            logging.debug(f"{'Enabled' if self.laser.enabled else 'Disabled'} Probe Laser")
 
     def update_max_current_probe_laser(self, max_current: str) -> None:
         try:
