@@ -1,9 +1,13 @@
 import json
-from typing import TypeVar, Type
+from datetime import datetime
+from typing import TypeVar, Type, Final
 
 import dacite
 
 import minipti
+
+now = datetime.now()
+PATH_PREFIX: Final = str(now.strftime("%Y-%m-%d"))
 
 
 T = TypeVar("T")

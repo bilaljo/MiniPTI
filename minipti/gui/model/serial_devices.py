@@ -167,8 +167,6 @@ class BMS(Serial):
     @override
     def _incoming_data(self) -> None:
         init_headers = True
-        now = datetime.now()
-        date = str(now.strftime("%Y-%m-%d"))
         while self.driver.connected.is_set():
             shutdown, bms_data = self.driver.bms.data  # type: bool, hardware.motherboard.BMSData
             if shutdown:
@@ -195,7 +193,7 @@ class BMS(Serial):
                              "Charging Battery": "bool", "Minutes Left": "min", "Charging Level": "%",
                              "Temperature": "°C", "Current": "mA",
                              "Voltage": "mV", "Full Charge Capacity": "mAh", "Remaining Charge Capacity": "mAh"}
-                    pd.DataFrame(units, index=["Y:M:D"]).to_csv(self._destination_folder + f"/{date}_BMS.csv",
+                    pd.DataFrame(units, index=["Y:M:D"]).to_csv(self._destination_folder + f"/BMS.csv",
                                                                 index_label="Date")
                     init_headers = False
                 now = datetime.now()
@@ -203,7 +201,7 @@ class BMS(Serial):
                 for key, value in asdict(bms_data).items():
                     output_data[key.replace("_", " ").title()] = value
                 bms_data_frame = pd.DataFrame(output_data, index=[str(now.strftime("%Y-%m-%d"))])
-                bms_data_frame.to_csv(self._destination_folder + f"/{date}_BMS.csv", header=False, mode="a")
+                bms_data_frame.to_csv(self._destination_folder + f"/BMS.csv", header=False, mode="a")
 
 
 class Valve(Serial):
@@ -269,20 +267,18 @@ class Valve(Serial):
     @override
     def _incoming_data(self) -> None:
         init_headers = True
-        now = datetime.now()
-        date = str(now.strftime("%Y-%m-%d"))
         while self.driver.connected.is_set():
             self.driver.wait()
             if configuration.GUI.save.valve:
                 if init_headers:
                     units = {"Time": "H:M:S", "Bypass": "bool"}
-                    pd.DataFrame(units, index=["Y:M:D"]).to_csv(self._destination_folder + f"/{date}_gas.csv",
+                    pd.DataFrame(units, index=["Y:M:D"]).to_csv(self._destination_folder + f"/gas.csv",
                                                                 index_label="Date")
                     init_headers = False
                 now = datetime.now()
                 output_data = {"Time": str(now.strftime("%H:%M:%S")), "Bypass": self.bypass}
                 output_data_data_frame = pd.DataFrame(output_data, index=[str(now.strftime("%Y-%m-%d"))])
-                output_data_data_frame.to_csv(self._destination_folder + "/{date}_gas.csv", header=False, mode="a")
+                output_data_data_frame.to_csv(self._destination_folder + "/gas.csv", header=False, mode="a")
                 time.sleep(1)
 
 
@@ -395,8 +391,6 @@ class Laser(Serial):
         ...
 
     def _incoming_data(self):
-        now = datetime.now()
-        date = str(now.strftime("%Y-%m-%d"))
         while self.driver.connected.is_set():
             received_data: hardware.laser.Data = self.driver.data.get(block=True)
             Laser.buffer.append(received_data)
@@ -410,7 +404,7 @@ class Laser(Serial):
                              "Probe Laser Enabled": "bool",
                              "Pump Laser Current": "mA",
                              "Probe Laser Current": "mA"}
-                    pd.DataFrame(units, index=["Y:M:D"]).to_csv(self._destination_folder + f"/{date}_laser.csv",
+                    pd.DataFrame(units, index=["Y:M:D"]).to_csv(self._destination_folder + f"/laser.csv",
                                                                 index_label="Date")
                     self._init_headers = False
                 now = datetime.now()
@@ -421,7 +415,7 @@ class Laser(Serial):
                                "Pump Laser Current": received_data.high_power_laser_current,
                                "Probe Laser Current": received_data.low_power_laser_current}
                 laser_data_frame = pd.DataFrame(output_data, index=[str(now.strftime("%Y-%m-%d"))])
-                pd.DataFrame(laser_data_frame).to_csv(f"{self._destination_folder}/{date}_laser.csv", mode="a", header=False)
+                pd.DataFrame(laser_data_frame).to_csv(f"{self._destination_folder}/laser.csv", mode="a", header=False)
 
     def fire_configuration_change(self) -> None:
         ...
@@ -832,8 +826,6 @@ class Tec(Serial):
 
     @override
     def _incoming_data(self) -> None:
-        now = datetime.now()
-        date = str(now.strftime("%Y-%m-%d"))
         while self.driver.connected.is_set():
             received_data: hardware.tec.Data = self.driver.data.get(block=True)
             self._buffer.append(received_data)
@@ -850,7 +842,7 @@ class Tec(Serial):
                              "Set Point Temperature Pump Laser": "°C",
                              "Measured Temperature Probe Laser": "°C",
                              "Set Point Temperature Probe Laser": "°C"}
-                    pd.DataFrame(units, index=["Y:M:D"]).to_csv(f"{self._destination_folder}/{date}_tec.csv",
+                    pd.DataFrame(units, index=["Y:M:D"]).to_csv(f"{self._destination_folder}/tec.csv",
                                                                 index_label="Date")
                     self._init_headers = False
                 now = datetime.now()
@@ -864,7 +856,7 @@ class Tec(Serial):
                             "Measured Temperature Probe Laser": received_data.actual_temperature[Tec.PROBE_LASER],
                             "Set Point Temperature Probe Laser": received_data.set_point[Tec.PROBE_LASER]}
                 tec_data_frame = pd.DataFrame(tec_data, index=[str(now.strftime("%Y-%m-%d"))])
-                pd.DataFrame(tec_data_frame).to_csv(f"{self._destination_folder}/{date}_tec.csv",
+                pd.DataFrame(tec_data_frame).to_csv(f"{self._destination_folder}/tec.csv",
                                                     header=False, mode="a")
 
 

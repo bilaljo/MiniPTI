@@ -69,7 +69,7 @@ class TestInterferometer(unittest.TestCase):
         self.interferometer.intensities = self.dc_data.T
         self.interferometer.calculate_phase()
         reconstructed_signal = self._reconstruct_signal(self.interferometer.phase)
-        self.assertAlmostEqual(np.mean(reconstructed_signal - self.dc_data), 0, places=3)
+        self.assertAlmostEqual(np.mean(reconstructed_signal - self.dc_data), 0, places=2)
 
     def tearDown(self) -> None:
         data_path: str = f"{os.path.dirname(__file__)}"

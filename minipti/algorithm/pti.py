@@ -88,9 +88,7 @@ class Decimation:
                                                                         * self.configuration.ac_resolution)
 
     def save(self) -> None:
-        now = datetime.now()
-        date = str(now.strftime("%Y-%m-%d"))
-        with h5py.File(f"{self.destination_folder}/{date}_raw_data.hdf5", "a") as h5f:
+        with h5py.File(f"{self.destination_folder}/{_utilities.PATH_PREFIX}_raw_data.hdf5", "a") as h5f:
             now = datetime.now()
             time_stamp = str(now.strftime("%Y-%m-%d %H:%M:%S:%S.%f")[:Decimation.UNTIL_MICRO_SECONDS])
             h5f.create_group(time_stamp)
@@ -130,8 +128,12 @@ class Decimation:
             output_data[f"Lock In Phase CH{channel + 1}"] = self.lock_in.phase[channel]
             output_data[f"DC CH{channel + 1}"] = self.dc_signals[channel]
         try:
-            pd.DataFrame(output_data, index=[date]).to_csv(f"{self.destination_folder}/{date}_Decimation.csv", mode="a",
-                                                           index_label="Date", header=False)
+            pd.DataFrame(output_data, index=[date]).to_csv(
+                f"{self.destination_folder}/{_utilities.PATH_PREFIX}_Decimation.csv",
+                mode="a",
+                index_label="Date",
+                header=False
+            )
         except PermissionError:
             logging.warning("Could not write data. Missing values are: %s at %s.",
                             str(output_data)[1:-1], date + " " + time)
@@ -151,10 +153,10 @@ class Decimation:
                 output_data[f"Lock In Amplitude CH{channel + 1}"] = "V"
                 output_data[f"Lock In Phase CH{channel + 1}"] = "rad"
                 output_data[f"DC CH{channel + 1}"] = "V"
-            now = datetime.now()
-            date = str(now.strftime("%Y-%m-%d"))
-            pd.DataFrame(output_data, index=["Y:M:D"]).to_csv(f"{self.destination_folder}/{date}_Decimation.csv",
-                                                              index_label="Date")
+            pd.DataFrame(output_data, index=["Y:M:D"]).to_csv(
+                f"{self.destination_folder}/{_utilities.PATH_PREFIX}_Decimation.csv",
+                index_label="Date"
+            )
             self.init_header = False
         if live:
             if self.save_raw_data:
@@ -285,12 +287,12 @@ class Inversion:
 
     def _calculate_online(self) -> None:
         output_data = {"Time": "H:M:S"}
-        now = datetime.now()
-        date = str(now.strftime("%Y-%m-%d"))
         if self.init_header:
             output_data["PTI Signal"] = "µrad"
-            pd.DataFrame(output_data, index=["Y:M:D"]).to_csv(f"{self.destination_folder}/{date}_PTI_Inversion.csv",
-                                                              index_label="Date")
+            pd.DataFrame(output_data, index=["Y:M:D"]).to_csv(
+                f"{self.destination_folder}/{_utilities.PATH_PREFIX}_PTI_Inversion.csv",
+                index_label="Date"
+            )
             self.init_header = False
         self.calculate_pti_signal()
         self._save_live_data()
@@ -301,11 +303,17 @@ class Inversion:
         time = str(now.strftime("%H:%M:%S"))
         output_data = {"Time": time, "PTI Signal": self.pti_signal}
         try:
-            pd.DataFrame(output_data, index=[date]).to_csv(f"{self.destination_folder}/{date}_PTI_Inversion.csv",
-                                                           mode="a", index_label="Date", header=False)
+            pd.DataFrame(output_data, index=[date]).to_csv(
+                f"{self.destination_folder}/{_utilities.PATH_PREFIX}_PTI_Inversion.csv",
+                mode="a",
+                index_label="Date",
+                header=False
+            )
         except PermissionError:
-            logging.warning("Could not write data. Missing values are: %s at %s.",
-                            str(output_data)[1:-1], date + " " + time)
+            logging.warning(
+                "Could not write data. Missing values are: %s at %s.",
+                str(output_data)[1:-1], date + " " + time
+            )
 
     def run(self, live=False, file_path="") -> None:
         if live:
