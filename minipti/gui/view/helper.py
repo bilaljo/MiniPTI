@@ -3,15 +3,21 @@ from typing import Any, Callable, Union
 from PyQt5 import QtWidgets
 
 
-def toggle_button(checked, button: Union[QtWidgets.QPushButton, QtWidgets.QToolButton, QtWidgets.QLabel]) -> None:
+def toggle_button(
+        checked: bool,
+        button: QtWidgets.QPushButton | QtWidgets.QToolButton | QtWidgets.QLabel) -> None:
     if checked:
         button.setStyleSheet("background-color : green")
     else:
         button.setStyleSheet("background-color : light gray")
 
 
-def create_button(parent, title: str, slot: Callable[[Any], Any], only_icon=False) -> Union[QtWidgets.QPushButton,
-QtWidgets.QToolButton]:
+def create_button(
+        parent: QtWidgets.QWidget,
+        title: str,
+        slot: Callable[[Any], Any],
+        only_icon=False
+) -> QtWidgets.QPushButton | QtWidgets.QToolButton:
     if only_icon:
         button: QtWidgets.QToolButton = QtWidgets.QToolButton()
     else:
@@ -23,8 +29,14 @@ QtWidgets.QToolButton]:
     return button
 
 
-def create_frame(parent, title: str, x_position: int, y_position: int, x_span: int = 1,
-                 y_span: int = 1) -> QtWidgets.QGroupBox:
+def create_frame(
+        parent: QtWidgets.QWidget,
+        title: str,
+        x_position: int,
+        y_position: int,
+        x_span: int = 1,
+        y_span: int = 1
+) -> QtWidgets.QGroupBox:
     frame: QtWidgets.QGroupBox = QtWidgets.QGroupBox()
     frame.setTitle(title)
     frame.setLayout(QtWidgets.QGridLayout())
