@@ -24,7 +24,7 @@ class ToolBar(QtWidgets.QToolBar):
         QtWidgets.QToolBar.__init__(self)
         self.controller = toolbar_controller
         self.run = QtWidgets.QAction()
-        base_path = f"{minipti.module_path}/gui/images"
+        base_path = f"{minipti.MODULE_PATH}/gui/images"
         self.actions = Actions(QtWidgets.QAction("Run"), QtWidgets.QAction("Settings"), QtWidgets.QAction("Utilities"),
                                QtWidgets.QAction("Bypass"), QtWidgets.QAction("Pump"), QtWidgets.QAction("Connect"),
                                QtWidgets.QAction("Directory"), QtWidgets.QAction("Shutdown"))
@@ -70,14 +70,14 @@ class ToolBar(QtWidgets.QToolBar):
     @QtCore.pyqtSlot(bool)
     def update_run_measurement(self, state: bool) -> None:
         if state:
-            icon = QtGui.QIcon(f"{minipti.module_path}/gui/images/Stop.svg")
+            icon = QtGui.QIcon(f"{minipti.MODULE_PATH}/gui/images/Stop.svg")
         else:
-            icon = QtGui.QIcon(f"{minipti.module_path}/gui/images/Run.png")
+            icon = QtGui.QIcon(f"{minipti.MODULE_PATH}/gui/images/Run.png")
         self.actions.run.setIcon(icon)
 
     @QtCore.pyqtSlot(bool)
     def update_clean_air(self, state: bool) -> None:
-        icon = QtGui.QIcon(f"{minipti.module_path}/gui/images/Valve.png")
+        icon = QtGui.QIcon(f"{minipti.MODULE_PATH}/gui/images/Valve.png")
         self.actions.valve.setIcon(icon)
 
     def _init_signals(self) -> None:
@@ -110,7 +110,7 @@ class BatteryWindow(QtWidgets.QMainWindow):
         self.base_layout.layout().addWidget(QtWidgets.QLabel("Remaining Charged Capacity [mAh]:"), 1, 4, QtCore.Qt.AlignCenter)
         self.base_layout.layout().addWidget(self.remaining_capacity_value, 1, 5, QtCore.Qt.AlignCenter)
         self.setCentralWidget(self.base_layout)
-        self.setWindowIcon(QtGui.QIcon(f"{minipti.module_path}/gui/images/battery/100_percent.svg"))
+        self.setWindowIcon(QtGui.QIcon(f"{minipti.MODULE_PATH}/gui/images/battery/100_percent.svg"))
         model.signals.BMS.battery_data.connect(self.update_bms_data)
 
     @QtCore.pyqtSlot(float, float, float, float, float, float)
@@ -144,7 +144,7 @@ class StatusBar(QtWidgets.QStatusBar):
     def __init__(self, bms_controller: controller.interface.Statusbar):
         QtWidgets.QStatusBar.__init__(self)
         self.controller = bms_controller
-        self.base_path = f"{minipti.module_path}/gui/images/battery"
+        self.base_path = f"{minipti.MODULE_PATH}/gui/images/battery"
         self.bypass = LabelIgnorePressed("Bypass")
         self.pump = LabelIgnorePressed("Pump")
         if model.configuration.GUI.destination_folder.use:

@@ -4,6 +4,7 @@ import os
 import threading
 import typing
 from collections import deque
+from datetime import datetime
 from typing import Union
 
 import numpy as np
@@ -82,6 +83,10 @@ class LiveCalculation(Calculation):
         self.characterisation_buffer.clear()
 
     def process_daq_data(self) -> None:
+        now = datetime.now()
+        date = str(now.strftime("%Y-%m-%d"))
+        time = str(now.strftime("%H:%M:%S"))
+        minipti.path_prefix = f" {date}_{time}"
         threading.Thread(target=self._run_calculation, name="PTI Inversion", daemon=True).start()
         threading.Thread(target=self._run_characterization, name="Characterisation", daemon=True).start()
 
@@ -135,9 +140,7 @@ class LiveCalculation(Calculation):
         self.interferometer_characterization.add_phase(self.interferometer.phase)
         self.dc_signals.append(self.pti.decimation.dc_signals.copy())
         if self.interferometer_characterization.enough_values:
-            self.interferometer_characterization.interferometry_data.dc_signals = np.array(self.dc_signals)
-            phase: list[float] = self.interferometer_characterization.tracking_phase
-            self.interferometer_characterization.interferometry_data.phases = np.array(phase)
+            self.interferometer_characterization.interferometer.intensities = np.array(self.dc_signals)
             self.dc_signals = []
             self.interferometer_characterization.event.set()
 
@@ -180,7 +183,7 @@ def find_delimiter(file_path: str) -> typing.Union[str, None]:
     return delimiter
 
 
-def _process_data(file_path: str, headers: list[str]) -> Union[pd.DataFrame, typing.NoReturn]:
+def _process_data(file_path: str, headers: list[str], to_numpy=True) -> Union[pd.DataFrame, typing.NoReturn]:
     if not file_path:
         raise FileNotFoundError("No file path given")
     delimiter = find_delimiter(file_path)
@@ -191,7 +194,7 @@ def _process_data(file_path: str, headers: list[str]) -> Union[pd.DataFrame, typ
             data = pd.read_csv(file_path, delimiter=delimiter, skiprows=[1], index_col="Time Stamp")
         except ValueError:  # Data isn't saved with any index
             data = pd.read_csv(file_path, delimiter=delimiter, skiprows=[1])
-    return data[headers].to_numpy()
+    return data[headers].to_numpy() if to_numpy else data
 
 
 def process_dc_data(dc_file_path: str) -> None:
@@ -244,7 +247,7 @@ def process_characterization_data(characterization_file_path: str) -> None:
     headers += [f"Offset CH{i}" for i in range(1, 4)]
     headers += ["Symmetry", "Relative Symmetry"]
     try:
-        data = _process_data(characterization_file_path, headers)
+        data = _process_data(characterization_file_path, headers, to_numpy=False)
     except FileNotFoundError:
         return
     signals.CALCULATION.characterization.emit(data)
@@ -254,7 +257,7 @@ class SettingsTable(general_purpose.Table):
     def __init__(self):
         general_purpose.Table.__init__(self)
         self._data = pd.DataFrame(columns=self._headers, index=self._indices)
-        self.file_path = f"{minipti.module_path}/algorithm/configs/settings.csv"
+        self.file_path = f"{minipti.MODULE_PATH}/algorithm/configs/settings.csv"
         signals.CALCULATION.settings_interferometer.connect(self.update_settings)
         signals.CALCULATION.response_phases.connect(self.update_response_phases)
         self.load()

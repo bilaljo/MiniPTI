@@ -21,7 +21,7 @@ class UtilitiesWindow(QtWidgets.QMainWindow):
         self.parent.layout().addWidget(self.plotting, 1, 0)
         self.setCentralWidget(self.parent)
         self.setFixedSize(300, 400)
-        self.setWindowIcon(QtGui.QIcon(f"{minipti.module_path}/gui/images/Utilities.png"))
+        self.setWindowIcon(QtGui.QIcon(f"{minipti.MODULE_PATH}/gui/images/Utilities.png"))
         self.progessbar = QtWidgets.QProgressBar()
 
 
@@ -89,3 +89,6 @@ class Plotting(UtilitiesBase):
         if model.configuration.GUI.utilities.plot.inversion:
             self.pti_signal = helper.create_button(parent=self, title="PTI Signal",
                                                    slot=self.controller.plot_inversion)
+
+            self.characterisation = helper.create_button(parent=self, title="Interferometer Characterisation",
+                                                   slot=self.controller.plot_characterisation)

@@ -40,7 +40,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def __init__(self, controllers: controller.interface.Controllers):
         QtWidgets.QMainWindow.__init__(self)
-        self.setWindowIcon(QtGui.QIcon(f"{minipti.module_path}/gui/images/logo.png"))
+        self.setWindowIcon(QtGui.QIcon(f"{minipti.MODULE_PATH}/gui/images/logo.png"))
         self.controllers = controllers
         self.toolbar = general_purpose.ToolBar(self.controllers.toolbar)
         self.addToolBar(QtCore.Qt.LeftToolBarArea, self.toolbar)
@@ -70,7 +70,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.scroll = QtWidgets.QScrollArea(widgetResizable=True)
         self._init_dock_widgets()
         self.resize(MainWindow.HORIZONTAL_SIZE, MainWindow.VERTICAL_SIZE)
-        self.setWindowIcon(QtGui.QIcon(f"{minipti.module_path}/gui/images/logo.png"))
+        self.setWindowIcon(QtGui.QIcon(f"{minipti.MODULE_PATH}/gui/images/logo.png"))
         self.setWindowTitle(model.configuration.GUI.window_title)
         self.full_screen = False
         self.tabbar.tabBar().setExpanding(True)

@@ -38,7 +38,7 @@ class Controllers(interface.Controllers):
 class MainApplication(interface.MainApplication):
     def __init__(self, argv=""):
         interface.MainApplication.__init__(self, argv)
-        splash = QtWidgets.QSplashScreen(QtGui.QPixmap(f"{minipti.module_path}/gui/images/loading_screen.jpg"))
+        splash = QtWidgets.QSplashScreen(QtGui.QPixmap(f"{minipti.MODULE_PATH}/gui/images/loading_screen.jpg"))
         splash.show()
         self.setStyle("Fusion")
         settings_controller = Settings()
@@ -272,7 +272,7 @@ class Statusbar(interface.Statusbar):
     def __init__(self):
         self._view = view.general_purpose.StatusBar(self)
         self.bms = view.general_purpose.BatteryWindow()
-        self.view.showMessage(str(minipti.module_path.parent))
+        self.view.showMessage(str(minipti.MODULE_PATH.parent))
 
     @property
     @override
@@ -487,6 +487,7 @@ class Utilities(interface.Utilities):
         model.signals.CALCULATION.inversion.connect(view.plots.pti_signal_offline)
         model.signals.CALCULATION.interferometric_phase.connect(view.plots.interferometric_phase_offline)
         model.signals.CALCULATION.lock_in_phases.connect(view.plots.lock_in_phase_offline)
+        model.signals.CALCULATION.characterization.connect(view.plots.interferometer_characterisation)
         # model.theme_signal.changed.connect(view.utilities.update_matplotlib_theme)
 
     @override
@@ -566,6 +567,21 @@ class Utilities(interface.Utilities):
                                                                  " All Files (*)")
             if lock_in_phases:
                 model.processing.process_lock_in_phases_data(lock_in_phases)
+        except KeyError:
+            QtWidgets.QMessageBox.critical(self.view, "Plotting Error", "Invalid data given. Could not plot.")
+
+    @override
+    def plot_characterisation(self) -> None:
+        try:
+            characterisation, self.last_file_path = _get_file_path(
+                self.view,
+                "Characterisation",
+                self.last_file_path,
+                "CSV File (*.csv);; TXT File (*.txt);;"
+                " All Files (*)"
+            )
+            if characterisation:
+                model.processing.process_characterization_data(characterisation)
         except KeyError:
             QtWidgets.QMessageBox.critical(self.view, "Plotting Error", "Invalid data given. Could not plot.")
 

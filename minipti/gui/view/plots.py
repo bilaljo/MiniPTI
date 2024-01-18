@@ -2,11 +2,10 @@ from abc import abstractmethod
 
 import matplotlib
 import numpy as np
+import pandas as pd
 import pyqtgraph as pg
 from PyQt5 import QtCore, QtWidgets
 from matplotlib import pyplot as plt
-from matplotlib.backends.backend_qt import NavigationToolbar2QT
-from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from overrides import override
 
 from minipti.gui import model
@@ -73,7 +72,7 @@ class DAQPlots(Plotting):
         ...
 
 
-def dc_offline(data: dict[str]) -> None:
+def dc_offline(data: np.ndarray) -> None:
     plt.figure()
     try:
         for channel in range(3):
@@ -156,6 +155,7 @@ def interferometric_phase_offline(data) -> None:
         plt.show()
     except KeyError:
         pass
+
 
 def lock_in_phase_offline(data) -> None:
     plt.figure()
@@ -244,6 +244,43 @@ def pti_signal_offline(data: dict[str]) -> None:
         plt.show()
     except KeyError:
         pass
+
+
+def interferometer_characterisation(data: pd.DataFrame) -> None:
+    fig, axs = plt.subplots(2, 2)
+    for channel in range(2, 4):
+        axs[0, 0].plot(
+            data.index,
+            data[f"Output Phase CH{channel}"],
+            label=f"CH{channel}"
+        )
+        axs[0, 1].hist(
+            data[f"Output Phase CH{channel}"],
+            bins=int(np.sqrt(len(data))),
+            label=f"CH{channel}"
+        )
+    for channel in range(1, 4):
+        axs[1, 0].plot(
+            data.index,
+            data[f"Amplitude CH{channel}"],
+            label=f"CH{channel}"
+        )
+        axs[1, 1].hist(
+            data[f"Amplitude CH{channel}"], bins=int(np.sqrt(len(data))),
+            label=f"CH{channel}"
+        )
+        for i in range(2):
+            axs[i, 0].set_xlabel("Time Stamp [s]")
+            axs[i, 1].set_ylabel("Count")
+            axs[i, 0].grid()
+            axs[i, 1].grid()
+            axs[i, 0].legend()
+            axs[i, 1].legend()
+        axs[0, 1].set_xlabel("Output Phase [deg]")
+        axs[1, 1].set_xlabel("Amplitude [V]")
+        axs[0, 0].set_ylabel("Output Phase [deg]")
+        axs[1, 0].set_ylabel("Amplitude [V]")
+        plt.show()
 
 
 class Characterisation(QtWidgets.QTabWidget):

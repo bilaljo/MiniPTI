@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import Final
 
 import numpy as np
+import pandas as pd
 from PyQt5 import QtCore
 
 from minipti import hardware, algorithm
@@ -15,7 +16,7 @@ class _Calculation(QtCore.QObject):
     settings_interferometer = QtCore.pyqtSignal(algorithm.interferometry.CharacteristicParameter)
     dc_signals = QtCore.pyqtSignal(np.ndarray)
     inversion = QtCore.pyqtSignal(dict)
-    characterization = QtCore.pyqtSignal(np.ndarray)
+    characterization = QtCore.pyqtSignal(pd.DataFrame)
     interferometric_phase = QtCore.pyqtSignal(np.ndarray)
     lock_in_phases = QtCore.pyqtSignal(np.ndarray)
     response_phases = QtCore.pyqtSignal(np.ndarray)

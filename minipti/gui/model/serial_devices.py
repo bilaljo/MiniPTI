@@ -349,12 +349,12 @@ class Laser(Serial):
     def __init__(self, driver: hardware.laser.Driver):
         Serial.__init__(self, driver)
         self.driver = driver
-        self._config_path = f"{minipti.module_path}/hardware/configs/laser.json"
+        self._config_path = f"{minipti.MODULE_PATH}/hardware/configs/laser.json"
         self.on_notification = Notify(default_notification_title="Laser",
-                                      default_notification_icon=f"{minipti.module_path}/gui/images/hardware/laser.svg",
+                                      default_notification_icon=f"{minipti.MODULE_PATH}/gui/images/hardware/laser.svg",
                                       default_notification_application_name="Laser Driver")
         self.off_notification = Notify(default_notification_title="Laser",
-                                       default_notification_icon=f"{minipti.module_path}"
+                                       default_notification_icon=f"{minipti.MODULE_PATH}"
                                                                  f"/gui/images/hardware/laser/off.svg",
                                        default_notification_application_name="Laser Driver")
 

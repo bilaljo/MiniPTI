@@ -29,7 +29,7 @@ class SettingsWindow(QtWidgets.QMainWindow):
             self.parent.layout().addWidget(self.measurement_configuration)
         self.setCentralWidget(self.parent)
         self.setWindowTitle("Settings")
-        self.setWindowIcon(QtGui.QIcon(f"{minipti.module_path}/gui/images/Settings.png"))
+        self.setWindowIcon(QtGui.QIcon(f"{minipti.MODULE_PATH}/gui/images/Settings.png"))
 
 
 class SampleSettings(QtWidgets.QWidget):
