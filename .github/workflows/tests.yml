@@ -13,7 +13,7 @@ jobs:
       matrix:
         python-version: ["3.10", "3.11", "3.12"]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
@@ -21,8 +21,7 @@ jobs:
         run: python -m venv venv && source venv/bin/activate
       - name: Install Packages
         run: pip install --upgrade pip
-             pip install fastcrc numpy pandas scipy dacite pyserial h5py nptyping[complete] \
-             beartype commented-configparser overrides green tqdm
+             pip install -r requirements.txt
       - name: Run Motherboard Tests
         run: green tests/hardware/motherboard.py
       - name: Run Motherboard Tests
