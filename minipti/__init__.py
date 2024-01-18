@@ -1,14 +1,11 @@
 import pathlib
 
-module_path = pathlib.Path(__file__).parent
+MODULE_PATH = pathlib.Path(__file__).parent
+
+path_prefix = ""
 
 from . import algorithm
 
-try:
-    from . import hardware
-except ModuleNotFoundError:
-    pass
-try:
-    from . import gui
-except ModuleNotFoundError:
-    pass
+from . import hardware
+
+from . import gui
