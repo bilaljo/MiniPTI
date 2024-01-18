@@ -26,7 +26,7 @@ class MotherBoardTools:
     def __init__(self, tool: str, driver: "Driver", config_type: Any):
         self.tool = tool
         self.driver = driver
-        self.config_path = f"{minipti.module_path}/hardware/configs/motherboard/{tool.casefold()}.json"
+        self.config_path = f"{minipti.MODULE_PATH}/hardware/configs/motherboard/{tool.casefold()}.json"
         self.configuration: Union[config_type, None] = None
         self._config_type = config_type
 

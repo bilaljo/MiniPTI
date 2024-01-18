@@ -172,7 +172,7 @@ class LowPowerLaser(Laser):
 
     def __init__(self, driver: Driver):
         Laser.__init__(self, driver)
-        self.config_path: str = f"{minipti.module_path}/hardware/configs/laser/low_power.json"
+        self.config_path: str = f"{minipti.MODULE_PATH}/hardware/configs/laser/low_power.json"
         self.configuration: Union[None, LowPowerLaserConfig] = None
         self._init = protocolls.ASCIIHex("CLI0000")
         self.mode = protocolls.ASCIIHex("SLM0000")
@@ -258,7 +258,7 @@ class HighPowerLaser(Laser):
 
     def __init__(self, driver: Driver):
         Laser.__init__(self, driver)
-        self.config_path: str = f"{minipti.module_path}/hardware/configs/laser/high_power.json"
+        self.config_path: str = f"{minipti.MODULE_PATH}/hardware/configs/laser/high_power.json"
         self.configuration: Union[None, HighPowerLaserConfig] = None
         self._init = protocolls.ASCIIHex("CHI0000")
         self._set_voltage = protocolls.ASCIIHex("SHV0000")

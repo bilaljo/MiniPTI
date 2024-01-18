@@ -227,9 +227,9 @@ class Driver(ABC):
             return True
         return False
 
-    @write.register(protocolls.ASCIIProtocoll)
+    @write.register(protocolls.ASCIIProtocol)
     @final
-    def _(self, message: protocolls.ASCIIProtocoll) -> bool:
+    def _(self, message: protocolls.ASCIIProtocol) -> bool:
         if self.connected.is_set():
             self._write_buffer.put(str(message), block=False)
             return True

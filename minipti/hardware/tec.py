@@ -137,7 +137,7 @@ class Tec:
         self.commands = Commands(channel - 1)
         self.channel = channel
         self.commands.set_ntc_dac.value = Tec._NTC_DAC_CALIBRATION_VALUE
-        self.config_path = f"{minipti.module_path}/hardware/configs/tec/channel_{channel}.json"
+        self.config_path = f"{minipti.MODULE_PATH}/hardware/configs/tec/channel_{channel}.json"
         self.driver = driver
         self._enabled = False
         self.configuration = Configuration(pid=_PID(0, 0, 0),
