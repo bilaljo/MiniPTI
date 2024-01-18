@@ -20,4 +20,3 @@ qtwidgets==1.1
 darkdetect[macos-listener]==0.8.0
 qtpy==2.4.1
 notify-py==0.3.42
-tqdm
