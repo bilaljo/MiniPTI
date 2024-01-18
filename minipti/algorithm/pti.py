@@ -88,7 +88,7 @@ class Decimation:
                                                                         * self.configuration.ac_resolution)
 
     def save(self) -> None:
-        with h5py.File(f"{self.destination_folder}/{_utilities.PATH_PREFIX}_raw_data.hdf5", "a") as h5f:
+        with h5py.File(f"{self.destination_folder}/{minipti.path_prefix}_raw_data.hdf5", "a") as h5f:
             now = datetime.now()
             time_stamp = str(now.strftime("%Y-%m-%d %H:%M:%S:%S.%f")[:Decimation.UNTIL_MICRO_SECONDS])
             h5f.create_group(time_stamp)
@@ -129,7 +129,7 @@ class Decimation:
             output_data[f"DC CH{channel + 1}"] = self.dc_signals[channel]
         try:
             pd.DataFrame(output_data, index=[date]).to_csv(
-                f"{self.destination_folder}/{_utilities.PATH_PREFIX}_Decimation.csv",
+                f"{self.destination_folder}/{minipti.path_prefix}_Decimation.csv",
                 mode="a",
                 index_label="Date",
                 header=False
@@ -154,7 +154,7 @@ class Decimation:
                 output_data[f"Lock In Phase CH{channel + 1}"] = "rad"
                 output_data[f"DC CH{channel + 1}"] = "V"
             pd.DataFrame(output_data, index=["Y:M:D"]).to_csv(
-                f"{self.destination_folder}/{_utilities.PATH_PREFIX}_Decimation.csv",
+                f"{self.destination_folder}/{minipti.path_prefix}_Decimation.csv",
                 index_label="Date"
             )
             self.init_header = False
@@ -192,11 +192,14 @@ class Inversion:
                               ([f"AC CH{i}" for i in range(1, 4)],
                                [f"AC Phase CH{i}" for i in range(1, 4)])]
 
-    CONFIGURATION: Final[InversionSettings] = _utilities.load_configuration(InversionSettings, "pti",
-                                                                            "inversion")
+    CONFIGURATION: Final[InversionSettings] = _utilities.load_configuration(
+        InversionSettings,
+        "pti",
+        "inversion"
+    )
 
     def __init__(self, response_phases=None, interferometer=None, decimation=Decimation(),
-                 settings_path=f"{minipti.module_path}/algorithm/configs/settings.csv"):
+                 settings_path=f"{minipti.MODULE_PATH}/algorithm/configs/settings.csv"):
         self.response_phases: np.ndarray = response_phases
         self.pti_signal: Union[float, np.ndarray] = 0
         self.settings_path: str = settings_path
@@ -278,10 +281,13 @@ class Inversion:
     def _save_data(self) -> None:
         units: dict[str, str] = {"PTI Signal": "µrad"}
         output_data = {"PTI Signal": self.pti_signal}
-        pd.DataFrame(units, index=["s"]).to_csv(f"{self.destination_folder}/PTI_Inversion.csv",
-                                                index_label="Time")
-        pd.DataFrame(output_data).to_csv(f"{self.destination_folder}/PTI_Inversion.csv", index_label="Time",
-                                         mode="a", header=False)
+        pd.DataFrame(units, index=["s"]).to_csv(
+            f"{self.destination_folder}/Offline_PTI_Inversion.csv",
+            index_label="Time")
+        pd.DataFrame(output_data).to_csv(
+            f"{self.destination_folder}/Offline_PTI_Inversion.csv", index_label="Time",
+            mode="a", header=False
+        )
         logging.info("PTI Inversion calculated.")
         logging.info("Saved results in %s", str(self.destination_folder))
 
@@ -290,7 +296,7 @@ class Inversion:
         if self.init_header:
             output_data["PTI Signal"] = "µrad"
             pd.DataFrame(output_data, index=["Y:M:D"]).to_csv(
-                f"{self.destination_folder}/{_utilities.PATH_PREFIX}_PTI_Inversion.csv",
+                f"{self.destination_folder}/{minipti.path_prefix}_PTI_Inversion.csv",
                 index_label="Date"
             )
             self.init_header = False
@@ -304,7 +310,7 @@ class Inversion:
         output_data = {"Time": time, "PTI Signal": self.pti_signal}
         try:
             pd.DataFrame(output_data, index=[date]).to_csv(
-                f"{self.destination_folder}/{_utilities.PATH_PREFIX}_PTI_Inversion.csv",
+                f"{self.destination_folder}/{minipti.path_prefix}_PTI_Inversion.csv",
                 mode="a",
                 index_label="Date",
                 header=False

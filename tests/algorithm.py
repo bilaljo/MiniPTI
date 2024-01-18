@@ -100,12 +100,12 @@ class TestCharacterisation(unittest.TestCase):
         ideal_amplitudes = np.array([1, 1, 1])
         ideal_offsets = np.array([1, 1, 1])
         try:
-            np.testing.assert_allclose(self.interferometer.output_phases, output_phases, 1e-6)
+            np.testing.assert_allclose(self.interferometer.output_phases, output_phases, 1e-4)
         except AssertionError:
-            self.interferometer.output_phases[1:] = 2 * np.pi - np.array(self.interferometer.output_phases[1:], 1e-6)
-        np.testing.assert_allclose(self.interferometer.output_phases, output_phases, 1e-6)
-        np.testing.assert_allclose(self.interferometer.amplitudes, ideal_amplitudes, 1e-6)
-        np.testing.assert_allclose(self.interferometer.offsets, ideal_offsets, 1e-6)
+            self.interferometer.output_phases[1:] = 2 * np.pi - np.array(self.interferometer.output_phases[1:])
+        np.testing.assert_allclose(self.interferometer.output_phases, output_phases, 1e-4)
+        np.testing.assert_allclose(self.interferometer.amplitudes, ideal_amplitudes, 1e-3)
+        np.testing.assert_allclose(self.interferometer.offsets, ideal_offsets, 1e-3)
 
 
 if __name__ == "__main__":

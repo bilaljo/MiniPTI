@@ -1,7 +1,6 @@
 """
 API for characterisation and phases of an interferometer.
 """
-import itertools
 import logging
 import os
 import threading
@@ -15,8 +14,8 @@ from typing import Final, Union
 import numpy as np
 import pandas as pd
 from scipy import optimize, linalg
-from tqdm import tqdm, trange
 
+import minipti
 from minipti.algorithm import _utilities
 
 
@@ -210,8 +209,15 @@ class Interferometer:
             return -np.sin(np.array(phase) - np.array(self.output_phases)).reshape((self.dimension, 1))
 
     def _calculate_phase(self, intensity: np.ndarray) -> np.ndarray:
-        res = optimize.least_squares(fun=self._error_function(intensity), x0=0, method="lm",
-                                     jac=self._error_function_df).x
+        x0 = optimize.brute(func=lambda x: np.sum(self._error_function(intensity)(x) ** 2),
+                            ranges=(slice(0, 2 * np.pi, 0.1),))[0]
+        res = optimize.least_squares(
+            fun=self._error_function(intensity),
+            x0=x0,
+            loss="soft_l1",
+            jac=self._error_function_df,
+            tr_solver="exact"
+        ).x
         return res % (2 * np.pi)
 
     def _hefs(self) -> None:
@@ -293,7 +299,7 @@ class Interferometer:
             for channel in range(1, 4):
                 output_data[f"Sensitivity CH{channel}"] = "V/rad"
             pd.DataFrame(output_data, index=["Y:M:D"]).to_csv(
-                f"{self.destination_folder}/{_utilities.PATH_PREFIX}_Interferometer.csv",
+                f"{self.destination_folder}/{minipti.path_prefix}_Interferometer.csv",
                 index_label="Date"
             )
             self._init_live_data_frame()
@@ -304,10 +310,11 @@ class Interferometer:
 
     def _save_data(self) -> None:
         units, output_data = self._prepare_data()
-        pd.DataFrame(units, index=["s"]).to_csv(f"{self.destination_folder}/Interferometer.csv",
-                                                index_label="Time")
+        pd.DataFrame(units, index=["s"]).to_csv(
+            f"{self.destination_folder}/Offline_Interferometer.csv",
+            index_label="Time")
         pd.DataFrame(output_data).to_csv(
-            f"{self.destination_folder}/{_utilities.PATH_PREFIX}_Interferometer.csv",
+            f"{self.destination_folder}/Offline__Interferometer.csv",
             index_label="Time",
             mode="a",
             header=False
@@ -331,8 +338,10 @@ class Interferometer:
         for channel in range(3):
             self.output_data_frame[f"Sensitivity CH{channel + 1}"] = self.sensitivity[channel]
         try:
-            self.output_data_frame.to_csv(f"{self.destination_folder}/{self.path_prefix}_Interferometer.csv", mode="a",
-                                          index_label="Date", header=False)
+            self.output_data_frame.to_csv(
+                f"{self.destination_folder}/{minipti.path_prefix}_Interferometer.csv",
+                mode="a",
+                index_label="Date", header=False)
         except PermissionError:
             logging.warning("Could not write data. Missing values are: %s at %s.",
                             str(self.output_data_frame)[1:-1], date + " " + current_time)
@@ -374,16 +383,18 @@ class Characterization:
     Provided an API for the characterization_live of an interferometer as described in [1].
     [1]:
     """
-    CONFIGURATION: Final[CharacterizationSettings] = _utilities.load_configuration(CharacterizationSettings,
-                                                                                   "interferometry",
-                                                                                   "characterization")
+    CONFIGURATION: Final[CharacterizationSettings] = _utilities.load_configuration(
+        CharacterizationSettings,
+        "interferometry",
+        "characterization"
+    )
     STEP_SIZE: Final = CONFIGURATION.number_of_steps
 
     def __init__(self, interferometer=Interferometer(), use_configuration=CONFIGURATION.use_default_settings,
                  use_parameters=CONFIGURATION.keep_settings):
         self.interferometer = interferometer
         self.tracking_phase = []
-        self._occurred_phases = np.full(Characterization.STEP_SIZE, False)
+        self._occurred_phases = np.full(Characterization.STEP_SIZE, 0)
         self.use_configuration = use_configuration
         self.use_parameters = use_parameters
         self.time_stamp = 0
@@ -444,8 +455,14 @@ class Characterization:
                 units[f"Offset CH{channel}"] = "V"
             units["Symmetry"] = "%"
             units["Relative Symmetry"] = "%"
-            pd.DataFrame(units, index=["s"]).to_csv(f"{self.destination_folder}/Characterisation.csv",
-                                                    index_label="Time Stamp")
+            if live:
+                dest_file_path = f"{minipti.path_prefix}_Characterisation.csv"
+            else:
+                dest_file_path = "Offline_Characterisation.csv"
+            pd.DataFrame(units, index=["s"]).to_csv(
+                dest_file_path,
+                index_label="Time Stamp"
+            )
             self.init_headers = False
         if live:
             self._calculate_online()
@@ -468,13 +485,13 @@ class Characterization:
         if phase > 2 * np.pi:
             phase %= 2 * np.pi  # Phase is out of range
         k = int(Characterization.STEP_SIZE * phase / (2 * np.pi))
-        self._occurred_phases[k] = True
+        self._occurred_phases[k] = 1
 
     def clear(self) -> None:
         """
         Resets the characterisation buffers.
         """
-        self._occurred_phases = np.full(Characterization.STEP_SIZE, False)
+        self._occurred_phases = np.full(Characterization.STEP_SIZE, 0)
         self.event.clear()
 
     def _load_settings(self) -> None:
@@ -560,19 +577,18 @@ class Characterization:
             self.interferometer.offsets = offsets
 
     def _characterise(self) -> None:
-        self.interferometer.calculate_phase(fast=True)
+        try:
+            self.interferometer.calculate_phase(fast=True)
+        except np.linalg.LinAlgError:
+            # TODO: Figure out why this is happening
+            self.interferometer.calculate_phase(fast=False)
         self._characterise_interferometer(update_amplitude_offsets=False)
-        ellipse_output_phases = np.array(self.interferometer.output_phases)
         logging.info("First guess:\n%s", str(self.interferometer))
-        self.interferometer.calculate_phase(fast=False)
-        self._characterise_interferometer()
+        for i in range(1):
+            self.interferometer.calculate_phase(fast=False)
+            self._characterise_interferometer()
         logging.debug("Current estimation:\n%s", str(self.interferometer))
         self.interferometer.output_phases = np.array(self.interferometer.output_phases)
-        if (np.abs(
-                self.interferometer.output_phases - ellipse_output_phases
-        ) > np.deg2rad(10)).any():
-            self.interferometer.output_phases = ellipse_output_phases
-            logging.warning("Output phases are too near must use an approximation.")
         logging.info("Final values:\n%s", str(self.interferometer))
 
     def _add_characterised_data(self, output_data: defaultdict) -> None:
@@ -601,7 +617,7 @@ class Characterization:
             time_stamps.append(i)
             self._add_characterised_data(output_data)
         pd.DataFrame(output_data, index=time_stamps).to_csv(
-            f"{self.destination_folder}/{_utilities.PATH_PREFIX}_Characterisation.csv",
+            f"{self.destination_folder}/Offline_Characterisation.csv",
             mode="a",
             index_label="Time Stamp",
             header=False
@@ -611,16 +627,14 @@ class Characterization:
 
     def _calculate_online(self) -> None:
         self.event.wait()
-        self.interferometry_data.dc_signals = np.array(self.interferometry_data.dc_signals)
         self.interferometer.calculate_phase()
-        self.interferometry_data.phases = self.interferometer.phase
         self._characterise_interferometer()
         characterised_data = {}
         for i in range(3):
             characterised_data[f"Output Phase CH{1 + i}"] = np.rad2deg(self.interferometer.output_phases[i])
             characterised_data[f"Amplitude CH{1 + i}"] = self.interferometer.amplitudes[i]
             characterised_data[f"Offset CH{1 + i}"] = self.interferometer.offsets[i]
-        file_destination: str = f"{self.destination_folder}/{_utilities.PATH_PREFIX}_Characterisation.csv"
+        file_destination: str = f"{self.destination_folder}/{minipti.path_prefix}_Characterisation.csv"
         pd.DataFrame(characterised_data, index=[self.time_stamp]).to_csv(file_destination, mode="a", header=False,
                                                                          index_label="Time Stamp")
         self.clear()
