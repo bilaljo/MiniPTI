@@ -529,7 +529,11 @@ class Characterization:
         if last_index == 0 and not unknown_parameters:
             raise CharacterizationError("Not enough values for characterisation")
 
-    def _characterise_interferometer(self, update_amplitude_offsets=True) -> None:
+    def _characterise_interferometer(
+            self,
+            update_amplitude_offsets=True,
+            guess=False
+            ) -> None:
         """
         Calculates with the least squares method the output phases and min and max intensities for
         every channel. If no min/max values and output phases are given (either none or nan) the
@@ -549,7 +553,7 @@ class Characterization:
         sine_values = np.sin(self.interferometer.phase)
         parameters = np.array([np.ones(cosine_values.shape), cosine_values, sine_values]).T
 
-        if Interferometer.CONFIGURATION.algorithm.ellipse:
+        if guess:
             results, _, _, _ = linalg.lstsq(parameters, self.interferometer.intensities.T[0],
                                             check_finite=False)
             output_phase = np.arctan2(results[2], results[1]) % (2 * np.pi)
@@ -559,7 +563,7 @@ class Characterization:
             sine_values = np.sin(self.interferometer.phase)
             parameters = np.array([np.ones(cosine_values.shape), cosine_values, sine_values]).T
 
-        elif Interferometer.CONFIGURATION.algorithm.lsq:
+        else:
             results, _, _, _ = linalg.lstsq(np.array([np.ones(cosine_values.shape), cosine_values]).T,
                                             self.interferometer.intensities.T[0], check_finite=False)
         amplitudes.append(results[0])
@@ -567,8 +571,10 @@ class Characterization:
         output_phases.append(0)
 
         for i in range(1, self.interferometer.dimension):
-            results, _, _, _ = linalg.lstsq(parameters, self.interferometer.intensities.T[i],
-                                            check_finite=False)
+            results, _, _, _ = linalg.lstsq(
+                parameters,
+                self.interferometer.intensities.T[i],
+                check_finite=False)
             add_values(results)
 
         self.interferometer.output_phases = output_phases
@@ -582,21 +588,22 @@ class Characterization:
         except np.linalg.LinAlgError:
             # TODO: Figure out why this is happening
             self.interferometer.calculate_phase(fast=False)
-        self._characterise_interferometer(update_amplitude_offsets=False)
+        self._characterise_interferometer(update_amplitude_offsets=False, guess=True)
         logging.info("First guess:\n%s", str(self.interferometer))
-        for i in range(1):
-            self.interferometer.calculate_phase(fast=False)
-            self._characterise_interferometer()
-        logging.debug("Current estimation:\n%s", str(self.interferometer))
-        self.interferometer.output_phases = np.array(self.interferometer.output_phases)
+        self.interferometer.calculate_phase(fast=False)
+        self._characterise_interferometer()
         logging.info("Final values:\n%s", str(self.interferometer))
 
     def _add_characterised_data(self, output_data: defaultdict) -> None:
         for channel in range(3):
             output_phase_deg = np.rad2deg(self.interferometer.output_phases[channel])
             output_data[f"Output Phase CH{channel + 1}"].append(output_phase_deg)
-            output_data[f"Amplitude CH{channel + 1}"].append(self.interferometer.amplitudes[channel])
-            output_data[f"Offset CH{channel + 1}"].append(self.interferometer.offsets[channel])
+            output_data[f"Amplitude CH{channel + 1}"].append(
+                self.interferometer.amplitudes[channel]
+            )
+            output_data[f"Offset CH{channel + 1}"].append(
+                self.interferometer.offsets[channel]
+            )
         output_data["Symmetry"].append(self.interferometer.symmetry.absolute)
         output_data["Relative Symmetry"].append(self.interferometer.symmetry.relative)
 
@@ -627,14 +634,17 @@ class Characterization:
 
     def _calculate_online(self) -> None:
         self.event.wait()
-        self.interferometer.calculate_phase()
-        self._characterise_interferometer()
+        self._characterise()
         characterised_data = {}
         for i in range(3):
             characterised_data[f"Output Phase CH{1 + i}"] = np.rad2deg(self.interferometer.output_phases[i])
             characterised_data[f"Amplitude CH{1 + i}"] = self.interferometer.amplitudes[i]
             characterised_data[f"Offset CH{1 + i}"] = self.interferometer.offsets[i]
         file_destination: str = f"{self.destination_folder}/{minipti.path_prefix}_Characterisation.csv"
-        pd.DataFrame(characterised_data, index=[self.time_stamp]).to_csv(file_destination, mode="a", header=False,
-                                                                         index_label="Time Stamp")
+        pd.DataFrame(characterised_data, index=[self.time_stamp]).to_csv(
+            file_destination,
+            mode="a",
+            header=False,
+            index_label="Time Stamp"
+        )
         self.clear()

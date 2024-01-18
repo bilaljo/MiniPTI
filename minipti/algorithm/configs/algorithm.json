@@ -6,12 +6,7 @@
                 "keep_settings": true,
                 "number_of_steps": 10
             },
-            "interferometer": {
-                "algorithm": {
-                    "lsq": false,
-                    "ellipse": true
-                }
-            }
+            "interferometer": null
         },
         "pti": {
             "decimation": {

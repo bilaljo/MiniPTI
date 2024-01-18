@@ -43,20 +43,27 @@ class MainApplication(interface.MainApplication):
         self.setStyle("Fusion")
         settings_controller = Settings()
         utilities_controller = Utilities()
-        self._controllers: Controllers = Controllers(main_application=self,
-                                                     toolbar=Toolbar(settings_controller, utilities_controller),
-                                                     statusbar=Statusbar(),
-                                                     settings=settings_controller,
-                                                     utilities=utilities_controller,
-                                                     pump_laser=PumpLaser(),
-                                                     probe_laser=ProbeLaser(),
-                                                     tec=[Tec(laser=model.serial_devices.Tec.PUMP_LASER),
-                                                          Tec(laser=model.serial_devices.Tec.PROBE_LASER)])
+        self._controllers: Controllers = Controllers(
+            main_application=self,
+            toolbar=Toolbar(settings_controller, utilities_controller),
+            statusbar=Statusbar(),
+            settings=settings_controller,
+            utilities=utilities_controller,
+            pump_laser=PumpLaser(),
+            probe_laser=ProbeLaser(),
+            tec=[
+                Tec(laser=model.serial_devices.Tec.PUMP_LASER),
+                Tec(laser=model.serial_devices.Tec.PROBE_LASER)
+                ]
+            )
         self.logging_model = model.general_purpose.Logging()
         self.view = view.api.MainWindow(self.controllers)
         self.controllers.toolbar.view = self.view
         model.signals.GENERAL_PURPORSE.theme_changed.connect(self.update_theme)
-        threading.Thread(target=model.general_purpose.theme_observer, daemon=True).start()
+        threading.Thread(
+            target=model.general_purpose.theme_observer,
+            daemon=True
+        ).start()
         self.controllers.toolbar.init_devices()
         self.setFont(QtGui.QFont('Arial', 11))
         splash.finish(self.view)
@@ -80,7 +87,7 @@ class MainApplication(interface.MainApplication):
             qdarktheme.setup_theme(theme.casefold())
         except ModuleNotFoundError:
             theme = "Light"
-        for plot in self.view.plots:  # type: typing.Union[view.plots.Plotting, list]
+        for plot in self.view.plots:  # type: view.plots.Plotting | list
             try:
                 plot.update_theme(theme)
             except AttributeError:  # list of plots
@@ -121,16 +128,29 @@ class MainApplication(interface.MainApplication):
             )
 
 
-def _get_file_path(parent, dialog_name: str, last_file_path: str, files: str) -> tuple[str, str]:
-    file_path = QtWidgets.QFileDialog.getOpenFileName(parent, directory=last_file_path,
-                                                      caption=dialog_name, filter=files)
+def _get_file_path(
+        parent: QtWidgets.QWidget,
+        dialog_name: str,
+        last_file_path: str,
+        files: str
+    ) -> tuple[str, str]:
+    file_path = QtWidgets.QFileDialog.getOpenFileName(
+        parent,
+        directory=last_file_path,
+        caption=dialog_name,
+        filter=files
+    )
     if file_path[0]:
         last_file_path = file_path[0]
     return file_path[0], last_file_path
 
 
 class Toolbar(interface.Toolbar):
-    def __init__(self, settings_controller: "Settings", utilities_controller: "Utilities"):
+    def __init__(
+            self,
+            settings_controller: "Settings",
+            utilities_controller: "Utilities"
+        ):
         self.view: typing.Union[None, view.api.MainWindow] = None
         self.settings_controller = settings_controller
         self.utilities_controller = utilities_controller
@@ -161,8 +181,11 @@ class Toolbar(interface.Toolbar):
     @override
     def enable_daq(self) -> None:
         if not model.serial_devices.DRIVER.motherboard.connected:
-            QtWidgets.QMessageBox.critical(self.view, "IO Error",
-                                           "Cannot enable Motherboard. Motherboard is not connected.")
+            QtWidgets.QMessageBox.critical(
+                self.view,
+                "IO Error",
+                "Cannot enable Motherboard. Motherboard is not connected."
+            )
             logging.error("Cannot enable Motherboard")
             logging.warning("Motherboard is not connected")
         else:
@@ -193,9 +216,12 @@ class Toolbar(interface.Toolbar):
 
     @override
     def update_destination_folder(self) -> None:
-        destination_folder = QtWidgets.QFileDialog.getExistingDirectory(self.view, "Destination Folder",
-                                                                        self.destination_folder.folder,
-                                                                        QtWidgets.QFileDialog.ShowDirsOnly)
+        destination_folder = QtWidgets.QFileDialog.getExistingDirectory(
+            self.view,
+            "Destination Folder",
+            self.destination_folder.folder,
+            QtWidgets.QFileDialog.ShowDirsOnly
+        )
         if destination_folder:
             self.destination_folder.folder = destination_folder
 
@@ -205,7 +231,11 @@ class Toolbar(interface.Toolbar):
             self.find_devices()
             self.connect_devices()
 
-        threading.Thread(target=find_and_connect, name="Find and Connect Devices Thread", daemon=True).start()
+        threading.Thread(
+            target=find_and_connect,
+            name="Find and Connect Devices Thread",
+            daemon=True
+        ).start()
 
     @override
     def find_devices(self) -> None:
@@ -593,21 +623,20 @@ class Utilities(interface.Utilities):
                                                                     " All Files (*)")
         if not characterisation_path:
             return
-        use_settings = QtWidgets.QMessageBox.question(self.view, "Characterisation",
-                                                      "Do you want to use the Algorithm Settings Values?",
-                                                      QtWidgets.QMessageBox.StandardButton.Yes
-                                                      | QtWidgets.QMessageBox.StandardButton.No)
-        use_settings = use_settings == QtWidgets.QMessageBox.StandardButton.Yes
-        threading.Thread(target=self.calculation_model.calculate_characterisation,
-                         args=[characterisation_path, use_settings]).start()
+        threading.Thread(
+            target=self.calculation_model.calculate_characterisation,
+            args=[characterisation_path]
+        ).start()
 
     @override
     def plot_characterisation(self) -> None:
         try:
-            characterization_path, self.last_file_path = _get_file_path(self.view, "Characterization",
-                                                                        self.last_file_path,
-                                                                        "CSV File (*.csv);; TXT File (*.txt);;"
-                                                                        " All Files (*)")
+            characterization_path, self.last_file_path = _get_file_path(
+                self.view, "Characterization",
+                self.last_file_path,
+                "CSV File (*.csv);; TXT File (*.txt);;"
+                " All Files (*)"
+            )
             if characterization_path:
                 model.processing.process_characterization_data(characterization_path)
         except KeyError:
