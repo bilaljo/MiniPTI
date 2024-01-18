@@ -84,11 +84,11 @@ class LiveCalculation(Calculation):
 
     def process_daq_data(self) -> None:
         now = datetime.now()
-        date = str(now.strftime("%Y-%m-%d"))
-        time = str(now.strftime("%H:%M:%S"))
+        date = str(now.strftime(r"%Y%m%d"))
+        time = str(now.strftime(r"%H%M%S"))
         minipti.path_prefix = f" {date}_{time}"
         threading.Thread(target=self._run_calculation, name="PTI Inversion", daemon=True).start()
-        threading.Thread(target=self._run_characterization, name="Characterisation", daemon=True).start()
+        # threading.Thread(target=self._run_characterization, name="Characterisation", daemon=True).start()
 
     def set_raw_data_saving(self, save_raw_data: bool) -> None:
         self.pti.decimation.save_raw_data = save_raw_data
@@ -149,8 +149,7 @@ class OfflineCalculation(Calculation):
     def __init__(self):
         Calculation.__init__(self)
 
-    def calculate_characterisation(self, dc_file_path: str, use_settings=False) -> None:
-        self.interferometer_characterization.use_configuration = use_settings
+    def calculate_characterisation(self, dc_file_path: str) -> None:
         self.interferometer_characterization.characterise(file_path=dc_file_path)
         signals.CALCULATION.settings_interferometer.emit(self.interferometer.characteristic_parameter)
 

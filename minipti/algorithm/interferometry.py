@@ -51,7 +51,7 @@ class Algorithm:
 
 @dataclass(frozen=True)
 class InterferometerSettings:
-    algorithm: Algorithm
+    pass
 
 
 class Interferometer:

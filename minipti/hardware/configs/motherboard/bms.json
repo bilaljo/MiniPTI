@@ -1,5 +1,5 @@
 {
     "BMS": {
-        "use_battery": false
+        "use_battery": true
     }
 }
