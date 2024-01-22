@@ -314,7 +314,7 @@ class Interferometer:
             f"{self.destination_folder}/Offline_Interferometer.csv",
             index_label="Time")
         pd.DataFrame(output_data).to_csv(
-            f"{self.destination_folder}/Offline__Interferometer.csv",
+            f"{self.destination_folder}/Offline_Interferometer.csv",
             index_label="Time",
             mode="a",
             header=False
