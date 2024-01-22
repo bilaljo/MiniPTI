@@ -37,6 +37,10 @@ class Serial(ABC):
         self._running = False
         signals.GENERAL_PURPORSE.destination_folder_changed.connect(self._update_destination_folder)
 
+    @abstractmethod
+    def _save_data(self, received_data) -> None:
+        ...
+
     def _update_destination_folder(self, destination_folder: str) -> None:
         self._destination_folder = destination_folder
         self._init_headers = True
@@ -166,9 +170,9 @@ class BMS(Serial):
 
     @override
     def _incoming_data(self) -> None:
-        init_headers = True
+        self.init_headers = True
         while self.driver.connected.is_set():
-            shutdown, bms_data = self.driver.bms.data  # type: bool, hardware.motherboard.BMSData
+            shutdown, bms_data = self.driver.bms.data  # type: bool | hardware.motherboard.BMSData
             if shutdown:
                 logging.critical("BMS has started a shutdown")
                 logging.critical("The system will make an emergency shutdown now")
@@ -182,26 +186,54 @@ class BMS(Serial):
                 logging.warning("The system will make an emergency shutdown now")
                 self.shutdown_procedure()
                 return
-            bms_data.battery_temperature = BMS.centi_kelvin_to_celsius(bms_data.battery_temperature)
-            signals.BMS.battery_data.emit(bms_data.battery_current, bms_data.battery_voltage,
-                                          bms_data.battery_temperature, bms_data.minutes_left,
-                                          bms_data.battery_percentage, bms_data.remaining_capacity)
-            signals.BMS.battery_state.emit(bms_data.charging, bms_data.battery_percentage)
+            bms_data.battery_temperature = BMS.centi_kelvin_to_celsius(
+                bms_data.battery_temperature
+            )
+            signals.BMS.battery_data.emit(
+                bms_data.battery_current,
+                bms_data.battery_voltage,
+                bms_data.battery_temperature,
+                bms_data.minutes_left,
+                bms_data.battery_percentage,
+                bms_data.remaining_capacity
+            )
+            signals.BMS.battery_state.emit(
+                bms_data.charging,
+                bms_data.battery_percentage
+            )
             if self.driver.sampling and configuration.GUI.save.bms:
-                if init_headers:
-                    units = {"Time": "H:M:S", "External DC Power": "bool",
-                             "Charging Battery": "bool", "Minutes Left": "min", "Charging Level": "%",
-                             "Temperature": "°C", "Current": "mA",
-                             "Voltage": "mV", "Full Charge Capacity": "mAh", "Remaining Charge Capacity": "mAh"}
-                    pd.DataFrame(units, index=["Y:M:D"]).to_csv(self._destination_folder + f"/BMS.csv",
-                                                                index_label="Date")
-                    init_headers = False
-                now = datetime.now()
-                output_data = {"Time": str(now.strftime("%H:%M:%S"))}
-                for key, value in asdict(bms_data).items():
-                    output_data[key.replace("_", " ").title()] = value
-                bms_data_frame = pd.DataFrame(output_data, index=[str(now.strftime("%Y-%m-%d"))])
-                bms_data_frame.to_csv(self._destination_folder + f"/BMS.csv", header=False, mode="a")
+                self._save_data(bms_data)
+
+    @override
+    def _save_data(self, received_data) -> None:
+        if self.init_headers:
+            bms_path = f"{self._destination_folder}/{minipti.path_prefix}_BMS.csv"
+            units = {
+                "Time": "H:M:S",
+                "External DC Power": "bool",
+                "Charging Battery": "bool",
+                "Minutes Left": "min",
+                "Charging Level": "%",
+                "Temperature": "°C",
+                "Current": "mA",
+                "Voltage": "mV",
+                "Full Charge Capacity": "mAh",
+                "Remaining Charge Capacity": "mAh"
+            }
+            pd.DataFrame(units, index=["Y:M:D"]).to_csv(
+                bms_path,
+                index_label="Date"
+            )
+            self.init_headers = False
+        now = datetime.now()
+        output_data = {"Time": str(now.strftime("%H:%M:%S"))}
+        for key, value in asdict(received_data).items():
+            output_data[key.replace("_", " ").title()] = value
+        bms_data_frame = pd.DataFrame(
+            output_data,
+            index=[str(now.strftime("%Y-%m-%d"))]
+        )
+        bms_data_frame.to_csv(bms_path, header=False, mode="a")
 
 
 class Valve(Serial):
@@ -260,26 +292,49 @@ class Valve(Serial):
         self.fire_configuration_change()
 
     def fire_configuration_change(self) -> None:
-        signals.VALVE.duty_cycle.emit(self.driver.valve.configuration.duty_cycle)
-        signals.VALVE.period.emit(self.driver.valve.configuration.period)
-        signals.VALVE.automatic_switch.emit(self.driver.valve.configuration.automatic_switch)
+        signals.VALVE.duty_cycle.emit(
+            self.driver.valve.configuration.duty_cycle
+        )
+        signals.VALVE.period.emit(
+            self.driver.valve.configuration.period
+        )
+        signals.VALVE.automatic_switch.emit(
+            self.driver.valve.configuration.automatic_switch
+        )
 
     @override
     def _incoming_data(self) -> None:
-        init_headers = True
+        self.init_headers = True
         while self.driver.connected.is_set():
             self.driver.wait()
             if configuration.GUI.save.valve:
-                if init_headers:
-                    units = {"Time": "H:M:S", "Bypass": "bool"}
-                    pd.DataFrame(units, index=["Y:M:D"]).to_csv(self._destination_folder + f"/gas.csv",
-                                                                index_label="Date")
-                    init_headers = False
-                now = datetime.now()
-                output_data = {"Time": str(now.strftime("%H:%M:%S")), "Bypass": self.bypass}
-                output_data_data_frame = pd.DataFrame(output_data, index=[str(now.strftime("%Y-%m-%d"))])
-                output_data_data_frame.to_csv(self._destination_folder + "/gas.csv", header=False, mode="a")
-                time.sleep(1)
+                self._save_data(self.bypass)
+    
+    @override
+    def _save_data(self, received_data) -> None:
+        valve_path = f"{self._destination_folder}/{minipti.path_prefix}_gas.csv"
+        if self.init_headers:
+            units = {"Time": "H:M:S", "Bypass": "bool"}
+            pd.DataFrame(units, index=["Y:M:D"]).to_csv(
+                valve_path,
+                index_label="Date"
+            )
+            self.init_headers = False
+        now = datetime.now()
+        output_data = {
+             "Time": str(now.strftime("%H:%M:%S")),
+             "Bypass": received_data
+         }
+        output_data_data_frame = pd.DataFrame(
+            output_data,
+            index=[str(now.strftime("%Y-%m-%d"))]
+        )
+        output_data_data_frame.to_csv(
+            self._destination_folder + "/gas.csv",
+            header=False,
+            mode="a"
+        )
+        time.sleep(1)
 
 
 class Pump(Serial):
@@ -350,13 +405,16 @@ class Laser(Serial):
         Serial.__init__(self, driver)
         self.driver = driver
         self._config_path = f"{minipti.MODULE_PATH}/hardware/configs/laser.json"
-        self.on_notification = Notify(default_notification_title="Laser",
-                                      default_notification_icon=f"{minipti.MODULE_PATH}/gui/images/hardware/laser.svg",
-                                      default_notification_application_name="Laser Driver")
-        self.off_notification = Notify(default_notification_title="Laser",
-                                       default_notification_icon=f"{minipti.MODULE_PATH}"
-                                                                 f"/gui/images/hardware/laser/off.svg",
-                                       default_notification_application_name="Laser Driver")
+        self.on_notification = Notify(
+            default_notification_title="Laser",
+            default_notification_icon=f"{minipti.MODULE_PATH}/gui/images/hardware/laser.svg",
+            default_notification_application_name="Laser Driver"
+        )
+        self.off_notification = Notify(
+            default_notification_title="Laser",
+            default_notification_icon=f"{minipti.MODULE_PATH}/gui/images/hardware/laser/off.svg",
+            default_notification_application_name="Laser Driver"
+        )
 
     @property
     @abstractmethod
@@ -397,25 +455,41 @@ class Laser(Serial):
             signals.LASER.data.emit(Laser.buffer)
             signals.LASER.data_display.emit(received_data)
             if self.driver.sampling and configuration.GUI.save.laser:
-                if self._init_headers:
-                    units = {"Time": "H:M:S",
-                             "Pump Laser Enabled": "bool",
-                             "Pump Laser Voltage": "V",
-                             "Probe Laser Enabled": "bool",
-                             "Pump Laser Current": "mA",
-                             "Probe Laser Current": "mA"}
-                    pd.DataFrame(units, index=["Y:M:D"]).to_csv(self._destination_folder + f"/laser.csv",
-                                                                index_label="Date")
-                    self._init_headers = False
-                now = datetime.now()
-                output_data = {"Time": str(now.strftime("%H:%M:%S")),
-                               "Pump Laser Enabled": received_data.high_power_laser_enabled,
-                               "Pump Laser Voltage": received_data.high_power_laser_voltage,
-                               "Probe Laser Enabled": received_data.low_power_laser_enabled,
-                               "Pump Laser Current": received_data.high_power_laser_current,
-                               "Probe Laser Current": received_data.low_power_laser_current}
-                laser_data_frame = pd.DataFrame(output_data, index=[str(now.strftime("%Y-%m-%d"))])
-                pd.DataFrame(laser_data_frame).to_csv(f"{self._destination_folder}/laser.csv", mode="a", header=False)
+                self._save_data(received_data)
+
+
+    @override
+    def _save_data(self, received_data) -> None:
+        if self._init_headers:
+            laser_path = f"{self._destination_folder}/{minipti.path_prefix}_laser.csv"
+            units = {"Time": "H:M:S",
+                     "Pump Laser Enabled": "bool",
+                     "Pump Laser Voltage": "V",
+                     "Probe Laser Enabled": "bool",
+                     "Pump Laser Current": "mA",
+                     "Probe Laser Current": "mA"
+                    }
+            pd.DataFrame(units, index=["Y:M:D"]).to_csv(
+                laser_path,
+                index_label="Date"
+            )
+            self._init_headers = False
+        now = datetime.now()
+        output_data = {
+            "Time": str(now.strftime("%H:%M:%S")),
+            "Pump Laser Enabled": received_data.high_power_laser_enabled,
+            "Pump Laser Voltage": received_data.high_power_laser_voltage,
+            "Probe Laser Enabled": received_data.low_power_laser_enabled,
+            "Pump Laser Current": received_data.high_power_laser_current,
+            "Probe Laser Current": received_data.low_power_laser_current
+        }
+        laser_data_frame = pd.DataFrame(
+            output_data,
+            index=[str(now.strftime(r"%Y-%m-%d"))]
+        )
+        pd.DataFrame(laser_data_frame).to_csv(
+            laser_path, mode="a", header=False
+        )     
 
     def fire_configuration_change(self) -> None:
         ...
@@ -507,7 +581,10 @@ class PumpLaser(Laser):
         self.pump_laser.set_dac(0)
 
     def fire_current_bits_dac_1(self) -> None:
-        signals.LASER.current_dac.emit(0, self.pump_laser.configuration.dac[0].bit_value)
+        signals.LASER.current_dac.emit(
+            0,
+            self.pump_laser.configuration.dac[0].bit_value
+        )
 
     @property
     def current_bits_dac_2(self) -> int:
@@ -520,7 +597,10 @@ class PumpLaser(Laser):
         self.pump_laser.set_dac(1)
 
     def fire_current_bits_dac2(self) -> None:
-        signals.LASER.current_dac.emit(1, self.pump_laser.configuration.dac[1].bit_value)
+        signals.LASER.current_dac.emit(
+            1,
+            self.pump_laser.configuration.dac[1].bit_value
+        )
 
     @property
     def dac_1_matrix(self) -> hardware.laser.DAC:
@@ -558,7 +638,12 @@ class PumpLaser(Laser):
     def fire_dac_matrix_2(self) -> None:
         PumpLaser._set_indices(dac_number=1, dac=self.dac_2_matrix)
 
-    def update_dac_mode(self, dac: hardware.laser.DAC, channel: int, mode: int) -> None:
+    def update_dac_mode(
+            self,
+            dac: hardware.laser.DAC,
+            channel: int,
+            mode: int
+        ) -> None:
         if mode == Mode.CONTINUOUS_WAVE:
             dac.continuous_wave[channel] = True
             dac.pulsed_mode[channel] = False
@@ -610,7 +695,10 @@ class ProbeLaser(Laser):
         self.probe_laser.configuration.current.bits = bits
         self.probe_laser.set_current()
         bit, current = self.fire_current_bits_signal()
-        signals.LASER.current_probe_laser.emit(hardware.laser.LowPowerLaser.CURRENT_BITS - bits, current)
+        signals.LASER.current_probe_laser.emit(
+            hardware.laser.LowPowerLaser.CURRENT_BITS - bits,
+            current
+        )
 
     @property
     @override
@@ -633,7 +721,10 @@ class ProbeLaser(Laser):
     def fire_current_bits_signal(self) -> tuple[int, float]:
         bits: int = self.probe_laser.configuration.current.bits
         current: float = hardware.laser.LowPowerLaserConfig.bit_to_current(bits)
-        signals.LASER.current_probe_laser.emit(hardware.laser.LowPowerLaser.CURRENT_BITS - bits, current)
+        signals.LASER.current_probe_laser.emit(
+            hardware.laser.LowPowerLaser.CURRENT_BITS - bits,
+            current
+        )
         return bits, current
 
     @property
@@ -662,7 +753,9 @@ class ProbeLaser(Laser):
         self.probe_laser.set_photo_diode_gain()
 
     def fire_photo_diode_gain_signal(self) -> None:
-        signals.LASER.photo_gain.emit(self.probe_laser.configuration.photo_diode_gain - 1)
+        signals.LASER.photo_gain.emit(
+            self.probe_laser.configuration.photo_diode_gain - 1
+        )
 
     @property
     def probe_laser_max_current(self) -> float:
@@ -675,7 +768,9 @@ class ProbeLaser(Laser):
             self.fire_max_current_signal()
 
     def fire_max_current_signal(self) -> None:
-        signals.LASER.max_current_probe_laser.emit(self.probe_laser.configuration.current.max_mA)
+        signals.LASER.max_current_probe_laser.emit(
+            self.probe_laser.configuration.current.max_mA
+        )
 
     @property
     def probe_laser_mode(self) -> ProbeLaserMode:
@@ -832,32 +927,43 @@ class Tec(Serial):
             signals.GENERAL_PURPORSE.tec_data.emit(self._buffer)
             signals.GENERAL_PURPORSE.tec_data_display.emit(received_data)
             if self.driver.sampling and configuration.GUI.save.tec:
-                if self._init_headers:
-                    units = {"Time": "H:M:S",
-                             "PWM Duty Cycle Pump Laser": "%",
-                             "PWM Duty Cycle Probe Laser": "%",
-                             "TEC Pump Laser Enabled": "bool",
-                             "TEC Probe Laser Enabled": "bool",
-                             "Measured Temperature Pump Laser": "°C",
-                             "Set Point Temperature Pump Laser": "°C",
-                             "Measured Temperature Probe Laser": "°C",
-                             "Set Point Temperature Probe Laser": "°C"}
-                    pd.DataFrame(units, index=["Y:M:D"]).to_csv(f"{self._destination_folder}/tec.csv",
-                                                                index_label="Date")
-                    self._init_headers = False
-                now = datetime.now()
-                tec_data = {"Time": str(now.strftime("%H:%M:%S")),
-                            "PWM Duty Cycle Pump Laser": received_data.pwm_duty_cycle[Tec.PUMP_LASER],
-                            "PWM Duty Cycle Probe Laser": received_data.pwm_duty_cycle[Tec.PROBE_LASER],
-                            "TEC Pump Laser Enabled": self.driver.tec[Tec.PUMP_LASER].enabled,
-                            "TEC Probe Laser Enabled": self.driver.tec[Tec.PROBE_LASER].enabled,
-                            "Measured Temperature Pump Laser": received_data.actual_temperature[Tec.PUMP_LASER],
-                            "Set Point Temperature Pump Laser": received_data.set_point[Tec.PUMP_LASER],
-                            "Measured Temperature Probe Laser": received_data.actual_temperature[Tec.PROBE_LASER],
-                            "Set Point Temperature Probe Laser": received_data.set_point[Tec.PROBE_LASER]}
-                tec_data_frame = pd.DataFrame(tec_data, index=[str(now.strftime("%Y-%m-%d"))])
-                pd.DataFrame(tec_data_frame).to_csv(f"{self._destination_folder}/tec.csv",
-                                                    header=False, mode="a")
+                self._save_data(received_data)
+
+    @override
+    def _save_data(self, received_data) -> None:
+        if self._init_headers:
+            tec_path = f"{self._destination_folder}/{minipti.path_prefix}_tec.csv"
+            units = {
+                "Time": "H:M:S",
+                "PWM Duty Cycle Pump Laser": "%",
+                "PWM Duty Cycle Probe Laser": "%",
+                "TEC Pump Laser Enabled": "bool",
+                "TEC Probe Laser Enabled": "bool",
+                "Measured Temperature Pump Laser": "°C",
+                "Set Point Temperature Pump Laser": "°C",
+                "Measured Temperature Probe Laser": "°C",
+                "Set Point Temperature Probe Laser": "°C"
+            }
+            pd.DataFrame(units, index=["Y:M:D"]).to_csv(
+                tec_path, index_label="Date"
+            )
+            self._init_headers = False
+        now = datetime.now()
+        tec_data = {
+            "Time": str(now.strftime("%H:%M:%S")),
+            "PWM Duty Cycle Pump Laser": received_data.pwm_duty_cycle[Tec.PUMP_LASER],
+            "PWM Duty Cycle Probe Laser": received_data.pwm_duty_cycle[Tec.PROBE_LASER],
+            "TEC Pump Laser Enabled": self.driver.tec[Tec.PUMP_LASER].enabled,
+            "TEC Probe Laser Enabled": self.driver.tec[Tec.PROBE_LASER].enabled,
+            "Measured Temperature Pump Laser": received_data.actual_temperature[Tec.PUMP_LASER],
+            "Set Point Temperature Pump Laser": received_data.set_point[Tec.PUMP_LASER],
+            "Measured Temperature Probe Laser": received_data.actual_temperature[Tec.PROBE_LASER],
+            "Set Point Temperature Probe Laser": received_data.set_point[Tec.PROBE_LASER]
+        }
+        tec_data_frame = pd.DataFrame(
+            tec_data, index=[str(now.strftime("%Y-%m-%d"))]
+        )
+        pd.DataFrame(tec_data_frame).to_csv(tec_path, header=False, mode="a")
 
 
 @dataclass
