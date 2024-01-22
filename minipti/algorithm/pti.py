@@ -61,7 +61,7 @@ class Decimation:
         self.destination_folder: str = "."
         self.file_path: str = ""
         self.init_header: bool = True
-        self.use_common_mode_noise_reduction = True
+        self.use_common_mode_noise_reduction = False
         self.configuration = _utilities.load_configuration(DecimationSettings, "pti", "decimation")
         self._update_lock_in_look_up_table()
 
