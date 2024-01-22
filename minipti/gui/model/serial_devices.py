@@ -37,7 +37,6 @@ class Serial(ABC):
         self._running = False
         signals.GENERAL_PURPORSE.destination_folder_changed.connect(self._update_destination_folder)
 
-    @abstractmethod
     def _save_data(self, received_data) -> None:
         ...
 

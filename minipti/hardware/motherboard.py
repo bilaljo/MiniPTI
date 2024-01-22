@@ -292,7 +292,7 @@ class DAQ(MotherBoardTools):
         Creates a package of samples that represents approximately 1 s data. It contains 8000
         samples.
         """
-        if self.samples_buffer.ref_signal[0]:
+        if sum(itertools.islice(self.encoded_buffer.ref_signal, 0, self.configuration.ref_period // 2)):
             logging.warning("Not synchron with reference signal")
             self.reset()
             return
