@@ -14,6 +14,7 @@ from typing import Final, Union
 import numpy as np
 import pandas as pd
 from scipy import optimize, linalg
+from tqdm import trange
 
 import minipti
 from minipti.algorithm import _utilities
@@ -404,6 +405,8 @@ class Characterization:
     )
     STEP_SIZE: Final = CONFIGURATION.number_of_steps
 
+    MAX_ITERATIONS: Final = 20
+
     def __init__(self, interferometer=Interferometer(), use_configuration=CONFIGURATION.use_default_settings,
                  use_parameters=CONFIGURATION.keep_settings):
         self.interferometer = interferometer
@@ -547,7 +550,7 @@ class Characterization:
             self,
             update_amplitude_offsets=True,
             guess=False
-            ) -> None:
+            ) -> float:
         """
         Calculates with the least squares method the output phases and min and max intensities for
         every channel. If no min/max values and output phases are given (either none or nan) the
@@ -556,6 +559,7 @@ class Characterization:
         output_phases = []
         amplitudes = []
         offsets = []
+        cost = 0
 
         def add_values(result):
             output_phases.append((np.arctan2(result[2], result[1])) % (2 * np.pi))
@@ -577,31 +581,37 @@ class Characterization:
             parameters = np.array([np.ones(cosine_values.shape), cosine_values, sine_values]).T
 
         else:
-            results, _, _, _ = linalg.lstsq(np.array([np.ones(cosine_values.shape), cosine_values]).T,
+            results, residuen, _, _ = linalg.lstsq(np.array([np.ones(cosine_values.shape), cosine_values]).T,
                                             self.interferometer.intensities.T[0], check_finite=False)
+            cost += np.sum(residuen)
         amplitudes.append(results[0])
         offsets.append(results[1])
         output_phases.append(0)
 
         for i in range(1, self.interferometer.dimension):
-            results, _, _, _ = linalg.lstsq(
+            results, residuen, _, _ = linalg.lstsq(
                 parameters,
                 self.interferometer.intensities.T[i],
-                check_finite=False)
+                check_finite=False
+            )
+            cost += np.sum(residuen)
             add_values(results)
 
         self.interferometer.output_phases = output_phases
         if update_amplitude_offsets:
             self.interferometer.amplitudes = amplitudes
             self.interferometer.offsets = offsets
+        return cost
 
     def _characterise(self) -> None:
         self.interferometer.calculate_phase(guess=True)
-        self._characterise_interferometer(update_amplitude_offsets=False, guess=True)
+        cost = [self._characterise_interferometer(update_amplitude_offsets=False, guess=False)]
         logging.info("First guess:\n%s", str(self.interferometer))
-        for i in range(3):
+        for _ in trange(Characterization.MAX_ITERATIONS):
             self.interferometer.calculate_phase(guess=True)
-            self._characterise_interferometer()
+            cost.append(self._characterise_interferometer())
+            logging.debug("Current Estimateion:\n%s", str(self.interferometer))
+        logging.debug("Costs %s", str(cost))
         logging.info("Final values:\n%s", str(self.interferometer))
 
     def _add_characterised_data(self, output_data: defaultdict) -> None:
