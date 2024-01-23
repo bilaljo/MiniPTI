@@ -386,6 +386,7 @@ class CharacterizationSettings:
     use_default_settings: bool
     keep_settings: bool
     number_of_steps: int
+    min_difference: float
 
 
 class Characterization:
@@ -400,7 +401,9 @@ class Characterization:
     )
     STEP_SIZE: Final = CONFIGURATION.number_of_steps
 
-    MAX_ITERATIONS: Final = 100
+    MAX_ITERATIONS: Final = 1000
+
+    MIN_DIFFERENCE: Final = CONFIGURATION.min_difference
 
     def __init__(self, interferometer=Interferometer(), use_configuration=CONFIGURATION.use_default_settings,
                  use_parameters=CONFIGURATION.keep_settings):
@@ -606,7 +609,13 @@ class Characterization:
             self.interferometer.calculate_phase(guess=True)
             cost.append(self._characterise_interferometer())
             logging.debug("Current Estimateion:\n%s", str(self.interferometer))
-            if np.abs(cost[i] - cost[i + 1]) / (cost[0]) < 0.01:
+            if np.abs(cost[i] - cost[i + 1]) / (cost[0]) < Characterization.MIN_DIFFERENCE:
+                logging.info("No convergence anymore at %i", i)
+                break
+        for i in trange(Characterization.MAX_ITERATIONS):
+            self.interferometer.calculate_phase(guess=False)
+            cost.append(self._characterise_interferometer())
+            if np.abs(cost[i] - cost[i + 1]) / (cost[0]) < Characterization.MIN_DIFFERENCE:
                 logging.info("No convergence anymore at %i", i)
                 break
         logging.debug("Costs %s", str(cost))
