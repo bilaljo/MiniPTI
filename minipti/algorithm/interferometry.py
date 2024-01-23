@@ -419,6 +419,7 @@ class Characterization:
         self._progess = 0
         self.progress_observer = []
         self.path_prefix = ""
+        self._attempts = 0
 
     def __repr__(self) -> str:
         class_name = self.__class__.__name__
@@ -525,10 +526,8 @@ class Characterization:
     def process(self, dc_signals: np.ndarray) -> Generator[int, None, None]:
         last_index: int = 0
         data_length: int = dc_signals.size // self.interferometer.dimension
-        unknown_parameters = False
         self._estimate_settings(dc_signals)
         self.interferometer.intensities = dc_signals
-        self._characterise()
         for i in range(data_length):
             self.interferometer.intensities = dc_signals[i]
             self.interferometer.calculate_phase()
@@ -541,8 +540,14 @@ class Characterization:
                 self.clear()
                 yield i
         self.clear()
-        if last_index == 0 and not unknown_parameters:
-            raise CharacterizationError("Not enough values for characterisation")
+        if last_index == 0:
+            if self._attempts < 1:
+                self.interferometer.intensities = dc_signals
+                self._characterise()
+                self._attempts += 1
+                yield -1
+            else:
+                raise CharacterizationError("Not enough values for characterisation")
 
     def _characterise_interferometer(
             self,
