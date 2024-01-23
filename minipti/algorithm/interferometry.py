@@ -120,9 +120,9 @@ class Interferometer:
             amplitude_str += f"CH {i + 1}: {np.round(self.amplitudes[i], 2)}, "
             offset_str += f"CH {i + 1}: {np.round(self.offsets[i], 2)}, "
         i = self.dimension - 1
-        output_phase_str += f"CH{i}: {np.round(np.rad2deg(self.output_phases[i]), 2)}"
-        amplitude_str += f"CH{i}: {np.round(self.amplitudes[i], 2)}"
-        offset_str += f"CH{i}: {np.round(self.offsets[i], 2)}"
+        output_phase_str += f"CH{i + 1}: {np.round(np.rad2deg(self.output_phases[i]), 2)}"
+        amplitude_str += f"CH{i + 1}: {np.round(self.amplitudes[i], 2)}"
+        offset_str += f"CH{i + 1}: {np.round(self.offsets[i], 2)}"
         return amplitude_str + "\n" + offset_str + "\n" + output_phase_str
 
     @property
@@ -405,7 +405,7 @@ class Characterization:
     )
     STEP_SIZE: Final = CONFIGURATION.number_of_steps
 
-    MAX_ITERATIONS: Final = 20
+    MAX_ITERATIONS: Final = 10
 
     def __init__(self, interferometer=Interferometer(), use_configuration=CONFIGURATION.use_default_settings,
                  use_parameters=CONFIGURATION.keep_settings):
