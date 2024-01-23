@@ -356,12 +356,16 @@ class DAQ(MotherBoardTools):
 
     def synchronize_with_ref(self) -> None:
         logging.warning("Trying to synchronise")
-        while sum(itertools.islice(self.encoded_buffer.ref_signal, 0, self.configuration.ref_period // 2)):
-            self.encoded_buffer.ref_signal.popleft()
-            for channel in range(3):
-                self.encoded_buffer.ac_coupled[channel].popleft()
-                self.encoded_buffer.dc_coupled[channel].popleft()
-            self.encoded_buffer.dc_coupled[3].popleft()
+        for i in range(len(self.encoded_buffer.ref_signal) - 1):
+            ref = self.encoded_buffer.ref_signal
+            if ref.index(i) > ref.index(i + 1):  # Rising edge found
+                break
+            else:
+                ref.popleft()
+                for channel in range(3):
+                    self.encoded_buffer.ac_coupled[channel].popleft()
+                    self.encoded_buffer.dc_coupled[channel].popleft()
+                self.encoded_buffer.dc_coupled[3].popleft()
         if len(self.encoded_buffer.ref_signal) < self.configuration.ref_period // 2:
             return
         self.synchronize = False

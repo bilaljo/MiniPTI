@@ -81,7 +81,7 @@ def dc_offline(data: np.ndarray) -> None:
         plt.xlabel("Time [s]")
         plt.ylabel("Intensity [V]")
         plt.legend()
-        plt.show()
+        plt.show(block=False)
     except KeyError:
         pass
 
@@ -145,28 +145,29 @@ class OutputPhases(DAQPlots):
 
 
 def interferometric_phase_offline(data) -> None:
-    plt.figure()
+    fig = plt.figure()
+    fig.canvas.manager.set_window_title("Interferometric Phase")
     try:
         plt.plot(data)
         plt.grid()
         plt.xlabel("Time [s]")
         plt.ylabel(r"Interferometric Phase [rad]")
-        plt.legend()
-        plt.show()
+        plt.show(block=False)
     except KeyError:
         pass
 
 
 def lock_in_phase_offline(data) -> None:
-    plt.figure()
+    fig = plt.figure()
+    fig.canvas.manager.set_window_title("Lock in Phase")
     try:
         for channel in range(3):
             plt.scatter(range(len(data.T[channel])), data.T[channel], label=f"CH{channel + 1}")
         plt.grid()
         plt.xlabel("Time [s]")
-        plt.ylabel(r"Response Phase [rad]")
+        plt.ylabel(r"Lock in Phase [rad]")
         plt.legend()
-        plt.show()
+        plt.show(block=False)
     except KeyError:
         pass
 
@@ -186,14 +187,14 @@ class InterferometricPhase(DAQPlots):
 
 
 def sensitivity_offline(data: np.ndarray) -> None:
-    plt.figure()
+    fig = plt.figure()
     for channel in range(3):
         plt.plot(data[f"Sensitivity CH{channel + 1}"], label=f"CH{channel + 1}")
     plt.grid()
     plt.xlabel("Time [s]")
     plt.ylabel(r"Sensitivity [$\frac{1}{rad}]")
     plt.legend()
-    plt.show()
+    plt.show(block=False)
 
 
 class Sensitivity(DAQPlots):
@@ -232,7 +233,8 @@ class Symmetry(DAQPlots):
 
 
 def pti_signal_offline(data: dict[str]) -> None:
-    plt.figure()
+    fig = plt.figure()
+    fig.canvas.manager.set_window_title("PTI Signal")
     try:
         plt.plot(data["PTI Signal 60 s Mean"], label="60-s Mean", color=_MatplotlibColors.ORANGE)
         plt.plot(data["PTI Signal 60 s Median"], label="60-s Median", color=_MatplotlibColors.GREEN)
@@ -241,13 +243,14 @@ def pti_signal_offline(data: dict[str]) -> None:
         plt.xlabel("Time [s]")
         plt.ylabel("PTI Signal [µrad]")
         plt.legend()
-        plt.show()
+        plt.show(block=False)
     except KeyError:
         pass
 
 
 def interferometer_characterisation(data: pd.DataFrame) -> None:
     fig, axs = plt.subplots(2, 2)
+    fig.canvas.manager.set_window_title("Interferometer Characterisation")
     for channel in range(2, 4):
         axs[0, 0].plot(
             data.index,
@@ -280,7 +283,7 @@ def interferometer_characterisation(data: pd.DataFrame) -> None:
         axs[1, 1].set_xlabel("Amplitude [V]")
         axs[0, 0].set_ylabel("Output Phase [deg]")
         axs[1, 0].set_ylabel("Amplitude [V]")
-        plt.show()
+        plt.show(block=False)
 
 
 class Characterisation(QtWidgets.QTabWidget):

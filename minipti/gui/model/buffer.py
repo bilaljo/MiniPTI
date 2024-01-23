@@ -7,13 +7,14 @@ import numpy as np
 from overrides import override
 
 from minipti import algorithm, hardware
+from minipti.gui.model import configuration
 
 
 class BaseClass:
     """
     The buffer contains the queues for incoming data and the timer for them.
     """
-    QUEUE_SIZE = 1000
+    QUEUE_SIZE = configuration.GUI.live_plot_size
 
     def __init__(self):
         self.time_counter = itertools.count()

@@ -175,9 +175,11 @@ class Interferometer:
         if intensity is None:
             intensity = self.intensities
         if intensity.shape[0] == self.dimension:
-            self.amplitudes = (np.max(intensity, axis=1) - np.min(intensity, axis=1)) / 2
+            maximum = 2 * np.mean(intensity, axis=1) - np.min(intensity, axis=1)
+            self.amplitudes = (maximum - np.min(intensity, axis=1)) / 2
         else:
-            self.amplitudes = (np.max(intensity, axis=0) - np.min(intensity, axis=0)) / 2
+            maximum = 2 * np.mean(intensity, axis=0) - np.min(intensity, axis=0)
+            self.amplitudes = (maximum - np.min(intensity, axis=0)) / 2
 
     def calculate_offsets(self, intensity: Union[np.ndarray, None] = None):
         """
@@ -187,9 +189,9 @@ class Interferometer:
         if intensity is None:
             intensity = self.intensities
         if intensity.shape[0] == self.dimension:
-            self.offsets = (np.max(intensity, axis=1) + np.min(intensity, axis=1)) / 2
+            self.offsets = np.mean(intensity, axis=1)
         else:
-            self.offsets = (np.max(intensity, axis=0) + np.min(intensity, axis=0)) / 2
+            self.offsets = np.mean(intensity, axis=0)
 
     def _error_function(self, intensity: np.ndarray) -> typing.Callable:
         intensity_scaled = (intensity - self.offsets) / self.amplitudes
@@ -208,16 +210,31 @@ class Interferometer:
         except AttributeError:
             return -np.sin(np.array(phase) - np.array(self.output_phases)).reshape((self.dimension, 1))
 
-    def _calculate_phase(self, intensity: np.ndarray) -> np.ndarray:
+    @staticmethod
+    def _error(phase: float, parameters: CharacteristicParameter,
+               intensities: np.ndarray) -> float:
+        return np.sum(np.abs(parameters.amplitudes * np.cos(phase - parameters.output_phases)
+                             + parameters.offsets - intensities)
+                      )
+
+    def _calculate_phase(self, intensity: np.ndarray, guess=False) -> np.ndarray:
         x0 = optimize.brute(func=lambda x: np.sum(self._error_function(intensity)(x) ** 2),
                             ranges=(slice(0, 2 * np.pi, 0.1),))[0]
-        res = optimize.least_squares(
-            fun=self._error_function(intensity),
-            x0=x0,
-            loss="soft_l1",
-            jac=self._error_function_df,
-            tr_solver="exact"
-        ).x
+        if guess:
+            res = optimize.least_squares(
+                x0=x0,
+                fun=self._error_function(intensity),
+                jac=self._error_function_df,
+                method="lm"
+            ).x
+        else:
+            res = optimize.least_squares(
+                fun=self._error_function(intensity),
+                x0=x0,
+                loss="soft_l1",
+                jac=self._error_function_df,
+                tr_solver="exact"
+            ).x
         return res % (2 * np.pi)
 
     def _hefs(self) -> None:
@@ -257,20 +274,17 @@ class Interferometer:
         z = real + compl * 1.j
         self.phase = 2 * np.pi - np.angle(z) % (2 * np.pi)
 
-    def calculate_phase(self, fast=False) -> None:
+    def calculate_phase(self, guess=False) -> None:
         """
         Calculated the interferometric phase with the defined characteristic parameters.
         """
         if self.intensities.size // self.dimension == 1:  # Only one Sample of 3 Values
             self.phase = self._calculate_phase(self.intensities)[0]
         else:
-            if fast:
-                self._hefs()
-            else:
-                phase = []
-                for i in range(self.intensities.size // self.dimension):
-                    phase.append(self._calculate_phase(self.intensities[i])[0])
-                self.phase = np.array(phase)
+            phase = []
+            for i in range(self.intensities.size // self.dimension):
+                phase.append(self._calculate_phase(self.intensities[i], guess=guess)[0])
+            self.phase = np.array(phase)
 
     def calculate_sensitivity(self) -> None:
         try:
@@ -542,7 +556,6 @@ class Characterization:
         output_phases = []
         amplitudes = []
         offsets = []
-        results = []
 
         def add_values(result):
             output_phases.append((np.arctan2(result[2], result[1])) % (2 * np.pi))
@@ -583,15 +596,12 @@ class Characterization:
             self.interferometer.offsets = offsets
 
     def _characterise(self) -> None:
-        try:
-            self.interferometer.calculate_phase(fast=True)
-        except np.linalg.LinAlgError:
-            # TODO: Figure out why this is happening
-            self.interferometer.calculate_phase(fast=False)
+        self.interferometer.calculate_phase(guess=True)
         self._characterise_interferometer(update_amplitude_offsets=False, guess=True)
         logging.info("First guess:\n%s", str(self.interferometer))
-        self.interferometer.calculate_phase(fast=False)
-        self._characterise_interferometer()
+        for i in range(3):
+            self.interferometer.calculate_phase(guess=True)
+            self._characterise_interferometer()
         logging.info("Final values:\n%s", str(self.interferometer))
 
     def _add_characterised_data(self, output_data: defaultdict) -> None:

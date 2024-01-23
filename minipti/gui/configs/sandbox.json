@@ -95,6 +95,7 @@
                 "laser_driver": false
             },
             "pump": true
-        }
+        },
+        "live_plot_size": 1000
     }
 }

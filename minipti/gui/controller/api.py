@@ -68,7 +68,7 @@ class MainApplication(interface.MainApplication):
         self.setFont(QtGui.QFont('Arial', 11))
         splash.finish(self.view)
         splash.close()
-        threading.excepthook = self.thread_exception
+        # threading.excepthook = self.thread_exception
 
     @override
     def emergency_stop(self) -> None:
@@ -150,7 +150,7 @@ class Toolbar(interface.Toolbar):
             self,
             settings_controller: "Settings",
             utilities_controller: "Utilities"
-        ):
+    ):
         self.view: typing.Union[None, view.api.MainWindow] = None
         self.settings_controller = settings_controller
         self.utilities_controller = utilities_controller

@@ -150,6 +150,7 @@ class _GUI:
     pump_laser: _LaserWindow = _LaserWindow()
     plots: _Plots = _Plots()
     on_run: _OnRun = _OnRun()
+    live_plot_size: int = 1000
 
 
 def _parse_configuration() -> _GUI:
