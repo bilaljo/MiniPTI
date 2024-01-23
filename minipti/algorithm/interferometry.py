@@ -219,15 +219,10 @@ class Interferometer:
                       )
 
     def _calculate_phase(self, intensity: np.ndarray, guess=False) -> np.ndarray:
-        x0 = optimize.brute(func=lambda x: np.sum(self._error_function(intensity)(x) ** 2),
+        x0 = optimize.brute(func=Interferometer._error, args=(self.characteristic_parameter, intensity),
                             ranges=(slice(0, 2 * np.pi, 0.1),))[0]
         if guess:
-            res = optimize.least_squares(
-                x0=x0,
-                fun=self._error_function(intensity),
-                jac=self._error_function_df,
-                method="lm"
-            ).x
+            res = np.array([x0])
         else:
             res = optimize.least_squares(
                 fun=self._error_function(intensity),
@@ -405,7 +400,7 @@ class Characterization:
     )
     STEP_SIZE: Final = CONFIGURATION.number_of_steps
 
-    MAX_ITERATIONS: Final = 10
+    MAX_ITERATIONS: Final = 100
 
     def __init__(self, interferometer=Interferometer(), use_configuration=CONFIGURATION.use_default_settings,
                  use_parameters=CONFIGURATION.keep_settings):
@@ -607,11 +602,15 @@ class Characterization:
         self.interferometer.calculate_phase(guess=True)
         cost = [self._characterise_interferometer(update_amplitude_offsets=False, guess=False)]
         logging.info("First guess:\n%s", str(self.interferometer))
-        for _ in trange(Characterization.MAX_ITERATIONS):
+        for i in trange(Characterization.MAX_ITERATIONS):
             self.interferometer.calculate_phase(guess=True)
             cost.append(self._characterise_interferometer())
             logging.debug("Current Estimateion:\n%s", str(self.interferometer))
+            if np.abs(cost[i] - cost[i + 1]) / (cost[0]) < 0.01:
+                logging.info("No convergence anymore at %i", i)
+                break
         logging.debug("Costs %s", str(cost))
+        print(cost)
         logging.info("Final values:\n%s", str(self.interferometer))
 
     def _add_characterised_data(self, output_data: defaultdict) -> None:
