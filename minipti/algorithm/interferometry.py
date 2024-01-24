@@ -233,7 +233,7 @@ class Interferometer:
             ).x
         return res % (2 * np.pi)
 
-    def _hefs(self) -> None:
+    def hefs(self) -> None:
         """
         Impelements the HEFS algorithm which is a vetorisized phase retrieval algorithm based on
         https://opg.optica.org/josaa/fulltext.cfm?uri=josaa-34-1-87&id=356050
@@ -624,7 +624,6 @@ class Characterization:
                 logging.info("No convergence anymore at %i", i)
                 break
         logging.debug("Costs %s", str(cost))
-        print(cost)
         logging.info("Final values:\n%s", str(self.interferometer))
 
     def _add_characterised_data(self, output_data: defaultdict) -> None:
