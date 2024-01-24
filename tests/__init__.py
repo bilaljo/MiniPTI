@@ -2,5 +2,6 @@
 Unit tests for hardware protocol and algorithms.
 """
 
-from . import algorithm
-from . import hardware
+from . import test_algorithm
+from . import test_hardware
+

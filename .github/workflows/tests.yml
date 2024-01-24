@@ -20,11 +20,7 @@ jobs:
       - name: Create Virtual Environment
         run: python -m venv venv && source venv/bin/activate
       - name: Install Packages
-        run: pip install --upgrade pip
-             pip install -r requirements.txt
-      - name: Run Motherboard Tests
-        run: green tests/hardware/motherboard.py
-      - name: Run Motherboard Tests
-        run: green tests/hardware/laser.py
-      - name: Run Algorithm Tests
-        run: green tests/algorithm.py
+        run: apt install qt5-default && pip install --upgrade pip &&
+             pip install -r requirements.txt && pip install pytest
+      - name: Run Tests
+        run: pytest tests
