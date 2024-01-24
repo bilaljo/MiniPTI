@@ -13,7 +13,7 @@ six==1.16.0
 tzdata==2023.4
 pythonnet==3.0.3; platform_system == "Windows"
 overrides==7.6.0
-pyqtdarktheme==2.1.0
+pyqtdarktheme
 matplotlib==3.8.2
 markdown==3.5.2
 qtwidgets==1.1
