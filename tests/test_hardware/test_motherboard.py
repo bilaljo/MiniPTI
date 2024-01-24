@@ -3,6 +3,8 @@ Unit tests for the hardware.Motherboard API of the MiniPTI.
 """
 import itertools
 import os
+
+import numpy as np
 import pytest
 import logging
 
@@ -233,8 +235,6 @@ class TestMotherBoardDAQBMS(DAQTest):
 
 class TestSynchronizeWithRef(DriverTests):
     def test_sync_with_ref(self) -> None:
-        # TODO: New algorithm in progress
-        return
         self.driver.daq.encoded_buffer.ref_signal.extend([1 if i <= 10 else 0 for i in range(100)])
         for i in range(3):
             # Random data, not really needed
@@ -245,4 +245,4 @@ class TestSynchronizeWithRef(DriverTests):
         self.driver.daq.synchronize_with_ref()
         ref = self.driver.daq.encoded_buffer.ref_signal
         ref_period = self.driver.daq.configuration.ref_period // 2
-        assert not sum(itertools.islice(ref, 0, ref_period))
+        assert not np.sum(ref[:ref_period])
