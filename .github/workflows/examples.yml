@@ -20,8 +20,8 @@ jobs:
       - name: Create Virtual Environment
         run: python -m venv venv && source venv/bin/activate
       - name: Install Packages
-        run: apt install qt5-default && pip install --upgrade pip &&
-             pip install -r requirements.txt
+        run: sudo apt install qt5-default && pip install --upgrade pip &&
+             sudo pip install -r requirements.txt
       - name: Run Characterisation Example
         run: python3 examples/characterisation.py
       - name: Run Interferometer Example
