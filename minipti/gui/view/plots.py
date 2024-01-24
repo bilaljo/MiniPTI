@@ -10,7 +10,10 @@ from overrides import override
 
 from minipti.gui import model
 
-matplotlib.use('Qt5Agg')
+try:
+    matplotlib.use('Qt5Agg')
+except ImportError:
+    pass  # No backend needed because running in terminal
 
 
 class _MatplotlibColors:

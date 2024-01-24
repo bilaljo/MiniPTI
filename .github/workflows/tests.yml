@@ -17,10 +17,13 @@ jobs:
       - uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
+          cache: 'pip'
       - name: Create Virtual Environment
         run: python -m venv venv && source venv/bin/activate
+      - name: Install Dependicies
+        run: sudo apt-get update && sudo apt-get install python3-setuptools ffmpeg libsm6 libxext6 -y
       - name: Install Packages
-        run: sudo apt install qt5-default && pip install --upgrade pip &&
-             sudo pip install -r requirements.txt && pip install pytest
+        run: pip install --upgrade pip &&
+             pip install -r requirements.txt && pip install pytest
       - name: Run Tests
         run: pytest tests

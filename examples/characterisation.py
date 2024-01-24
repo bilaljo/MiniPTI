@@ -50,4 +50,3 @@ if __name__ == "__main__":
     without_default_settings_save_to_csv()
     default_settings_without_save_to_csv()
     wihtout_default_settings_without_save_to_csv()
-    os.remove("Characterisation.csv")
