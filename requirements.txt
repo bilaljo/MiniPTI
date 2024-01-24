@@ -1,5 +1,5 @@
 dacite==1.8.1
-fastcrc==0.3
+fastcrc==0.3.0
 h5py==3.10.0
 numpy
 pandas==2.2.0
@@ -17,7 +17,9 @@ pyqtdarktheme==2.1.0
 matplotlib==3.8.2
 markdown==3.5.2
 qtwidgets==1.1
-darkdetect[macos-listener]==0.8.0
+darkdetect[macos-listener]>=0.7.1
 qtpy==2.4.1
 notify-py==0.3.42
 tqdm==4.66.1
+Pyarrow==15.0.0
+numpy-ringbuffer==0.2.2
