@@ -233,7 +233,7 @@ class ValveConfiguration(QtWidgets.QGroupBox):
 
 @dataclass
 class SettingsButtons:
-    save: QPushButton | None = None
+    save: QtWidgets.QPushButton | None = None
     save_as: QtWidgets.QPushButton | None = None
     load: QtWidgets.QPushButton | None = None
 

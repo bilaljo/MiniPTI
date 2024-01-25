@@ -151,7 +151,7 @@ class Toolbar(interface.Toolbar):
             settings_controller: "Settings",
             utilities_controller: "Utilities"
     ):
-        self.view: view.api.MainWindow | = None
+        self.view: view.api.MainWindow | None = None
         self.settings_controller = settings_controller
         self.utilities_controller = utilities_controller
         self._destination_folder = model.processing.DestinationFolder()
