@@ -159,8 +159,7 @@ class OfflineCalculation(Calculation):
         threading.Thread(target=self.pti.decimation.run, name="Decimation Thread").start()
 
     def calculate_response_phases(self, decimation_path: str) -> None:
-        threading.Thread(target=self.pti.inversion.calculate_response_phase, name="Response Phases Thread",
-                         args=[decimation_path]).start()
+        self.pti.inversion.calculate_response_phase(decimation_path)
         signals.CALCULATION.response_phases.emit(self.pti.inversion.response_phases)
 
     def calculate_interferometry(self, interferometry_path: str) -> None:
