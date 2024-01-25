@@ -8,7 +8,7 @@ import threading
 import time
 from collections import deque
 from dataclasses import dataclass
-from typing import Final, Union, Any, Callable
+from typing import Final, Any, Callable
 
 import dacite
 import numpy as np
@@ -28,7 +28,7 @@ class MotherBoardTools:
         self.tool = tool
         self.driver = driver
         self.config_path = f"{minipti.MODULE_PATH}/hardware/configs/motherboard/{tool.casefold()}.json"
-        self.configuration: Union[config_type, None] = None
+        self.configuration: config_type | None = None
         self._config_type = config_type
 
     def load_configuration(self) -> None:
@@ -55,7 +55,7 @@ class Valve(MotherBoardTools):
         MotherBoardTools.__init__(self, "Valve", driver, ValveConfiguration)
         self._bypass = protocolls.ASCIIHex("SBP0000")
         self._automatic_switch = threading.Event()
-        self.configuration: Union[ValveConfiguration, None] = None
+        self.configuration: ValveConfiguration | None = None
         self.observers: list[Callable[[bool], None]] = []
         self.load_configuration()
 
@@ -124,7 +124,7 @@ class BMSIndex(enum.IntEnum):
 class BMSData:
     external_dc_power: bool
     charging: bool
-    minutes_left: Union[int, float]
+    minutes_left: int | float
     battery_percentage: int
     battery_temperature: float  # °C
     battery_current: int  # mA
@@ -146,9 +146,9 @@ class BMS(MotherBoardTools):
         MotherBoardTools.__init__(self, "BMS", driver, BMSConfiguration)
         self._do_shutdown = protocolls.ASCIIHex("SHD0001")
         self.running = threading.Event()
-        self.encoded_data: Union[tuple[bool, BMSData], None] = None
+        self.encoded_data: tuple[bool, BMSData] | None = None
         self._data = queue.Queue(maxsize=MotherBoardTools._QUEUE_SIZE)
-        self.configuration: Union[BMSConfiguration, None] = None
+        self.configuration: BMSConfiguration | None = None
         self.load_configuration()
 
     @property
@@ -210,7 +210,7 @@ class Pump(MotherBoardTools):
     def __init__(self, driver: "Driver"):
         MotherBoardTools.__init__(self, "Pump", driver, PumpConfiguration)
         self._duty_cycle_command = protocolls.ASCIIHex("SDP0000")
-        self.configuration: Union[PumpConfiguration, None] = None
+        self.configuration: PumpConfiguration | None = None
         self.enabled = False
         self.load_configuration()
 
@@ -257,7 +257,7 @@ class DAQ(MotherBoardTools):
         self.samples_buffer = DAQData([], [[], [], []], [[], [], [], []])
         self.running = threading.Event()
         self.data = [queue.Queue(maxsize=DAQ._QUEUE_SIZE) for _ in range(3)]
-        self.configuration: Union[DAQConfiguration, None] = None
+        self.configuration: DAQConfiguration | None = None
         self.load_configuration()
 
     @property

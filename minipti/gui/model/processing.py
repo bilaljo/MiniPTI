@@ -5,7 +5,6 @@ import threading
 import typing
 from collections import deque
 from datetime import datetime
-from typing import Union
 
 import numpy as np
 import pandas as pd
@@ -172,7 +171,7 @@ class OfflineCalculation(Calculation):
         self.pti.inversion.run(file_path=inversion_path)
 
 
-def find_delimiter(file_path: str) -> typing.Union[str, None]:
+def find_delimiter(file_path: str) -> str | None:
     delimiter_sniffer = csv.Sniffer()
     if not file_path:
         return
@@ -181,7 +180,7 @@ def find_delimiter(file_path: str) -> typing.Union[str, None]:
     return delimiter
 
 
-def _process_data(file_path: str, headers: list[str], to_numpy=True) -> Union[pd.DataFrame, typing.NoReturn]:
+def _process_data(file_path: str, headers: list[str], to_numpy=True) -> pd.DataFrame | typing.NoReturn:
     if not file_path:
         raise FileNotFoundError("No file path given")
     delimiter = find_delimiter(file_path)

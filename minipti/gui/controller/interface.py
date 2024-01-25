@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Callable, Union
+from typing import Callable
 
 from PyQt5 import QtWidgets
 
@@ -27,7 +27,7 @@ class Controllers(ABC):
 class MainApplication(QtWidgets.QApplication):
     def __init__(self, argv=""):
         QtWidgets.QApplication.__init__(self, argv)
-        self.configuration: Union[None, model.configuration.GUI] = None
+        self.configuration: model.configuration.GUI | None = None
 
     @property
     @abstractmethod

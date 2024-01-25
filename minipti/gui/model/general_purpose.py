@@ -1,7 +1,6 @@
 import logging
 from abc import abstractmethod
 from collections import deque
-from typing import Union
 
 import darkdetect
 import pandas as pd
@@ -33,7 +32,7 @@ class Table(QtCore.QAbstractTableModel):
     def columnCount(self, parent=None) -> int:
         return self._data.shape[1]
 
-    def data(self, index, role: int = ...) -> Union[str, None]:
+    def data(self, index, role: int = ...) -> str | None:
         if index.isValid():
             if role == QtCore.Qt.DisplayRole or role == QtCore.Qt.EditRole:
                 value = self._data.iloc[index.row()][self._headers[index.column()]]

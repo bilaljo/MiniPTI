@@ -9,7 +9,7 @@ from collections import defaultdict
 from collections.abc import Generator
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Final, Union
+from typing import Final
 
 import numpy as np
 import pandas as pd
@@ -29,8 +29,8 @@ class _Locks(typing.NamedTuple):
 
 @dataclass
 class Symmetry:
-    absolute: Union[float, np.ndarray] = 100
-    relative: Union[float, np.ndarray] = 100
+    absolute: float | np.ndarray = 100
+    relative: float | np.ndarray = 100
 
 
 @dataclass
@@ -74,7 +74,7 @@ class Interferometer:
                  decimation_filepath="data/Decimation.csv"):
         self.settings_path = settings_path
         self.decimation_filepath = decimation_filepath
-        self.phase: Union[float, np.ndarray] = 0
+        self.phase: float | np.ndarray = 0
         self._characteristic_parameter = CharacteristicParameter(amplitudes=np.zeros(interferometer_dimension),
                                                                  offsets=np.zeros(interferometer_dimension),
                                                                  output_phases=np.array([0,
@@ -85,7 +85,7 @@ class Interferometer:
         self.sensitivity: np.ndarray = np.empty(shape=interferometer_dimension)
         self.destination_folder: str = os.getcwd()
         self.init_online: bool = True
-        self.intensities: Union[None, np.ndarray] = None
+        self.intensities: np.ndarray | None = None
         self.dimension = interferometer_dimension
         self.output_data_frame = pd.DataFrame()
 
@@ -168,7 +168,7 @@ class Interferometer:
         with self._locks.output_phases:
             self._characteristic_parameter.output_phases = output_phases
 
-    def calculate_amplitudes(self, intensity: Union[np.ndarray, None] = None):
+    def calculate_amplitudes(self, intensity: np.ndarray | None = None):
         """
         The amplitude of perfect sine wave can be calculated according to A = (I_max - I_min) / 2.
         This function is only used as approximation.
@@ -182,7 +182,7 @@ class Interferometer:
             maximum = 2 * np.mean(intensity, axis=0) - np.min(intensity, axis=0)
             self.amplitudes = (maximum - np.min(intensity, axis=0)) / 2
 
-    def calculate_offsets(self, intensity: Union[np.ndarray, None] = None):
+    def calculate_offsets(self, intensity: np.ndarray | None = None):
         """
         The offset of perfect sine wave can be calculated according to B = (I_max + I_min) / 2.
         This function is only used as approximation.
@@ -292,7 +292,7 @@ class Interferometer:
             output_phase = self.output_phases[channel]
             self.sensitivity[channel] = amplitude * np.abs(np.sin(self.phase - output_phase))
 
-    def _prepare_data(self) -> tuple[dict[str, str], dict[str, Union[np.ndarray, float]]]:
+    def _prepare_data(self) -> tuple[dict[str, str], dict[str, np.ndarray | float]]:
         units: dict[str, str] = {"Interferometric Phase": "rad",
                                  "Sensitivity CH1": "V/rad",
                                  "Sensitivity CH2": "V/rad",

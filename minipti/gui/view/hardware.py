@@ -102,7 +102,7 @@ class PumpLaser(QtWidgets.QWidget):
         self.current = [Slider(minimum=PumpLaser._MIN_CURRENT, maximum=PumpLaser._MAX_CURRENT, unit="Bit"),
                         Slider(minimum=PumpLaser._MIN_CURRENT, maximum=PumpLaser._MAX_CURRENT, unit="Bit")]
         self.mode_matrix = [[QtWidgets.QComboBox() for _ in range(3)], [QtWidgets.QComboBox() for _ in range(3)]]
-        self.enable_button: typing.Union[None, QtWidgets.QPushButton] = None
+        self.enable_button: QtWidgets.QPushButton | None = None
         self._init_frames()
         self._init_buttons()
         self.frames.driver_voltage.layout().addWidget(self.driver_voltage)
@@ -216,7 +216,7 @@ class ProbeLaser(QtWidgets.QWidget):
         self.laser_mode = QtWidgets.QComboBox()
         self.photo_gain = QtWidgets.QComboBox()
         self.current_display = QtWidgets.QLabel("0 mA")
-        self.enable_button: typing.Union[None, QtWidgets.QPushButton] = None
+        self.enable_button: QtWidgets.QPushButton | None = None
         self._init_frames()
         self._init_slider()
         self._init_buttons()
@@ -334,7 +334,7 @@ class Tec(QtWidgets.QWidget):
         self.text_fields = TecTextFields(QtWidgets.QLineEdit(), QtWidgets.QLineEdit(), QtWidgets.QLineEdit(),
                                          QtWidgets.QLineEdit(), QtWidgets.QLineEdit(), QtWidgets.QLineEdit())
         self.temperature_display = QtWidgets.QLabel("NaN °C")
-        self.enable_button: typing.Union[None, QtWidgets.QPushButton] = None
+        self.enable_button: QtWidgets.QPushButton | None = None
         self._init_frames()
         self._init_text_fields()
         self._init_signals()

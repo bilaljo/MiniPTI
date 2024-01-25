@@ -11,7 +11,6 @@ import time
 from abc import abstractmethod, ABC
 from dataclasses import dataclass
 from enum import Enum
-from typing import Union
 
 from overrides import final
 
@@ -209,7 +208,7 @@ class Driver(ABC):
         threading.Thread(target=self._process_data, name=f"{self.device_name} Processing Thread", daemon=True).start()
 
     @final
-    def get_hardware_id(self) -> Union[bytes, None]:
+    def get_hardware_id(self) -> bytes | None:
         try:
             received_data: bytes = self.received_data.get(timeout=Driver._MAX_RESPONSE_TIME)
             hardware_id = Patterns.HARDWARE_ID.search(received_data)
@@ -238,7 +237,7 @@ class Driver(ABC):
     @write.register(bytes)
     @write.register(bytearray)
     @final
-    def _(self, message: Union[bytes, bytearray]) -> bool:
+    def _(self, message: bytes | bytearray) -> bool:
         if self.connected.is_set():
             self._write_buffer.put(message.decode(), block=False)
             return True

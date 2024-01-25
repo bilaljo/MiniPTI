@@ -6,7 +6,7 @@ import os
 from collections.abc import Generator
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Final, Union
+from typing import Final
 
 import h5py
 import numpy as np
@@ -25,9 +25,9 @@ class LockIn:
 
 @dataclass
 class RawData:
-    ref: Union[np.ndarray[np.uint16], None]
-    dc: Union[np.ndarray[np.uint16], None]
-    ac: Union[np.ndarray[np.int16], None]
+    ref: np.ndarray[np.uint16] | None
+    dc: np.ndarray[np.uint16] | None
+    ac: np.ndarray[np.int16] | None
 
 
 @dataclass(frozen=True)
@@ -55,7 +55,7 @@ class Decimation:
 
         self._average_period: int = 8000  # Recommended default value
         self.raw_data = RawData(None, None, None)
-        self.dc_signals: Union[np.ndarray, None] = None
+        self.dc_signals: np.ndarray | None = None
         self.lock_in: LockIn = LockIn(np.empty(shape=3), np.empty(shape=3))
         self.save_raw_data: bool = False
         self.destination_folder: str = "."
@@ -201,7 +201,7 @@ class Inversion:
     def __init__(self, response_phases=None, interferometer=None, decimation=Decimation(),
                  settings_path=f"{minipti.MODULE_PATH}/algorithm/configs/settings.csv"):
         self.response_phases: np.ndarray = response_phases
-        self.pti_signal: Union[float, np.ndarray] = 0
+        self.pti_signal: float | np.ndarray = 0
         self.settings_path: str = settings_path
         self.init_header: bool = True
         self.interferometer: interferometry.Interferometer = interferometer

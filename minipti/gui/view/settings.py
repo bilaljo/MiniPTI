@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from typing import Union
 
 import qtwidgets
 from PyQt5 import QtWidgets, QtCore, QtGui
@@ -93,7 +92,7 @@ class MeasurementSettings(QtWidgets.QGroupBox):
         QtWidgets.QGroupBox.__init__(self)
         self.setTitle("Measurement Settings")
         self.setLayout(QtWidgets.QVBoxLayout())
-        self.destination_folder_button: Union[QtWidgets.QPushButton, None] = None
+        self.destination_folder_button: QtWidgets.QPushButton | None = None
         self.destination_folder_label = QtWidgets.QLabel("")
         self.sample_settings = SampleSettings(settings_controller)
         self.measurement_options = MeasurementOptions(settings_controller)
@@ -234,9 +233,9 @@ class ValveConfiguration(QtWidgets.QGroupBox):
 
 @dataclass
 class SettingsButtons:
-    save: Union[QtWidgets.QPushButton, None] = None
-    save_as: Union[QtWidgets.QPushButton, None] = None
-    load: Union[QtWidgets.QPushButton, None] = None
+    save: QPushButton | None = None
+    save_as: QtWidgets.QPushButton | None = None
+    load: QtWidgets.QPushButton | None = None
 
 
 class PTIConfiguration(QtWidgets.QGroupBox):
