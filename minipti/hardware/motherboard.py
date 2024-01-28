@@ -1,6 +1,5 @@
 import enum
 import itertools
-import json
 import logging
 import queue
 import threading
@@ -9,7 +8,6 @@ from collections import deque
 from dataclasses import dataclass
 from typing import Final, Callable
 
-import dacite
 import numpy as np
 from fastcrc import crc16
 from overrides import override

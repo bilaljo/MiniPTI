@@ -6,7 +6,6 @@ from typing import Final
 
 from overrides import override
 
-import minipti
 from . import protocolls
 from . import serial_device
 

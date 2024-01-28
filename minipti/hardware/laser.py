@@ -1,17 +1,14 @@
 import dataclasses
-import json
 import logging
 import typing
 from abc import abstractmethod
 from dataclasses import dataclass
-from typing import Annotated, Final
+from typing import Final
 
-import dacite
 from overrides import override
 
-import minipti
 from . import protocolls
-from . import serial_device, _json_parser
+from . import serial_device
 
 
 @dataclass
