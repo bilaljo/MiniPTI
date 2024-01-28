@@ -95,7 +95,7 @@ class DAC:
 
 
 @dataclass
-class HighPowerLaserConfig:
+class HighPowerLaserConfig(serial_device.Config):
     max_current_mA: float = 0
     bit_value: int = 255
     dac: list[DAC, DAC] = dataclasses.field(default_factory=lambda: [DAC(), DAC()])
@@ -109,16 +109,18 @@ class Mode:
 
 @dataclass
 class Current:
-    max_mA: float = 0
-    bits: int = 127
+    max_mA: float = 1.02  # Smallest allowed value by hardware
+    bits: int = 255
 
 
 @dataclass
-class LowPowerLaserConfig:
+class LowPowerLaserConfig(serial_device.Config):
     current: Current = dataclasses.field(
-        default_factory=lambda: Current())
+        default_factory=lambda: Current()
+    )
     mode: Mode = dataclasses.field(
-        default_factory=lambda: Mode())
+        default_factory=lambda: Mode()
+    )
     photo_diode_gain: int = 1
 
     @staticmethod
@@ -132,10 +134,9 @@ class LowPowerLaserConfig:
         return int(-5.335 * current + 260.4)
 
 
-class Laser:
-    def __init__(self, driver: Driver):
-        self.config_path = ""
-        self._driver = driver
+class Laser(serial_device.Tool):
+    def __init__(self, driver: Driver, config_type: typing.Type[serial_device.Config]):
+        serial_device.Tool.__init__(self, config_type, driver)
         self._initialized = False
 
     @abstractmethod
@@ -149,15 +150,7 @@ class Laser:
 
     @enabled.setter
     @abstractmethod
-    def enabled(self, enabled: bool) -> None:
-        ...
-
-    @abstractmethod
-    def load_configuration(self) -> bool:
-        ...
-
-    @abstractmethod
-    def save_configuration(self) -> None:
+    def enabled(self, enable: bool) -> None:
         ...
 
     @abstractmethod
@@ -171,9 +164,7 @@ class LowPowerLaser(Laser):
     CURRENT_BITS: Final[int] = (1 << 8) - 1
 
     def __init__(self, driver: Driver):
-        Laser.__init__(self, driver)
-        self.config_path: str = f"{minipti.MODULE_PATH}/hardware/configs/laser/low_power.json"
-        self.configuration: LowPowerLaserConfig | None = None
+        Laser.__init__(self, driver, LowPowerLaserConfig)
         self._init = protocolls.ASCIIHex("CLI0000")
         self.mode = protocolls.ASCIIHex("SLM0000")
         self.photo_diode_gain = protocolls.ASCIIHex("SLG0000")
@@ -196,25 +187,6 @@ class LowPowerLaser(Laser):
         self._init.value = True
         self._initialized = True
         self._driver.write(self._init)
-
-    @override
-    def load_configuration(self) -> bool:
-        with open(self.config_path) as config:
-            try:
-                loaded_config = json.load(config)
-                self.configuration = dacite.from_dict(LowPowerLaserConfig,
-                                                      loaded_config["Low Power Laser"])
-                return True
-            except (dacite.DaciteError, json.decoder.JSONDecodeError):
-                self.configuration = LowPowerLaserConfig()
-                return False
-
-    @override
-    def save_configuration(self) -> None:
-        with open(self.config_path, "w") as configuration:
-            laser = {"Low Power Laser": dataclasses.asdict(self.configuration)}
-            configuration.write(_json_parser.to_json(laser) + "\n")
-            logging.info("Saved low power laser configuration in %s", self.config_path)
 
     @override
     def apply_configuration(self) -> None:
@@ -257,9 +229,7 @@ class HighPowerLaser(Laser):
     _PRE_RESISTOR: Final[float] = 1.6e3
 
     def __init__(self, driver: Driver):
-        Laser.__init__(self, driver)
-        self.config_path: str = f"{minipti.MODULE_PATH}/hardware/configs/laser/high_power.json"
-        self.configuration: HighPowerLaserConfig | None = None
+        Laser.__init__(self, driver, HighPowerLaserConfig)
         self._init = protocolls.ASCIIHex("CHI0000")
         self._set_voltage = protocolls.ASCIIHex("SHV0000")
         self._control_register = protocolls.ASCIIHex("SC10000")
@@ -280,24 +250,6 @@ class HighPowerLaser(Laser):
     def enabled(self, enabled: bool) -> None:
         self._enable.value = enabled
         self._driver.write(self._enable)
-
-    @override
-    def load_configuration(self) -> bool:
-        with open(self.config_path) as config:
-            try:
-                loaded_config = json.load(config)
-                self.configuration = dacite.from_dict(HighPowerLaserConfig, loaded_config["High Power Laser"])
-                return True
-            except (dacite.DaciteError, json.decoder.JSONDecodeError):
-                self.configuration = HighPowerLaserConfig()
-                return False
-
-    @override
-    def save_configuration(self) -> None:
-        with open(self.config_path, "w") as configuration:
-            laser = {"High Power Laser": dataclasses.asdict(self.configuration)}
-            configuration.write(_json_parser.to_json(laser) + "\n")
-            logging.info("Saved high power laser configuration in %s", self.config_path)
 
     @override
     def apply_configuration(self) -> None:

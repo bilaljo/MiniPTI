@@ -1,4 +1,3 @@
-import dataclasses
 import enum
 import itertools
 import json
@@ -8,7 +7,7 @@ import threading
 import time
 from collections import deque
 from dataclasses import dataclass
-from typing import Final, Any, Callable
+from typing import Final, Callable
 
 import dacite
 import numpy as np
@@ -16,48 +15,28 @@ from fastcrc import crc16
 from overrides import override
 import numpy_ringbuffer
 
-import minipti
 from . import protocolls
-from . import serial_device, _json_parser
-
-
-class MotherBoardTools:
-    _QUEUE_SIZE = 50
-
-    def __init__(self, tool: str, driver: "Driver", config_type: Any):
-        self.tool = tool
-        self.driver = driver
-        self.config_path = f"{minipti.MODULE_PATH}/hardware/configs/motherboard/{tool.casefold()}.json"
-        self.configuration: config_type | None = None
-        self._config_type = config_type
-
-    def load_configuration(self) -> None:
-        with open(self.config_path) as config:
-            loaded_config = json.load(config)
-            self.configuration = dacite.from_dict(self._config_type, loaded_config[self.tool])
-
-    def save_configuration(self) -> None:
-        with open(self.config_path, "w") as configuration:
-            valve = {self.tool: dataclasses.asdict(self.configuration)}
-            configuration.write(_json_parser.to_json(valve) + "\n")
-            logging.info("Saved %s configuration in %s", self.tool.casefold(), self.config_path)
+from . import serial_device
 
 
 @dataclass
-class ValveConfiguration:
+class ValveConfiguration(serial_device.Config):
     automatic_switch: bool
     period: int
     duty_cycle: int
 
 
-class Valve(MotherBoardTools):
+class Valve(serial_device.Tool):
     def __init__(self, driver: "Driver"):
-        MotherBoardTools.__init__(self, "Valve", driver, ValveConfiguration)
+        serial_device.Tool.__init__(self, ValveConfiguration, driver)
         self._bypass = protocolls.ASCIIHex("SBP0000")
         self._automatic_switch = threading.Event()
         self.configuration: ValveConfiguration | None = None
         self.observers: list[Callable[[bool], None]] = []
         self.load_configuration()
+        if self.configuration.automatic_switch:
+            self._automatic_switch.set()
+        self.bypass = False
 
     def automatic_valve_change(self) -> None:
         """
@@ -65,7 +44,7 @@ class Valve(MotherBoardTools):
         or not) is spent.
         """
         def switch() -> None:
-            while self.driver.connected.is_set():
+            while self._driver.connected.is_set():
                 self._automatic_switch.wait()
                 self.bypass = not self.bypass
                 if self.bypass:
@@ -87,13 +66,6 @@ class Valve(MotherBoardTools):
         else:
             self._automatic_switch.clear()
 
-    @override
-    def load_configuration(self) -> None:
-        super().load_configuration()
-        if self.configuration.automatic_switch:
-            self._automatic_switch.set()
-        self.bypass = False
-
     @property
     def bypass(self) -> bool:
         return bool(self._bypass.value)
@@ -101,7 +73,7 @@ class Valve(MotherBoardTools):
     @bypass.setter
     def bypass(self, new_value) -> None:
         self._bypass.value = new_value
-        self.driver.write(self._bypass)
+        self._driver.write(self._bypass)
         for observer in self.observers:
             observer(self.bypass)
 
@@ -134,20 +106,21 @@ class BMSData:
 
 
 @dataclass
-class BMSConfiguration:
-    use_battery: bool
+class BMSConfiguration(serial_device.Config):
+    use_battery: bool = False
 
 
-class BMS(MotherBoardTools):
+class BMS(serial_device.Tool):
     PACKAGE_SIZE: Final = 38
     SHUTDOWN = 0xFF
+    _QUEUE_SIZE = 10
 
     def __init__(self, driver: "Driver"):
-        MotherBoardTools.__init__(self, "BMS", driver, BMSConfiguration)
+        serial_device.Tool.__init__(self, BMSConfiguration, driver)
         self._do_shutdown = protocolls.ASCIIHex("SHD0001")
         self.running = threading.Event()
         self.encoded_data: tuple[bool, BMSData] | None = None
-        self._data = queue.Queue(maxsize=MotherBoardTools._QUEUE_SIZE)
+        self._data = queue.Queue(maxsize=BMS._QUEUE_SIZE)
         self.configuration: BMSConfiguration | None = None
         self.load_configuration()
 
@@ -189,26 +162,30 @@ class BMS(MotherBoardTools):
         return self._data.empty()
 
     def do_shutdown(self) -> None:
-        self.driver.write(self._do_shutdown)
+        self._driver.write(self._do_shutdown)
 
-    def load_configuration(self) -> None:
-        super().load_configuration()
+    @override
+    def load_configuration(self) -> bool:
+        if not super().load_configuration():
+            return False
         if self.configuration.use_battery:
             self.running.set()
         else:
             self.running.clear()
+        return True
 
 
 @dataclass
-class PumpConfiguration:
+class PumpConfiguration(serial_device.Config):
     duty_cycle: int
 
 
-class Pump(MotherBoardTools):
+class Pump(serial_device.Tool):
     MAX_DUTY_CYCLE: Final = 0xFFFF
 
     def __init__(self, driver: "Driver"):
-        MotherBoardTools.__init__(self, "Pump", driver, PumpConfiguration)
+        serial_device.Tool.__init__(self, PumpConfiguration, driver)
+        self.driver = driver
         self._duty_cycle_command = protocolls.ASCIIHex("SDP0000")
         self.configuration: PumpConfiguration | None = None
         self.enabled = False
@@ -225,7 +202,7 @@ class Pump(MotherBoardTools):
 
 
 @dataclass
-class DAQConfiguration:
+class DAQConfiguration(serial_device.Config):
     number_of_samples: int
     ref_period: int
 
@@ -237,7 +214,7 @@ class DAQData:
     dc_coupled: list | list[numpy_ringbuffer.RingBuffer]
 
 
-class DAQ(MotherBoardTools):
+class DAQ(serial_device.Tool):
     PACKAGE_SIZE: Final = 4104
     _SEQUENCE_SIZE: Final = 8
     RAW_DATA_SIZE: Final = PACKAGE_SIZE - _SEQUENCE_SIZE
@@ -246,8 +223,10 @@ class DAQ(MotherBoardTools):
     _AC_CHANNELS: Final = 3
     _DC_CHANNELS: Final = 4
 
+    _QUEUE_SIZE = 50
+
     def __init__(self, driver: "Driver"):
-        MotherBoardTools.__init__(self, "DAQ", driver, DAQConfiguration)
+        serial_device.Tool.__init__(self, DAQConfiguration, driver)
         self._sample_numbers = deque(maxlen=2)
         self.synchronize = False
         self.encoded_buffer = DAQData(
@@ -257,7 +236,6 @@ class DAQ(MotherBoardTools):
         self.samples_buffer = DAQData([], [[], [], []], [[], [], [], []])
         self.running = threading.Event()
         self.data = [queue.Queue(maxsize=DAQ._QUEUE_SIZE) for _ in range(3)]
-        self.configuration: DAQConfiguration | None = None
         self.load_configuration()
 
     @property
@@ -389,17 +367,12 @@ class DAQ(MotherBoardTools):
             return False
         return True
 
-    def load_configuration(self) -> None:
-        with open(self.config_path) as config:
-            loaded_config = json.load(config)
-            self.configuration = dacite.from_dict(DAQConfiguration, loaded_config["DAQ"])
-        self.update_buffer_size()
-
-    def save_configuration(self) -> None:
-        with open(self.config_path, "w") as configuration:
-            config = {"DAQ": dataclasses.asdict(self.configuration)}
-            configuration.write(_json_parser.to_json(config) + "\n")
-            logging.info("Saved DAQ configuration in %s", self.config_path)
+    @override
+    def load_configuration(self) -> bool:
+        if super().load_configuration():
+            self.update_buffer_size()
+            return True
+        return False
 
 
 class PackageIndex(enum.IntEnum):
@@ -416,6 +389,7 @@ class Driver(serial_device.Driver):
     """
     _CRC_START: Final = 4
     CRC_SIZE: Final = 4
+    _QUEUE_SIZE: Final = 50
 
     HARDWARE_ID: Final = b"0001"
     NAME: Final = "Motherboard"

@@ -1,16 +1,14 @@
 import dataclasses
 import enum
-import json
 import logging
-import os
 from dataclasses import dataclass
+from typing import Final
 
-import dacite
 from overrides import override
 
 import minipti
 from . import protocolls
-from . import serial_device, _json_parser
+from . import serial_device
 
 ROOM_TEMPERATURE_CELSIUS = 23
 ROOM_TEMPERATURE_KELVIN = 283.15
@@ -125,24 +123,21 @@ class Commands:
         self.set_enable = protocolls.ASCIIMultimap(key="SetPID_Active", index=channel, value=0)
 
 
-class Tec:
-    _NTC_DAC_CALIBRATION_VALUE = 800
+class Tec(serial_device.Tool):
+    _NTC_DAC_CALIBRATION_VALUE: Final = 800
 
-    MIN_LOOP_TIME = 10
-    MAX_LOOP_TIME = 5000
-    MIN_POWER = 0
-    MAX_POWER = 1
+    MIN_LOOP_TIME: Final = 10
+    MAX_LOOP_TIME: Final = 5000
+    MIN_POWER: Final = 0
+    MAX_POWER: Final = 1
 
     def __init__(self, channel: int, driver: Driver):
+        serial_device.Tool.__init__(self, Configuration, driver, channel)
         self.commands = Commands(channel - 1)
         self.channel = channel
         self.commands.set_ntc_dac.value = Tec._NTC_DAC_CALIBRATION_VALUE
-        self.config_path = f"{minipti.MODULE_PATH}/hardware/configs/tec/channel_{channel}.json"
         self.driver = driver
         self._enabled = False
-        self.configuration = Configuration(pid=_PID(0, 0, 0),
-                                           system_parameter=_SystemParameter(ROOM_TEMPERATURE_CELSIUS,
-                                                                             Tec.MAX_LOOP_TIME, 0))
         self.load_configuration()
 
     @property
@@ -157,34 +152,6 @@ class Tec:
 
     def set_ntc_dac(self) -> None:
         self.driver.write(self.commands.set_ntc_dac)
-
-    def load_configuration(self) -> None:
-        if not os.path.exists(self.config_path):
-            logging.warning("Config File not found")
-            logging.info("Creating a new file")
-            self.configuration = Configuration(pid=_PID(0, 0, 0),
-                                               system_parameter=_SystemParameter(ROOM_TEMPERATURE_CELSIUS,
-                                                                                 Tec.MAX_LOOP_TIME, 0))
-            self.save_configuration()
-        else:
-            with open(self.config_path) as config:
-                try:
-                    loaded_config = json.load(config)
-                    self.configuration = dacite.from_dict(Configuration, loaded_config["Tec"])
-                except (json.decoder.JSONDecodeError, dacite.WrongTypeError, dacite.exceptions.MissingValueError):
-                    # Config file corrupted or types are wrong
-                    logging.warning("Config File was corrupted or wrong")
-                    logging.info("Creating a new file")
-                    self.configuration = Configuration(pid=_PID(0, 0, 0),
-                                                       system_parameter=_SystemParameter(ROOM_TEMPERATURE_CELSIUS,
-                                                                                         Tec.MAX_LOOP_TIME, 0))
-                    self.save_configuration()
-
-    def save_configuration(self) -> None:
-        with open(self.config_path, "w") as configuration:
-            tec = {f"Tec": dataclasses.asdict(self.configuration)}
-            configuration.write(_json_parser.to_json(tec) + "\n")
-            logging.info("Saved TEC configuration of channel %d in %s", self.channel, self.config_path)
 
     def apply_configuration(self) -> None:
         self.set_pid_d_gain()
@@ -254,19 +221,23 @@ class Tec:
 
 @dataclass
 class _PID:
-    proportional_value: float
-    integral_value: float
-    derivative_value: float
+    proportional_value: float = 0
+    integral_value: float = 0
+    derivative_value: float = 0
 
 
 @dataclass
 class _SystemParameter:
-    setpoint_temperature: float
-    loop_time: int
-    max_power: float
+    setpoint_temperature: float = ROOM_TEMPERATURE_CELSIUS
+    loop_time: int = Tec.MAX_LOOP_TIME
+    max_power: float = 0
 
 
 @dataclass
-class Configuration:
-    pid: _PID
-    system_parameter: _SystemParameter
+class Configuration(serial_device.Config):
+    pid: _PID = dataclasses.field(
+        default_factory=lambda: _PID()
+    )
+    system_parameter: _SystemParameter = dataclasses.field(
+        default_factory=lambda: _SystemParameter()
+    )

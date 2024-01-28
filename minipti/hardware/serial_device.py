@@ -1,8 +1,11 @@
 import atexit
+import dataclasses
 import functools
 import itertools
+import json
 import logging
 import os
+import pathlib
 import platform
 import queue
 import re
@@ -11,7 +14,10 @@ import time
 from abc import abstractmethod, ABC
 from dataclasses import dataclass
 from enum import Enum
+from typing import Type
+import inspect
 
+import dacite
 from overrides import final
 
 if platform.system() == "Windows":
@@ -22,7 +28,7 @@ else:
 import serial
 from serial.tools import list_ports
 
-from . import protocolls
+from . import protocolls, _json_parser
 
 
 class Driver(ABC):
@@ -67,6 +73,9 @@ class Driver(ABC):
         self.close()
 
     def wait(self) -> None:
+        """
+        Blocks the current thread if not sampling is done.
+        """
         self._sampling.wait()
 
     @property
@@ -86,8 +95,13 @@ class Driver(ABC):
 
     @port_name.setter
     def port_name(self, port_name: str) -> None:
+        """
+        If a new port name is set the old port needs to be closed to free the
+        ressource and the new will be opened instead of.
+        """
         old_port_name = self.port_name
         try:
+            self.close()
             self.port_name = port_name
             self.open()
         except OSError:
@@ -96,11 +110,19 @@ class Driver(ABC):
     @property
     @abstractmethod
     def device_id(self) -> bytes:
-        ...
+        """
+        Tool ID is used to identify the serial device. It can be requested
+        and allows to map the comport to the device.
+        It is basically just a hex number.
+        """
 
     @property
     @abstractmethod
     def device_name(self) -> str:
+        """
+        Tool name is mostly for logging usage, so that the class is aware
+        about the device that is actually in use.
+        """
         ...
 
     @property
@@ -302,29 +324,41 @@ class Driver(ABC):
         """
         Serial Port Reading Implementation on Windows.
         """
-
         @final
         def _receive(self, _sender, _arg: System.IO.Ports.SerialDataReceivedEventArgs) -> None:
+            """
+            Reads all avaiable serial data and puts into the received data
+            queue. This method is not intended to be used directly. It should
+            be used as callback function for the .NET serial port class.
+
+            Parameters
+            ----------
+            _sender: .NET specific argument, needed for the callback signature
+            _arg: .NET specific argument, needed for the callback signature
+            """
             if self._serial_port.BytesToRead:
                 self.received_data.put(self._serial_port.ReadExisting())
-
     else:
         """
         Serial Port Reading Implementation on Unix.
         """
-
         @final
         def _receive(self) -> None:
             """
-            This threads blocks until data on the serial port is available. If after 5 s now data has come it is assumed
-            that the connection is lost.
+            This threads blocks until data on the serial port is available. If
+            after 5 s now data has come it is assumed that the connection is
+            lost.
+            Unlike the windows implementation (which relies on .NET) this is
+            method is intented to be called directly. However, it should not be
+            used directly but rather in a different thread to avoid blocking.
+            It is basically an own event loop that gets blocked if now data
+            is available (read is blocking system call if nothing is read).
             """
             while self.connected.is_set():
                 received = os.read(self._file_descriptor, Driver._IO_BUFFER_SIZE)
                 if not received:
                     logging.error("Connection to %s lost", self.device_name)
                     self._file_descriptor = -1
-                    self._is_found = False
                     self.connected.clear()
                 else:
                     self.received_data.put(received.decode())
@@ -344,8 +378,8 @@ class Driver(ABC):
     @final
     def encode_data(self) -> None:
         """
-        Encodes incoming data of the serial device. Each package has a package identifier, to decide the decoding
-        algorithm of it.
+        Encodes incoming data of the serial device. Each package has a package
+        identifier, to decide the decoding algorithm of it.
         """
         try:
             received_data: str = self._package_buffer + self.get_data()
@@ -366,8 +400,57 @@ class Driver(ABC):
 
 
 @dataclass
-class Data:
+class Data(ABC):
     ...
+
+
+@dataclass
+class Config(ABC):
+    ...
+
+
+class Tool(ABC):
+    def __init__(self, configuration_type: Type[Config], driver: Driver, index: int | None = None):
+        self._driver = driver
+        self.configuration: Config = Config()
+        self._name = self.__class__.__name__
+        self._config_name = re.sub(r"\B([A-Z][a-z])", r" \1", self._name)
+        self._config_dir = pathlib.Path(inspect.getfile(self.__class__)).stem
+        base_path = f"{pathlib.Path(__file__).parent}/configs/{self._config_dir}"
+        if index is not None:
+            file_name = f"{self._config_name.casefold().replace(' ', '_')}_{index}.json"
+        else:
+            file_name = f"{self._config_name.casefold().replace(' ', '_')}.json"
+        self.config_path = f"{base_path}/{file_name}"
+        self._config_type: Type[Config] = configuration_type
+
+    def load_configuration(self) -> bool:
+        try:
+            with open(self.config_path) as config:
+                loaded_config = json.load(config)
+                self.configuration = dacite.from_dict(
+                    self._config_type,
+                    loaded_config[self._config_name]
+                )
+                return True
+        except (dacite.DaciteError, json.decoder.JSONDecodeError, FileNotFoundError):
+            self.configuration = self._config_type()
+            logging.error(
+                "Could not load %s because the config is invalid",
+                self._config_name
+            )
+            return False
+
+    @final
+    def save_configuration(self) -> None:
+        with open(self.config_path, "w") as configuration:
+            config = {self._config_name: dataclasses.asdict(self.configuration)}
+            configuration.write(_json_parser.to_json(config) + "\n")
+            logging.info(
+                "Saved %s configuration in %s",
+                self._config_name,
+                self.config_path
+            )
 
 
 class Error(Enum):
