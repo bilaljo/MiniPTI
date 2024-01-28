@@ -219,8 +219,7 @@ class Toolbar(interface.Toolbar):
         destination_folder = QtWidgets.QFileDialog.getExistingDirectory(
             self.view,
             "Destination Folder",
-            self.destination_folder.folder,
-            QtWidgets.QFileDialog.ShowDirsOnly
+            options=QtWidgets.QFileDialog.Option.DontUseNativeDialog
         )
         if destination_folder:
             self.destination_folder.folder = destination_folder

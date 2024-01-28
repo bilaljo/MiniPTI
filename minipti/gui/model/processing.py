@@ -41,7 +41,6 @@ class Calculation:
         self.pti = PTI(decimation, algorithm.pti.Inversion(decimation=decimation))
         self.pti.inversion.interferometer = self.interferometer
         self.interferometer_characterization = algorithm.interferometry.Characterization(self.interferometer)
-        self._destination_folder = os.getcwd()
         signals.GENERAL_PURPORSE.destination_folder_changed.connect(self._update_destination_folder)
         signals.DAQ.samples_changed.connect(self._update_decimation_average_period)
         signals.CALCULATION.settings_path_changed.connect(self.update_settings_path)
@@ -53,7 +52,7 @@ class Calculation:
         self.interferometer_characterization.destination_folder = folder
         self.pti.inversion.destination_folder = folder
         self.pti.decimation.destination_folder = folder
-        self._destination_folder = folder
+        self.interferometer.destination_folder = folder
 
     def _update_decimation_average_period(self, samples: int) -> None:
         self.pti.decimation.average_period = samples
