@@ -1,5 +1,5 @@
 {
-    "use": false,
+    "use": true,
     "GUI": {
         "window_title": "MiniPTI Interferometry",
         "logging": {
@@ -95,6 +95,7 @@
                 "laser_driver": false
             },
             "pump": false
-        }
+        },
+        "live_plot_size": 100
     }
 }
