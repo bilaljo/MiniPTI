@@ -308,7 +308,7 @@ class Valve(Serial):
         self.init_headers = True
         while self.driver.connected.is_set():
             self.driver.wait()
-            if configuration.GUI.save.valve:
+            if self.driver.sampling and configuration.GUI.save.valve:
                 self._save_data(self.bypass)
     
     @override
