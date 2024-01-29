@@ -245,4 +245,4 @@ class TestSynchronizeWithRef(DriverTests):
         self.driver.daq.synchronize_with_ref()
         ref = self.driver.daq.encoded_buffer.ref_signal
         ref_period = self.driver.daq.configuration.ref_period // 2
-        assert not np.sum(itertools.islice(ref, ref_period))
+        assert not sum(itertools.islice(ref, ref_period))
