@@ -72,7 +72,7 @@ class MeasurementOptions(QtWidgets.QWidget):
         sub_layout.setLayout(QtWidgets.QHBoxLayout())
         sub_layout.layout().addWidget(self.common_mode_noise_rejection)
         self.common_mode_noise_rejection.stateChanged.connect(self.controller.update_common_mode_noise_reduction)
-        self.common_mode_noise_rejection.setChecked(True)
+        self.common_mode_noise_rejection.setChecked(False)
         sub_layout.layout().addWidget(self.common_mode_noise_rejection_label)
         self.layout().addWidget(sub_layout)
         self.save_raw_data = qtwidgets.AnimatedToggle()

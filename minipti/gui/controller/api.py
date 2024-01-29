@@ -325,6 +325,8 @@ class Settings(interface.Settings):
         self._settings_table = model.processing.SettingsTable()
         self.view = view.settings.SettingsWindow(self)
         self.last_file_path = os.getcwd()
+        self.calculation_model.set_common_mode_noise_reduction(False)
+        self.view.measurement_configuration.measurement_options.common_mode_noise_rejection.setChecked(False)
         if model.configuration.GUI.settings.pump:
             self.view.pump_configuration.enable.setChecked(True)
         self.fire_configuration_change()
