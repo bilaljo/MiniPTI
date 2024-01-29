@@ -269,7 +269,11 @@ class DAQ(serial_device.Tool):
         Creates a package of samples that represents approximately 1 s data. It contains 8000
         samples.
         """
-        if sum(self.samples_buffer.ref_signal[:self.configuration.ref_period // 2]):
+        ref_begin = itertools.islice(
+            self.samples_buffer.ref_signal,
+            self.configuration.ref_period // 2
+        )
+        if sum(ref_begin):
             logging.warning("Not synchron with reference signal")
             self.reset()
             return
