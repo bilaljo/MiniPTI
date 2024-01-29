@@ -819,6 +819,7 @@ class Tec(Serial):
         self.driver = driver
         self.tec = self.driver.tec[channel]
         self.tec_signals = signals.TEC[channel]
+        self._tec_path = ""
 
     @property
     def connected(self) -> bool:
@@ -930,7 +931,7 @@ class Tec(Serial):
     @override
     def _save_data(self, received_data) -> None:
         if self._init_headers:
-            tec_path = f"{self._destination_folder}/{minipti.path_prefix}_tec.csv"
+            self._tec_path = f"{self._destination_folder}/{minipti.path_prefix}_tec.csv"
             units = {
                 "Time": "H:M:S",
                 "PWM Duty Cycle Pump Laser": "%",
@@ -943,7 +944,7 @@ class Tec(Serial):
                 "Set Point Temperature Probe Laser": "°C"
             }
             pd.DataFrame(units, index=["Y:M:D"]).to_csv(
-                tec_path, index_label="Date"
+                self._tec_path, index_label="Date"
             )
             self._init_headers = False
         now = datetime.now()
@@ -961,7 +962,7 @@ class Tec(Serial):
         tec_data_frame = pd.DataFrame(
             tec_data, index=[str(now.strftime("%Y-%m-%d"))]
         )
-        pd.DataFrame(tec_data_frame).to_csv(tec_path, header=False, mode="a")
+        pd.DataFrame(tec_data_frame).to_csv(self._tec_path, header=False, mode="a")
 
 
 @dataclass
