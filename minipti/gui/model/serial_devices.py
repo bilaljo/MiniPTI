@@ -150,6 +150,7 @@ class BMS(Serial):
         self._destination_folder = "."
         self.driver = driver
         self.driver.bms.configuration.use_battery = configuration.GUI.battery.use
+        self._bms_path = ""
 
     def shutdown_procedure(self) -> None:
         self.shutdown()
@@ -206,7 +207,7 @@ class BMS(Serial):
     @override
     def _save_data(self, received_data) -> None:
         if self.init_headers:
-            bms_path = f"{self._destination_folder}/{minipti.path_prefix}_BMS.csv"
+            self._bms_path = f"{self._destination_folder}/{minipti.path_prefix}_BMS.csv"
             units = {
                 "Time": "H:M:S",
                 "External DC Power": "bool",
@@ -220,7 +221,7 @@ class BMS(Serial):
                 "Remaining Charge Capacity": "mAh"
             }
             pd.DataFrame(units, index=["Y:M:D"]).to_csv(
-                bms_path,
+                self._bms_path,
                 index_label="Date"
             )
             self.init_headers = False
@@ -232,7 +233,7 @@ class BMS(Serial):
             output_data,
             index=[str(now.strftime("%Y-%m-%d"))]
         )
-        bms_data_frame.to_csv(bms_path, header=False, mode="a")
+        bms_data_frame.to_csv(self._bms_path, header=False, mode="a")
 
 
 class Valve(Serial):
@@ -240,6 +241,7 @@ class Valve(Serial):
         Serial.__init__(self, driver)
         self.driver = driver
         self.driver.valve.observers.append(lambda x: signals.VALVE.bypass.emit(x))
+        self._valve_path = ""
 
     @property
     def period(self) -> int:
@@ -311,11 +313,11 @@ class Valve(Serial):
     
     @override
     def _save_data(self, received_data) -> None:
-        valve_path = f"{self._destination_folder}/{minipti.path_prefix}_gas.csv"
         if self.init_headers:
+            self._valve_path = f"{self._destination_folder}/{minipti.path_prefix}_gas.csv"
             units = {"Time": "H:M:S", "Bypass": "bool"}
             pd.DataFrame(units, index=["Y:M:D"]).to_csv(
-                valve_path,
+                self._valve_path,
                 index_label="Date"
             )
             self.init_headers = False
@@ -328,11 +330,7 @@ class Valve(Serial):
             output_data,
             index=[str(now.strftime("%Y-%m-%d"))]
         )
-        output_data_data_frame.to_csv(
-            self._destination_folder + "/gas.csv",
-            header=False,
-            mode="a"
-        )
+        output_data_data_frame.to_csv(self._valve_path, header=False, mode="a")
         time.sleep(1)
 
 
@@ -414,6 +412,7 @@ class Laser(Serial):
             default_notification_icon=f"{minipti.MODULE_PATH}/gui/images/hardware/laser/off.svg",
             default_notification_application_name="Laser Driver"
         )
+        self._laser_path = ""
 
     @property
     @abstractmethod
@@ -460,7 +459,7 @@ class Laser(Serial):
     @override
     def _save_data(self, received_data) -> None:
         if self._init_headers:
-            laser_path = f"{self._destination_folder}/{minipti.path_prefix}_laser.csv"
+            self._laser_path = f"{self._destination_folder}/{minipti.path_prefix}_laser.csv"
             units = {"Time": "H:M:S",
                      "Pump Laser Enabled": "bool",
                      "Pump Laser Voltage": "V",
@@ -469,7 +468,7 @@ class Laser(Serial):
                      "Probe Laser Current": "mA"
                     }
             pd.DataFrame(units, index=["Y:M:D"]).to_csv(
-                laser_path,
+                self._laser_path,
                 index_label="Date"
             )
             self._init_headers = False
@@ -487,7 +486,7 @@ class Laser(Serial):
             index=[str(now.strftime(r"%Y-%m-%d"))]
         )
         pd.DataFrame(laser_data_frame).to_csv(
-            laser_path, mode="a", header=False
+            self._laser_path, mode="a", header=False
         )     
 
     def fire_configuration_change(self) -> None:

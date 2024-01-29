@@ -11,7 +11,6 @@ from typing import Final, Callable
 import numpy as np
 from fastcrc import crc16
 from overrides import override
-import numpy_ringbuffer
 
 from . import protocolls
 from . import serial_device
@@ -207,9 +206,9 @@ class DAQConfiguration(serial_device.Config):
 
 @dataclass
 class DAQData:
-    ref_signal: list | numpy_ringbuffer.RingBuffer
-    ac_coupled: list | list[numpy_ringbuffer.RingBuffer]
-    dc_coupled: list | list[numpy_ringbuffer.RingBuffer]
+    ref_signal: list | deque
+    ac_coupled: list | list[deque]
+    dc_coupled: list | list[deque]
 
 
 class DAQ(serial_device.Tool):
@@ -228,9 +227,9 @@ class DAQ(serial_device.Tool):
         self._sample_numbers = deque(maxlen=2)
         self.synchronize = False
         self.encoded_buffer = DAQData(
-            numpy_ringbuffer.RingBuffer(capacity=DAQ.ENCODED_DATA_SIZE, dtype=np.int8),
-            [numpy_ringbuffer.RingBuffer(capacity=DAQ.ENCODED_DATA_SIZE, dtype=np.int16) for _ in range(3)],
-            [numpy_ringbuffer.RingBuffer(capacity=DAQ.ENCODED_DATA_SIZE, dtype=np.uint16) for _ in range(4)])
+            deque(maxlen=DAQ.ENCODED_DATA_SIZE),
+            [deque(maxlen=DAQ.ENCODED_DATA_SIZE) for _ in range(3)],
+            [deque(maxlen=DAQ.ENCODED_DATA_SIZE) for _ in range(4)])
         self.samples_buffer = DAQData([], [[], [], []], [[], [], [], []])
         self.running = threading.Event()
         self.data = [queue.Queue(maxsize=DAQ._QUEUE_SIZE) for _ in range(3)]
@@ -270,7 +269,7 @@ class DAQ(serial_device.Tool):
         Creates a package of samples that represents approximately 1 s data. It contains 8000
         samples.
         """
-        if np.sum(self.encoded_buffer.ref_signal[:self.configuration.ref_period // 2]):
+        if sum(self.samples_buffer.ref_signal[:self.configuration.ref_period // 2]):
             logging.warning("Not synchron with reference signal")
             self.reset()
             return
@@ -339,7 +338,7 @@ class DAQ(serial_device.Tool):
         """
         logging.warning("Trying to synchronise")
         falling_edge = np.where(np.diff(self.encoded_buffer.ref_signal) == -1)[0][0]
-        for i in range(falling_edge + 1):
+        for _ in range(falling_edge + 1):
             self.encoded_buffer.ref_signal.popleft()
             for channel in range(3):
                 self.encoded_buffer.ac_coupled[channel].popleft()
@@ -353,9 +352,10 @@ class DAQ(serial_device.Tool):
         self._sample_numbers = deque(maxlen=2)
         self.synchronize = True
         self.encoded_buffer = DAQData(
-            numpy_ringbuffer.RingBuffer(capacity=DAQ.ENCODED_DATA_SIZE, dtype=np.int8),
-            [numpy_ringbuffer.RingBuffer(capacity=DAQ.ENCODED_DATA_SIZE, dtype=np.int16) for _ in range(3)],
-            [numpy_ringbuffer.RingBuffer(capacity=DAQ.ENCODED_DATA_SIZE, dtype=np.uint16) for _ in range(4)])
+            deque(maxlen=DAQ.ENCODED_DATA_SIZE),
+            [deque(maxlen=DAQ.ENCODED_DATA_SIZE) for _ in range(3)],
+            [deque(maxlen=DAQ.ENCODED_DATA_SIZE) for _ in range(4)]
+        )
         self.samples_buffer = DAQData([], [[], [], []], [[], [], [], []])
 
     def _check_package_difference(self) -> bool:

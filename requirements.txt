@@ -22,4 +22,3 @@ qtpy==2.4.1
 notify-py==0.3.42
 tqdm==4.66.1
 Pyarrow==15.0.0
-numpy-ringbuffer==0.2.2
