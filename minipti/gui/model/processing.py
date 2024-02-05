@@ -84,9 +84,9 @@ class LiveCalculation(Calculation):
         now = datetime.now()
         date = str(now.strftime(r"%Y%m%d"))
         time = str(now.strftime(r"%H%M%S"))
-        minipti.path_prefix = f" {date}_{time}"
+        minipti.path_prefix = f"{date}_{time}"
         threading.Thread(target=self._run_calculation, name="PTI Inversion", daemon=True).start()
-        # threading.Thread(target=self._run_characterization, name="Characterisation", daemon=True).start()
+        threading.Thread(target=self._run_characterization, name="Characterisation", daemon=True).start()
 
     def set_raw_data_saving(self, save_raw_data: bool) -> None:
         self.pti.decimation.save_raw_data = save_raw_data
