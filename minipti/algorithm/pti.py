@@ -1,6 +1,7 @@
 """
 API for PTI Inversion and Decimation.
 """
+import itertools
 import logging
 import os
 from collections.abc import Generator
@@ -49,8 +50,6 @@ class Decimation:
     SAMPLE_PERIOD: Final = 8e3
     REF_PERIOD: Final = 100  # Samples
 
-    UNTIL_MICRO_SECONDS = -3
-
     def __init__(self):
 
         self._average_period: int = 8000  # Recommended default value
@@ -63,6 +62,7 @@ class Decimation:
         self.init_header: bool = True
         self.use_common_mode_noise_reduction = False
         self.configuration = _utilities.load_configuration(DecimationSettings, "pti", "decimation")
+        self._index = itertools.count()
         self._update_lock_in_look_up_table()
 
     @property
@@ -89,12 +89,11 @@ class Decimation:
 
     def save(self) -> None:
         with h5py.File(f"{self.destination_folder}/{minipti.path_prefix}_raw_data.hdf5", "a") as h5f:
-            now = datetime.now()
-            time_stamp = str(now.strftime("%Y-%m-%d %H:%M:%S:%S.%f")[:Decimation.UNTIL_MICRO_SECONDS])
-            h5f.create_group(time_stamp)
-            h5f[time_stamp]["Ref"] = self.raw_data.ref
-            h5f[time_stamp]["AC"] = self.raw_data.ac
-            h5f[time_stamp]["DC"] = self.raw_data.dc
+            i = next(self._index)
+            h5f.create_group(i)
+            h5f[i]["Ref"] = self.raw_data.ref
+            h5f[i]["AC"] = self.raw_data.ac
+            h5f[i]["DC"] = self.raw_data.dc
 
     def calculate_dc(self) -> None:
         """

@@ -4,8 +4,8 @@
             "characterization": {
                 "use_default_settings": true,
                 "keep_settings": true,
-                "number_of_steps": 10,
-                "min_difference": 0.01
+                "number_of_steps": 100,
+                "min_difference": 0.001
             },
             "interferometer": null
         },

@@ -190,7 +190,6 @@ class InterferometricPhase(DAQPlots):
 
 
 def sensitivity_offline(data: np.ndarray) -> None:
-    fig = plt.figure()
     for channel in range(3):
         plt.plot(data[f"Sensitivity CH{channel + 1}"], label=f"CH{channel + 1}")
     plt.grid()
@@ -250,15 +249,15 @@ def pti_signal_offline(data: dict[str]) -> None:
     except KeyError:
         pass
 
-
 def interferometer_characterisation(data: pd.DataFrame) -> None:
-    fig, axs = plt.subplots(2, 2)
+    fig, axs = plt.subplots(3, 2)
     fig.canvas.manager.set_window_title("Interferometer Characterisation")
     for channel in range(2, 4):
-        axs[0, 0].plot(
+        axs[0, 0].scatter(
             data.index,
             data[f"Output Phase CH{channel}"],
-            label=f"CH{channel}"
+            label=f"CH{channel}",
+            s=2
         )
         axs[0, 1].hist(
             data[f"Output Phase CH{channel}"],
@@ -266,7 +265,7 @@ def interferometer_characterisation(data: pd.DataFrame) -> None:
             label=f"CH{channel}"
         )
     for channel in range(1, 4):
-        axs[1, 0].plot(
+        axs[1, 0].scatter(
             data.index,
             data[f"Amplitude CH{channel}"],
             label=f"CH{channel}"
@@ -275,7 +274,17 @@ def interferometer_characterisation(data: pd.DataFrame) -> None:
             data[f"Amplitude CH{channel}"], bins=int(np.sqrt(len(data))),
             label=f"CH{channel}"
         )
-        for i in range(2):
+        axs[2, 0].scatter(
+            data.index,
+            data[f"Offset CH{channel}"],
+            label=f"CH{channel}",
+            s=2
+        )
+        axs[2, 1].hist(
+            data[f"Offset CH{channel}"], bins=int(np.sqrt(len(data))),
+            label=f"CH{channel}"
+        )
+        for i in range(3):
             axs[i, 0].set_xlabel("Time Stamp [s]")
             axs[i, 1].set_ylabel("Count")
             axs[i, 0].grid()
@@ -284,8 +293,10 @@ def interferometer_characterisation(data: pd.DataFrame) -> None:
             axs[i, 1].legend()
         axs[0, 1].set_xlabel("Output Phase [deg]")
         axs[1, 1].set_xlabel("Amplitude [V]")
+        axs[2, 1].set_xlabel("Amplitude [V]")
         axs[0, 0].set_ylabel("Output Phase [deg]")
         axs[1, 0].set_ylabel("Amplitude [V]")
+        axs[2, 0].set_ylabel("Offset [V]")
         plt.show(block=False)
 
 

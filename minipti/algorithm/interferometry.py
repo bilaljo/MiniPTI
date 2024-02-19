@@ -1,11 +1,11 @@
 """
 API for characterisation and phases of an interferometer.
 """
+import collections
 import logging
 import os
 import threading
 import typing
-from collections import defaultdict
 from collections.abc import Generator
 from dataclasses import dataclass
 from datetime import datetime
@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 from scipy import optimize, linalg
 from tqdm import trange
+import cvxpy as cp
 
 import minipti
 from minipti.algorithm import _utilities
@@ -229,7 +230,7 @@ class Interferometer:
                 x0=x0,
                 loss="soft_l1",
                 jac=self._error_function_df,
-                tr_solver="exact"
+                tr_solver="exact",
             ).x
         return res % (2 * np.pi)
 
@@ -238,7 +239,7 @@ class Interferometer:
         Impelements the HEFS algorithm which is a vetorisized phase retrieval algorithm based on
         https://opg.optica.org/josaa/fulltext.cfm?uri=josaa-34-1-87&id=356050
         """
-        D = self.intensities - np.mean(self.intensities, axis=0)
+        D = self.intensities - self.offsets
         D = D.T
         _, _, V = np.linalg.svd(D)
         x, y = V[0], V[1]
@@ -405,13 +406,9 @@ class Characterization:
 
     MIN_DIFFERENCE: Final = CONFIGURATION.min_difference
 
-    def __init__(self, interferometer=Interferometer(), use_configuration=CONFIGURATION.use_default_settings,
-                 use_parameters=CONFIGURATION.keep_settings):
+    def __init__(self, interferometer=Interferometer()):
         self.interferometer = interferometer
         self.tracking_phase = []
-        self._occurred_phases = np.full(Characterization.STEP_SIZE, 0)
-        self.use_configuration = use_configuration
-        self.use_parameters = use_parameters
         self.time_stamp = 0
         self.event = threading.Event()
         self.destination_folder = os.getcwd()
@@ -420,12 +417,12 @@ class Characterization:
         self.progress_observer = []
         self.path_prefix = ""
         self._attempts = 0
+        self._output_phase_uncertantity = 0
 
     def __repr__(self) -> str:
         class_name = self.__class__.__name__
-        representation = f"{class_name}(use_settings={self.use_configuration}," \
-                         f"destination_folder={self.destination_folder}," \
-                         f" init_headers={self.init_headers}, tracking_phase={np.array(self.tracking_phase)}" \
+        representation = f"{class_name}(destination_folder={self.destination_folder}," \
+                         f" init_headers={self.init_headers}" \
                          f" time_stamp={self.time_stamp}, interferometer={self.interferometer})"
         return representation
 
@@ -441,7 +438,8 @@ class Characterization:
 
     @property
     def enough_values(self) -> bool:
-        return np.all(self._occurred_phases)
+        return (np.sum(np.histogram(self.tracking_phase, Characterization.STEP_SIZE)[0])
+                >= 0.95 * Characterization.STEP_SIZE) and len(self.tracking_phase) >= Characterization.STEP_SIZE
 
     def calculate_symmetry(self) -> None:
         sensitivity = np.empty(shape=(3, len(self.interferometer.phase)))
@@ -452,8 +450,8 @@ class Characterization:
         total_sensitivity = np.sum(sensitivity, axis=0)
         absolute_symmetry = np.min(total_sensitivity) / np.max(total_sensitivity) * 100
         relative_symmetry = absolute_symmetry / Interferometer.OPTIMAL_SYMMETRY * 100
-        self.interferometer.absolute_symmetry = absolute_symmetry
-        self.interferometer.relative_symmetry = relative_symmetry
+        self.interferometer.symmetry.absolute = absolute_symmetry
+        self.interferometer.symmetry.relative = relative_symmetry
 
     def characterise(self, live=False, file_path="") -> None:
         """
@@ -467,6 +465,7 @@ class Characterization:
             # The output data has no headers and relies on this order
             for channel in range(1, 4):
                 units[f"Output Phase CH{channel}"] = "deg"
+                units[f"Output Phase StdDev CH{channel + 1}"] = "deg"
                 units[f"Amplitude CH{channel}"] = "V"
                 units[f"Offset CH{channel}"] = "V"
             units["Symmetry"] = "%"
@@ -498,16 +497,13 @@ class Characterization:
             phase (float): The occurred interferometric phase in rad.
         """
         self.time_stamp += 1
-        if phase > 2 * np.pi:
-            phase %= 2 * np.pi  # Phase is out of range
-        k = int(Characterization.STEP_SIZE * phase / (2 * np.pi))
-        self._occurred_phases[k] = 1
+        self.tracking_phase.append(phase)
 
     def clear(self) -> None:
         """
         Resets the characterisation buffers.
         """
-        self._occurred_phases = np.full(Characterization.STEP_SIZE, 0)
+        self.tracking_phase = []
         self.event.clear()
 
     def _load_settings(self) -> None:
@@ -520,20 +516,21 @@ class Characterization:
     def _estimate_settings(self, dc_signals: np.ndarray) -> None:
         self.interferometer.calculate_offsets(dc_signals)
         self.interferometer.calculate_amplitudes(dc_signals)
-        self.interferometer.output_phases = np.array([0, 2 * np.pi / 3, 4 * np.pi / 3])
-        self.use_parameters = False
+        self.interferometer.intensities = dc_signals
+        self.interferometer.calculate_phase()
+        self._characterise_interferometer_2()
 
     def process(self, dc_signals: np.ndarray) -> Generator[int, None, None]:
         last_index: int = 0
         data_length: int = dc_signals.size // self.interferometer.dimension
-        self._estimate_settings(dc_signals)
-        self.interferometer.intensities = dc_signals
+        self._estimate_settings(dc_signals[:1000])  # We estimate with the first 1000 avaiable seconds
         for i in range(data_length):
             self.interferometer.intensities = dc_signals[i]
             self.interferometer.calculate_phase()
             self.add_phase(self.interferometer.phase)
             if self.enough_values:
                 self.interferometer.intensities = dc_signals[last_index:i + 1]
+                self._estimate_settings(dc_signals[last_index:i + 1])
                 self._characterise()
                 self.calculate_symmetry()
                 last_index = i + 1
@@ -549,99 +546,71 @@ class Characterization:
             else:
                 raise CharacterizationError("Not enough values for characterisation")
 
-    def _characterise_interferometer(
-            self,
-            update_amplitude_offsets=True,
-            guess=False
-            ) -> float:
-        """
-        Calculates with the least squares method the output phases and min and max intensities for
-        every channel. If no min/max values and output phases are given (either none or nan) the
-        function try to estimate them best-possible.
-        """
-        output_phases = []
-        amplitudes = []
-        offsets = []
-        cost = 0
+    def _characterise_interferometer_2(self) -> np.ndarray:
+        def transform(linear_result) -> tuple[float, float, float]:
+            return (np.arctan2(linear_result[2], linear_result[1]) % (2 * np.pi),
+                    np.sqrt(linear_result[1] ** 2 + linear_result[2] ** 2),
+                    linear_result[0])
 
-        def add_values(result):
-            output_phases.append((np.arctan2(result[2], result[1])) % (2 * np.pi))
-            amplitudes.append(np.sqrt(result[1] ** 2 + result[2] ** 2))
-            offsets.append(result[0])
-
+        x = cp.Variable(3)
+        cost = []
         cosine_values = np.cos(self.interferometer.phase)
         sine_values = np.sin(self.interferometer.phase)
-        parameters = np.array([np.ones(cosine_values.shape), cosine_values, sine_values]).T
-
-        if guess:
-            results, _, _, _ = linalg.lstsq(parameters, self.interferometer.intensities.T[0],
-                                            check_finite=False)
-            output_phase = np.arctan2(results[2], results[1]) % (2 * np.pi)
-            # We shift the phase so that channel 1 has phase shift 0
-            self.interferometer.phase = self.interferometer.phase - output_phase
-            cosine_values = np.cos(self.interferometer.phase)
-            sine_values = np.sin(self.interferometer.phase)
-            parameters = np.array([np.ones(cosine_values.shape), cosine_values, sine_values]).T
-
-        else:
-            results, residuen, _, _ = linalg.lstsq(np.array([np.ones(cosine_values.shape), cosine_values]).T,
-                                            self.interferometer.intensities.T[0], check_finite=False)
-            cost += np.sum(residuen)
-        amplitudes.append(results[0])
-        offsets.append(results[1])
-        output_phases.append(0)
-
-        for i in range(1, self.interferometer.dimension):
-            results, residuen, _, _ = linalg.lstsq(
-                parameters,
-                self.interferometer.intensities.T[i],
-                check_finite=False
-            )
-            cost += np.sum(residuen)
-            add_values(results)
-
-        self.interferometer.output_phases = output_phases
-        if update_amplitude_offsets:
-            self.interferometer.amplitudes = amplitudes
-            self.interferometer.offsets = offsets
-        return cost
+        desing_matrix = np.array([np.ones(cosine_values.shape), cosine_values, sine_values]).T
+        for channel in range(3):
+            target = self.interferometer.intensities.T[channel]
+            objective = cp.Minimize(cp.sum_squares(desing_matrix @ x - target))
+            constraints = [x[0] <= 1.1 * np.mean(target),
+                           x[0] >= 0.9 * np.mean(target),
+                           cp.SOC(x[0], x[1:3]),
+                           ]
+            if channel == 0:
+                constraints.append(x[2] == 0)
+            cp.Problem(objective, constraints).solve()
+            output_phase, amplitude, offset = transform(x.value)
+            if channel == 0:
+                output_phase = 0
+            self.interferometer.output_phases[channel] = output_phase
+            self.interferometer.amplitudes[channel] = amplitude
+            self.interferometer.offsets[channel] = offset
+            cost.append((desing_matrix @ x.value - target))
+        cost = np.array(cost)
+        return np.arctan2(np.linalg.norm(cost[2]), np.linalg.norm(cost[1])) % (2 * np.pi)
 
     def _characterise(self) -> None:
-        self.interferometer.calculate_phase(guess=True)
-        cost = [self._characterise_interferometer(update_amplitude_offsets=False, guess=False)]
+        self.interferometer.calculate_phase()
+        cost = [self._characterise_interferometer_2()]
         logging.info("First guess:\n%s", str(self.interferometer))
-        for i in trange(Characterization.MAX_ITERATIONS):
-            self.interferometer.calculate_phase(guess=True)
-            cost.append(self._characterise_interferometer())
-            logging.debug("Current Estimateion:\n%s", str(self.interferometer))
-            if np.abs(cost[i] - cost[i + 1]) / (cost[0]) < Characterization.MIN_DIFFERENCE:
-                logging.info("No convergence anymore at %i", i)
-                break
+        last_output_phases = collections.deque(maxlen=2)
         for i in trange(Characterization.MAX_ITERATIONS):
             self.interferometer.calculate_phase(guess=False)
-            cost.append(self._characterise_interferometer())
+            cost.append(self._characterise_interferometer_2())
+            last_output_phases.append(self.interferometer.output_phases)
             if np.abs(cost[i] - cost[i + 1]) / (cost[0]) < Characterization.MIN_DIFFERENCE:
                 logging.info("No convergence anymore at %i", i)
                 break
+            elif cost[i + 1] > cost[i]:
+                cost.pop()
+                self.interferometer.output_phases = last_output_phases.pop()
+                logging.info("No convergence anymore at %i", i)
+                break
+        self._output_phase_uncertantity = cost[-1]
         logging.debug("Costs %s", str(cost))
         logging.info("Final values:\n%s", str(self.interferometer))
 
-    def _add_characterised_data(self, output_data: defaultdict) -> None:
+    def _add_characterised_data(self) -> dict:
+        output_data = {}
         for channel in range(3):
             output_phase_deg = np.rad2deg(self.interferometer.output_phases[channel])
-            output_data[f"Output Phase CH{channel + 1}"].append(output_phase_deg)
-            output_data[f"Amplitude CH{channel + 1}"].append(
-                self.interferometer.amplitudes[channel]
-            )
-            output_data[f"Offset CH{channel + 1}"].append(
-                self.interferometer.offsets[channel]
-            )
-        output_data["Symmetry"].append(self.interferometer.symmetry.absolute)
-        output_data["Relative Symmetry"].append(self.interferometer.symmetry.relative)
+            output_data[f"Output Phase CH{channel + 1}"] = output_phase_deg
+            output_data[f"Output Phase StdDev CH{channel + 1}"] = self._output_phase_uncertantity
+            output_data[f"Amplitude CH{channel + 1}"] = self.interferometer.amplitudes[channel]
+            output_data[f"Offset CH{channel + 1}"] = self.interferometer.offsets[channel]
+        output_data["Symmetry"] = self.interferometer.symmetry.absolute
+        output_data["Relative Symmetry"] = self.interferometer.symmetry.relative
+        return output_data
 
     def _calculate_offline(self, file_path: str):
-        output_data = defaultdict(list)
-        time_stamps = []
         data = pd.read_csv(file_path, sep=None, engine="python", skiprows=[1])
         for header in Interferometer.DC_HEADERS:
             try:
@@ -653,14 +622,13 @@ class Characterization:
             raise KeyError("Invalid key for DC values given")
         process_characterisation = self.process(dc_signals)
         for i in process_characterisation:
-            time_stamps.append(i)
-            self._add_characterised_data(output_data)
-        pd.DataFrame(output_data, index=time_stamps).to_csv(
-            f"{self.destination_folder}/Offline_Characterisation.csv",
-            mode="a",
-            index_label="Time Stamp",
-            header=False
-        )
+            output_data = self._add_characterised_data()
+            pd.DataFrame(output_data, index=[i]).to_csv(
+                f"{self.destination_folder}/Offline_Characterisation.csv",
+                mode="a",
+                index_label="Time Stamp",
+                header=False
+            )
         logging.info("Characterization finished")
         logging.info("Saved data into %s", self.destination_folder)
 
