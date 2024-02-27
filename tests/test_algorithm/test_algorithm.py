@@ -110,9 +110,7 @@ class TestCharacterisation:
     def setup(self):
         self.base_dir = f"{os.path.dirname(__file__)}/sample_data/algorithm"
         self.interferometer = minipti.algorithm.interferometry.Interferometer()
-        self.characterization = minipti.algorithm.interferometry.Characterization(interferometer=self.interferometer,
-                                                                                  use_parameters=False,
-                                                                                  use_configuration=False)
+        self.characterization = minipti.algorithm.interferometry.Characterization(interferometer=self.interferometer)
         self.phases = np.linspace(0, 2 * np.pi, 100)
         yield
 
