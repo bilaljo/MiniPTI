@@ -177,11 +177,9 @@ class Interferometer:
         if intensity is None:
             intensity = self.intensities
         if intensity.shape[0] == self.dimension:
-            maximum = 2 * np.mean(intensity, axis=1) - np.min(intensity, axis=1)
-            self.amplitudes = (maximum - np.min(intensity, axis=1)) / 2
+            self.amplitudes =  (np.max(intensity, axis=1) + np.min(intensity, axis=1)) / 2
         else:
-            maximum = 2 * np.mean(intensity, axis=0) - np.min(intensity, axis=0)
-            self.amplitudes = (maximum - np.min(intensity, axis=0)) / 2
+            self.amplitudes =  (np.max(intensity, axis=0) + np.min(intensity, axis=0)) / 2
 
     def calculate_offsets(self, intensity: np.ndarray | None = None):
         """
@@ -191,9 +189,9 @@ class Interferometer:
         if intensity is None:
             intensity = self.intensities
         if intensity.shape[0] == self.dimension:
-            self.offsets = np.mean(intensity, axis=1)
+            self.offsets =  (np.max(intensity, axis=1) - np.min(intensity, axis=1)) / 2
         else:
-            self.offsets = np.mean(intensity, axis=0)
+            self.offsets =  (np.max(intensity, axis=0) - np.min(intensity, axis=0)) / 2
 
     def _error_function(self, intensity: np.ndarray) -> typing.Callable:
         intensity_scaled = (intensity - self.offsets) / self.amplitudes
@@ -418,6 +416,7 @@ class Characterization:
         self.path_prefix = ""
         self._attempts = 0
         self._output_phase_uncertantity = 0
+        self._occured_phase = np.zeros(Characterization.STEP_SIZE)
 
     def __repr__(self) -> str:
         class_name = self.__class__.__name__
@@ -438,8 +437,10 @@ class Characterization:
 
     @property
     def enough_values(self) -> bool:
-        return (np.sum(np.histogram(self.tracking_phase, Characterization.STEP_SIZE)[0])
-                >= 0.95 * Characterization.STEP_SIZE) and len(self.tracking_phase) >= Characterization.STEP_SIZE
+        mask = np.zeros(Characterization.STEP_SIZE)
+        mask[::2] = 1
+        if np.sum(self._occured_phase * mask) >= 1 / 2 * Characterization.STEP_SIZE:
+            return True
 
     def calculate_symmetry(self) -> None:
         sensitivity = np.empty(shape=(3, len(self.interferometer.phase)))
@@ -463,9 +464,9 @@ class Characterization:
         if self.init_headers:
             units = {}
             # The output data has no headers and relies on this order
+            units[f"Standard Error"] = "V"
             for channel in range(1, 4):
                 units[f"Output Phase CH{channel}"] = "deg"
-                units[f"Output Phase StdDev CH{channel + 1}"] = "deg"
                 units[f"Amplitude CH{channel}"] = "V"
                 units[f"Offset CH{channel}"] = "V"
             units["Symmetry"] = "%"
@@ -497,7 +498,9 @@ class Characterization:
             phase (float): The occurred interferometric phase in rad.
         """
         self.time_stamp += 1
+        k = int(Characterization.STEP_SIZE / ( 2 * np.pi) * phase)
         self.tracking_phase.append(phase)
+        self._occured_phase[k] = True 
 
     def clear(self) -> None:
         """
@@ -505,6 +508,7 @@ class Characterization:
         """
         self.tracking_phase = []
         self.event.clear()
+        self._occured_phase = np.zeros(Characterization.STEP_SIZE)
 
     def _load_settings(self) -> None:
         settings = pd.read_csv(self.interferometer.settings_path, index_col="Setting")
@@ -560,24 +564,22 @@ class Characterization:
         for channel in range(3):
             target = self.interferometer.intensities.T[channel]
             objective = cp.Minimize(cp.sum_squares(desing_matrix @ x - target))
-            constraints = [x[0] <= 1.1 * np.mean(target),
-                           x[0] >= 0.9 * np.mean(target),
-                           cp.SOC(x[0], x[1:3]),
+            constraints = [#x[0] <= 1.1 * self.interferometer.offsets[channel],
+                           #x[0] >= 0.9 * self.interferometer.offsets[channel],
+                           cp.SOC(x[0], x[1:3])
                            ]
-            if channel == 0:
-                constraints.append(x[2] == 0)
             cp.Problem(objective, constraints).solve()
             output_phase, amplitude, offset = transform(x.value)
-            if channel == 0:
-                output_phase = 0
             self.interferometer.output_phases[channel] = output_phase
             self.interferometer.amplitudes[channel] = amplitude
             self.interferometer.offsets[channel] = offset
-            cost.append((desing_matrix @ x.value - target))
-        cost = np.array(cost)
-        return np.arctan2(np.linalg.norm(cost[2]), np.linalg.norm(cost[1])) % (2 * np.pi)
+            cost.append(desing_matrix @ x.value - target)
+        self.interferometer.output_phases -= self.interferometer.output_phases[0]
+        self.interferometer.output_phases %= 2 * np.pi
+        return np.linalg.norm(cost)
 
     def _characterise(self) -> None:
+        # self.interferometer.hefs()
         self.interferometer.calculate_phase()
         cost = [self._characterise_interferometer_2()]
         logging.info("First guess:\n%s", str(self.interferometer))
@@ -586,24 +588,20 @@ class Characterization:
             self.interferometer.calculate_phase(guess=False)
             cost.append(self._characterise_interferometer_2())
             last_output_phases.append(self.interferometer.output_phases)
+            logging.debug("Current estimation\n:%s", str(self.interferometer))
             if np.abs(cost[i] - cost[i + 1]) / (cost[0]) < Characterization.MIN_DIFFERENCE:
                 logging.info("No convergence anymore at %i", i)
                 break
-            elif cost[i + 1] > cost[i]:
-                cost.pop()
-                self.interferometer.output_phases = last_output_phases.pop()
-                logging.info("No convergence anymore at %i", i)
-                break
         self._output_phase_uncertantity = cost[-1]
-        logging.debug("Costs %s", str(cost))
+        logging.info("Costs %s", str(cost))
         logging.info("Final values:\n%s", str(self.interferometer))
 
     def _add_characterised_data(self) -> dict:
         output_data = {}
+        output_data[f"Standard error"] = self._output_phase_uncertantity
         for channel in range(3):
             output_phase_deg = np.rad2deg(self.interferometer.output_phases[channel])
             output_data[f"Output Phase CH{channel + 1}"] = output_phase_deg
-            output_data[f"Output Phase StdDev CH{channel + 1}"] = self._output_phase_uncertantity
             output_data[f"Amplitude CH{channel + 1}"] = self.interferometer.amplitudes[channel]
             output_data[f"Offset CH{channel + 1}"] = self.interferometer.offsets[channel]
         output_data["Symmetry"] = self.interferometer.symmetry.absolute

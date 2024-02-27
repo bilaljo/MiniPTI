@@ -256,8 +256,7 @@ def interferometer_characterisation(data: pd.DataFrame) -> None:
         axs[0, 0].scatter(
             data.index,
             data[f"Output Phase CH{channel}"],
-            label=f"CH{channel}",
-            s=2
+            label=f"CH{channel}"
         )
         axs[0, 1].hist(
             data[f"Output Phase CH{channel}"],
@@ -277,8 +276,7 @@ def interferometer_characterisation(data: pd.DataFrame) -> None:
         axs[2, 0].scatter(
             data.index,
             data[f"Offset CH{channel}"],
-            label=f"CH{channel}",
-            s=2
+            label=f"CH{channel}"
         )
         axs[2, 1].hist(
             data[f"Offset CH{channel}"], bins=int(np.sqrt(len(data))),
