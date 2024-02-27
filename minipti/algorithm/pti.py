@@ -89,9 +89,9 @@ class Decimation:
 
     def save(self) -> None:
         with h5py.File(f"{self.destination_folder}/{minipti.path_prefix}_raw_data.hdf5", "a") as h5f:
-            i = next(self._index)
+            i = str(next(self._index))
             now = datetime.now()
-            h5f.create_group(str(i))
+            h5f.create_group(i)
             h5f[i]["Time"] = str(now.strftime(r"%Y-%m-%d %H:%M:%S"))
             h5f[i]["Ref"] = self.raw_data.ref
             h5f[i]["AC"] = self.raw_data.ac
