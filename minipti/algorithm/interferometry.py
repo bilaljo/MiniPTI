@@ -189,9 +189,9 @@ class Interferometer:
         if intensity is None:
             intensity = self.intensities
         if intensity.shape[0] == self.dimension:
-            self.offsets =  (np.max(intensity, axis=1) - np.min(intensity, axis=1)) / 2
+            self.offsets = (np.max(intensity, axis=1) - np.min(intensity, axis=1)) / 2
         else:
-            self.offsets =  (np.max(intensity, axis=0) - np.min(intensity, axis=0)) / 2
+            self.offsets = (np.max(intensity, axis=0) - np.min(intensity, axis=0)) / 2
 
     def _error_function(self, intensity: np.ndarray) -> typing.Callable:
         intensity_scaled = (intensity - self.offsets) / self.amplitudes
@@ -269,7 +269,7 @@ class Interferometer:
         z = real + compl * 1.j
         self.phase = 2 * np.pi - np.angle(z) % (2 * np.pi)
 
-    def calculate_phase(self, guess=False) -> None:
+    def calculate_phase(self) -> None:
         """
         Calculated the interferometric phase with the defined characteristic parameters.
         """
@@ -278,7 +278,7 @@ class Interferometer:
         else:
             phase = []
             for i in range(self.intensities.size // self.dimension):
-                phase.append(self._calculate_phase(self.intensities[i], guess=guess)[0])
+                phase.append(self._calculate_phase(self.intensities[i])[0])
             self.phase = np.array(phase)
 
     def calculate_sensitivity(self) -> None:
@@ -437,10 +437,7 @@ class Characterization:
 
     @property
     def enough_values(self) -> bool:
-        mask = np.zeros(Characterization.STEP_SIZE)
-        mask[::2] = 1
-        if np.sum(self._occured_phase * mask) >= 1 / 2 * Characterization.STEP_SIZE:
-            return True
+        return np.sum(self._occured_phase) >= Characterization.STEP_SIZE * 0.9
 
     def calculate_symmetry(self) -> None:
         sensitivity = np.empty(shape=(3, len(self.interferometer.phase)))
@@ -498,7 +495,7 @@ class Characterization:
             phase (float): The occurred interferometric phase in rad.
         """
         self.time_stamp += 1
-        k = int(Characterization.STEP_SIZE / ( 2 * np.pi) * phase)
+        k = int(Characterization.STEP_SIZE / (2 * np.pi) * phase)
         self.tracking_phase.append(phase)
         self._occured_phase[k] = True 
 
@@ -521,7 +518,7 @@ class Characterization:
         self.interferometer.calculate_offsets(dc_signals)
         self.interferometer.calculate_amplitudes(dc_signals)
         self.interferometer.intensities = dc_signals
-        self.interferometer.calculate_phase()
+        self.interferometer.hefs()
         self._characterise_interferometer_2()
 
     def process(self, dc_signals: np.ndarray) -> Generator[int, None, None]:
@@ -555,37 +552,30 @@ class Characterization:
             return (np.arctan2(linear_result[2], linear_result[1]) % (2 * np.pi),
                     np.sqrt(linear_result[1] ** 2 + linear_result[2] ** 2),
                     linear_result[0])
-
-        x = cp.Variable(3)
         cost = []
         cosine_values = np.cos(self.interferometer.phase)
         sine_values = np.sin(self.interferometer.phase)
         desing_matrix = np.array([np.ones(cosine_values.shape), cosine_values, sine_values]).T
         for channel in range(3):
             target = self.interferometer.intensities.T[channel]
-            objective = cp.Minimize(cp.sum_squares(desing_matrix @ x - target))
-            constraints = [#x[0] <= 1.1 * self.interferometer.offsets[channel],
-                           #x[0] >= 0.9 * self.interferometer.offsets[channel],
-                           cp.SOC(x[0], x[1:3])
-                           ]
-            cp.Problem(objective, constraints).solve()
-            output_phase, amplitude, offset = transform(x.value)
+            from scipy import linalg
+            x, error, _, _ = linalg.lstsq(desing_matrix, target, check_finite=False)
+            output_phase, amplitude, offset = transform(x)
             self.interferometer.output_phases[channel] = output_phase
             self.interferometer.amplitudes[channel] = amplitude
             self.interferometer.offsets[channel] = offset
-            cost.append(desing_matrix @ x.value - target)
+            cost.append(np.linalg.norm(error))
         self.interferometer.output_phases -= self.interferometer.output_phases[0]
         self.interferometer.output_phases %= 2 * np.pi
-        return np.linalg.norm(cost)
+        return np.mean(cost)
 
     def _characterise(self) -> None:
-        # self.interferometer.hefs()
         self.interferometer.calculate_phase()
         cost = [self._characterise_interferometer_2()]
         logging.info("First guess:\n%s", str(self.interferometer))
         last_output_phases = collections.deque(maxlen=2)
         for i in trange(Characterization.MAX_ITERATIONS):
-            self.interferometer.calculate_phase(guess=False)
+            self.interferometer.calculate_phase()
             cost.append(self._characterise_interferometer_2())
             last_output_phases.append(self.interferometer.output_phases)
             logging.debug("Current estimation\n:%s", str(self.interferometer))

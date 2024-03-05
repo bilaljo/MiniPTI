@@ -116,7 +116,7 @@ class Decimation:
 
     def _calculate_decimation(self) -> None:
         self.calculate_dc()
-        if False:# self.use_common_mode_noise_reduction:
+        if True:
             self.common_mode_noise_reduction()
         self.lock_in_amplifier()
         output_data = {}
