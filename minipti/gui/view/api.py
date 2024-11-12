@@ -124,9 +124,15 @@ class MainWindow(QtWidgets.QMainWindow):
         laser.layout().addWidget(laser_widget)
         laser.layout().addWidget(laser_plot)
         tabbar = _FullSizeTab(movable=True)
-        tec = self._init_tec(channel)
         tabbar.addTab(laser, "Laser Driver")
-        tabbar.addTab(tec, "TEC Driver")
+        if channel == model.serial_devices.Tec.PROBE_LASER:
+            if model.configuration.GUI.probe_laser.tec_driver:
+                tec = self._init_tec(channel)
+                tabbar.addTab(tec, "TEC Driver")
+        else:
+            if model.configuration.GUI.pump_laser.tec_driver:
+                tec = self._init_tec(channel)
+                tabbar.addTab(tec, "TEC Driver")
         return tabbar
 
     def _init_dock_widgets(self) -> None:
