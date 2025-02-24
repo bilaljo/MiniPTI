@@ -1,0 +1,102 @@
+{
+    "use": false,
+    "GUI": {
+        "window_title": "Probe Laser",
+        "logging": {
+            "console": true,
+            "file": true
+        },
+        "battery": {
+            "use": false
+        },
+        "destination_folder": {
+            "use": true,
+            "default_path": "."
+        },
+        "settings": {
+            "use": false,
+            "measurement_settings": false,
+            "pump": false,
+            "system_settings": {
+                "interferometric": false,
+                "response_phases": false
+            }
+        },
+        "utilities": {
+            "use": false,
+            "calculate": {
+                "use": true,
+                "decimation": false,
+                "interferometry": false,
+                "response_phases": false,
+                "inversion": false,
+                "characterisation": false
+            },
+            "plot": {
+                "dc": false,
+                "interferometry": false,
+                "inversion": false,
+                "lock_in_phases": false
+            }
+        },
+        "valve": {
+            "use": false,
+            "bypass_button": false,
+            "automatic_switch": false
+        },
+        "pump": {
+            "use": false
+        },
+        "save": {
+            "daq": false,
+            "laser": true,
+            "tec": true,
+            "valve": false,
+            "pump": false,
+            "bms": false
+        },
+        "use_shutdown": false,
+        "connect": {
+            "use": true,
+            "motherboard": false,
+            "tec_driver": true,
+            "laser_driver": true
+        },
+        "probe_laser": {
+            "tec_driver": true,
+            "laser_driver": true,
+            "use": true
+        },
+        "pump_laser": {
+            "tec_driver": false,
+            "laser_driver": false,
+            "use": false
+        },
+        "plots": {
+            "interferometry": {
+                "use": false
+            },
+            "characterisation": {
+                "use": false
+            },
+            "measurement": {
+                "use": false
+            }
+        },
+        "on_run": {
+            "DAQ": false,
+            "BMS": false,
+            "pump_laser": {
+                "tec_driver": false,
+                "laser_driver": false
+            },
+            "probe_laser": {
+                "tec_driver": false,
+                "laser_driver": false
+            },
+            "pump": false
+        },
+        "live_plot_size": 1000
+    }
+}
+
